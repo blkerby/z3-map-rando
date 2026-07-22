@@ -1,0 +1,5 @@
+F2AE-F39B: flat_map16.asm (overwrites Overworld_DecompressAndDrawAllQuadrants in place)
+F39C-F52E: [FREE] (obsolete Map32 expansion routines)
+F52F-F543: flat_map16.asm (overwrites LoadSubOverlayMap32 in place)
+F544-F5E6: [FREE] (remainder of obsolete overlay loader)
+F6B1-FA70: [FREE] (obsolete Map32 pointer tables)

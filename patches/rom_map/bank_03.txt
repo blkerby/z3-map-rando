@@ -1,0 +1,1 @@
+$038000-$03E77F [FREE] (obsolete Map32 top-quadrant definition tables)

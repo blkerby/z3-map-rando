@@ -1,0 +1,9 @@
+[submodule "jpdasm"]
+	path = jpdasm
+	url = https://github.com/spannerisms/jpdasm.git
+[submodule "ALTTPRetiling"]
+	path = ALTTPRetiling
+	url = https://github.com/kjbranch/ALTTPRetiling.git
+[submodule "asar"]
+	path = asar
+	url = https://github.com/blkerby/asar.git

@@ -1,0 +1,1 @@
+This is an open source project and welcomes community contributions. The project is still largely in a planning stage, so feedback on the [plan](plans/README.md) is helpful. Playtesting the engine changes is also appreciated (see instructions [here](README.md#how-to-test-current-engine-changes)). Feel free to find us in the [Discord](https://discord.gg/Mxb5zYZeVj).

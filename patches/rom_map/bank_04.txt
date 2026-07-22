@@ -1,0 +1,1 @@
+$048000-$04E77F [FREE] (obsolete Map32 bottom-quadrant definition tables)

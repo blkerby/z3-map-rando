@@ -1,0 +1,3 @@
+$278000-$27DFFF used flat Map16 submaps 112-123
+$27E000-$27E1DF used screen-to-flat-map pointer table
+$27E1E0-$27FFFF free
