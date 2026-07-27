@@ -27,7 +27,7 @@ It is expected that playtesting will likely uncover the need for additional engi
 
 Each milestone change should end in a playable ROM. The last three milestones will all be based on the same hand-defined rearrangement. Randomized rearrangements and edge variants are deferred until after the engine work is complete.
 
-Current status: Milestones 1 through 3 are complete.
+Current status: Milestones 1 through 4 are complete.
 
 Note: Everything below is mostly raw, unreviewed AI-generated notes. Especially for the not-yet-complete milestones, it should not be taken as a solid plan of what we will actually end up doing.
 
@@ -113,7 +113,7 @@ Milestone 2 is complete when no runtime path depends on Map32 data, the generate
 
 Expand Map16 definitions across four banks while retaining the milestone 2 flat maps, vanilla definition contents, collision behavior, palettes, tilesets, and 64x64 PPU tilemaps. Store one quadrant word per bank so every table uses the same `ID * 2` index. Do not make the original coarse per-Map16 property table part of the final representation; the milestone 4 quadrant-property work replaces it.
 
-Banks `$28-$2B` contain the top-left, top-right, bottom-left, and bottom-right words respectively. Banks `$2C-$3F` remain available for later milestones. The original coarse-property data remain unchanged until milestone 4 replaces them.
+Banks `$28-$2B` contain the top-left, top-right, bottom-left, and bottom-right words respectively. The original coarse-property data remain unchanged until milestone 4 replaces them.
 
 ### Expanding the Map16 ID namespace
 
@@ -186,46 +186,29 @@ For the only two current consumers, `$02` and `$5C` are behaviorally equivalent:
 
 ### Representation
 
-Give every Map16 ID an eight-byte graphics definition and a separate four-byte quadrant-property record:
+Each Map16 ID has an eight-byte graphics definition and a separate four-byte quadrant-property record:
 
 ```text
 graphics:    top-left word, top-right word, bottom-left word, bottom-right word
 properties:  top-left byte, top-right byte, bottom-left byte, bottom-right byte
 ```
 
-Generate the four-byte records at build time. For the vanilla checkpoint, derive them once from the four 8x8 tiles in each vanilla Map16 and the vanilla `OverworldTileTypes` table. Milestone 7 generates the same records directly from the properties authored in `ALTTPRetiling`. Runtime collision code reads only the property record; it must not recover collision from a graphics word, character number, palette, or flip.
+`engine_check` derives the vanilla records from the four 8x8 tiles in each Map16 and the vanilla `OverworldTileTypes` table. It also folds the graphics word's horizontal-flip bit into directional slope properties `$10-$1B`, matching the vanilla runtime calculation. Milestone 7 will generate the same records directly from properties authored in `ALTTPRetiling`.
 
-Store four dense 16 KiB quadrant tables in banks `$2C-$2D`, indexed directly by Map16 ID. This covers the full `$0000-$3FFF` namespace in 64 KiB.
+The four dense 16 KiB quadrant tables occupy `$2C8000`, `$2CC000`, `$2D8000`, and `$2DC000`. They are indexed directly by Map16 ID and cover the full `$0000-$3FFF` namespace in 64 KiB.
 
-### Runtime changes
+### Implementation and validation
 
-Rewrite [`ReadOverworldTileType`](../jpdasm/bank_05.asm#L22505) so it returns the independent property of the actual 8x8 quadrant at the queried coordinate:
+- `independent_tile_type.asm` replaces `GetOverworldTileType` in place. After vanilla locates the Map16 ID, bit 3 of the Y coordinate and bit 0 of the X-divided-by-8 coordinate select one of the four property tables.
+- `ReadOverworldTileType` retains its vanilla WRAM-map lookup and tail-jumps to the same quadrant resolver. Its callers remain the guard and archer terrain probes and the hammer-splash check.
+- Terrain actions use the shared quadrant resolver. Hammer sound selection and liftable objects read top-left directly; liftable coordinates are already rounded to a 16x16 boundary.
+- The older graphics-derived implementations remain commented in `expand_map16.asm` for use when that patch is assembled without `independent_tile_type.asm`.
+- The split-property unit test covers quadrant ordering, table padding, character masking, and horizontal slope flips.
+- An audit found no remaining runtime reads of either legacy property table. After importing `OverworldTileTypes`, `engine_check` zeros it and the coarse `OverworldTileTypeTable`, making any missed dependency visible during playtesting.
 
-1. Use the existing world-coordinate masks and offsets to locate the Map16 ID in `$7E2000`.
-2. Use bit 3 of the queried X coordinate and bit 3 of the queried Y coordinate to select definition offset `+0`, `+2`, `+4`, or `+6`.
-3. Fetch the selected byte through the bank-aware quadrant-property accessor.
+Mixed-property Map16 tiles now intentionally use the property of the contacted quadrant. The legacy `$02`/`$5C` discrepancies are harmless to the two former coarse-property consumers: both values allow guard probes through and neither creates a hammer splash.
 
-Change the general overworld terrain-property query in [`bank_00.asm`](../jpdasm/bank_00.asm#L1450) to use the same property accessor. Audit the remaining overworld collision and terrain-interaction callers so no gameplay property is inferred from the rendered 8x8 character. Graphics-only code continues to use `Map16Definitions`.
-
-The two direct callers should otherwise retain their logic:
-
-- [`CheckTileSolidity`](../jpdasm/bank_0D.asm#L9818) passes the returned property through `GeneralizedProjectileTileInteraction` to classify projectile/probe contact with terrain.
-- [`SpawnHammeredSplash`](../jpdasm/bank_1A.asm#L24484) creates a splash only for returned properties `$08` and `$09`.
-
-Once these callers have been validated, remove the one-byte-per-Map16 `OverworldTileTypeTable` from the runtime path. `OverworldTileTypes` is used only as a build-time source for the vanilla property records and is not authoritative at runtime.
-
-### Overrides and validation
-
-Do not infer a whole-Map16 property through a rule such as “most solid” or “majority.” Such rules give incorrect results for mixed shoreline, ledge, stair, and decorative Map16 tiles. If a future mechanic needs an override, add it as explicit authored quadrant metadata.
-
-Validation should include:
-
-1. Compare the old and new query results at all four quadrants of every legacy Map16 tile and review every difference rather than requiring exact equality with the lossy coarse table.
-2. Test probe/projectile contact against solid ground, passable terrain, stairs, ledges, and mixed-property Map16 boundaries.
-3. Test hammer splashes on shallow water, deep water, shorelines, and mixed land/water Map16 tiles from all four approach directions.
-4. Retest Link's ordinary movement, lifting, hammering, digging, doors, and entrances to confirm that refactoring the shared quadrant lookup has not changed the separate 8x8 interaction paths.
-
-Milestone 4 is complete when all overworld gameplay property queries use the independent quadrant records, the coarse `OverworldTileTypeTable` is no longer required at runtime, every legacy discrepancy has been reviewed, and the interaction tests above pass on a playable vanilla-layout ROM with the milestone 2 maps, milestone 3 definitions, and unchanged 64x64 PPU tilemaps.
+Milestone 4 is complete. The vanilla-layout checkpoint uses independent quadrant properties throughout while retaining the milestone 2 maps, milestone 3 definitions, vanilla graphics and palettes, and 64x64 PPU tilemaps.
 
 ## Milestone 5: static 64x32 BG1 tilemap
 
