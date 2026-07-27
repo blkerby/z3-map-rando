@@ -224,7 +224,7 @@ The playable game configures BG3 as a 64x64 tilemap at `$6000`, but uses only it
 - `$6800` contains the pause menu, which is revealed by vertical scrolling.
 - No content upload targets the right-hand blocks at `$6400` or `$6C00`; only the blanket BG3 clear currently writes them.
 
-`reduce_bg3.asm` sets `BG3SC` from `$63` to `$62` and changes `TilemapUpload_HighBytes` to move the pause-menu block from `$6800` to `$6400`. The existing BG3 clear already covers exactly `$6000-$67FF` and needs no change. Existing HUD and stripe writes remain within those two blocks.
+The milestone checkpoint set `BG3SC` from `$63` to `$62` and moved the pause-menu block from `$6800` to `$6400`. The milestone 6 implementation subsequently replaces `reduce_bg3.asm` with the final 32x32 version.
 
 ### Validation
 
@@ -236,21 +236,24 @@ Milestone 5 is complete. BG3 uses only `$6000-$67FF`, freeing 4 KiB without chan
 
 ### Design
 
-Reduce BG3 to one 32x32 screen block at `$6000` by setting `BG3SC` to `$60`. This change continues to apply to both overworld and dungeons.
+Reduce BG3 to one 32x32 screen block at `$6000` by setting `BG3SC` to `$60`. This change continues to apply to both overworld and dungeons, and the shared BG3 clear shrinks to one screen block.
 
-The fixed HUD fits, but the pause menu can no longer remain below it in a second block. Treat the tilemap as a 32-row vertical ring during the existing 8-pixel menu animation:
+The fixed HUD fits, but the item menu can no longer remain below it in a second block. Treat the tilemap as a 32-row vertical ring during the existing 8-pixel menu animation:
 
-- While opening, upload each pause-menu row before scrolling it into view.
-- While closing, restore each HUD or blank row before it becomes visible.
-- Reuse the existing pause-menu tilemap buffer at `$1000-$17FF` and HUD buffer at `$7EC700`; do not add a second tilemap representation.
+- Build the item menu in its existing `$1000-$17FF` buffer without uploading it over the HUD.
+- While opening, upload each newly visible menu row from that buffer.
+- Before closing, rebuild the existing HUD buffer at `$7EC700` without uploading it immediately; then restore each newly visible HUD or blank row.
+- Keep full-screen uploads for item and bottle-menu changes after the menu is completely visible.
 
-Other BG3 users fit within a single 32x32 block and retain their existing stripe updates.
+NMI tile-update mode `$06`, unused by vanilla, performs the 64-byte row DMA. The opening row is `(BG3VOFS / 8) & $1F`. Because the PPU's effective BG vertical coordinate is one pixel ahead, the bottom scanline comes from the closing row 28 rows after the new top row.
+
+The ending credits already stream attribution rows as BG3 scrolls. Delay their first row until row 0 has moved offscreen, then wrap all subsequent destinations within `$6000-$63FF`. End the name-entry stripe list before its unused vanilla right-half records write into `$6400-$67FF`. Other BG3 users already remain within one screen block.
 
 ### Validation
 
-Open and close the item and bottle menus from overworld and underworld rooms, including rapid input and the extra rod-close frame. Test HUD updates during the animation, text, file select, dungeon map, save and quit, and restoration after presentation modes. Log each streamed row to verify it is written before it enters the visible 224-pixel window.
+Open and close the item and bottle menus from overworld and underworld rooms, including rapid input and both rods. Test restored HUD values, text, file select and name entry, dungeon map, save and quit, and restoration after presentation modes. Run the complete ending credits. Log each streamed row to verify it is written before it enters the visible 224-pixel window, and verify that no BG3 path writes `$6400-$6FFF`.
 
-Milestone 6 is complete when every BG3 path uses `$6000-$63FF`, the pause menu streams without a visible seam, and `$6400-$6FFF` remains free.
+Milestone 6 is complete when every BG3 path uses `$6000-$63FF`, the item menu streams without a visible seam, the ending credits wrap correctly, and `$6400-$6FFF` remains free.
 
 ## Milestone 7: static 64x32 BG1 tilemap
 

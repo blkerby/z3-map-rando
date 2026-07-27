@@ -1,3 +1,6 @@
+$0083AA-$0083AC reduce_bg3.asm (clear one BG3 screen block)
 $00884E-$008877 independent_tile_type.asm (independent Map16 quadrant property lookup)
-$008878-$008887 [FREE] (remainder of vanilla GetOverworldTileType)
-$0098AA-$0098AA reduce_bg3.asm (pause-menu tilemap upload at $6400)
+$008878-$00887C reduce_bg3.asm (BG3 row-upload NMI trampoline)
+$00887D-$008887 [FREE] (remainder of vanilla GetOverworldTileType)
+$008C8A-$008C8B reduce_bg3.asm (BG3 row-upload NMI vector)
+$0098AA-$0098AA reduce_bg3.asm (item-menu tilemap upload at $6000)

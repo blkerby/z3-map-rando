@@ -1,1 +1,2 @@
 $0C8000-$0CC0AA [FREE] (obsolete compressed Map32 data)
+$0CE911-$0CE911 reduce_bg3.asm (end name-entry stripes before freed BG3 VRAM)
