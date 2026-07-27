@@ -8,6 +8,9 @@
 
 lorom
 
+!free_space_bank_any_start = $02F3C6
+!free_space_bank_any_end = $02F3EE
+
 !Map16TopLeft = $288000
 !Map16TopRight = $298000
 !Map16BottomLeft = $2A8000
@@ -144,7 +147,7 @@ assert pc() <= $02F2AC
 ;   16-bit accumulator and index registers
 ;
 ; Returns the selected 8x8 tile word in A. X becomes Map16 ID * 2.
-org $02F3C6
+org !free_space_bank_any_start
 LoadBankedMap16Definition:
     ; Save the interleaved offset. Dividing it by four gives Map16 ID * 2,
     ; plus one for a bottom quadrant; clearing bit 0 removes that extra one.
@@ -179,7 +182,7 @@ LoadBankedMap16Definition:
 .bottom_left
     LDA.l !Map16BottomLeft,X
     RTL
-assert pc() <= $02F3EE
+assert pc() <= !free_space_bank_any_end
 
 ; Use bank $7F for short tilemap-buffer stores. This also moves the temporary
 ; row buffer at $0500 from mirrored low WRAM to $7F0500.

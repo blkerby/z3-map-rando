@@ -11,6 +11,11 @@
 
 lorom
 
+!free_space_bank_00_start = $008878
+!free_space_bank_00_end = $008888
+!free_space_bank_any_start = $27E1E0
+!free_space_bank_any_end = $27E400
+
 ; One byte of otherwise unused WRAM tells the NMI handler which source image
 ; supplies the next ring row.
 !BG3StreamDirection = $7EC84A
@@ -51,11 +56,11 @@ org $008C8A
 
 ; independent_tile_type.asm makes these final bytes of vanilla
 ; GetOverworldTileType unreachable, leaving room for the NMI trampoline.
-org $008878
+org !free_space_bank_00_start
 BG3StreamNMITrampoline:
     JSL BG3StreamNMI
     RTS
-assert pc() <= $008888
+assert pc() <= !free_space_bank_00_end
 
 ; ItemMenu_ClearTilemap is state $00, called once immediately after entering
 ; the item-menu module and before the menu begins opening. It clears the
@@ -136,8 +141,7 @@ org $0EE90C
 org $0EE915
 +
 
-; Expanded-ROM space immediately after the flat-map pointer table.
-org $27E1E0
+org !free_space_bank_any_start
 
 ; Called with 16-bit A. Vanilla moves the BG3 scroll value in WRAM $00EA from
 ; 0 to -232 in 8-pixel steps. Queue the VRAM row at the new top of the ring,
@@ -381,4 +385,4 @@ BlankBG3Row:
     fill 32
 
 ReduceBG3End:
-assert pc() <= $27E400
+assert pc() <= !free_space_bank_any_end
