@@ -48,3 +48,10 @@ GetOverworldTileType_Independent:
     SEP #$10
     RTL
 assert pc() <= $008888
+
+; ReadOverworldTileType has already located the Map16 ID and leaves it in A
+; with the same $00/$02 coordinate API. Tail-call the shared quadrant lookup
+; so its RTL returns directly to the original caller.
+org $05FAC2
+    JML GetOverworldTileType_Independent
+assert pc() <= $05FAC6
