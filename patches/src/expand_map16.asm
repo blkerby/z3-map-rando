@@ -1,5 +1,6 @@
-; Expand Map16 definitions into one bank per 8x8 quadrant (giving 4x larger capacity),
-; and migrate GetOverworldTileType to read from those banks.
+; Expand Map16 definitions, by using a separate bank for each of the four 8x8 quadrants
+; (giving 4x larger capacity), and migrate terrain queries and full tilemap builds
+; to read from these banks.
 
 lorom
 
@@ -14,8 +15,13 @@ org $00884E
     JML GetOverworldTileType_Banked
 assert pc() <= $008852
 
-; A 16-bit Map16 ID has just been read from the WRAM map.
-; Select the 8x8 quadrant containing the queried world coordinate.
+; Inputs:
+;   A.w: Map16 ID read from the WRAM map
+;   $00.w: world Y coordinate in pixels (bit 3 selects top or bottom)
+;   $02.w: world X coordinate divided by 8 (bit 0 selects left or right)
+;   16-bit accumulator and index registers
+;
+; Loads the selected 8x8 tile word into A, then resumes the vanilla routine.
 org $02F39C
 GetOverworldTileType_Banked:
     ASL A
@@ -45,3 +51,77 @@ GetOverworldTileType_Banked:
 
 .loaded
     JML $008868             ; Resume the vanilla terrain and slope handling.
+
+; Use bank $7F for short tilemap-buffer stores. This also moves the temporary
+; row buffer at $0500 from mirrored low WRAM to $7F0500.
+org $02FA8B
+    LDA.b #$7F
+assert pc() <= $02FA8D
+
+org $02FA9C
+    LDA.b #$7F
+assert pc() <= $02FA9E
+
+; Expand 16 Map16 IDs from the temporary row buffer into two rows of 8x8
+; tilemap words. X indexes the banked definitions and Y indexes the output
+; (swapped compared to the vanilla routine), to allow us to do long loads
+; from the 4 banks holding the new Map16 data.
+org $02FB5B
+CopyOneMap16Segment_Banked:
+    STA.b $02
+
+    LDX.b $0A
+
+    LDA.b $00
+    ORA.b $CC
+    STA.l $7F4000,X
+
+    INX
+    INX
+    STX.b $0A
+
+    LDY.b $0E
+
+    LDA.w #$0010
+    STA.b $0C
+
+.next
+    LDX.b $02
+
+    LDA.w $0500,X
+
+    INX
+    INX
+    STX.b $02
+
+    ASL A
+    TAX
+
+    LDA.l !Map16TopLeft,X
+    STA.w $2000,Y
+
+    LDA.l !Map16BottomLeft,X
+    STA.w $2040,Y
+
+    INY
+    INY
+
+    LDA.l !Map16TopRight,X
+    STA.w $2000,Y
+
+    LDA.l !Map16BottomRight,X
+    STA.w $2040,Y
+
+    INY
+    INY
+
+    DEC.b $0C
+    BNE .next
+
+    TYA
+    CLC
+    ADC.w #$0040
+    STA.b $0E
+
+    RTS
+assert pc() <= $02FBAB
