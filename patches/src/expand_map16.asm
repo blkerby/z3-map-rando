@@ -126,6 +126,49 @@ GetOverworldTileType_Banked:
 .loaded
     JML $008868             ; Resume the vanilla terrain and slope handling.
 
+; Inputs:
+;   X.w: vanilla interleaved definition offset:
+;        Map16 ID * 8 + quadrant * 2
+;   16-bit accumulator and index registers
+;
+; Returns the selected 8x8 tile word in A. X becomes Map16 ID * 2.
+org $02F3C6
+LoadBankedMap16Definition:
+    ; Save the interleaved offset. Dividing it by four gives Map16 ID * 2,
+    ; plus one for a bottom quadrant; clearing bit 0 removes that extra one.
+    TXA
+    PHA
+    LSR A
+    LSR A
+    AND.w #$FFFE
+    TAX
+
+    ; The original offset's bits 1-2 encode TL=0, TR=2, BL=4, BR=6.
+    ; Two shifts leave top/bottom in A and left/right in carry.
+    PLA
+    AND.w #$0006
+    LSR A
+    LSR A
+    BNE .bottom
+
+    BCC .top_left
+    LDA.l !Map16TopRight,X
+    RTL
+
+.top_left
+    LDA.l !Map16TopLeft,X
+    RTL
+
+.bottom
+    BCC .bottom_left
+    LDA.l !Map16BottomRight,X
+    RTL
+
+.bottom_left
+    LDA.l !Map16BottomLeft,X
+    RTL
+assert pc() <= $02F3EE
+
 ; Use bank $7F for short tilemap-buffer stores. This also moves the temporary
 ; row buffer at $0500 from mirrored low WRAM to $7F0500.
 org $02FA8B
@@ -246,6 +289,11 @@ org $1BBCCA
     LDA.l !Map16BottomRight,X
 assert pc() <= $1BBCCE
 
+; Terrain actions have already formed the vanilla interleaved definition offset.
+org $1BBEF5
+    JSL LoadBankedMap16Definition
+assert pc() <= $1BBEF9
+
 ; Hammer sound selection inspects the top-left 8x8 word.
 org $1BBF1E
     ASL A
@@ -256,6 +304,11 @@ assert pc() <= $1BBF21
 org $1BBF22
     LDA.l !Map16TopLeft,X
 assert pc() <= $1BBF26
+
+; Liftable objects use the same vanilla interleaved definition offset.
+org $1BC040
+    JSL LoadBankedMap16Definition
+assert pc() <= $1BC044
 
 ; DrawMap16Anywhere expands one Map16 tile into its four 8x8 words.
 org $1BC984
