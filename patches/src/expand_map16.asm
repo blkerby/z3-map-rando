@@ -200,10 +200,26 @@ CopyOneMap16Segment_Banked:
     RTS
 assert pc() <= $02FBAB
 
+; Special-overworld entry and return triggers inspect the top-left 8x8 word.
+org $04E88E
+    LDA.l !Map16TopLeft,X
+assert pc() <= $04E892
+
+; Return the Map16 ID * 2 in X for the banked definition tables.
+org $04E909
+    ASL A
+    TAX
+    RTS
+assert pc() <= $04E90C
+
+org $04E928
+    LDA.l !Map16TopLeft,X
+assert pc() <= $04E92C
+
 ; UseOverworldEntrance checks fixed quadrants for entrance and door graphics.
 ; Keep the vanilla instruction addresses so its existing branches are unchanged.
 ; Replace two ASL instructions with NOPs, since the offset into each bank is
-; now 2 * A instead of 8 * A.
+; now Map16 ID * 2 instead of Map16 ID * 8.
 org $1BBC22
     NOP
     NOP

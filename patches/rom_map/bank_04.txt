@@ -1,1 +1,5 @@
 $048000-$04E77F [FREE] (obsolete Map32 bottom-quadrant definition tables)
+$04E88E-$04E891 expand_map16.asm (special-overworld trigger top-left definition)
+$04E909-$04E90B expand_map16.asm (banked GetMap16Tile index)
+$04E90C-$04E90D [FREE] (remainder of GetMap16Tile)
+$04E928-$04E92B expand_map16.asm (return trigger top-left definition)
