@@ -216,63 +216,41 @@ Milestone 4 is complete. The vanilla-layout checkpoint uses independent quadrant
 
 ### Design
 
-Unlike the other engine milestones, milestones 5 and 6 affect both overworld
-and dungeon gameplay. BG3 is shared by their HUD and pause-menu paths, so both
-modes adopt the reduced layout. There is no plan to use the extra VRAM space
-that this frees in dungeons, but it could be used later if the project expands
-to include dungeon changes.
+Unlike the other engine milestones, milestones 5 and 6 affect both overworld and dungeon gameplay. BG3 is shared by their HUD and pause-menu paths, so both modes adopt the reduced layout. There is no plan to use the extra VRAM space that this frees in dungeons, but it could be used later if the project expands to include dungeon changes.
 
-The playable game configures BG3 as a 64x64 tilemap at `$6000`, but uses only
-its left screen-block column:
+The playable game configures BG3 as a 64x64 tilemap at `$6000`, but uses only its left screen-block column:
 
 - `$6000` contains the HUD and other ordinary BG3 text.
 - `$6800` contains the pause menu, which is revealed by vertical scrolling.
-- No content upload targets the right-hand blocks at `$6400` or `$6C00`; only
-  the blanket BG3 clear currently writes them.
+- No content upload targets the right-hand blocks at `$6400` or `$6C00`; only the blanket BG3 clear currently writes them.
 
-`reduce_bg3.asm` sets `BG3SC` from `$63` to `$62` and changes
-`TilemapUpload_HighBytes` to move the pause-menu block from `$6800` to `$6400`.
-The existing BG3 clear already covers exactly `$6000-$67FF` and needs no
-change. Existing HUD and stripe writes remain within those two blocks.
+`reduce_bg3.asm` sets `BG3SC` from `$63` to `$62` and changes `TilemapUpload_HighBytes` to move the pause-menu block from `$6800` to `$6400`. The existing BG3 clear already covers exactly `$6000-$67FF` and needs no change. Existing HUD and stripe writes remain within those two blocks.
 
 ### Validation
 
-The generated IPS contains only those two byte changes. Automated patch and
-workspace checks pass, and gameplay testing confirmed that the reduced BG3
-layout works.
+The generated IPS contains only those two byte changes. Automated patch and workspace checks pass, and gameplay testing confirmed that the reduced BG3 layout works.
 
-Milestone 5 is complete. BG3 uses only `$6000-$67FF`, freeing 4 KiB without
-changing its visible behavior.
+Milestone 5 is complete. BG3 uses only `$6000-$67FF`, freeing 4 KiB without changing its visible behavior.
 
 ## Milestone 6: streamed 32x32 BG3 tilemap
 
 ### Design
 
-Reduce BG3 to one 32x32 screen block at `$6000` by setting `BG3SC` to `$60`.
-This change continues to apply to both overworld and dungeons.
+Reduce BG3 to one 32x32 screen block at `$6000` by setting `BG3SC` to `$60`. This change continues to apply to both overworld and dungeons.
 
-The fixed HUD fits, but the pause menu can no longer remain below it in a
-second block. Treat the tilemap as a 32-row vertical ring during the existing
-8-pixel menu animation:
+The fixed HUD fits, but the pause menu can no longer remain below it in a second block. Treat the tilemap as a 32-row vertical ring during the existing 8-pixel menu animation:
 
 - While opening, upload each pause-menu row before scrolling it into view.
 - While closing, restore each HUD or blank row before it becomes visible.
-- Reuse the existing pause-menu tilemap buffer at `$1000-$17FF` and HUD buffer
-  at `$7EC700`; do not add a second tilemap representation.
+- Reuse the existing pause-menu tilemap buffer at `$1000-$17FF` and HUD buffer at `$7EC700`; do not add a second tilemap representation.
 
-Other BG3 users fit within a single 32x32 block and retain their existing
-stripe updates.
+Other BG3 users fit within a single 32x32 block and retain their existing stripe updates.
 
 ### Validation
 
-Open and close the item and bottle menus from overworld and underworld rooms,
-including rapid input and the extra rod-close frame. Test HUD updates during
-the animation, text, file select, dungeon map, save and quit, and restoration
-after presentation modes. Log each streamed row to verify it is written before
-it enters the visible 224-pixel window.
+Open and close the item and bottle menus from overworld and underworld rooms, including rapid input and the extra rod-close frame. Test HUD updates during the animation, text, file select, dungeon map, save and quit, and restoration after presentation modes. Log each streamed row to verify it is written before it enters the visible 224-pixel window.
 
-Milestone 6 is complete when every BG3 path uses `$6000-$63FF`, the pause menu
-streams without a visible seam, and `$6400-$6FFF` remains free.
+Milestone 6 is complete when every BG3 path uses `$6000-$63FF`, the pause menu streams without a visible seam, and `$6400-$6FFF` remains free.
 
 ## Milestone 7: static 64x32 BG1 tilemap
 
