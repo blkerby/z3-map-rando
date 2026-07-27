@@ -245,3 +245,60 @@ assert pc() <= $1BBCC5
 org $1BBCCA
     LDA.l !Map16BottomRight,X
 assert pc() <= $1BBCCE
+
+; Hammer sound selection inspects the top-left 8x8 word.
+org $1BBF1E
+    ASL A
+    NOP
+    NOP
+assert pc() <= $1BBF21
+
+org $1BBF22
+    LDA.l !Map16TopLeft,X
+assert pc() <= $1BBF26
+
+; DrawMap16Anywhere expands one Map16 tile into its four 8x8 words.
+org $1BC984
+    ASL A
+    NOP
+    NOP
+assert pc() <= $1BC987
+
+org $1BC9B2
+    LDA.l !Map16TopLeft,X
+assert pc() <= $1BC9B6
+
+org $1BC9B9
+    LDA.l !Map16TopRight,X
+assert pc() <= $1BC9BD
+
+org $1BC9C0
+    LDA.l !Map16BottomLeft,X
+assert pc() <= $1BC9C4
+
+org $1BC9C7
+    LDA.l !Map16BottomRight,X
+assert pc() <= $1BC9CB
+
+; AlterMap16Hardcore performs the same expansion while changing the WRAM map.
+org $1BC9E4
+    ASL A
+    NOP
+    NOP
+assert pc() <= $1BC9E7
+
+org $1BCA3F
+    LDA.l !Map16TopLeft,X
+assert pc() <= $1BCA43
+
+org $1BCA46
+    LDA.l !Map16TopRight,X
+assert pc() <= $1BCA4A
+
+org $1BCA4D
+    LDA.l !Map16BottomLeft,X
+assert pc() <= $1BCA51
+
+org $1BCA54
+    LDA.l !Map16BottomRight,X
+assert pc() <= $1BCA58
