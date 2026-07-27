@@ -1,3 +1,4 @@
+C284-C284: reduce_bg3.asm (BG3 32x64 screen configuration)
 F1B6-F1E3: expand_map16.asm (banked horizontal Map16 stripe lookup)
 F1E4-F1E5: [FREE] (remainder of CreateMap16Stripes_Horizontal)
 F27E-F2AB: expand_map16.asm (banked vertical Map16 stripe lookup)

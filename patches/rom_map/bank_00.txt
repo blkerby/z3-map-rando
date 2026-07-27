@@ -1,2 +1,3 @@
 $00884E-$008877 independent_tile_type.asm (independent Map16 quadrant property lookup)
 $008878-$008887 [FREE] (remainder of vanilla GetOverworldTileType)
+$0098AA-$0098AA reduce_bg3.asm (pause-menu tilemap upload at $6400)

@@ -29,7 +29,7 @@ It is expected that playtesting will likely uncover the need for additional engi
 
 Each milestone change should end in a playable ROM. The last three milestones will all be based on the same hand-defined rearrangement. Randomized rearrangements and edge variants are deferred until after the engine work is complete.
 
-Current status: Milestones 1 through 4 are complete.
+Current status: Milestones 1 through 5 are complete.
 
 Note: Everything below is mostly raw, unreviewed AI-generated notes. Especially for the not-yet-complete milestones, it should not be taken as a solid plan of what we will actually end up doing.
 
@@ -218,7 +218,9 @@ Milestone 4 is complete. The vanilla-layout checkpoint uses independent quadrant
 
 Unlike the other engine milestones, milestones 5 and 6 affect both overworld
 and dungeon gameplay. BG3 is shared by their HUD and pause-menu paths, so both
-modes adopt the reduced layout. There is no plan to use the extra VRAM space that this frees up in dungeons,  but it could be used later if the scope of the project expands to include changes to dungeons.
+modes adopt the reduced layout. There is no plan to use the extra VRAM space
+that this frees in dungeons, but it could be used later if the project expands
+to include dungeon changes.
 
 The playable game configures BG3 as a 64x64 tilemap at `$6000`, but uses only
 its left screen-block column:
@@ -228,18 +230,18 @@ its left screen-block column:
 - No content upload targets the right-hand blocks at `$6400` or `$6C00`; only
   the blanket BG3 clear currently writes them.
 
-Convert BG3 to 32x64 by setting `BG3SC` from `$63` to `$62` and moving the
-pause-menu block from `$6800` to `$6400`. Update the full clear and the
-`TilemapUpload_HighBytes` destination used by the pause menu accordingly.
-Existing HUD and stripe writes remain in the upper block.
+`reduce_bg3.asm` sets `BG3SC` from `$63` to `$62` and changes
+`TilemapUpload_HighBytes` to move the pause-menu block from `$6800` to `$6400`.
+The existing BG3 clear already covers exactly `$6000-$67FF` and needs no
+change. Existing HUD and stripe writes remain within those two blocks.
 
 ### Validation
 
-Test the HUD, pause and bottle menus, text, file select, dungeon map, save and
-quit, and every transition that rebuilds BG3. Log VRAM writes and confirm that
-BG3 never writes `$6800-$6FFF`.
+The generated IPS contains only those two byte changes. Automated patch and
+workspace checks pass, and gameplay testing confirmed that the reduced BG3
+layout works.
 
-Milestone 5 is complete when BG3 uses only `$6000-$67FF`, freeing 4 KiB without
+Milestone 5 is complete. BG3 uses only `$6000-$67FF`, freeing 4 KiB without
 changing its visible behavior.
 
 ## Milestone 6: streamed 32x32 BG3 tilemap

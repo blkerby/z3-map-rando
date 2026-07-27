@@ -118,6 +118,7 @@ fn main() -> Result<()> {
         "flat_map16.ips",
         "expand_map16.ips",
         "independent_tile_type.ips",
+        "reduce_bg3.ips",
     ];
     for patch in patches {
         patcher.use_ips(&patch_dir.join(patch))?;
