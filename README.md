@@ -36,7 +36,7 @@ If you notice any issue while testing or if you run into any trouble following t
 
 # How to build the patches from source
 
-The instructions in the previous use the IPS patches already checked into the repo. If you want to build them scratch, do the following:
+The instructions above use the IPS patches already checked into the repo. If you want to build them scratch, do the following:
 
 Install a C++ compiler and CMake; for example, on Ubuntu:
 
