@@ -1,3 +1,2 @@
-$00884E-$008851 expand_map16.asm (redirects GetOverworldTileType after reading the Map16 ID)
-$008852-$008867 [FREE] (obsolete Map16 quadrant selection)
-$008868-$008887 used vanilla GetOverworldTileType terrain and slope handling
+$00884E-$008877 independent_tile_type.asm (independent Map16 quadrant property lookup)
+$008878-$008887 [FREE] (remainder of vanilla GetOverworldTileType)

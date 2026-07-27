@@ -42,7 +42,14 @@ fn split_map16_properties(tiles16: &[Tile16], tile_types: &[u8]) -> [Vec<u8>; 4]
     std::array::from_fn(|quadrant| {
         let mut properties = vec![0; 0x4000];
         for (property, tile) in properties.iter_mut().zip(tiles16) {
-            *property = tile_types[(tile[quadrant].to_vram_tilemap_word() & 0x01ff) as usize];
+            let word = tile[quadrant].to_vram_tilemap_word();
+            let tile_type = tile_types[(word & 0x01ff) as usize];
+            // Vanilla folds horizontal flip into the directional slope types.
+            *property = if (0x10..0x1c).contains(&tile_type) {
+                tile_type | ((word >> 14) as u8 & 1)
+            } else {
+                tile_type
+            };
         }
         properties
     })
@@ -103,10 +110,16 @@ fn main() -> Result<()> {
         context.write(start, vec![0; (end.0 - start.0) as usize])?;
     }
 
-    let patches = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../patches/ips");
-    patcher.use_ips(&patches.join("expand.ips"))?;
-    patcher.use_ips(&patches.join("flat_map16.ips"))?;
-    patcher.use_ips(&patches.join("expand_map16.ips"))?;
+    let patch_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../patches/ips");
+    let patches = [
+        "expand.ips",
+        "flat_map16.ips",
+        "expand_map16.ips",
+        "independent_tile_type.ips",
+    ];
+    for patch in patches {
+        patcher.use_ips(&patch_dir.join(patch))?;
+    }
     patcher.apply(&mut rom)?;
 
     fs::write(&args.output_rom, rom)
@@ -139,14 +152,15 @@ mod tests {
     #[test]
     fn splits_map16_properties_by_quadrant() {
         let tiles16 = [
-            [0xc201, 1, 2, 3].map(Tile8::from_vram_tilemap_word),
+            [0xc201, 0x8201, 2, 3].map(Tile8::from_vram_tilemap_word),
             [4, 5, 6, 7].map(Tile8::from_vram_tilemap_word),
         ];
-        let tile_types: Vec<_> = (0..=255).chain(0..=255).collect();
+        let mut tile_types: Vec<_> = (0..=255).chain(0..=255).collect();
+        tile_types[1] = 0x10;
         let properties = split_map16_properties(&tiles16, &tile_types);
 
-        assert_eq!(&properties[0][..2], &[1, 4]);
-        assert_eq!(&properties[1][..2], &[1, 5]);
+        assert_eq!(&properties[0][..2], &[0x11, 4]);
+        assert_eq!(&properties[1][..2], &[0x10, 5]);
         assert_eq!(&properties[2][..2], &[2, 6]);
         assert_eq!(&properties[3][..2], &[3, 7]);
         assert!(

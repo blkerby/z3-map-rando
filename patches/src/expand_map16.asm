@@ -9,11 +9,13 @@ lorom
 !Map16BottomLeft = $2A8000
 !Map16BottomRight = $2B8000
 
-; There's not enough space to patch GetOverworldTileType in place,
-; so we hook the middle of it.
-org $00884E
-    JML GetOverworldTileType_Banked
-assert pc() <= $008852
+; When using this patch without independent_tile_type.asm, enable this hook so
+; GetOverworldTileType can still derive properties from the banked graphics.
+; The combined build leaves it disabled because independent_tile_type.asm
+; replaces the same part of the routine.
+; org $00884E
+;     JML GetOverworldTileType_Banked
+; assert pc() <= $008852
 
 ; Vanilla has loaded the next horizontal-stripe Map16 ID into A.
 org $02F1AD
