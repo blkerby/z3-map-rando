@@ -259,7 +259,7 @@ enum Flip {
 }
 
 #[derive(Copy, Clone, Debug)]
-struct Tile8 {
+pub struct Tile8 {
     gfx_char: u16,
     pal_idx: u8,
     priority: bool,
@@ -267,7 +267,7 @@ struct Tile8 {
 }
 
 impl Tile8 {
-    fn from_vram_tilemap_word(word: u16) -> Self {
+    pub fn from_vram_tilemap_word(word: u16) -> Self {
         Self {
             gfx_char: word & 0x3ff,
             pal_idx: ((word >> 10) & 7) as u8,
@@ -281,9 +281,21 @@ impl Tile8 {
             },
         }
     }
+
+    pub fn to_vram_tilemap_word(self) -> u16 {
+        self.gfx_char
+            | u16::from(self.pal_idx) << 10
+            | u16::from(self.priority) << 13
+            | match self.flip {
+                Flip::None => 0,
+                Flip::Horizontal => 1 << 14,
+                Flip::Vertical => 2 << 14,
+                Flip::Both => 3 << 14,
+            }
+    }
 }
 
-type Tile16 = [Tile8; 4];
+pub type Tile16 = [Tile8; 4];
 type Tile16Idx = u16;
 type Tile32 = [Tile16Idx; 4];
 type Tile32Idx = u16;
@@ -401,6 +413,13 @@ impl Importer {
             maps,
             screen_pointers,
         })
+    }
+
+    pub fn tiles16(&mut self) -> Result<&[Tile16]> {
+        if self.tiles16.is_empty() {
+            self.load_16x16_tiles()?;
+        }
+        Ok(&self.tiles16)
     }
 
     fn load_palette(&self, addr: PcAddr, size: usize) -> Result<[ColorRgb; 16]> {
@@ -775,5 +794,15 @@ mod tests {
         assert_eq!(&flat.screen_pointers[..3], &[0x00, 0x80, 0x20]);
         assert_eq!(&flat.screen_pointers[123 * 3..124 * 3], &[0x00, 0xD8, 0x27]);
         assert_eq!(&flat.screen_pointers[124 * 3..125 * 3], &[0x00, 0x80, 0x20]);
+    }
+
+    #[test]
+    fn tile8_vram_word_round_trips() {
+        for word in 0..=u16::MAX {
+            assert_eq!(
+                Tile8::from_vram_tilemap_word(word).to_vram_tilemap_word(),
+                word
+            );
+        }
     }
 }
