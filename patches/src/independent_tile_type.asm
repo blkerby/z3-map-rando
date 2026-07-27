@@ -55,3 +55,40 @@ assert pc() <= $008888
 org $05FAC2
     JML GetOverworldTileType_Independent
 assert pc() <= $05FAC6
+
+; Terrain actions enter with the Map16 ID in A and the standard $00/$02
+; coordinate API. Preserve the 16-bit property push expected by the rest of
+; the vanilla routine.
+org $1BBEDF
+    JSL GetOverworldTileType_Independent
+    REP #$30
+    AND.w #$00FF
+    PHA
+    JMP.w $BF02
+assert pc() <= $1BBEEC
+
+; PickHammerSFX always inspects the top-left quadrant.
+org $1BBF1E
+    TAX
+    SEP #$20
+    LDA.l !Map16PropertyTopLeft,X
+    JMP.w $BF2E
+assert pc() <= $1BBF28
+
+; GetLinkMap16Coords rounds liftable coordinates to a 16x16 boundary, so the
+; old quadrant calculation always selected top-left. $06 holds the property
+; while the vanilla coordinate values are restored from the stack.
+org $1BC027
+    TAX
+    SEP #$20
+    LDA.l !Map16PropertyTopLeft,X
+    STA.b $06
+    REP #$30
+    PLA
+    STA.b $00
+    PLA
+    STA.b $02
+    SEP #$31
+    LDA.b $06
+    RTL
+assert pc() <= $1BC03D

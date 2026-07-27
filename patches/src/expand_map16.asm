@@ -1,6 +1,10 @@
 ; Expand Map16 definitions, by using a separate bank for each of the four 8x8 quadrants
 ; (giving 4x larger capacity), and migrate terrain, entrance, and tilemap code
 ; to read from these banks.
+;
+; This patch was implemented before independent_tile_type.asm, and several parts are
+; replaced by it; we keep those parts as commented-out sections here in case someone ever
+; wants to apply this patch without the independent_tile_type.asm.
 
 lorom
 
@@ -91,42 +95,48 @@ org $02F27E
     RTS
 assert pc() <= $02F2AC
 
-; Inputs:
-;   A.w: Map16 ID read from the WRAM map
-;   $00.w: world Y coordinate in pixels (bit 3 selects top or bottom)
-;   $02.w: world X coordinate divided by 8 (bit 0 selects left or right)
-;   16-bit accumulator and index registers
+;; This uses space freed up by the Map32 system being ripped out, so it assumes
+;; flat_map16.asm is also applied. If not, this should be relocated elsewhere.
+;; Though if independent_tile_type.asm is used, then this isn't used at all,
+;; so it is commented out.
+;;
+;; Inputs:
+;;   A.w: Map16 ID read from the WRAM map
+;;   $00.w: world Y coordinate in pixels (bit 3 selects top or bottom)
+;;   $02.w: world X coordinate divided by 8 (bit 0 selects left or right)
+;;   16-bit accumulator and index registers
+;;
+;; Loads the selected 8x8 tile word into A, then resumes the vanilla routine.
+;org $02F39C
+;GetOverworldTileType_Banked:
+;    ASL A
+;    TAX
 ;
-; Loads the selected 8x8 tile word into A, then resumes the vanilla routine.
-org $02F39C
-GetOverworldTileType_Banked:
-    ASL A
-    TAX
+;    LDA.b $02
+;    LSR A                   ; carry: left (clear) or right (set)
+;    LDA.b $00
+;    BIT.w #$0008
+;    BNE .bottom
+;
+;    BCC .top_left
+;    LDA.l !Map16TopRight,X
+;    BRA .loaded
+;
+;.top_left
+;    LDA.l !Map16TopLeft,X
+;    BRA .loaded
+;
+;.bottom
+;    BCC .bottom_left
+;    LDA.l !Map16BottomRight,X
+;    BRA .loaded
+;
+;.bottom_left
+;    LDA.l !Map16BottomLeft,X
+;
+;.loaded
+;    JML $008868             ; Resume the vanilla terrain and slope handling.
 
-    LDA.b $02
-    LSR A                   ; carry: left (clear) or right (set)
-    LDA.b $00
-    BIT.w #$0008
-    BNE .bottom
-
-    BCC .top_left
-    LDA.l !Map16TopRight,X
-    BRA .loaded
-
-.top_left
-    LDA.l !Map16TopLeft,X
-    BRA .loaded
-
-.bottom
-    BCC .bottom_left
-    LDA.l !Map16BottomRight,X
-    BRA .loaded
-
-.bottom_left
-    LDA.l !Map16BottomLeft,X
-
-.loaded
-    JML $008868             ; Resume the vanilla terrain and slope handling.
 
 ; Inputs:
 ;   X.w: vanilla interleaved definition offset:
@@ -291,26 +301,30 @@ org $1BBCCA
     LDA.l !Map16BottomRight,X
 assert pc() <= $1BBCCE
 
-; Terrain actions have already formed the vanilla interleaved definition offset.
-org $1BBEF5
-    JSL LoadBankedMap16Definition
-assert pc() <= $1BBEF9
-
-; Hammer sound selection inspects the top-left 8x8 word.
-org $1BBF1E
-    ASL A
-    NOP
-    NOP
-assert pc() <= $1BBF21
-
-org $1BBF22
-    LDA.l !Map16TopLeft,X
-assert pc() <= $1BBF26
-
-; Liftable objects use the same vanilla interleaved definition offset.
-org $1BC040
-    JSL LoadBankedMap16Definition
-assert pc() <= $1BC044
+; If using this patch without independent_tile_type.asm, uncomment these blocks,
+; so terrain actions, hammer sounds, and liftables can still derive properties
+; from the banked graphics. The combined build replaces all three paths.
+;
+;; Terrain actions have already formed the vanilla interleaved definition offset.
+; org $1BBEF5
+;     JSL LoadBankedMap16Definition
+; assert pc() <= $1BBEF9
+;
+;; Hammer sound selection inspects the top-left 8x8 word.
+; org $1BBF1E
+;     ASL A
+;     NOP
+;     NOP
+; assert pc() <= $1BBF21
+;
+; org $1BBF22
+;     LDA.l !Map16TopLeft,X
+; assert pc() <= $1BBF26
+;
+;; Liftable objects use the same vanilla interleaved definition offset.
+; org $1BC040
+;     JSL LoadBankedMap16Definition
+; assert pc() <= $1BC044
 
 ; DrawMap16Anywhere expands one Map16 tile into its four 8x8 words.
 org $1BC984
