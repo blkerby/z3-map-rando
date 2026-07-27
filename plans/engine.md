@@ -18,8 +18,8 @@ It is expected that playtesting will likely uncover the need for additional engi
 2. Switch to using flat Map16 instead of Map32, while retaining their vanilla contents.
 3. Expand Map16 definitions across 4 banks, still retaining their vanilla contents.
 4. Switch collision queries to the four generated 8x8/quadrant properties of each Map16, independent of its graphics.
-5. Convert BG3 from 64x64 to 32x64 by removing its unused right half.
-6. Convert BG3 from 32x64 to a streamed 32x32 tilemap.
+5. Convert BG3 in both overworld and dungeons from 64x64 to 32x64 by removing its unused right half.
+6. Convert BG3 in both overworld and dungeons from 32x64 to a streamed 32x32 tilemap.
 7. Convert BG1 to a 64x32 tilemap, including special treatments for rain and the Pyramid.
 8. Convert BG2 to a 64x32 tilemap, streaming newly appearing tiles during all scrolling transitions.
 9. Import the `Desert` theme from `ALTTPRetiling` and implement generated 4bpp tileset and palette bundles on the vanilla arrangement.
@@ -216,6 +216,10 @@ Milestone 4 is complete. The vanilla-layout checkpoint uses independent quadrant
 
 ### Design
 
+Unlike the other engine milestones, milestones 5 and 6 affect both overworld
+and dungeon gameplay. BG3 is shared by their HUD and pause-menu paths, so both
+modes adopt the reduced layout. There is no plan to use the extra VRAM space that this frees up in dungeons,  but it could be used later if the scope of the project expands to include changes to dungeons.
+
 The playable game configures BG3 as a 64x64 tilemap at `$6000`, but uses only
 its left screen-block column:
 
@@ -243,6 +247,8 @@ changing its visible behavior.
 ### Design
 
 Reduce BG3 to one 32x32 screen block at `$6000` by setting `BG3SC` to `$60`.
+This change continues to apply to both overworld and dungeons.
+
 The fixed HUD fits, but the pause menu can no longer remain below it in a
 second block. Treat the tilemap as a 32-row vertical ring during the existing
 8-pixel menu animation:
@@ -371,7 +377,28 @@ Milestone 8 is complete when BG2 uses a 64x32 ring on every playable-overworld p
 
 ### Objective
 
-Import the `Desert` variants from `ALTTPRetiling` and replace the vanilla overworld palette and graphics loaders with generated 4bpp bundles. Keep the vanilla layout and use the completed flat Map16, independent collision, and 64x32 tilemap paths so this milestone changes only the asset source and residency system.
+Import the `Desert` variants from `ALTTPRetiling` and replace the vanilla overworld palette and graphics loaders with generated 4bpp bundles. Keep the vanilla world arrangement and use the completed flat Map16, independent collision, and 64x32 tilemap paths.
+
+### Overworld VRAM layout
+
+Install the final overworld-specific layout described in [`vram.md`](vram.md):
+
+- Put 960 shared BG1/BG2 4bpp characters at `$0000-$3BFF`.
+- Move the 32x32 BG3 tilemap to `$3C00-$3FFF`.
+- Leave OBJ graphics at `$4000-$5FFF` and BG3 graphics at `$7000-$7FFF`.
+- Move the BG2 and BG1 tilemaps to `$6000-$67FF` and `$6800-$6FFF`.
+
+This uses `BG12NBA=$00`, `BG1SC=$69`, `BG2SC=$61`, and `BG3SC=$3C`. Character IDs `$3C0-$3FF` are unavailable because they overlap the BG3 tilemap.
+
+Milestone 9 does not rearrange dungeon VRAM. Its BG1, BG2, graphics, and OBJ regions retain their vanilla locations; BG3 remains at its reduced milestone 6 size at `$6000`. Dungeon scrolling does not stream rows or columns: it keeps a complete room resident and uploads whole 32x32 destination quadrants before inter-room scrolling.
+
+Keep the shared code small:
+
+- Leave the dungeon/default register setup and tilemap clear intact; add overworld-specific setup and clear paths.
+- Reuse the generic tilemap DMA with overworld destinations.
+- Reuse `$0219` as the active BG3 tilemap destination so HUD and pause-menu updates work at `$3C00` in the overworld and `$6000` in dungeons.
+- Rebase only overworld stripe, ring, and dynamic-tile address calculations. Dungeon quadrant builders remain unchanged.
+- Restore the appropriate layout and graphics under forced blank whenever gameplay or a presentation mode changes between them.
 
 ### Compiled retiling data and first asset target
 
@@ -403,7 +430,7 @@ Audit rain, fog, darkening, mirror/whirlpool transitions, damage flashes, palett
 
 ### Graphics loading and residency
 
-The vanilla loader selects fixed sheet IDs and expands compressed 3bpp sheets into VRAM. The custom path instead uploads generated 4bpp blocks to the final character regions established by milestones 7 and 8.
+The vanilla loader selects fixed sheet IDs and expands compressed 3bpp sheets into VRAM. The custom overworld path instead uploads generated 4bpp blocks to `$0000-$3BFF`.
 
 The area/transition descriptor provides 24-bit source pointers, fixed VRAM destinations, and transfer lengths. The loader supports:
 
@@ -415,7 +442,7 @@ Store flat 4bpp data unless ROM-size measurements require compression. Generate 
 
 ### Runtime patch points
 
-The principal hooks are `LoadGraphicsAndScreenSize` and the overworld load/transition state machines in `bank_02.asm`, `InitializeTilesets` and the graphics/DMA routines in `bank_00.asm`, and `OverworldPalettesLoader` in `bank_0C.asm`. Unrelated dungeon, menu, attract-mode, and sprite loaders retain vanilla behavior.
+The principal hooks are `LoadGraphicsAndScreenSize` and the overworld load/transition state machines in `bank_02.asm`, `InitializeTilesets`, tilemap clearing, and the graphics/DMA routines in `bank_00.asm`, and `OverworldPalettesLoader` in `bank_0C.asm`. Dungeon tilemaps, graphics, and quadrant loaders retain their existing layout. Shared HUD and menu code uses the active BG3 destination.
 
 Map16 generation and graphics allocation share one tile-word ABI. `Map16Definitions`, the edge stripe builders, dynamic `DrawMap16Anywhere` updates, and BG1 overlay construction consume the compiler's final character and palette slots; runtime code never interprets editor IDs.
 
@@ -427,9 +454,10 @@ For every imported area and allowed vanilla-layout adjacency:
 2. Capture CGRAM and VRAM before, during, and after transitions in all four directions and verify every visible tile's character and palette.
 3. Compare collision queries against the compiled quadrant-property records to prove that graphics allocation has no effect on gameplay properties.
 4. Test animated water, grass, signs, houses, dungeon entrances, event overlays, rain/fog/parallax screens, mirror and whirlpool effects, flute travel, interior return, save-and-quit reload, and world-map exit.
-5. Measure forced-blank load time, per-frame DMA volume, NMI time, and ROM size, and enforce those budgets during generation.
+5. Repeatedly enter and leave dungeons, open the item and bottle menus in both layouts, and verify that each transition restores the correct registers, tilemaps, and graphics.
+6. Measure forced-blank load time, per-frame DMA volume, NMI time, and ROM size, and enforce those budgets during generation.
 
-Milestone 9 is complete when the entire vanilla-layout `Desert` build uses generated direct-4bpp graphics and CGRAM data on the milestone 7 and 8 tilemaps, every character and palette has a stable seed-global slot, collision still comes only from independent quadrant properties, all restoration paths are descriptor-aware, and the ROM remains playable through the earlier checkpoint tests.
+Milestone 9 is complete when the entire vanilla-layout `Desert` build uses generated direct-4bpp graphics and CGRAM data in the 960-character overworld layout, dungeons retain their full resident tilemaps, every character and palette has a stable seed-global slot, collision still comes only from independent quadrant properties, all restoration paths are descriptor-aware, and the ROM remains playable through the earlier checkpoint tests.
 
 
 ## Milestone 10: paired-world area topology and transitions
