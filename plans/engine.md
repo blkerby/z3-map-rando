@@ -8,7 +8,7 @@ The planned engine work includes the following:
 
 1. Replace compressed Map32 maps with generated, flat Map16 data (requiring expansion to a 2 MiB ROM).
 2. Generate Map16 definitions from 8x8 tiles and make their four 8x8 collision properties authoritative and independent of graphics.
-3. Reduce the overworld BG1 and BG2 tilemaps from 64x64 to 64x32, to free up VRAM for expanded tilesets.
+3. Reduce the overworld BG tilemaps, to free up VRAM for expanded tilesets.
 4. Replace the fixed overworld palettes and tilesets with generated 4bpp tileset/palette bundles.
 5. Separate an area's identity and gameplay metadata from its grid position.
 
@@ -18,12 +18,14 @@ It is expected that playtesting will likely uncover the need for additional engi
 2. Switch to using flat Map16 instead of Map32, while retaining their vanilla contents.
 3. Expand Map16 definitions across 4 banks, still retaining their vanilla contents.
 4. Switch collision queries to the four generated 8x8/quadrant properties of each Map16, independent of its graphics.
-5. Convert BG1 to a 64x32 tilemap, including special treatments for rain and the Pyramid.
-6. Convert BG2 to a 64x32 tilemap, streaming newly appearing tiles during all scrolling transitions.
-7. Import the `Desert` theme from `ALTTPRetiling` and implement generated 4bpp tileset and palette bundles on the vanilla arrangement.
-8. Implement area rearrangement, using a hand-specified arrangement and the `Desert Normalized` theme.
-9. Relocate all gameplay objects and special cases, including flute destinations.
-10. Generate the seed-accurate Mode 7 world map and markers, including while using the flute.
+5. Convert BG3 from 64x64 to 32x64 by removing its unused right half.
+6. Convert BG3 from 32x64 to a streamed 32x32 tilemap.
+7. Convert BG1 to a 64x32 tilemap, including special treatments for rain and the Pyramid.
+8. Convert BG2 to a 64x32 tilemap, streaming newly appearing tiles during all scrolling transitions.
+9. Import the `Desert` theme from `ALTTPRetiling` and implement generated 4bpp tileset and palette bundles on the vanilla arrangement.
+10. Implement area rearrangement, using a hand-specified arrangement and the `Desert Normalized` theme.
+11. Relocate all gameplay objects and special cases, including flute destinations.
+12. Generate the seed-accurate Mode 7 world map and markers, including while using the flute.
 
 Each milestone change should end in a playable ROM. The last three milestones will all be based on the same hand-defined rearrangement. Randomized rearrangements and edge variants are deferred until after the engine work is complete.
 
@@ -193,7 +195,7 @@ graphics:    top-left word, top-right word, bottom-left word, bottom-right word
 properties:  top-left byte, top-right byte, bottom-left byte, bottom-right byte
 ```
 
-`engine_check` derives the vanilla records from the four 8x8 tiles in each Map16 and the vanilla `OverworldTileTypes` table. It also folds the graphics word's horizontal-flip bit into directional slope properties `$10-$1B`, matching the vanilla runtime calculation. Milestone 7 will generate the same records directly from properties authored in `ALTTPRetiling`.
+`engine_check` derives the vanilla records from the four 8x8 tiles in each Map16 and the vanilla `OverworldTileTypes` table. It also folds the graphics word's horizontal-flip bit into directional slope properties `$10-$1B`, matching the vanilla runtime calculation. Milestone 9 will generate the same records directly from properties authored in `ALTTPRetiling`.
 
 The four dense 16 KiB quadrant tables occupy `$2C8000`, `$2CC000`, `$2D8000`, and `$2DC000`. They are indexed directly by Map16 ID and cover the full `$0000-$3FFF` namespace in 64 KiB.
 
@@ -210,13 +212,69 @@ Mixed-property Map16 tiles now intentionally use the property of the contacted q
 
 Milestone 4 is complete. The vanilla-layout checkpoint uses independent quadrant properties throughout while retaining the milestone 2 maps, milestone 3 definitions, vanilla graphics and palettes, and 64x64 PPU tilemaps.
 
-## Milestone 5: static 64x32 BG1 tilemap
+## Milestone 5: 32x64 BG3 tilemap
+
+### Design
+
+The playable game configures BG3 as a 64x64 tilemap at `$6000`, but uses only
+its left screen-block column:
+
+- `$6000` contains the HUD and other ordinary BG3 text.
+- `$6800` contains the pause menu, which is revealed by vertical scrolling.
+- No content upload targets the right-hand blocks at `$6400` or `$6C00`; only
+  the blanket BG3 clear currently writes them.
+
+Convert BG3 to 32x64 by setting `BG3SC` from `$63` to `$62` and moving the
+pause-menu block from `$6800` to `$6400`. Update the full clear and the
+`TilemapUpload_HighBytes` destination used by the pause menu accordingly.
+Existing HUD and stripe writes remain in the upper block.
+
+### Validation
+
+Test the HUD, pause and bottle menus, text, file select, dungeon map, save and
+quit, and every transition that rebuilds BG3. Log VRAM writes and confirm that
+BG3 never writes `$6800-$6FFF`.
+
+Milestone 5 is complete when BG3 uses only `$6000-$67FF`, freeing 4 KiB without
+changing its visible behavior.
+
+## Milestone 6: streamed 32x32 BG3 tilemap
+
+### Design
+
+Reduce BG3 to one 32x32 screen block at `$6000` by setting `BG3SC` to `$60`.
+The fixed HUD fits, but the pause menu can no longer remain below it in a
+second block. Treat the tilemap as a 32-row vertical ring during the existing
+8-pixel menu animation:
+
+- While opening, upload each pause-menu row before scrolling it into view.
+- While closing, restore each HUD or blank row before it becomes visible.
+- Reuse the existing pause-menu tilemap buffer at `$1000-$17FF` and HUD buffer
+  at `$7EC700`; do not add a second tilemap representation.
+
+Other BG3 users fit within a single 32x32 block and retain their existing
+stripe updates.
+
+### Validation
+
+Open and close the item and bottle menus from overworld and underworld rooms,
+including rapid input and the extra rod-close frame. Test HUD updates during
+the animation, text, file select, dungeon map, save and quit, and restoration
+after presentation modes. Log each streamed row to verify it is written before
+it enters the visible 224-pixel window.
+
+Milestone 6 is complete when every BG3 path uses `$6000-$63FF`, the pause menu
+streams without a visible seam, and `$6400-$6FFF` remains free.
+
+## Milestone 7: static 64x32 BG1 tilemap
 
 ### Design
 
 Convert only playable-overworld BG1 from 64x64 to 64x32 while BG2 remains unchanged. BG1 does not need runtime row or column streaming: its periodic overlays already fit, its bounded special-overworld views use no more than the 32-pixel margin, and rain and the Pyramid background can be adapted directly to the smaller tilemap.
 
 The 64x32 BG1 layout keeps the screen blocks at VRAM word addresses `$1000` and `$1400`, freeing `$1800-$1FFF` (4 KiB). Keep the logical overlay map at `$7E4000-$7E5FFF`; only its PPU representation becomes smaller.
+
+The current and planned allocations are summarized in [`vram.md`](vram.md).
 
 ### BG1 usage inventory
 
@@ -234,7 +292,7 @@ Full overlay reloads occur during normal overworld loading, mosaic transitions, 
 
 ### Required conversion
 
-- Install `$12` in `BG1SC` and `$03` in `BG2SC` for the playable overworld while forced blank is active. Presentation modes may retain their own settings; the following overworld reload must restore this pair.
+- Install `$11` in `BG1SC` and `$03` in `BG2SC` for the playable overworld while forced blank is active. Presentation modes may retain their own settings; the following overworld reload must restore this pair.
 - Split the shared `BuildOverworldFromMap16`/`BuildBGOverlayFromMap16` machinery only where needed so BG1 builds 16 Map16 rows while BG2 continues to build 32.
 - In the BG1 path, make [`CopyMap16ToBuffer`](../jpdasm/bank_02.asm#L21198) wrap at 16 Map16 rows, remove the vertical `$0800` screen-block offset, and retain the `$0400` horizontal-half offset.
 - Make [`NMI_UpdateSubscreenOverlay`](../jpdasm/bank_00.asm#L2403) upload 4 KiB for BG1 and 8 KiB for the still-64x64 BG2 full load. Remove or bypass the latter BG1 half requested by mirror/whirlpool state machines.
@@ -250,9 +308,9 @@ Full overlay reloads occur during normal overworld loading, mosaic transitions, 
 4. Test mirror, whirlpool, flute/world-map return, interior return, save/reload, and ending credits.
 5. Confirm through VRAM/DMA logging that BG1 never writes `$1800-$1FFF`, BG2 still uses its original 64x64 map, and no BG1 edge updates occur.
 
-Milestone 5 is complete when every BG1 overlay/reload/scroll path works from a static 64x32 tilemap, the replacement rain and clamped Pyramid treatment pass visual testing, and the vanilla-layout ROM remains playable through milestones 2 through 4. Record the freed 4 KiB and measured full-load DMA/NMI budgets.
+Milestone 7 is complete when every BG1 overlay/reload/scroll path works from a static 64x32 tilemap, the replacement rain and clamped Pyramid treatment pass visual testing, and the vanilla-layout ROM remains playable through milestones 2 through 6. Record the freed 4 KiB and measured full-load DMA/NMI budgets.
 
-## Milestone 6: BG2 64x32 tilemap and transition streaming
+## Milestone 8: BG2 64x32 tilemap and transition streaming
 
 ### Design
 
@@ -274,8 +332,8 @@ Graphics and palettes must be resident before the first tile that uses them is d
 
 #### PPU configuration and full loads
 
-- Change the playable-overworld register pair from `$12`/`$03` to `$12`/`$02`.
-- Convert `BuildOverworldFromMap16` to the same 16-row output size established for BG1, removing the temporary mixed-height branch from milestone 5.
+- Change the playable-overworld register pair from `$11`/`$03` to `$11`/`$01`.
+- Convert `BuildOverworldFromMap16` to the same 16-row output size established for BG1, removing the temporary mixed-height branch from milestone 7.
 - In the BG2 path, [`CopyMap16ToBuffer`](../jpdasm/bank_02.asm#L21198) must use `($88 & $0F)` as the row, remove the vertical `$0800` offset, and retain the horizontal `$0400` offset.
 - Both playable-overworld full-load builders now produce 4 KiB and can use the same descriptor count.
 
@@ -304,12 +362,12 @@ Graphics and palettes must be resident before the first tile that uses them is d
 1. Use distinct debug rows, then walk and dash across repeated 256-pixel vertical wraps.
 2. Test north/south transitions between every small/large screen combination, then east/west transitions with the shortened column uploader.
 3. Test dynamic tiles near wrap boundaries, flute travel, mirror, whirlpools, interior exits, pits, special overworlds, and ending credits.
-4. Retest every milestone 5 BG1 overlay, especially rain and the Pyramid, to ensure BG2 streaming never modifies BG1.
+4. Retest every milestone 7 BG1 overlay, especially rain and the Pyramid, to ensure BG2 streaming never modifies BG1.
 5. Confirm that BG2 never writes `$0800-$0FFF` and BG1 never writes `$1800-$1FFF`.
 
-Milestone 6 is complete when BG2 uses a 64x32 ring on every playable-overworld path, every scrolling transition renders destination stripes progressively without a tilemap staging pause, the milestone 5 BG1 checkpoint remains intact, and the vanilla-layout ROM remains playable through all earlier tests. Record the combined 8 KiB saving and final tilemap DMA/NMI budgets before assigning 4bpp assets.
+Milestone 8 is complete when BG2 uses a 64x32 ring on every playable-overworld path, every scrolling transition renders destination stripes progressively without a tilemap staging pause, the milestone 7 BG1 checkpoint remains intact, and the vanilla-layout ROM remains playable through all earlier tests. Record the combined 8 KiB BG1/BG2 saving and final tilemap DMA/NMI budgets before assigning 4bpp assets.
 
-## Milestone 7: 4bpp palettes and custom tilesets
+## Milestone 9: 4bpp palettes and custom tilesets
 
 ### Objective
 
@@ -321,7 +379,7 @@ Import the `Desert` variants from `ALTTPRetiling` and replace the vanilla overwo
 - Use a verified vanilla reference ROM during this build to perform RGB-resolved 8x8 matching and replace every match with a vanilla tile reference, `$0-$7` to `$0-$F` color-index map, and flip flags. Reconstruct and pixel-validate all such references and emit the sanitization audit manifest alongside the blob.
 - Validate area dimensions, component-screen positions, array sizes, palette/tile references, flips, priority, collision metadata, envelope/payload lengths, compiled indexes, stable IDs, the root `type_hash`, and source/content hashes.
 - Treat the imported 8x8 placements and properties as the canonical source. Generate deduplicated Map16 graphics definitions, independent four-byte quadrant-property records, and flat logical maps from each 2x2 group without requiring artists to author Map16 or Map32 tiles.
-- Preserve the vanilla physical layout and area footprints. Generate Light World/Dark World members consistently, but defer rearranged placement and edge metadata to milestone 8.
+- Preserve the vanilla physical layout and area footprints. Generate Light World/Dark World members consistently, but defer rearranged placement and edge metadata to milestone 10.
 - Read the blob through the production reader, render every imported `Desert` area in software, and compare it to the checked-in `Desert.png` reference before patching a ROM.
 
 ### Asset compilation
@@ -333,7 +391,7 @@ The patcher converts compiled `ALTTPRetiling` records into SNES-specific seed da
 - Deduplicate identical tiles, including legal flipped forms. Collision remains attached to the generated Map16 quadrant-property record and is never inferred from the assigned VRAM character.
 - Reserve stable slots for engine-owned animated tiles and graphics used by dynamic overlays. Compile animated frames into the same bundle or reject conflicting authored slots.
 
-Shared seed-generation and patcher validation must enforce the measured milestone 5 and 6 character, CGRAM, DMA, NMI, and ROM budgets, reporting the source asset and coordinate responsible for any failure.
+Shared seed-generation and patcher validation must enforce the measured milestone 7 and 8 character, CGRAM, DMA, NMI, and ROM budgets, reporting the source asset and coordinate responsible for any failure.
 
 ### Palette allocation
 
@@ -345,7 +403,7 @@ Audit rain, fog, darkening, mirror/whirlpool transitions, damage flashes, palett
 
 ### Graphics loading and residency
 
-The vanilla loader selects fixed sheet IDs and expands compressed 3bpp sheets into VRAM. The custom path instead uploads generated 4bpp blocks to the final character regions established by milestones 5 and 6.
+The vanilla loader selects fixed sheet IDs and expands compressed 3bpp sheets into VRAM. The custom path instead uploads generated 4bpp blocks to the final character regions established by milestones 7 and 8.
 
 The area/transition descriptor provides 24-bit source pointers, fixed VRAM destinations, and transfer lengths. The loader supports:
 
@@ -371,10 +429,10 @@ For every imported area and allowed vanilla-layout adjacency:
 4. Test animated water, grass, signs, houses, dungeon entrances, event overlays, rain/fog/parallax screens, mirror and whirlpool effects, flute travel, interior return, save-and-quit reload, and world-map exit.
 5. Measure forced-blank load time, per-frame DMA volume, NMI time, and ROM size, and enforce those budgets during generation.
 
-Milestone 7 is complete when the entire vanilla-layout `Desert` build uses generated direct-4bpp graphics and CGRAM data on the milestone 5 and 6 tilemaps, every character and palette has a stable seed-global slot, collision still comes only from independent quadrant properties, all restoration paths are descriptor-aware, and the ROM remains playable through the earlier checkpoint tests.
+Milestone 9 is complete when the entire vanilla-layout `Desert` build uses generated direct-4bpp graphics and CGRAM data on the milestone 7 and 8 tilemaps, every character and palette has a stable seed-global slot, collision still comes only from independent quadrant properties, all restoration paths are descriptor-aware, and the ROM remains playable through the earlier checkpoint tests.
 
 
-## Milestone 8: paired-world area topology and transitions
+## Milestone 10: paired-world area topology and transitions
 
 ### Separate physical placement from area identity
 
@@ -388,7 +446,7 @@ Keep `$8A` as a compatibility value only after deciding which meaning minimizes 
 
 The physical topology is fixed to the vanilla 8x8 overworld grid, and every area keeps its vanilla dimensions and footprint. The layout generator places an entire area pair into corresponding Light World/Dark World slots and assigns the same theme to both members. It does not independently shuffle the worlds, resize areas, create holes outside the vanilla footprint rules, or introduce non-rectangular areas.
 
-The current `ALTTPRetiling` schema describes only background tiles: 67 areas have a 2x2 screen grid and 17 have a 4x4 grid, with each component screen containing 32x32 8x8 placements. It does not yet describe typed edges, gameplay objects, or map art. The first retiled-asset target in milestone 7 therefore uses the existing `Desert` variant on the vanilla layout. Edge-aware randomization waits for a versioned edge schema; its final representation remains intentionally undecided.
+The current `ALTTPRetiling` schema describes only background tiles: 67 areas have a 2x2 screen grid and 17 have a 4x4 grid, with each component screen containing 32x32 8x8 placements. It does not yet describe typed edges, gameplay objects, or map art. The first retiled-asset target in milestone 9 therefore uses the existing `Desert` variant on the vanilla layout. Edge-aware randomization waits for a versioned edge schema; its final representation remains intentionally undecided.
 
 ### Generated topology and transition metadata
 
@@ -406,7 +464,7 @@ Part Five calls for large, small, split, upper-only/lower-only, and specialized 
 
 ### JSON layout output
 
-The milestone 8 seed generator reads the production compiled-retiling blob and writes the fully resolved paired-world topology to the JSON seed artifact. For each logical area it records stable area/pair IDs, Light World and Dark World physical slots, vanilla footprint, selected theme, selected edge variants, directed adjacency, counterpart mapping, and travel/map metadata known at this stage. It also records the RNG seed, settings, schema version, compiled-blob identities, and required engine ABI.
+The milestone 10 seed generator reads the production compiled-retiling blob and writes the fully resolved paired-world topology to the JSON seed artifact. For each logical area it records stable area/pair IDs, Light World and Dark World physical slots, vanilla footprint, selected theme, selected edge variants, directed adjacency, counterpart mapping, and travel/map metadata known at this stage. It also records the RNG seed, settings, schema version, compiled-blob identities, and required engine ABI.
 
 The JSON uses logical IDs and coordinates rather than ROM addresses or packed runtime structures. Generation performs topology, edge, capacity, and reachability validation before publishing the JSON and its seed-specific retiling subset. The shared Rust patcher—native in the CLI and WebAssembly in the browser—later consumes those artifacts and deterministically builds the slot descriptors, transition tables, graphics/palette assignments, and other binary structures in the IPS-reserved seed-data regions; it does not rerun layout randomization. For web generation, the service returns only the selected variants and their transitive retiling dependencies, not the full catalog.
 
@@ -415,11 +473,11 @@ The JSON uses logical IDs and coordinates rather than ROM addresses or packed ru
 1. First generate descriptors for the vanilla placement and prove that slot lookup, area identity, paired-world lookup, internal large-area movement, and all four transition directions reproduce vanilla behavior.
 2. Verify that every Light World/Dark World pair has matching placement, footprint, and selected theme, and that mirror/portal counterpart lookup reaches the corresponding relative coordinate.
 3. Once edge metadata exists, generate shuffled layouts using only the vanilla 8x8 grid and vanilla-sized footprints. Reject overlaps, out-of-grid placements, unpaired worlds, and incompatible or missing edge records.
-4. Exercise internal and external transitions for every small/large footprint combination and every connection type, including milestone 5 BG1 overlays, milestone 6 BG2 streaming, and milestone 7 graphics/palette residency.
+4. Exercise internal and external transitions for every small/large footprint combination and every connection type, including milestone 7 BG1 overlays, milestone 8 BG2 streaming, and milestone 9 graphics/palette residency.
 
-Milestone 8 is complete when the engine no longer derives topology from vanilla screen-ID arithmetic, vanilla placement works entirely through generated descriptors, and—after the edge schema becomes available—paired areas can be shuffled with every directed adjacency validated before ROM generation.
+Milestone 10 is complete when the engine no longer derives topology from vanilla screen-ID arithmetic, vanilla placement works entirely through generated descriptors, and—after the edge schema becomes available—paired areas can be shuffled with every directed adjacency validated before ROM generation.
 
-## Milestone 9: gameplay-data relocation and validation
+## Milestone 11: gameplay-data relocation and validation
 
 ### Relocate gameplay data and hard-coded behavior
 
@@ -440,7 +498,7 @@ A systematic audit is required for literal overworld IDs and screen-indexed tabl
 
 ### Fast travel
 
-Flute destinations need generated physical landing slots and coordinates. Fixed-slot mode can retain landmark numbering while changing destinations; geographic mode must sort the selected landmarks by final placement. Milestone 10 renders the resulting numbers and icons on the map. Every landing must be checked for valid ground, adequate sprite clearance, and correct graphics/palette loading before control returns to the player.
+Flute destinations need generated physical landing slots and coordinates. Fixed-slot mode can retain landmark numbering while changing destinations; geographic mode must sort the selected landmarks by final placement. Milestone 12 renders the resulting numbers and icons on the map. Every landing must be checked for valid ground, adequate sprite clearance, and correct graphics/palette loading before control returns to the player.
 
 ### Compiled logic-data build and reachability
 
@@ -476,11 +534,11 @@ Before emitting a seed, verify:
 
 Runtime testing should include every directed edge variant, all four approaches to multi-slot areas, transitions while dashing or carrying/followed, dynamic tiles adjacent to borders, save/reload from every area class, Light World/Dark World swaps, and a full completion playthrough on randomized layouts.
 
-Milestone 9 is complete when all relocated gameplay data follow logical areas rather than vanilla physical screen IDs, vanilla-relative objects have been validated on every selected tiling variant, persistence survives movement and save/reload, flute destinations match the JSON seed, the screen-ID audit has no unexplained cases, and representative JSON seeds can be patched and completed without engine or topology failures. Once item randomization is implemented, completion also requires a deterministic validated compiled logic blob, equivalence between its reachability evaluator and the source-JSON reference evaluator, and item placements in the JSON reproducing exactly in the patched ROM.
+Milestone 11 is complete when all relocated gameplay data follow logical areas rather than vanilla physical screen IDs, vanilla-relative objects have been validated on every selected tiling variant, persistence survives movement and save/reload, flute destinations match the JSON seed, the screen-ID audit has no unexplained cases, and representative JSON seeds can be patched and completed without engine or topology failures. Once item randomization is implemented, completion also requires a deterministic validated compiled logic blob, equivalence between its reachability evaluator and the source-JSON reference evaluator, and item placements in the JSON reproducing exactly in the patched ROM.
 
-## Milestone 10: generated Mode 7 world map
+## Milestone 12: generated Mode 7 world map
 
-Generate the Mode 7 tilemap, graphics, edge art, and Link, dungeon-reward, portal, objective, and flute markers from the final topology and milestone 9 gameplay data. Keep these assets separate from the playable-overworld tileset: bank 0A and bank 18 use a distinct presentation path and VRAM mode. Derive them from the authoritative JSON rather than creating a second representation of the world layout.
+Generate the Mode 7 tilemap, graphics, edge art, and Link, dungeon-reward, portal, objective, and flute markers from the final topology and milestone 11 gameplay data. Keep these assets separate from the playable-overworld tileset: bank 0A and bank 18 use a distinct presentation path and VRAM mode. Derive them from the authoritative JSON rather than creating a second representation of the world layout.
 
 ### Validation and exit criteria
 
@@ -489,7 +547,7 @@ Generate the Mode 7 tilemap, graphics, edge art, and Link, dungeon-reward, porta
 3. Test map zooming and panning, flute selection and landing, menu exit, and restoration of the playable-overworld graphics and palettes.
 4. Run a final completion playthrough to catch map, flute, or restoration regressions.
 
-Milestone 10 is complete when both Mode 7 maps accurately represent the seed, all markers and flute choices agree with the JSON data, returning from the map restores the playable overworld correctly, and the final ROM passes completion testing.
+Milestone 12 is complete when both Mode 7 maps accurately represent the seed, all markers and flute choices agree with the JSON data, returning from the map restores the playable overworld correctly, and the final ROM passes completion testing.
 
 ## Deferred design decisions
 
