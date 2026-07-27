@@ -422,6 +422,13 @@ impl Importer {
         Ok(&self.tiles16)
     }
 
+    pub fn tile_types(&mut self) -> Result<&[u8]> {
+        if self.tile_types.is_empty() {
+            self.load_tile_types()?;
+        }
+        Ok(&self.tile_types)
+    }
+
     fn load_palette(&self, addr: PcAddr, size: usize) -> Result<[ColorRgb; 16]> {
         let mut colors = [[0, 0, 0]; 16];
         for i in 0..size {

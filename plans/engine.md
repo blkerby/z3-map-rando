@@ -195,7 +195,7 @@ properties:  top-left byte, top-right byte, bottom-left byte, bottom-right byte
 
 Generate the four-byte records at build time. For the vanilla checkpoint, derive them once from the four 8x8 tiles in each vanilla Map16 and the vanilla `OverworldTileTypes` table. Milestone 7 generates the same records directly from the properties authored in `ALTTPRetiling`. Runtime collision code reads only the property record; it must not recover collision from a graphics word, character number, palette, or flip.
 
-Store records only for defined Map16 IDs and use the same ID-to-bank convention as the graphics definitions. Do not reserve a dense 256 KiB table unless actual generated IDs require it.
+Store four dense 16 KiB quadrant tables in banks `$2C-$2D`, indexed directly by Map16 ID. This covers the full `$0000-$3FFF` namespace in 64 KiB.
 
 ### Runtime changes
 

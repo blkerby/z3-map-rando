@@ -16,6 +16,12 @@ const MAP16_DEFINITION_STARTS: [SnesAddr; 4] = [
     SnesAddr(0x2a8000),
     SnesAddr(0x2b8000),
 ];
+const MAP16_PROPERTY_STARTS: [SnesAddr; 4] = [
+    SnesAddr(0x2c8000),
+    SnesAddr(0x2cc000),
+    SnesAddr(0x2d8000),
+    SnesAddr(0x2dc000),
+];
 
 #[derive(Parser)]
 struct Args {
@@ -29,6 +35,16 @@ fn split_map16_definitions(tiles16: &[Tile16]) -> [Vec<u8>; 4] {
             .iter()
             .flat_map(|tile| tile[quadrant].to_vram_tilemap_word().to_le_bytes())
             .collect()
+    })
+}
+
+fn split_map16_properties(tiles16: &[Tile16], tile_types: &[u8]) -> [Vec<u8>; 4] {
+    std::array::from_fn(|quadrant| {
+        let mut properties = vec![0; 0x4000];
+        for (property, tile) in properties.iter_mut().zip(tiles16) {
+            *property = tile_types[(tile[quadrant].to_vram_tilemap_word() & 0x01ff) as usize];
+        }
+        properties
     })
 }
 
@@ -51,7 +67,9 @@ fn main() -> Result<()> {
     );
     let mut importer = Importer::new(rom.clone())?;
     let flat_map16 = importer.flat_map16()?;
+    let tile_types = importer.tile_types()?.to_owned();
     let map16_definitions = split_map16_definitions(importer.tiles16()?);
+    let map16_properties = split_map16_properties(importer.tiles16()?, &tile_types);
     rom.resize(2 * 1024 * 1024, 0);
 
     let mut patcher = Patcher::default();
@@ -62,6 +80,11 @@ fn main() -> Result<()> {
     let mut context = patcher.context("expanded Map16 definitions");
     for (start, definitions) in MAP16_DEFINITION_STARTS.into_iter().zip(map16_definitions) {
         context.write(start.into(), definitions)?;
+    }
+
+    let mut context = patcher.context("Map16 quadrant properties");
+    for (start, properties) in MAP16_PROPERTY_STARTS.into_iter().zip(map16_properties) {
+        context.write(start.into(), properties)?;
     }
 
     // Zero out the obsolete Map16 definitions and Map32 data. This is only
@@ -110,6 +133,26 @@ mod tests {
                 vec![5, 6, 13, 14],
                 vec![7, 8, 15, 16],
             ]
+        );
+    }
+
+    #[test]
+    fn splits_map16_properties_by_quadrant() {
+        let tiles16 = [
+            [0xc201, 1, 2, 3].map(Tile8::from_vram_tilemap_word),
+            [4, 5, 6, 7].map(Tile8::from_vram_tilemap_word),
+        ];
+        let tile_types: Vec<_> = (0..=255).chain(0..=255).collect();
+        let properties = split_map16_properties(&tiles16, &tile_types);
+
+        assert_eq!(&properties[0][..2], &[1, 4]);
+        assert_eq!(&properties[1][..2], &[1, 5]);
+        assert_eq!(&properties[2][..2], &[2, 6]);
+        assert_eq!(&properties[3][..2], &[3, 7]);
+        assert!(
+            properties
+                .iter()
+                .all(|quadrant| quadrant[2..].iter().all(|&property| property == 0))
         );
     }
 }

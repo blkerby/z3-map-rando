@@ -1,0 +1,2 @@
+$2D8000-$2DBFFF bottom-left Map16 property bytes
+$2DC000-$2DFFFF bottom-right Map16 property bytes
