@@ -382,7 +382,7 @@ UploadMenuRow:
 BlankBG3Row:
     ; Tilemap word $207F is the transparent space used by the HUD and menu.
     fillword $207F
-    fill 32
+    fill 64
 
 ReduceBG3End:
 assert pc() <= !free_space_bank_any_end
