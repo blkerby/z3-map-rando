@@ -1,3 +1,7 @@
+F1B6-F1E3: expand_map16.asm (banked horizontal Map16 stripe lookup)
+F1E4-F1E5: [FREE] (remainder of CreateMap16Stripes_Horizontal)
+F27E-F2AB: expand_map16.asm (banked vertical Map16 stripe lookup)
+F2AC-F2AD: [FREE] (remainder of CreateMap16Stripes_Vertical)
 F2AE-F39B: flat_map16.asm (overwrites Overworld_DecompressAndDrawAllQuadrants in place)
 F39C-F3C5: expand_map16.asm (banked GetOverworldTileType continuation)
 F3C6-F52E: [FREE] (obsolete Map32 expansion routines)

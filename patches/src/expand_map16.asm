@@ -15,6 +15,80 @@ org $00884E
     JML GetOverworldTileType_Banked
 assert pc() <= $008852
 
+; Vanilla has loaded the next horizontal-stripe Map16 ID into A.
+org $02F1AD
+CreateMap16Stripes_Horizontal_Banked_Next:
+
+org $02F1B6
+    ASL A
+    TAX
+
+    LDA.l !Map16TopLeft,X
+    STA.w $1100,Y
+
+    LDA.l !Map16TopRight,X
+    STA.w $1142,Y
+
+    INY
+    INY
+
+    LDA.l !Map16BottomLeft,X
+    STA.w $1100,Y
+
+    LDA.l !Map16BottomRight,X
+    STA.w $1142,Y
+
+    INY
+    INY
+
+    DEC.b $06
+    BNE CreateMap16Stripes_Horizontal_Banked_Next
+
+    TYA
+    CLC
+    ADC.w #$0042
+    STA.b $0E
+
+    RTS
+assert pc() <= $02F1E4
+
+; Vanilla has loaded the next vertical-stripe Map16 ID into A.
+org $02F275
+CreateMap16Stripes_Vertical_Banked_Next:
+
+org $02F27E
+    ASL A
+    TAX
+
+    LDA.l !Map16TopLeft,X
+    STA.w $1100,Y
+
+    LDA.l !Map16BottomLeft,X
+    STA.w $1140,Y
+
+    INY
+    INY
+
+    LDA.l !Map16TopRight,X
+    STA.w $1100,Y
+
+    LDA.l !Map16BottomRight,X
+    STA.w $1140,Y
+
+    INY
+    INY
+
+    DEC.b $06
+    BNE CreateMap16Stripes_Vertical_Banked_Next
+
+    TYA
+    CLC
+    ADC.w #$0040
+    STA.b $0E
+
+    RTS
+assert pc() <= $02F2AC
+
 ; Inputs:
 ;   A.w: Map16 ID read from the WRAM map
 ;   $00.w: world Y coordinate in pixels (bit 3 selects top or bottom)
