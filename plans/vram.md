@@ -7,7 +7,7 @@ both overworld and dungeons because those modes share the HUD and pause-menu
 paths. Milestones 7 through 9 rearrange only overworld VRAM; dungeons retain
 their vanilla BG1, BG2, graphics, and OBJ locations.
 
-## Vanilla/current layout
+## Vanilla layout
 
 | VRAM range | Size | Use |
 | --- | ---: | --- |
@@ -33,7 +33,7 @@ from `$6800` to `$6400`, releasing the unused right-hand blocks.
 | `$6800-$6FFF` | 4 KiB | Free |
 | `$7000-$7FFF` | 8 KiB | BG3/HUD character graphics |
 
-## After milestone 6
+## After milestone 6 (current)
 
 In both overworld and dungeons, BG3 becomes a streamed 32x32 tilemap,
 releasing another 2 KiB.
@@ -119,9 +119,9 @@ stream rows or columns as the camera moves.
 
 | Stage | `BG1SC` | `BG2SC` | `BG3SC` | `BG12NBA` |
 | --- | ---: | ---: | ---: | ---: |
-| Current | `$13` | `$03` | `$63` | `$22` |
+| Vanilla | `$13` | `$03` | `$63` | `$22` |
 | Milestone 5 | `$13` | `$03` | `$62` | `$22` |
-| Milestone 6 | `$13` | `$03` | `$60` | `$22` |
+| Milestone 6 (current) | `$13` | `$03` | `$60` | `$22` |
 | Milestone 7 | `$11` | `$03` | `$60` | `$22` |
 | Milestone 8 | `$11` | `$01` | `$60` | `$22` |
 | Milestone 9 | `$69` | `$61` | `$3C` | `$00` |

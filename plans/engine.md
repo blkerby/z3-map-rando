@@ -29,7 +29,7 @@ It is expected that playtesting will likely uncover the need for additional engi
 
 Each milestone change should end in a playable ROM. The last three milestones will all be based on the same hand-defined rearrangement. Randomized rearrangements and edge variants are deferred until after the engine work is complete.
 
-Current status: Milestones 1 through 5 are complete.
+Current status: Milestones 1 through 6 are complete.
 
 Note: Everything below is mostly raw, unreviewed AI-generated notes. Especially for the not-yet-complete milestones, it should not be taken as a solid plan of what we will actually end up doing.
 
@@ -224,7 +224,7 @@ The playable game configures BG3 as a 64x64 tilemap at `$6000`, but uses only it
 - `$6800` contains the pause menu, which is revealed by vertical scrolling.
 - No content upload targets the right-hand blocks at `$6400` or `$6C00`; only the blanket BG3 clear currently writes them.
 
-The milestone checkpoint set `BG3SC` from `$63` to `$62` and moved the pause-menu block from `$6800` to `$6400`. The milestone 6 implementation subsequently replaces `reduce_bg3.asm` with the final 32x32 version.
+The milestone checkpoint set `BG3SC` from `$63` to `$62` and moved the pause-menu block from `$6800` to `$6400`. The milestone 6 implementation subsequently replaced `reduce_bg3.asm` with the final 32x32 version.
 
 ### Validation
 
@@ -234,11 +234,11 @@ Milestone 5 is complete. BG3 uses only `$6000-$67FF`, freeing 4 KiB without chan
 
 ## Milestone 6: streamed 32x32 BG3 tilemap
 
-### Design
+### Implementation
 
-Reduce BG3 to one 32x32 screen block at `$6000` by setting `BG3SC` to `$60`. This change continues to apply to both overworld and dungeons, and the shared BG3 clear shrinks to one screen block.
+BG3 uses one 32x32 screen block at `$6000`, selected by `BG3SC=$60`. This applies to both overworld and dungeons, and the shared BG3 clear covers only that screen block.
 
-The fixed HUD fits, but the item menu can no longer remain below it in a second block. Treat the tilemap as a 32-row vertical ring during the existing 8-pixel menu animation:
+The fixed HUD fits, but the item menu can no longer remain below it in a second block. The tilemap acts as a 32-row vertical ring during the existing 8-pixel menu animation:
 
 - Build the item menu in its existing `$1000-$17FF` buffer without uploading it over the HUD.
 - While opening, upload each newly visible menu row from that buffer.
@@ -247,13 +247,13 @@ The fixed HUD fits, but the item menu can no longer remain below it in a second 
 
 NMI tile-update mode `$06`, unused by vanilla, performs the 64-byte row DMA. The opening row is `(BG3VOFS / 8) & $1F`. Because the PPU's effective BG vertical coordinate is one pixel ahead, the bottom scanline comes from the closing row 28 rows after the new top row.
 
-The ending credits already stream attribution rows as BG3 scrolls. Delay their first row until row 0 has moved offscreen, then wrap all subsequent destinations within `$6000-$63FF`. End the name-entry stripe list before its unused vanilla right-half records write into `$6400-$67FF`. Other BG3 users already remain within one screen block.
+The ending credits already stream attribution rows as BG3 scrolls. Their first row is delayed until row 0 has moved offscreen, and all subsequent destinations wrap within `$6000-$63FF`. The name-entry stripe list ends before its unused vanilla right-half records would write into `$6400-$67FF`. Other BG3 users already remain within one screen block.
 
 ### Validation
 
-Open and close the item and bottle menus from overworld and underworld rooms, including rapid input and both rods. Test restored HUD values, text, file select and name entry, dungeon map, save and quit, and restoration after presentation modes. Run the complete ending credits. Log each streamed row to verify it is written before it enters the visible 224-pixel window, and verify that no BG3 path writes `$6400-$6FFF`.
+Automated patch and workspace checks pass. Gameplay testing confirmed that the item menu streams without a visible seam and that closing restores transparent rows and the HUD correctly. The name-entry and ending-credits paths are confined to the reduced tilemap.
 
-Milestone 6 is complete when every BG3 path uses `$6000-$63FF`, the item menu streams without a visible seam, the ending credits wrap correctly, and `$6400-$6FFF` remains free.
+Milestone 6 is complete. BG3 uses `$6000-$63FF` in both overworld and dungeons, and `$6400-$6FFF` is free.
 
 ## Milestone 7: static 64x32 BG1 tilemap
 
