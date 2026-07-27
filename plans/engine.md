@@ -27,7 +27,7 @@ It is expected that playtesting will likely uncover the need for additional engi
 
 Each milestone change should end in a playable ROM. The last three milestones will all be based on the same hand-defined rearrangement. Randomized rearrangements and edge variants are deferred until after the engine work is complete.
 
-Current status: Milestones 1 and 2 are complete.
+Current status: Milestones 1 through 3 are complete.
 
 Note: Everything below is mostly raw, unreviewed AI-generated notes. Especially for the not-yet-complete milestones, it should not be taken as a solid plan of what we will actually end up doing.
 
@@ -113,7 +113,7 @@ Milestone 2 is complete when no runtime path depends on Map32 data, the generate
 
 Expand Map16 definitions across four banks while retaining the milestone 2 flat maps, vanilla definition contents, collision behavior, palettes, tilesets, and 64x64 PPU tilemaps. Store one quadrant word per bank so every table uses the same `ID * 2` index. Do not make the original coarse per-Map16 property table part of the final representation; the milestone 4 quadrant-property work replaces it.
 
-Reserve four banks, provisionally `$28-$2B`, for the top-left, top-right, bottom-left, and bottom-right words respectively. This leaves banks `$2C-$3F` available for generated load images, lookup code, milestone 4 quadrant properties, and future data. Finalize these ranges after measuring the milestone 2 checkpoint and add assembler assertions around the selected ABI. A temporary migration build may retain coarse-property data for comparison, but the final layout does not use it.
+Banks `$28-$2B` contain the top-left, top-right, bottom-left, and bottom-right words respectively. Banks `$2C-$3F` remain available for later milestones. The original coarse-property data remain unchanged until milestone 4 replaces them.
 
 ### Expanding the Map16 ID namespace
 
@@ -158,15 +158,15 @@ Expanding Map16 definitions does not by itself expand the set of 8x8 graphical c
 
 Hard-coded tile IDs such as `$0DBE`, `$0D9E`, and `$0DA0` in banks 02/04/07/1B can remain valid if the legacy definitions retain their numbers. The map converter should reject undefined IDs and reserve any chosen sentinel values explicitly.
 
-### Implementation and validation sequence
+### Implementation and validation
 
-1. Copy the vanilla Map16 definitions into the banked representation without changing their IDs or words.
-2. Change every direct graphics-definition reference to use the shared `ID * 2` index and the appropriate quadrant-bank label.
-3. Render and query a test fixture containing low, legacy-high, and `$3FFF` Map16 IDs.
-4. Compare the rendered main and overlay maps against milestone 2 for every screen ID.
-5. Run the playable vanilla-layout checkpoint through the milestone 2 smoke tests using unchanged collision and 64x64 PPU tilemaps.
+- `engine_check` imports the 3,742 vanilla definitions and writes their four quadrants to banks `$28-$2B` without changing IDs or words.
+- `expand_map16.asm` migrates every direct definition load, including full builds, scrolling stripes, dynamic tile changes, entrances, terrain actions, and liftable objects.
+- Runtime-selected quadrants use banked lookup routines; fixed-quadrant paths load their bank directly.
+- The split-definition unit test checks quadrant ordering and byte layout.
+- `engine_check` zeros the original table at `$0F8000-$0FF4EF`, so any remaining runtime dependency is visible during playtesting.
 
-Milestone 3 is complete when every Map16 definition access supports the banked representation, the vanilla definitions render identically, and the vanilla-layout ROM remains playable through the full smoke-test set. Measure rendering and transition performance before changing collision.
+Milestone 3 is complete. The banked representation supports IDs `$0000-$3FFF` while retaining vanilla collision, palettes, tilesets, and 64x64 PPU tilemaps.
 
 ## Milestone 4: 8x8-authored overworld collision properties
 

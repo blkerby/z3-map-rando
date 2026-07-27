@@ -64,10 +64,11 @@ fn main() -> Result<()> {
         context.write(start.into(), definitions)?;
     }
 
-    // Zero out the obsolete Map32 data. This is only temporary,
-    // to prove that they are no longer used.
-    let mut context = patcher.context("zero obsolete Map32 data");
+    // Zero out the obsolete Map16 definitions and Map32 data. This is only
+    // temporary, to prove that they are no longer used.
+    let mut context = patcher.context("zero obsolete map data");
     for range in [
+        SnesAddr(0x0f8000)..SnesAddr(0x0ff4f0), // Map16 definitions
         SnesAddr(0x02f6b1)..SnesAddr(0x02fa71), // map pointer tables
         SnesAddr(0x038000)..SnesAddr(0x03e780), // top Tile32 definitions
         SnesAddr(0x048000)..SnesAddr(0x04e780), // bottom Tile32 definitions
