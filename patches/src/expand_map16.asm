@@ -1,5 +1,5 @@
 ; Expand Map16 definitions, by using a separate bank for each of the four 8x8 quadrants
-; (giving 4x larger capacity), and migrate terrain queries and full tilemap builds
+; (giving 4x larger capacity), and migrate terrain, entrance, and tilemap code
 ; to read from these banks.
 
 lorom
@@ -199,3 +199,33 @@ CopyOneMap16Segment_Banked:
 
     RTS
 assert pc() <= $02FBAB
+
+; UseOverworldEntrance checks fixed quadrants for entrance and door graphics.
+; Keep the vanilla instruction addresses so its existing branches are unchanged.
+; Replace two ASL instructions with NOPs, since the offset into each bank is
+; now 2 * A instead of 8 * A.
+org $1BBC22
+    NOP
+    NOP
+assert pc() <= $1BBC24
+
+org $1BBC2C
+    LDA.l !Map16TopRight,X
+assert pc() <= $1BBC30
+
+org $1BBC48
+    NOP
+    NOP
+assert pc() <= $1BBC4A
+
+org $1BBC4B
+    LDA.l !Map16TopLeft,X
+assert pc() <= $1BBC4F
+
+org $1BBCC1
+    LDA.l !Map16BottomLeft,X
+assert pc() <= $1BBCC5
+
+org $1BBCCA
+    LDA.l !Map16BottomRight,X
+assert pc() <= $1BBCCE
