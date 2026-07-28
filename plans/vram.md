@@ -33,7 +33,7 @@ from `$6800` to `$6400`, releasing the unused right-hand blocks.
 | `$6800-$6FFF` | 4 KiB | Free |
 | `$7000-$7FFF` | 8 KiB | BG3/HUD character graphics |
 
-## After milestone 6 (current)
+## After milestone 6
 
 In both overworld and dungeons, BG3 becomes a streamed 32x32 tilemap,
 releasing another 2 KiB.
@@ -50,14 +50,14 @@ releasing another 2 KiB.
 
 ## After milestone 7
 
-BG1 becomes 64x32. It keeps its two horizontal screen blocks and releases its
+BG2 becomes 64x32. It keeps its two horizontal screen blocks and releases its
 lower two blocks.
 
 | VRAM range | Size | Use |
 | --- | ---: | --- |
-| `$0000-$0FFF` | 8 KiB | BG2 64x64 tilemap |
-| `$1000-$17FF` | 4 KiB | BG1 64x32 tilemap |
-| `$1800-$1FFF` | 4 KiB | Free |
+| `$0000-$07FF` | 4 KiB | BG2 64x32 tilemap |
+| `$0800-$0FFF` | 4 KiB | Free |
+| `$1000-$1FFF` | 8 KiB | BG1 64x64 tilemap |
 | `$2000-$3FFF` | 16 KiB | Shared BG1/BG2 4bpp character graphics |
 | `$4000-$5FFF` | 16 KiB | OBJ character graphics |
 | `$6000-$63FF` | 2 KiB | BG3/HUD 32x32 tilemap |
@@ -66,7 +66,7 @@ lower two blocks.
 
 ## After milestone 8
 
-BG2 also becomes 64x32, freeing another 4 KiB. The BG1/BG2 free ranges are
+BG1 also becomes 64x32, freeing another 4 KiB. The BG1/BG2 free ranges are
 not yet contiguous.
 
 | VRAM range | Size | Use |
@@ -122,7 +122,7 @@ stream rows or columns as the camera moves.
 | Vanilla | `$13` | `$03` | `$63` | `$22` |
 | Milestone 5 | `$13` | `$03` | `$62` | `$22` |
 | Milestone 6 (current) | `$13` | `$03` | `$60` | `$22` |
-| Milestone 7 | `$11` | `$03` | `$60` | `$22` |
+| Milestone 7 | `$13` | `$01` | `$60` | `$22` |
 | Milestone 8 | `$11` | `$01` | `$60` | `$22` |
 | Milestone 9 | `$69` | `$61` | `$3C` | `$00` |
 

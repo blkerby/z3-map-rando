@@ -20,8 +20,8 @@ It is expected that playtesting will likely uncover the need for additional engi
 4. Switch collision queries to the four generated 8x8/quadrant properties of each Map16, independent of its graphics.
 5. Convert BG3 in both overworld and dungeons from 64x64 to 32x64 by removing its unused right half.
 6. Convert BG3 in both overworld and dungeons from 32x64 to a streamed 32x32 tilemap.
-7. Convert BG1 to a 64x32 tilemap, including special treatments for rain and the Pyramid.
-8. Convert BG2 to a 64x32 tilemap, streaming newly appearing tiles during all scrolling transitions.
+7. Convert BG2 to a 64x32 tilemap, streaming newly visible 8x8 edges during gameplay.
+8. Convert BG1 to a streamed 64x32 tilemap, then add the separate 64x32 rain treatment.
 9. Import the `Desert` theme from `ALTTPRetiling` and implement generated 4bpp tileset and palette bundles on the vanilla arrangement.
 10. Implement area rearrangement, using a hand-specified arrangement and the `Desert Normalized` theme.
 11. Relocate all gameplay objects and special cases, including flute destinations.
@@ -255,106 +255,83 @@ Automated patch and workspace checks pass. Gameplay testing confirmed that the i
 
 Milestone 6 is complete. BG3 uses `$6000-$63FF` in both overworld and dungeons, and `$6400-$6FFF` is free.
 
-## Milestone 7: static 64x32 BG1 tilemap
+## Milestone 7: BG2 64x32 tilemap and streaming
 
 ### Design
 
-Convert only playable-overworld BG1 from 64x64 to 64x32 while BG2 remains unchanged. BG1 does not need runtime row or column streaming: its periodic overlays already fit, its bounded special-overworld views use no more than the 32-pixel margin, and rain and the Pyramid background can be adapted directly to the smaller tilemap.
-
-The 64x32 BG1 layout keeps the screen blocks at VRAM word addresses `$1000` and `$1400`, freeing `$1800-$1FFF` (4 KiB). Keep the logical overlay map at `$7E4000-$7E5FFF`; only its PPU representation becomes smaller.
-
-The current and planned allocations are summarized in [`vram.md`](vram.md).
-
-### BG1 usage inventory
-
-[`ReloadSubscreenOverlay`](../jpdasm/bank_02.asm#L8500) selects and loads overlay pseudo-screens, and [`BuildBGOverlayFromMap16`](../jpdasm/bank_02.asm#L21110) expands them into BG1.
-
-| Use | 64x32 treatment |
-| --- | --- |
-| `$95`, `$97`, `$9C`, `$9E` | Their rendered rows repeat every 256 pixels, so native tilemap wrapping is correct. |
-| `$93/$88`, `$94/$80` | Their special-overworld camera ranges are at most 32 pixels, so one static window is sufficient. |
-| Rain `$9F` | Replace the vanilla 64x64 pattern with a native 64x32 rain pattern and adjust [`OverworldOverlay_HandleRain`](../jpdasm/bank_02.asm#L7095) offsets to create a similar effect. Pixel-exact vanilla rain is not required. |
-| Pyramid `$96` | Clamp BG1 vertical scroll when the viewport bottom reaches the bottom of the 256-pixel tilemap. With the current `$0600` base, the maximum top offset is `$0620`. Extend the solid tan region upward by the minimum whole 8x8 rows needed to cover transparency behind the bottom trees, while keeping it below the skyline visible at the top. |
-| Inactive BG1 | Do not build or upload an overlay when BG1 is disabled. |
-
-Full overlay reloads occur during normal overworld loading, mosaic transitions, mirror, whirlpool, flute/world-map return, special-overworld, and credits paths. No ordinary outdoor path dynamically changes the logical BG1 Map16 map.
-
-### Required conversion
-
-- Install `$11` in `BG1SC` and `$03` in `BG2SC` for the playable overworld while forced blank is active. Presentation modes may retain their own settings; the following overworld reload must restore this pair.
-- Split the shared `BuildOverworldFromMap16`/`BuildBGOverlayFromMap16` machinery only where needed so BG1 builds 16 Map16 rows while BG2 continues to build 32.
-- In the BG1 path, make [`CopyMap16ToBuffer`](../jpdasm/bank_02.asm#L21198) wrap at 16 Map16 rows, remove the vertical `$0800` screen-block offset, and retain the `$0400` horizontal-half offset.
-- Make [`NMI_UpdateSubscreenOverlay`](../jpdasm/bank_00.asm#L2403) upload 4 KiB for BG1 and 8 KiB for the still-64x64 BG2 full load. Remove or bypass the latter BG1 half requested by mirror/whirlpool state machines.
-- Add the 64x32 rain data and offset sequence.
-- Clamp the Pyramid BG1 scroll at `$0620` and extend its tan tile rows as described above.
-- Do not add BG1 residency state, boundary tracking, or edge-streaming code.
-
-### Validation and exit criteria
-
-1. Exercise every overlay screen/state, including long waits on fog and rain, the special overworlds, and movement across each overlay's full camera range.
-2. Verify that the replacement rain remains convincing under ordinary movement and lightning flashes.
-3. On the Pyramid, verify that the tan extension always covers the transparency behind the bottom trees, never appears in the top skyline, and that BG1 stops without wrapping.
-4. Test mirror, whirlpool, flute/world-map return, interior return, save/reload, and ending credits.
-5. Confirm through VRAM/DMA logging that BG1 never writes `$1800-$1FFF`, BG2 still uses its original 64x64 map, and no BG1 edge updates occur.
-
-Milestone 7 is complete when every BG1 overlay/reload/scroll path works from a static 64x32 tilemap, the replacement rain and clamped Pyramid treatment pass visual testing, and the vanilla-layout ROM remains playable through milestones 2 through 6. Record the freed 4 KiB and measured full-load DMA/NMI budgets.
-
-## Milestone 8: BG2 64x32 tilemap and transition streaming
-
-### Design
-
-Convert playable-overworld BG2 from 64x64 to a 64x32 circular window over the larger logical map. BG1 is already 64x32 but remains static. The original BG2 blocks are `$0000`, `$0400`, `$0800`, and `$0C00`; keep `$0000` and `$0400`, freeing `$0800-$0FFF` and bringing the combined saving to 8 KiB.
-
-A 64x32 map is 512x256 pixels. The 224-pixel playfield leaves only two spare Map16 rows. [`OverworldCameraBoundaryCheck`](../jpdasm/bank_02.asm#L11415) already detects ordinary 16-pixel camera crossings, but vertical transitions currently preload the destination into the half of the 64x64 map that this milestone removes.
+Convert playable-overworld BG2 from 64x64 to 64x32 while leaving the logical
+Map16 map at `$7E2000-$7E3FFF`. Keep VRAM blocks `$0000` and `$0400` and free
+`$0800-$0FFF`.
 
 ### Implementation strategy
 
-1. Keep `$7E2000-$7E3FFF`, the milestone 2 flat maps, the milestone 3 banked definitions, the milestone 4 collision records, and their logical coordinates unchanged.
-2. Treat BG2 as a ring of 16 Map16 rows while retaining its 32-Map16-column width.
-3. Build only the camera-centered 16-row window on a full load.
-4. On each 16-pixel vertical crossing, replace the two PPU rows that moved off screen with the next logical Map16 row.
-5. Stream north/south destination rows throughout the transition instead of preloading a destination half. Progressively build east/west destination columns as well.
+The detailed design and implementation checkpoints are in
+[`bg_streamer.md`](bg_streamer.md). In summary:
 
-Graphics and palettes must be resident before the first tile that uses them is drawn, so measure asset DMA separately from tilemap construction.
+1. Disable every vanilla playable-overworld BG2 tilemap producer while
+   preserving logical Map16 updates. First validate that BG2 remains blank.
+2. For a full load, render the 33x29 tile window beginning at the tile
+   containing the viewport's top-left pixel into the existing `$1100/$18`
+   arbitrary DMA list.
+3. During gameplay, compare the previous and new finalized BG2 scroll values,
+   including shake. Crossing an 8-pixel boundary prepares at most one entering
+   33-tile row and one entering 29-tile column.
+4. Append the prepared transfers to the existing `$1100/$18` arbitrary DMA
+   list. The existing `$12` main-loop/NMI barrier protects the buffer, so no
+   new queue, ready bits, margin, or resident-window state is needed.
+5. Keep immediate Map16 changes on `$1000/$14`, with their VRAM destination
+   calculation changed for the 64x32 tilemap.
 
-### Required code changes
-
-#### PPU configuration and full loads
-
-- Change the playable-overworld register pair from `$11`/`$03` to `$11`/`$01`.
-- Convert `BuildOverworldFromMap16` to the same 16-row output size established for BG1, removing the temporary mixed-height branch from milestone 7.
-- In the BG2 path, [`CopyMap16ToBuffer`](../jpdasm/bank_02.asm#L21198) must use `($88 & $0F)` as the row, remove the vertical `$0800` offset, and retain the horizontal `$0400` offset.
-- Both playable-overworld full-load builders now produce 4 KiB and can use the same descriptor count.
-
-#### Runtime edge streaming
-
-- [`BufferAndBuildMap16Stripes_Vertical`](../jpdasm/bank_02.asm#L19808) must wrap across 16 Map16 rows and stop adding `$0800`.
-- [`BufferAndBuildMap16Stripes_Horizontal`](../jpdasm/bank_02.asm#L19647) must build only the 32 resident PPU rows and select the current logical 16-row window.
-- Audit vertical ring index `$88` in initial-load, ordinary-scroll, automatic-walk, credits, special-overworld, whirlpool, mirror, and transition paths. Change 32-row wraps and sentinels to 16-row equivalents, but leave horizontal index `$86` at 32 columns.
-- Reuse [`OverworldHandleMapScroll`](../jpdasm/bank_02.asm#L19345), the existing stripe-list format, and [`NMI_UpdateOWScroll`](../jpdasm/bank_00.asm#L2344).
-
-#### Scrolling transitions
-
-- Replace the north/south preload through [`CreateInitialNewScreenMapToScroll`](../jpdasm/bank_02.asm#L18890).
-- Coordinate [`TriggerAndFinishMapLoadStripe_Vertical`](../jpdasm/bank_02.asm#L18742), [`OverworldTransitionScrollAndLoadMap`](../jpdasm/bank_02.asm#L19246), and [`OverworldScrollTransition`](../jpdasm/bank_02.asm#L11811) so each leading row is queued before its aliased PPU row becomes visible.
-- Retain east/west transition geometry, but use the shortened horizontal stripe and progressive rendering.
-- Stress-test the fastest transition step and screen shake.
-
-#### Dynamic tile changes
-
-- Update [`FindMap16VRAMAddress`](../jpdasm/bank_1B.asm#L14641) and the duplicate calculation in [`AlterMap16Hardcore`](../jpdasm/bank_1B.asm#L14544) to wrap into the 16-row BG2 ring while retaining the `$0400` right-half selection.
-- `DrawMap16Anywhere` must always update logical WRAM, but issue an immediate VRAM stripe only when that row is resident.
-- Test doors, bushes, rocks, bomb holes, weather-vane changes, and animated dungeon entrances near a ring boundary.
+Rows split at 32-tile VRAM screen-block boundaries and columns split at the
+32-row wrap. Camera discontinuities use the bulk-list path rather than
+gameplay edge streaming. Shared NMI handlers remain available to non-BG2
+users; only the vanilla overworld BG2 producers are removed.
 
 ### Validation and exit criteria
 
-1. Use distinct debug rows, then walk and dash across repeated 256-pixel vertical wraps.
-2. Test north/south transitions between every small/large screen combination, then east/west transitions with the shortened column uploader.
-3. Test dynamic tiles near wrap boundaries, flute travel, mirror, whirlpools, interior exits, pits, special overworlds, and ending credits.
-4. Retest every milestone 7 BG1 overlay, especially rain and the Pyramid, to ensure BG2 streaming never modifies BG1.
-5. Confirm that BG2 never writes `$0800-$0FFF` and BG1 never writes `$1800-$1FFF`.
+1. Complete the five incremental checkpoints in `bg_streamer.md`.
+2. Test ordinary movement, diagonal movement, shake, and scrolling area
+   transitions in all four directions.
+3. Test dynamic tiles near wrap boundaries, flute travel, mirror, whirlpools,
+   interior exits, pits, special overworlds, and ending credits.
+4. Confirm that BG2 never writes `$0800-$0FFF` and that frames without an
+   8-pixel boundary crossing perform no BG2 tilemap upload.
 
-Milestone 8 is complete when BG2 uses a 64x32 ring on every playable-overworld path, every scrolling transition renders destination stripes progressively without a tilemap staging pause, the milestone 7 BG1 checkpoint remains intact, and the vanilla-layout ROM remains playable through all earlier tests. Record the combined 8 KiB BG1/BG2 saving and final tilemap DMA/NMI budgets before assigning 4bpp assets.
+Milestone 7 is complete when BG2 uses a 64x32 tilemap on every
+playable-overworld path, all scrolling transitions and immediate Map16
+changes render correctly, and the vanilla-layout ROM remains playable
+through all earlier tests.
+
+## Milestone 8: streamed 64x32 BG1 tilemap
+
+### Design
+
+Convert playable-overworld BG1 to a 64x32 tilemap while leaving its logical
+64x64 8x8-tile overlay map at `$7E4000-$7E5FFF`. Keep VRAM blocks `$1000` and
+`$1400` and free `$1800-$1FFF`.
+
+Adapt the proven milestone 7 design to BG1: a 33x29 forced-blank load followed
+by at most one entering 8x8 row and column per gameplay frame. Generalize only
+the renderer code that BG1 and BG2 actually share. Both layers must be able to
+append transfers in the same frame without adding a second synchronization
+mechanism.
+
+Rain remains separate from the streamer. Use a modified rain tilemap and
+offset sequence that fits in 64x32.
+
+### Validation and exit criteria
+
+1. Exercise every non-rain overlay across its full camera range, including
+   the Pyramid, fog, special overworlds, and screen shake.
+2. Test simultaneous BG1 and BG2 edge updates, plus mirror, whirlpool,
+   flute/world-map return, interior return, and save/reload.
+3. Confirm through VRAM/DMA logging that BG1 never writes `$1800-$1FFF` and
+   BG2 never writes `$0800-$0FFF`.
+4. Add and test the separate 64x32 rain treatment.
+
+Milestone 8 is complete after these gameplay and DMA checks pass. Record the
+combined 8 KiB BG1/BG2 saving and final tilemap DMA/NMI budgets before
+assigning 4bpp assets.
 
 ## Milestone 9: 4bpp palettes and custom tilesets
 
@@ -484,7 +461,7 @@ The JSON uses logical IDs and coordinates rather than ROM addresses or packed ru
 1. First generate descriptors for the vanilla placement and prove that slot lookup, area identity, paired-world lookup, internal large-area movement, and all four transition directions reproduce vanilla behavior.
 2. Verify that every Light World/Dark World pair has matching placement, footprint, and selected theme, and that mirror/portal counterpart lookup reaches the corresponding relative coordinate.
 3. Once edge metadata exists, generate shuffled layouts using only the vanilla 8x8 grid and vanilla-sized footprints. Reject overlaps, out-of-grid placements, unpaired worlds, and incompatible or missing edge records.
-4. Exercise internal and external transitions for every small/large footprint combination and every connection type, including milestone 7 BG1 overlays, milestone 8 BG2 streaming, and milestone 9 graphics/palette residency.
+4. Exercise internal and external transitions for every small/large footprint combination and every connection type, including milestone 7 BG2 streaming, milestone 8 BG1 overlays, and milestone 9 graphics/palette residency.
 
 Milestone 10 is complete when the engine no longer derives topology from vanilla screen-ID arithmetic, vanilla placement works entirely through generated descriptors, and—after the edge schema becomes available—paired areas can be shuffled with every directed adjacency validated before ROM generation.
 
@@ -562,7 +539,7 @@ Milestone 12 is complete when both Mode 7 maps accurately represent the seed, al
 
 ## Deferred design decisions
 
-The initial direction is fixed above: playable vanilla-asset checkpoints for flat Map16, independent collision, static 64x32 BG1, and streaming 64x32 BG2; then seed-global graphics/palette assignments, paired Light/Dark areas on the vanilla grid, gameplay-data relocation, and finally Mode 7 map generation. The following details remain intentionally deferred:
+The initial direction is fixed above: playable vanilla-asset checkpoints for flat Map16, independent collision, streamed 64x32 BG1 and BG2, then seed-global graphics/palette assignments, paired Light/Dark areas on the vanilla grid, gameplay-data relocation, and finally Mode 7 map generation. The following details remain intentionally deferred:
 
 - The schema for edge connection types, material variants, and map art that will eventually be added to `ALTTPRetiling`.
 - Whether gameplay-object metadata belongs in `ALTTPRetiling` or in a project-owned companion layer. In either case it needs stable IDs and area-relative coordinates.

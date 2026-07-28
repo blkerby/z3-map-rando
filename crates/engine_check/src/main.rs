@@ -119,6 +119,8 @@ fn main() -> Result<()> {
         "expand_map16.ips",
         "independent_tile_type.ips",
         "reduce_bg3.ips",
+        "bg_streamer.ips",
+        "nmi_optimize.ips",
     ];
     for patch in patches {
         patcher.use_ips(&patch_dir.join(patch))?;
@@ -133,6 +135,218 @@ fn main() -> Result<()> {
 mod tests {
     use super::*;
     use patcher::import::Tile8;
+
+    fn bg1_stream_bounds(hofs: u16, vofs: u16) -> [u16; 4] {
+        [
+            (hofs >> 3).wrapping_sub(1),
+            (hofs.wrapping_add(255) >> 3).wrapping_add(1),
+            (vofs >> 3).wrapping_sub(1),
+            (vofs.wrapping_add(223) >> 3).wrapping_add(1),
+        ]
+    }
+
+    fn bg1_stream_vram(tile_x: u16, tile_y: u16) -> u16 {
+        0x1000 + (tile_y & 31) * 32 + (tile_x & 31) + (tile_x & 32) * 32
+    }
+
+    fn bg1_stream_delta_is_incremental(current: u16, resident: u16) -> bool {
+        matches!(current.wrapping_sub(resident), 0 | 1 | u16::MAX)
+    }
+
+    fn bg2_stream_vram(tile_x: u16, tile_y: u16) -> u16 {
+        (tile_y & 31) * 32 + (tile_x & 31) + (tile_x & 32) * 32
+    }
+
+    fn bg2_map16_vram(map_offset: u16) -> u16 {
+        (map_offset & 0x20) * 32 + (map_offset & 0x1f) + (map_offset & 0x0780) / 2
+    }
+
+    fn bg2_logical_origin(screen: u8, hofs: u16, vofs: u16) -> (u16, u16) {
+        let screen_x = u16::from(screen & 7) * 0x200;
+        let screen_y = u16::from(screen & 0x38) * 0x40;
+        (
+            hofs.wrapping_sub(screen_x) >> 3 & 0x7f,
+            vofs.wrapping_sub(screen_y) >> 3 & 0x7f,
+        )
+    }
+
+    fn bg2_bulk_row_segments(tile_x: u16, tile_y: u16) -> [(u16, u16); 2] {
+        let first_len = 32 - (tile_x & 31);
+        [
+            (bg2_stream_vram(tile_x, tile_y), first_len),
+            (
+                bg2_stream_vram(tile_x.wrapping_add(first_len), tile_y),
+                33 - first_len,
+            ),
+        ]
+    }
+
+    fn bg2_column_segments(tile_x: u16, tile_y: u16) -> [(u16, u16); 2] {
+        let first_len = (32 - (tile_y & 31)).min(29);
+        [
+            (bg2_stream_vram(tile_x, tile_y), first_len),
+            (
+                bg2_stream_vram(tile_x, tile_y.wrapping_add(first_len)),
+                29 - first_len,
+            ),
+        ]
+    }
+
+    fn paired_quadrants(start: u16, len: u16) -> Vec<u16> {
+        let mut quadrants = Vec::new();
+        let mut remaining = len;
+        if start & 1 != 0 {
+            quadrants.push(1);
+            remaining -= 1;
+        }
+        for _ in 0..remaining / 2 {
+            quadrants.extend([0, 1]);
+        }
+        if remaining & 1 != 0 {
+            quadrants.push(0);
+        }
+        quadrants
+    }
+
+    fn bg2_vertical_stream_rows(old_vofs: u16, new_vofs: u16) -> Option<(u16, u16)> {
+        match (new_vofs >> 3).wrapping_sub(old_vofs >> 3) {
+            1 => Some((28, 1)),
+            u16::MAX => Some((0, 1)),
+            0xfffe => Some((0, 2)),
+            _ => None,
+        }
+    }
+
+    fn bg2_transition_seed(direction: u8, left: u16, top: u16) -> Option<(u16, u16)> {
+        match direction {
+            1 => Some((left.wrapping_add(32) & 0x7f, top)),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn bg1_stream_window_and_ring_geometry() {
+        assert_eq!(bg1_stream_bounds(0x100, 0x200), [31, 64, 63, 92]);
+        assert_eq!(bg1_stream_bounds(0x101, 0x201), [31, 65, 63, 93]);
+
+        assert_eq!(bg1_stream_vram(31, 31), 0x13ff);
+        assert_eq!(bg1_stream_vram(32, 31), 0x17e0);
+        assert_eq!(bg1_stream_vram(63, 31), 0x17ff);
+        assert_eq!(bg1_stream_vram(64, 32), 0x1000);
+
+        assert!(bg1_stream_delta_is_incremental(31, 32));
+        assert!(bg1_stream_delta_is_incremental(33, 32));
+        assert!(!bg1_stream_delta_is_incremental(34, 32));
+    }
+
+    #[test]
+    fn bg2_bulk_rows_split_and_fit_the_dma_buffer() {
+        // Link's house is screen $2C at world pixel origin ($800, $A00).
+        assert_eq!(bg2_logical_origin(0x2c, 0x0832, 0x0a9a), (6, 19));
+
+        assert_eq!(bg2_bulk_row_segments(0, 0), [(0x0000, 32), (0x0400, 1)]);
+        assert_eq!(bg2_bulk_row_segments(31, 0), [(0x001f, 1), (0x0400, 32)]);
+        assert_eq!(bg2_bulk_row_segments(32, 0), [(0x0400, 32), (0x0000, 1)]);
+        assert_eq!(bg2_bulk_row_segments(63, 31), [(0x07ff, 1), (0x03e0, 32)]);
+
+        for tile_x in 0..128 {
+            let first_len = 32 - (tile_x & 31);
+            for (start, len) in [(tile_x, first_len), (tile_x + first_len, 33 - first_len)] {
+                assert_eq!(
+                    paired_quadrants(start, len),
+                    (0..len)
+                        .map(|offset| (start + offset) & 1)
+                        .collect::<Vec<_>>()
+                );
+            }
+        }
+
+        let list_size = 29 * (33 * 2 + 2 * 4) + 2;
+        assert_eq!(list_size, 2148);
+        assert!(list_size <= 0x1980 - 0x1100);
+
+        let mirror_batches = [15, 14];
+        assert_eq!(mirror_batches.iter().sum::<usize>(), 29);
+        assert!(
+            mirror_batches
+                .map(|rows| rows * (33 * 2 + 2 * 4) + 2)
+                .into_iter()
+                .all(|size| size <= 0x1980 - 0x1100)
+        );
+    }
+
+    #[test]
+    fn bg2_vertical_stream_selects_only_the_entering_rows() {
+        assert_eq!(bg2_vertical_stream_rows(0x0107, 0x0108), Some((28, 1)));
+        assert_eq!(bg2_vertical_stream_rows(0x0100, 0x0110), None);
+        assert_eq!(bg2_vertical_stream_rows(0x0108, 0x0107), Some((0, 1)));
+        assert_eq!(bg2_vertical_stream_rows(0x0120, 0x0116), Some((0, 2)));
+        assert_eq!(bg2_vertical_stream_rows(0x0101, 0x0107), None);
+        assert_eq!(bg2_vertical_stream_rows(0x0100, 0x0118), None);
+
+        let list_size = 2 * (33 * 2 + 2 * 4) + 2;
+        assert_eq!(list_size, 150);
+        assert!(list_size <= 0x1980 - 0x1100);
+    }
+
+    #[test]
+    fn bg2_horizontal_stream_splits_columns_at_the_row_wrap() {
+        assert_eq!(bg2_column_segments(0, 3)[0], (0x0060, 29));
+        assert_eq!(bg2_column_segments(0, 4), [(0x0080, 28), (0x0000, 1)]);
+        assert_eq!(bg2_column_segments(0, 31), [(0x03e0, 1), (0x0000, 28)]);
+        assert_eq!(bg2_column_segments(32, 31), [(0x07e0, 1), (0x0400, 28)]);
+
+        for tile_y in 0..128 {
+            let first_len = (32 - (tile_y & 31)).min(29);
+            for (start, len) in [(tile_y, first_len), (tile_y + first_len, 29 - first_len)] {
+                if len == 0 {
+                    continue;
+                }
+                assert_eq!(
+                    paired_quadrants(start, len),
+                    (0..len)
+                        .map(|offset| (start + offset) & 1)
+                        .collect::<Vec<_>>()
+                );
+            }
+        }
+
+        let two_rows_and_split_column = 2 * (33 * 2 + 2 * 4) + (29 * 2 + 2 * 4) + 2;
+        assert_eq!(two_rows_and_split_column, 216);
+        assert!(two_rows_and_split_column <= 0x1980 - 0x1100);
+
+        assert_eq!(bg2_transition_seed(1, 96, 12), Some((0, 12)));
+        assert_eq!(bg2_transition_seed(4, 7, 99), None);
+        assert_eq!(bg2_transition_seed(2, 96, 12), None);
+        assert_eq!(bg2_transition_seed(8, 7, 99), None);
+
+        for subpixel in 0_i32..8 {
+            for displacement in -9..=9 {
+                let first = (subpixel + displacement).div_euclid(8);
+                let last = (subpixel + displacement + 255).div_euclid(8);
+                assert!(first >= -2);
+                assert!(last <= 33);
+            }
+        }
+    }
+
+    #[test]
+    fn bg2_map16_updates_use_the_tilemap_ring() {
+        for row in 0..64 {
+            for column in 0..64 {
+                let map_offset = row * 0x80 + column * 2;
+                assert_eq!(
+                    bg2_map16_vram(map_offset),
+                    bg2_stream_vram(column * 2, row * 2)
+                );
+            }
+        }
+
+        assert_eq!(bg2_map16_vram(15 * 2), 0x001e);
+        assert_eq!(bg2_map16_vram(16 * 2), 0x0400);
+        assert_eq!(bg2_map16_vram(15 * 0x80), 0x03c0);
+        assert_eq!(bg2_map16_vram(16 * 0x80), 0x0000);
+    }
 
     #[test]
     fn splits_map16_definitions_by_quadrant() {

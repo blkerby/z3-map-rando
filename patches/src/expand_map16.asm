@@ -323,7 +323,7 @@ assert pc() <= $1BBCCE
 ; org $1BBF22
 ;     LDA.l !Map16TopLeft,X
 ; assert pc() <= $1BBF26
-;
+
 ;; Liftable objects use the same vanilla interleaved definition offset.
 ; org $1BC040
 ;     JSL LoadBankedMap16Definition
