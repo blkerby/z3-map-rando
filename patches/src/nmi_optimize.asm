@@ -9,10 +9,11 @@
 ; We use a new flag $0702 to disable OAM transfer (which
 ; in vanilla runs unconditionally). This allows us to
 ; prevent the NMI overruns that otherwise occur during
-; mirror/portal use. The extra overhead introduced by
-; checking this flag is outweighed by a few minor
-; optimizations that we include, so the NMI handler as
-; a whole should never take longer than it does in vanilla.
+; mirror/portal and whirlpool use (as happens in vanilla).
+; The extra overhead introduced by checking this flag is
+; outweighed by a few minor optimizations that we include,
+; so the NMI handler as a whole should never take longer
+; than it does in vanilla.
 
 lorom
 

@@ -76,9 +76,10 @@ org $02B283
 
 ; Module09_2E_Whirlpool
 ;
-; Whirlpool state 5 formerly queued the destination BG2 window ($18) and
-; BG1 overlay half ($17=$0C) for the same NMI. Split those transfers across
-; two solid-blue frames. The HUD remains enabled throughout.
+; Our bulk renderer makes whirlpool state 5 queue the destination BG2 window
+; through $18. Vanilla state 5 also queues BG1 overlay half $0C through $17,
+; which would make both transfers run in the same NMI. Split them across two
+; solid-blue frames. The HUD remains enabled throughout.
 ;
 ; States 3, 4, and 6 also queue an overlay half. They are smaller than the
 ; combined state-5 transfer, but still benefit from deliberately omitting
