@@ -198,6 +198,11 @@ an area edge. The destination margins load in animation step 10, and the
 source margins load during initialization. HDMA remains disabled while the
 screen is held white for loading, but its wave table continues advancing.
 
+Whirlpool warp prepares the same bulk list while the screen is solid blue.
+It uploads the BG1 overlay half first, preserves the prepared `$1100` list,
+then uploads BG2 on the next frame. This prevents `$17` and `$18` from
+running in the same NMI; the HUD remains enabled.
+
 ## Gameplay renderer
 
 The horizontal and vertical main-loop hooks compare the previous and new

@@ -74,6 +74,39 @@ org $02EA89
 org $02B283
     JMP.w $B2CE
 
+; Module09_2E_Whirlpool
+;
+; Whirlpool state 5 formerly queued the destination BG2 window ($18) and
+; BG1 overlay half ($17=$0C) for the same NMI. Split those transfers across
+; two solid-blue frames. The HUD remains enabled throughout.
+;
+; States 3, 4, and 6 also queue an overlay half. They are smaller than the
+; combined state-5 transfer, but still benefit from deliberately omitting
+; one OAM upload.
+org $02B3C7
+    JSL BG2WhirlpoolQueueOverlayLatter
+    BRA BG2WhirlpoolBlueRemoval
+    NOP
+    NOP
+
+org $02B3CF
+    JSL BG2WhirlpoolQueueOverlayFormer
+    RTS
+    NOP
+
+org $02B3D5
+    JSL BG2WhirlpoolLoadDestination
+    RTS
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+
+; Branch target used after the state-3 replacement above.
+org $02B426
+BG2WhirlpoolBlueRemoval:
+
 ; MirrorWarp_Initialize
 ;
 ; Before changing $8A to the destination world, fill the three source-world
@@ -1475,6 +1508,57 @@ BG2RestoreUnderworldLayout:
     STA.b $1B                   ; the JSL at LoadUnderworldEntrance+$03.
 
     PLP                         ; Restore the caller's accumulator width.
+    RTL
+
+;---------------------------------------------------------------------------------------------------
+; Spread the whirlpool destination load across consecutive solid-blue frames.
+;---------------------------------------------------------------------------------------------------
+
+BG2WhirlpoolQueueOverlayLatter:
+    LDA.b #$0C                  ; Upload the latter 4 KiB BG1 overlay half.
+    STA.b $17
+    STZ.b $15                   ; Preserve the displaced state-3 behavior.
+
+    LDA.b #$01
+    STA.w !NMISkipOAM           ; Make room for this known-heavy NMI.
+    RTL
+
+BG2WhirlpoolQueueOverlayFormer:
+    LDA.b #$0D                  ; Upload the former 4 KiB BG1 overlay half.
+    STA.b $17
+
+    LDA.b #$01
+    STA.w !NMISkipOAM
+
+    INC.w $0710                 ; Reproduce AdvanceWhirlpooling.
+    INC.b $B0
+    RTL
+
+BG2WhirlpoolLoadDestination:
+    LDA.w $0200                 ; Overworld_LoadOverlayAndMap advances this
+    BNE .upload_bg2             ; from 0 to 1 after preparing the BG2 list.
+
+    JSL $0AB96C                 ; Overworld_LoadOverlayAndMap
+    STZ.b $18                   ; Preserve $1100, but defer its NMI upload.
+
+    LDA.b #$0C                  ; First upload the latter BG1 overlay half.
+    STA.b $17
+    LDA.b #$01
+    STA.w !NMISkipOAM
+
+    LDA.b #$0F                  ; Keep the solid-blue screen and HUD visible.
+    STA.b $13
+    RTL                         ; Stay in state 5 for one additional frame.
+
+.upload_bg2
+    STZ.w $0200                 ; Consume our existing one-bit phase state.
+    LDA.b #$01
+    STA.b $18                   ; Upload the preserved destination BG2 list.
+    STA.w !NMISkipOAM
+
+    LDA.b #$0F
+    STA.b $13
+    INC.b $B0                   ; Continue to state 6 on the next frame.
     RTL
 
 assert pc() <= !BG2BulkFreeEnd
