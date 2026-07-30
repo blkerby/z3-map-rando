@@ -124,12 +124,6 @@ org $02B158
 org $00FE64
     JML BG2MirrorRunAnimation
 
-; MirrorWarp_BuildWavingHDMATable normally waits until filter counter $30
-; before starting to settle. Loading now remains white through step 13, so
-; begin de-waving as soon as the return fade advances past white at $1F.
-org $00FF01
-    dw $001F
-
 ; AnimateMirrorWarp_DrawDestinationScreen
 ;
 ; Unlike the ordinary full-load paths, this calls
@@ -1312,22 +1306,23 @@ BG2MirrorRunAnimation:
     LDA.l $7EC009
     BNE .advance_filter         ; Mode 2 has not reached full white yet.
 
-    DEC.w $06BB
-    BEQ .hold_white
-
+    ; The palette and wave are both paused, so their alternating frame would
+    ; otherwise do no work. Advance one loading step on every white frame.
     JSL $00D8A4                 ; AnimateMirrorWarp, without changing palette.
-    BRA .keep_filter_white
 
-.hold_white
-    LDA.b #$02
-    STA.w $06BB
+    LDA.b #$01
+    STA.w $06BB                 ; Resume with a palette step after loading.
 
 .keep_filter_white
     REP #$20
-    LDA.w #$001E                ; Stay just below the de-wave/fade threshold.
+    LDA.w #$001E                ; Hold at the full-white boundary.
     STA.l $7EC007
     SEP #$20
-    BRA .animation_done
+
+    ; Loading is paused at the same logical palette time. Freeze the software
+    ; oscillator too, so it has vanilla-relative history when fading resumes.
+    JSR .prepare_nmi
+    RTL                         ; Skip the vanilla wave-table update at $00FE68.
 
 .advance_filter
     DEC.w $06BB                 ; Preserve vanilla's one-filter-step cadence.
@@ -1342,6 +1337,10 @@ BG2MirrorRunAnimation:
     JSL $00EEE2                 ; MirrorWarp_RunAnimationSubmodules
 
 .animation_done
+    JSR .prepare_nmi
+    JML $00FE68                 ; Build the wave table as vanilla does.
+
+.prepare_nmi
     LDA.b $17                   ; Specialized NMI transfer queued?
     ORA.b $18                   ; Arbitrary DMA list queued?
     BEQ .keep_hdma
@@ -1353,7 +1352,7 @@ BG2MirrorRunAnimation:
     STZ.b $9B                   ; Keep them off through the upcoming NMI.
 
 .keep_hdma
-    JML $00FE68                 ; Build the wave table as vanilla does.
+    RTS
 
 ; Step 7 has finished rebuilding the destination's logical Map16 map.
 BG2MirrorBulkRender:

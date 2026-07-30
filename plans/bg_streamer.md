@@ -196,7 +196,10 @@ small `$1100/$18` upload supplies the additional columns that can become
 visible outside the bulk window and repairs its out-of-bounds right column at
 an area edge. The destination margins load in animation step 10, and the
 source margins load during initialization. HDMA remains disabled while the
-screen is held white for loading, but its wave table continues advancing.
+screen is held white for loading. Palette progress and the software wave
+state both pause so their relative vanilla timing is preserved. With those
+two tasks paused, the animation advances one loading step per frame instead
+of retaining vanilla's alternating loading/palette cadence.
 
 Whirlpool warp prepares the same bulk list while the screen is solid blue.
 It uploads the BG1 overlay half first, preserves the prepared `$1100` list,
