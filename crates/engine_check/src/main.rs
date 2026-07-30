@@ -117,24 +117,6 @@ fn main() -> Result<()> {
         context.write(start.into(), properties)?;
     }
 
-    // Zero out obsolete map data. This is only temporary, to prove that it is
-    // no longer used.
-    let mut context = patcher.context("zero obsolete map data");
-    for range in [
-        SnesAddr(0x0f8000)..SnesAddr(0x0ff4f0), // Map16 definitions
-        SnesAddr(0x0ffd94)..SnesAddr(0x0fff94), // graphics-indexed tile properties
-        SnesAddr(0x1bf110)..SnesAddr(0x1bffb0), // coarse Map16 properties
-        SnesAddr(0x02f6b1)..SnesAddr(0x02fa71), // map pointer tables
-        SnesAddr(0x038000)..SnesAddr(0x03e780), // top Tile32 definitions
-        SnesAddr(0x048000)..SnesAddr(0x04e780), // bottom Tile32 definitions
-        SnesAddr(0x0b8000)..SnesAddr(0x0bfe49), // compressed maps
-        SnesAddr(0x0c8000)..SnesAddr(0x0cc0ab), // compressed maps
-    ] {
-        let start: PcAddr = range.start.into();
-        let end: PcAddr = range.end.into();
-        context.write(start, vec![0; (end.0 - start.0) as usize])?;
-    }
-
     let patch_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../patches/ips");
     let patches = [
         "expand.ips",

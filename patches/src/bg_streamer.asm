@@ -324,8 +324,11 @@ org $02D61A
 ; presentation scenes are outside the streamed-BG1 renderer, so they select
 ; BG1SC=$13 and call BuildBGOverlayFromMap16 without further distinctions.
 ;
-; Use free space left by the obsolete overlay loader. Return zero to make the
-; caller skip its upload, or return $04 after building the vanilla overlay.
+; The caller stores a nonzero return value in $17 as the NMI update mode:
+;   $00: queue no BG1 upload (disabled or streamed overlay);
+;   $04: upload the complete vanilla 64x64 presentation tilemap;
+;   $0D: upload rain's 64x32 tilemap from the former 4 KiB staging half.
+; This routine uses free space left by the obsolete overlay loader.
 org $02F544
 PrepareBG1OverlayForLoad:
     LDA.b $10
@@ -347,6 +350,17 @@ PrepareBG1OverlayForLoad:
     RTS
 
 .streamed
+    ; Rain is a complete static 64x32 tilemap. Build all 16 Map16 rows and
+    ; return vanilla's 4 KiB former-half upload instead of a visible window.
+    LDA.b $8C
+    CMP.b #$9F
+    BNE .streamed_window
+
+    JSR BuildRainTilemap
+    LDA.b #$0D
+    RTS
+
+.streamed_window
     ; $11 selects the outer Module09/0B submodule. Values $23 and $2C both
     ; run the mirror animation state machine; this routine is reached during
     ; its inner $0200 step 5, before BG1 scrolls are finalized. Return without
@@ -390,10 +404,77 @@ BGRestoreUnderworldLayouts:
     STA.w $2108                 ; BG2SC
 
     LDA.b #$01
-    STA.b $1B
+    STA.b $1B                   ; Mark the active environment as indoors.
 
     PLP
     RTS
+
+; Build rain's complete 64x32 tilemap in vanilla's former-half staging buffer.
+; The shared builder walks backward, two Map16 rows per iteration, so adding
+; $0800 starts at logical row 15 and eight iterations finish at row 0.
+org $02F6B1
+BuildRainTilemap:
+    PHB
+
+    LDA.b #$7F                  ; Short staging-buffer accesses use bank $7F.
+    PHA
+    PLB
+
+    REP #$30
+
+    LDA.w #$4000
+    STA.b $04                   ; Low word of the 24-bit Map16 source pointer.
+
+    LDA.w #$007E
+    STA.b $06                   ; Pointer bank: $04-$06 now contains $7E4000.
+
+    LDA.b $84                   ; Vanilla's cursor into the logical Map16 map.
+    CLC
+    ADC.w #$0800                ; 16 Map16 rows * $80 bytes per WRAM row.
+    STA.b $84                   ; Begin the backward build at source row 15.
+
+    STZ.b $0A                   ; Destination-address table cursor.
+    STZ.b $0E                   ; Expanded tile-data cursor.
+
+    LDA.w #$0008                ; Eight iterations * two rows = 16 rows.
+    STA.b $08
+
+    JMP.w $FABD                 ; Shared loop restores DB and returns.
+
+; Convert the builder's logical row into a physical tilemap offset. Rain wraps
+; through one 32-tile-high BG1 screen; every other vanilla builder retains its
+; 64-tile-high upper/lower-screen selection.
+BGBuilderCalculateRowOffset:
+    LDA.b $88                   ; Logical Map16 row being placed in the tilemap.
+    AND.w #$000F
+    ASL A                       ; Map16 row * 64 VRAM words.
+    ASL A
+    ASL A
+    ASL A
+    ASL A
+    ASL A
+    STA.b $00                   ; Physical row offset before adding the BG base.
+
+    LDA.b $CC                   ; Destination base: $0000 for BG2, $1000 for BG1.
+    BEQ .use_lower_screen       ; BG2 retains its vertical screen block.
+
+    LDA.b $8C
+    CMP.w #$009F
+    BEQ .done                   ; Rain has no lower vertical screen block.
+
+.use_lower_screen
+    LDA.b $88
+    AND.w #$0010
+    BEQ .done
+
+    LDA.b $00                   ; Select the lower pair of 32x32 screen blocks.
+    ORA.w #$0800
+    STA.b $00
+
+.done
+    RTS
+
+assert pc() <= $02F6FD
 
 ; CreateInitialNewScreenMapToScroll
 ;
@@ -430,6 +511,16 @@ org $02EF72
 ; transitions for movement code.
 org $02EFD7
     RTS
+
+; CopyMap16ToBuffer
+;
+; Replace the vanilla 64-row physical destination calculation with the shared
+; calculation above. Only the dedicated rain build omits the lower screen.
+org $02FB28
+    JSR BGBuilderCalculateRowOffset
+    BRA +
+org $02FB48
++
 
 ; OverworldCameraBoundaryCheck
 ;
