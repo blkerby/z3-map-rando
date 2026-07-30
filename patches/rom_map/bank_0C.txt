@@ -1,2 +1,3 @@
 $0C8000-$0CC0AA [FREE] (obsolete compressed Map32 data)
-$0CE911-$0CE911 reduce_bg3.asm (end name-entry stripes before freed BG3 VRAM)
+$0CCC89-$0CCC8C reduce_bg3.asm (use 64x32 BG3 for file select)
+$0CCDA1-$0CCDA4 reduce_bg3.asm (clear both file-select BG3 blocks)

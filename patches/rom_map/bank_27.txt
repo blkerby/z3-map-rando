@@ -2,4 +2,5 @@ $278000-$27DFFF used flat Map16 submaps 112-123
 $27E000-$27E1DF used screen-to-flat-map pointer table
 $27E1E0-$27E344 reduce_bg3.asm (BG3 menu/HUD row streaming)
 $27E345-$27E35A nmi_optimize.asm (conditional OAM upload)
-$27E35B-$27FFFF free
+$27E35B-$27E38E reduce_bg3.asm (BG3 layout and file-select clear helpers)
+$27E38F-$27FFFF free

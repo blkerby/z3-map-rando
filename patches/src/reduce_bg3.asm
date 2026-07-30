@@ -28,6 +28,26 @@ lorom
 org $02C284
     db $60
 
+; File select and name entry use both horizontal BG3 blocks. Restore a 64x32
+; layout while those modules are active, then switch back when loading a file.
+org $0CCC89
+    JSL FileSelectEnableForceBlank
+assert pc() == $0CCC8D
+
+; ReinitializeFileSelectGraphics normally calls EraseTilemaps_bg3. The shared
+; routine now clears only the 32x32 gameplay block, so wrap that call with a
+; file-select-only clear of the second horizontal block.
+org $0CCDA1
+    JSL EraseFileSelectTilemaps
+assert pc() == $0CCDA5
+
+org $028046
+    JSL GameplayEnableForceBlank
+assert pc() == $02804A
+
+; Keep the complete vanilla NamePlayerTilemap stripe list. Its entries after
+; $0CE911 draw the right-hand characters into VRAM $6400-$67FF.
+
 ; NMI_UploadTilemap uses WRAM $0116 as an index into
 ; TilemapUpload_HighBytes. ItemMenu_ClearTilemap and ItemMenu_Initialize select
 ; entry $22 for their full-buffer uploads; redirect that entry from the
@@ -103,13 +123,6 @@ org $0DDFAC
 ; row that the step brings into view.
 org $0DDFC2
     JSL ItemMenuScrollClosing
-
-; NamePlayerTilemap is the static stripe list drawn when the file-selection
-; name-entry screen is initialized. Its latter part describes the unused right
-; half of vanilla BG3; end the list before it writes into freed VRAM
-; $6400-$67FF.
-org $0CE911
-    db $FF
 
 ; Credits_InitializeTheActualCredits sets the first attribution's stripe
 ; destination before the credits begin scrolling. Start at VRAM row 0 ($6000)
@@ -385,4 +398,50 @@ BlankBG3Row:
     fill 64
 
 ReduceBG3End:
+assert pc() <= !free_space_bank_any_end
+
+org $27E35B
+
+; File select inherits the title-screen PPU setup, but unlike gameplay it
+; needs both horizontal blocks for the name-entry character grid.
+FileSelectEnableForceBlank:
+    JSL $00893D ; EnableForceBlank
+    LDA.b #$61
+    STA.w $2109 ; BG3SC: VRAM $6000, 64x32
+    RTL
+
+; Module05_LoadFile is the common exit from file select. Restore the reduced
+; layout before any gameplay tilemap work begins.
+GameplayEnableForceBlank:
+    JSL $00893D ; EnableForceBlank
+    LDA.b #$60
+    STA.w $2109 ; BG3SC: VRAM $6000, 32x32
+    RTL
+
+; Preserve the shared gameplay clear: it erases BG1, BG2, and BG3's left block.
+; File select is force-blanked here, so directly fill only BG3's additional
+; $400-word block instead of expanding the shared DMA into freed gameplay VRAM.
+EraseFileSelectTilemaps:
+    JSL $008333 ; EraseTilemaps_bg3
+
+    ; Increment the VRAM word address after the high-byte write.
+    LDA.b #$80
+    STA.w $2115
+
+    REP #$30
+
+    ; Top-right block of the 64x32 tilemap.
+    LDA.w #$6400
+    STA.w $2116
+
+    ; $0188 is file select's blank tilemap word. Write all 32x32 entries.
+    LDA.w #$0188
+    LDX.w #$03FF
+.next
+    STA.w $2118
+    DEX
+    BPL .next
+
+    SEP #$30
+    RTL
 assert pc() <= !free_space_bank_any_end
