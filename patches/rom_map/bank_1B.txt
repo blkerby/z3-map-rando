@@ -1,4 +1,4 @@
-$1BB1E0-$1BB752 bg_streamer.asm (BG2 bulk/gameplay renderers and transition helpers)
+$1BB1E0-$1BB772 bg_streamer.asm (shared BG1/BG2 renderers and transition helpers)
 $1BBC22-$1BBC23 expand_map16.asm (UseOverworldEntrance Map16 index)
 $1BBC2C-$1BBC2F expand_map16.asm (UseOverworldEntrance top-right definition)
 $1BBC48-$1BBC49 expand_map16.asm (adjacent Map16 index)

@@ -1,6 +1,6 @@
-; Overworld background streamer. It currently reduces BG2 from a 64x64 to a
-; 64x32 tilemap; its tile emitters are shared-ready for the later BG1 step.
-; It applies to all areas, small and large. It differs from the vanilla
+; Overworld background streamer. BG2 is fully streamed in a 64x32 tilemap;
+; BG1 now uses the same renderer for bulk loads, with gameplay streaming to
+; follow. It applies to all areas, small and large. It differs from the vanilla
 ; streaming renderer (used by vanilla in large areas) in that it draws new
 ; rows/columns in units of 8x8 tiles rather than 16x16, and only draws them
 ; across the visible area:
@@ -83,37 +83,44 @@ org $02B283
 
 ; Module09_2E_Whirlpool
 ;
-; Our bulk renderer makes whirlpool state 5 queue the destination BG2 window
-; through $18. Vanilla state 5 also queues BG1 overlay half $0C through $17,
-; which would make both transfers run in the same NMI. Split them across two
-; solid-blue frames. The HUD remains enabled throughout.
+; The logical overlay loads remain, but the new streamer replaces the vanilla
+; $0C/$0D BG1 half-tilemap uploads.
 ;
-; States 3, 4, and 6 also queue an overlay half. They are smaller than the
-; combined state-5 transfer, but still benefit from deliberately omitting
-; one OAM upload.
+; $B0=$03, Module09_2E_03_FindDestination. ReloadSubscreenOverlayAndAdvance
+; has just loaded the destination overlay and queued its BG1 bulk window.
+; Preserve the displaced $15 clear, omit OAM for that NMI, and continue with
+; the vanilla blue-screen setup.
 org $02B3C7
-    JSL BG2WhirlpoolQueueOverlayLatter
-    BRA BG2WhirlpoolBlueRemoval
-    NOP
+    STZ.b $15
+    INC.w !NMISkipOAM
+    BRA BGStreamerWhirlpoolBlueRemoval
     NOP
 
+; $B0=$04 or $06, Module09_2E_04. Vanilla queued one BG1 half through
+; $17=$0D. That upload is obsolete, so advance directly to the next state.
 org $02B3CF
-    JSL BG2WhirlpoolQueueOverlayFormer
-    RTS
-    NOP
-
-org $02B3D5
-    JSL BG2WhirlpoolLoadDestination
-    RTS
-    NOP
+    BRA BGStreamerAdvanceWhirlpooling
     NOP
     NOP
     NOP
     NOP
 
-; Branch target used after the state-3 replacement above.
+; $B0=$05, Module09_2E_05_LoadDestinationMap. Overworld_LoadOverlayAndMap
+; has just queued the BG2 bulk window. Replace the following $17=$0C upload
+; with the OAM omission needed by the BG2 NMI, then enable the blue screen.
+org $02B3D9
+    INC.w !NMISkipOAM
+    BRA BGStreamerEnableWhirlpoolScreen
+    NOP
+
 org $02B426
-BG2WhirlpoolBlueRemoval:
+BGStreamerWhirlpoolBlueRemoval:
+
+org $02B42A
+BGStreamerEnableWhirlpoolScreen:
+
+org $02B42E
+BGStreamerAdvanceWhirlpooling:
 
 ; MirrorWarp_Initialize
 ;
@@ -140,23 +147,39 @@ org $00FE64
 org $00D8F7
     JML BG2MirrorBulkRender
 
-; AnimateMirrorWarp_DoSpritesPalettes
-;
-; Step 8's original tail occupies the bytes reused below as the step-10
-; trampoline. Move that tail to free space without changing its behavior.
-org $00D8FF
-    JML BG2MirrorTriggerOverlayA
+; AnimateMirrorWarp step 5, AnimateMirrorWarp_TriggerOverlayA_2.
+; MirrorWarp_HandleCastlePyramidSubscreen has just selected and loaded the
+; logical overlay. Skip the following vanilla $17=$0C BG1 half upload and
+; return through the routine's existing RTL at $00D8F2.
+org $00D8EB
+    BRA BGStreamerMirrorOverlayA2Done
 
-; This four-byte tail is unreachable after the JML above. Reuse it as a
-; bank-00 trampoline for the step-10 mirror margins.
+org $00D8F2
+BGStreamerMirrorOverlayA2Done:
+
+; AnimateMirrorWarp step 8, AnimateMirrorWarp_DoSpritesPalettes.
+; MirrorWarp_LoadSpritesAndColors has just finalized the destination BG1
+; scrolls. Replace its vanilla $17=$0C half upload with our BG1 bulk window.
+; This is a tail call: BG1BulkRender's RTL returns to AnimateMirrorWarp's caller.
+org $00D8FF
+    JML BG1BulkRender
+
+; The now-unreachable remainder of step 8 is reused as a bank-00 trampoline
+; for the step-10 mirror margins.
 org $00D903
     JML BG2MirrorRenderMargins
+
+; AnimateMirrorWarp_TriggerOverlayB is used by both steps 6 and 9. Its only
+; purpose was the vanilla $17=$0D BG1 half upload, so both steps now return.
+org $00D907
+    RTL
 
 ; AnimateMirrorWarp vector entry 10
 ;
 ; The common bulk renderer already installs the complete destination tilemap
-; during step 7. Leave step 9 unchanged and use step 10 only to add margins
-; after its normal animated-tile decompression.
+; during step 7. Keep step 9 pointing at the no-op routine above, and redirect
+; step 10 to the $00D903 trampoline so it adds margins after its normal
+; animated-tile decompression.
 org $00D880
     db $07, $03
 
@@ -200,8 +223,7 @@ org $00D880
 ;
 ; Skip the BG2-only cursor setup and BuildOverworldFromMap16 call. Resume at
 ; the existing stack-restoration tail, then replace its BG2 mode $04 request
-; with the new bulk renderer. LoadOverworldOverlay separately builds BG1 and
-; retains its own request.
+; with the new bulk renderer.
 org $02EAF4
     BRA +
 org $02EB04
@@ -213,14 +235,102 @@ org $02EB11
     NOP
     NOP
 
+; LoadOverworldOverlay
+;
+; Playable-overworld paths retain the logical flat-overlay load but skip
+; BuildBGOverlayFromMap16 and its $17=$04 full upload. Presentation modules
+; retain the vanilla build and upload.
+org $02FA7D
+    JSR PrepareBG1OverlayForLoad
+    BEQ BGStreamerOverlayLoadDone
+    STA.b $17
+    STA.w $0710
+
+org $02FA87
+BGStreamerOverlayLoadDone:
+
+; Overworld_LoadSubscreenAndSilenceSFX1
+;
+; Hook the overlay loading to set up the PPU for a 64x32 BG1 tilemap.
+; Initial normal/special overworld loads reach this under forced
+; blank, allowing the PPU to be configured. For transitions that have
+; an activate display (mirror, whirlpool) the PPU setup is assumed to
+; already be correct.
+org $02AE3B
+    JSL BG1SelectOverworldLayout
+    NOP
+
 ; LoadUnderworldEntrance
 ;
-; Full underworld loads assume BG2SC still has vanilla value $03. The
-; overworld bulk renderer changes it to $01, so restore the 64x64 dungeon
-; layout at the shared underworld entrance loader. The replacement routine
-; also performs the overwritten "LDA #$01 : STA $1B".
+; Restore the vanilla 64x64 BG1 and BG2 layouts at the shared underworld
+; entrance loader. The replacement routine also performs the overwritten
+; "LDA #$01 : STA $1B".
 org $02D61A
-    JSL BG2RestoreUnderworldLayout
+    JSL BGRestoreUnderworldLayouts
+
+; LoadOverworldOverlay is shared by gameplay loads and self-contained
+; presentation scenes. The paths that end in streamed overworld gameplay are:
+; normal/special overworld modules $08-$0B, the flute landing in module $0E,
+; and the Agahnim mirror transition in module $15. They keep the logical
+; overlay loaded at $7E4000 but skip the vanilla BG1 build and upload.
+;
+; Other callers retain the complete vanilla path. The known callers are
+; Module18_GanonEmerges, Module19_TriforceRoom, and Module1A_Credits; these
+; presentation scenes are outside the streamed-BG1 renderer, so they select
+; BG1SC=$13 and call BuildBGOverlayFromMap16 without further distinctions.
+;
+; Use free space left by the obsolete overlay loader. Return zero to make the
+; caller skip its upload, or return $04 after building the vanilla overlay.
+org $02F544
+PrepareBG1OverlayForLoad:
+    LDA.b $10
+    CMP.b #$08                  ; First playable module: Module08_OverworldLoad.
+    BCC .vanilla
+    CMP.b #$0C                  ; Exclusive end of the $08-$0B module range.
+    BCC .streamed
+    CMP.b #$0E                  ; Module0E_Interface: flute-menu landing.
+    BEQ .streamed
+    CMP.b #$15                  ; Mirror step 8 queues its streamed BG1.
+    BEQ .done
+
+.vanilla
+    LDA.b #$13                  ; base=$1000, width=64, height=64
+    STA.w $2107                 ; BG1SC
+
+    JSR $FA8A                   ; BuildBGOverlayFromMap16
+    LDA.b #$04
+    RTS
+
+.streamed
+    ; $11 selects the outer Module09/0B submodule. Values $23 and $2C both
+    ; run the mirror animation state machine; this routine is reached during
+    ; its inner $0200 step 5, before BG1 scrolls are finalized. Return without
+    ; uploading here, because the step-8 hook uploads BG1 after
+    ; Overworld_SetFixedColAndScroll.
+    LDA.b $11
+    CMP.b #$23                  ; Module09/0B:$23, normal mirror warp.
+    BEQ .done
+    CMP.b #$2C                  ; Module09/0B:$2C, return-portal mirror warp.
+    BEQ .done
+
+.render
+    ; Other paths use the same earlier phase in which vanilla uploaded BG1.
+    ; Their callers build BG2 in a later phase.
+    JSL BG1BulkRender
+
+.done
+    LDA.b #$00
+    RTS
+
+; Select playable overworld's 64x32 BG1 layout, then reproduce the SFX write
+; displaced at Overworld_LoadSubscreenAndSilenceSFX1.
+BG1SelectOverworldLayout:
+    LDA.b #$11                  ; base=$1000, width=64, height=32
+    STA.w $2107                 ; BG1SC
+
+    LDA.b #$05                  ; SFX1.05
+    STA.w $012D
+    RTL
 
 ; CreateInitialNewScreenMapToScroll
 ;
@@ -371,8 +481,10 @@ BG2BulkRender:
     PHX                         ; change any registers, so save all three.
     PHY
 
-    ; Select a 64x32 BG2 tilemap at VRAM word $0000. The common full-load
-    ; paths are still force-blanked when they reach this routine.
+    ; Select a 64x32 BG2 tilemap at VRAM word $0000. Full-load paths reach
+    ; this under forced blank. Mirror and whirlpool reach this with the
+    ; display active, but they started from overworld gameplay where BG2SC
+    ; is already set to the correct value of $01.
     SEP #$20                    ; PPU registers are byte-wide.
 
     LDA.b #$01                  ; base=$0000, width=64, height=32
@@ -401,6 +513,76 @@ BG2SelectRenderer:
 
     LDA.w #$007F
     STA.l !BGLogicalMask        ; BG2 logical coordinates are 0..127.
+    RTS
+
+; Build the visible BG1 overlay in the loading phase before BG2. The compact
+; PPU layout was already selected at the common overworld BG1-load entry.
+; Disabled overlays do not normally reach this routine, but checking $1D keeps
+; the ownership boundary explicit. Rain ($8C=$9F) remains on its separate
+; static path and is intentionally left blank until that milestone is installed.
+BG1BulkRender:
+    PHP                         ; Preserve the caller's register-width flags.
+
+    REP #$30                    ; Save complete 16-bit register values.
+    PHA
+    PHX
+    PHY
+
+    SEP #$20                    ; Overlay controls are byte-wide.
+
+    LDA.b $1D                   ; Zero means BG1 is disabled for this area.
+    BEQ .skip
+
+    LDA.b $8C                   ; Synthetic overlay ID selected by the loader.
+    CMP.b #$9F                  ; Rain uses a dedicated static 64x32 tilemap.
+    BEQ .skip
+
+    REP #$20
+
+    JSR BG1SelectRenderer
+    JSR BG1CalculateLogicalWindowOrigin
+    ; $00 = logical X tile,  $02 = logical Y tile
+
+    JSR BGBulkRender
+
+.skip
+    REP #$20                    ; Pull the 16-bit values saved above.
+    PLY
+    PLX
+    PLA
+
+    PLP
+    RTL
+
+; Select the BG1 overlay source and VRAM destination for the shared renderer.
+BG1SelectRenderer:
+    LDA.w #$2000
+    STA.l !BGMap16SourceOffset  ; BG1 Map16 begins at $7E4000.
+
+    LDA.w #$1000
+    STA.l !BGVRAMBase           ; BG1 tilemap begins at VRAM word $1000.
+
+    LDA.w #$003F
+    STA.l !BGLogicalMask        ; BG1 logical coordinates are 0..63.
+    RTS
+
+; Convert finalized BG1 scrolls directly to the logical 8x8 tile at the
+; viewport's top-left pixel. Unlike BG2, the overlay is always loaded at
+; logical (0,0), so no world-space screen origin is subtracted.
+BG1CalculateLogicalWindowOrigin:
+    LDA.w $0120                 ; Final BG1 horizontal scroll in pixels.
+    LSR A
+    LSR A
+    LSR A
+    AND.w #$003F                ; Wrap within the 64-tile logical width.
+    STA.b $00
+
+    LDA.w $0124                 ; Final BG1 vertical scroll in pixels.
+    LSR A
+    LSR A
+    LSR A
+    AND.w #$003F                ; Wrap within the 64-tile logical height.
+    STA.b $02
     RTS
 
 ; Build and request the complete 33x29 window for the selected layer.
@@ -1378,13 +1560,6 @@ BG2MirrorBulkRender:
     JSL BG2BulkRender
     RTL
 
-; Reproduce the step-8 tail displaced by the bank-00 margin trampoline.
-BG2MirrorTriggerOverlayA:
-    LDA.b #$0C
-    STA.b $17
-    STA.w $0710
-    RTL
-
 ; Step 10 retains its animated-tile work, then repairs the mirror margins.
 BG2MirrorRenderMargins:
     JSL $00D915                 ; AnimateMirrorWarp_DecompressAnimatedTiles
@@ -1507,13 +1682,16 @@ BG2BuildMirrorMargins:
     RTS
 
 ;---------------------------------------------------------------------------------------------------
-; Restore the vanilla 64x64 BG2 layout before a full underworld load.
+; Restore the vanilla 64x64 BG1/BG2 layouts before a full underworld load.
 ;---------------------------------------------------------------------------------------------------
 
-BG2RestoreUnderworldLayout:
+BGRestoreUnderworldLayouts:
     PHP                         ; Preserve the caller's accumulator width.
 
-    SEP #$20                    ; BG2SC and $1B are byte-wide.
+    SEP #$20                    ; PPU registers and $1B are byte-wide.
+
+    LDA.b #$13                  ; base=$1000, width=64, height=64
+    STA.w $2107                 ; Restore the vanilla dungeon BG1SC value.
 
     LDA.b #$03                  ; base=$0000, width=64, height=64
     STA.w $2108                 ; Restore the vanilla dungeon BG2SC value.
@@ -1522,57 +1700,6 @@ BG2RestoreUnderworldLayout:
     STA.b $1B                   ; the JSL at LoadUnderworldEntrance+$03.
 
     PLP                         ; Restore the caller's accumulator width.
-    RTL
-
-;---------------------------------------------------------------------------------------------------
-; Spread the whirlpool destination load across consecutive solid-blue frames.
-;---------------------------------------------------------------------------------------------------
-
-BG2WhirlpoolQueueOverlayLatter:
-    LDA.b #$0C                  ; Upload the latter 4 KiB BG1 overlay half.
-    STA.b $17
-    STZ.b $15                   ; Preserve the displaced state-3 behavior.
-
-    LDA.b #$01
-    STA.w !NMISkipOAM           ; Make room for this known-heavy NMI.
-    RTL
-
-BG2WhirlpoolQueueOverlayFormer:
-    LDA.b #$0D                  ; Upload the former 4 KiB BG1 overlay half.
-    STA.b $17
-
-    LDA.b #$01
-    STA.w !NMISkipOAM
-
-    INC.w $0710                 ; Reproduce AdvanceWhirlpooling.
-    INC.b $B0
-    RTL
-
-BG2WhirlpoolLoadDestination:
-    LDA.w $0200                 ; Overworld_LoadOverlayAndMap advances this
-    BNE .upload_bg2             ; from 0 to 1 after preparing the BG2 list.
-
-    JSL $0AB96C                 ; Overworld_LoadOverlayAndMap
-    STZ.b $18                   ; Preserve $1100, but defer its NMI upload.
-
-    LDA.b #$0C                  ; First upload the latter BG1 overlay half.
-    STA.b $17
-    LDA.b #$01
-    STA.w !NMISkipOAM
-
-    LDA.b #$0F                  ; Keep the solid-blue screen and HUD visible.
-    STA.b $13
-    RTL                         ; Stay in state 5 for one additional frame.
-
-.upload_bg2
-    STZ.w $0200                 ; Consume our existing one-bit phase state.
-    LDA.b #$01
-    STA.b $18                   ; Upload the preserved destination BG2 list.
-    STA.w !NMISkipOAM
-
-    LDA.b #$0F
-    STA.b $13
-    INC.b $B0                   ; Continue to state 6 on the next frame.
     RTL
 
 assert pc() <= !BG2BulkFreeEnd

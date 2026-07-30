@@ -149,6 +149,10 @@ mod tests {
         0x1000 + (tile_y & 31) * 32 + (tile_x & 31) + (tile_x & 32) * 32
     }
 
+    fn bg1_logical_origin(hofs: u16, vofs: u16) -> (u16, u16) {
+        (hofs >> 3 & 0x3f, vofs >> 3 & 0x3f)
+    }
+
     fn bg1_stream_delta_is_incremental(current: u16, resident: u16) -> bool {
         matches!(current.wrapping_sub(resident), 0 | 1 | u16::MAX)
     }
@@ -226,6 +230,9 @@ mod tests {
 
     #[test]
     fn bg1_stream_window_and_ring_geometry() {
+        assert_eq!(bg1_logical_origin(0x0600, 0x06c0), (0, 24));
+        assert_eq!(bg1_logical_origin(0xffff, 0xffff), (63, 63));
+
         assert_eq!(bg1_stream_bounds(0x100, 0x200), [31, 64, 63, 92]);
         assert_eq!(bg1_stream_bounds(0x101, 0x201), [31, 65, 63, 93]);
 

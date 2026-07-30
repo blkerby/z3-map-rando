@@ -1,7 +1,7 @@
 # BG1 streamer
 
-Status: milestone 1 is implemented; gameplay validation is pending before
-milestone 2 begins.
+Status: milestone 3 is implemented; gameplay validation is pending before
+milestone 4 begins.
 
 ## Goal
 
@@ -149,7 +149,7 @@ sprites, HUD, and transitions continue normally.
 Add a thin BG1 bulk wrapper that:
 
 1. skips disabled overlays and rain;
-2. sets `BG1SC=$11`;
+2. uses the `BG1SC=$11` layout selected unconditionally at overworld BG1 load;
 3. calculates the 64x64 BG1 origin from `$0120/$0124`;
 4. selects the BG1 renderer parameters;
 5. calls the common 33x29 bulk builder.
@@ -158,6 +158,11 @@ Schedule BG1 and BG2 bulk lists on separate loading frames. Cover ordinary
 overworld entry first, then mirror, portals, whirlpools, and world-map return.
 The display must remain hidden or at its transition color until both layers
 are resident.
+
+Implementation: the BG1 bulk list replaces vanilla's earlier overlay upload.
+The existing state machines already load the overlay one frame before they
+build BG2, so no new phase state is needed. Mirror is the exception: BG2
+uploads in step 7, then BG1 uploads in step 8 after its scroll is finalized.
 
 ### 4. Add gameplay BG1 streaming
 
