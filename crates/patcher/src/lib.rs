@@ -17,7 +17,7 @@ impl From<SnesAddr> for PcAddr {
 
 impl From<PcAddr> for SnesAddr {
     fn from(value: PcAddr) -> Self {
-        Self(0x8000 | ((value.0 & 0x3f8000) << 1) | (value.0 & 0x7fff))
+        Self(0x808000 | ((value.0 & 0x3f8000) << 1) | (value.0 & 0x7fff))
     }
 }
 
@@ -153,10 +153,10 @@ mod tests {
         assert_eq!(PcAddr::from(SnesAddr(0x018000)).0, 0x008000);
         assert_eq!(PcAddr::from(SnesAddr(0x7fffff)).0, 0x3fffff);
 
-        assert_eq!(SnesAddr::from(PcAddr(0x000000)).0, 0x008000);
-        assert_eq!(SnesAddr::from(PcAddr(0x007fff)).0, 0x00ffff);
-        assert_eq!(SnesAddr::from(PcAddr(0x008000)).0, 0x018000);
-        assert_eq!(SnesAddr::from(PcAddr(0x3fffff)).0, 0x7fffff);
+        assert_eq!(SnesAddr::from(PcAddr(0x000000)).0, 0x808000);
+        assert_eq!(SnesAddr::from(PcAddr(0x007fff)).0, 0x80ffff);
+        assert_eq!(SnesAddr::from(PcAddr(0x008000)).0, 0x818000);
+        assert_eq!(SnesAddr::from(PcAddr(0x3fffff)).0, 0xffffff);
 
         assert_eq!(PcAddr::from(SnesAddr(0x008000)).0, 0x000000);
     }
@@ -185,7 +185,7 @@ mod tests {
 
         assert_eq!(
             error,
-            "patches overlap: existing ($00800A, 4 bytes) and new ($00800C, 4 bytes)"
+            "patches overlap: existing ($80800A, 4 bytes) and new ($80800C, 4 bytes)"
         );
 
         let error = patcher

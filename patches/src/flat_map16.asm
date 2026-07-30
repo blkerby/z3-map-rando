@@ -1,9 +1,9 @@
 lorom
 
-!OverworldScreenSize = $02F5F1
-!FlatMap16ScreenPointers = $27E000
+!OverworldScreenSize = $82F5F1
+!FlatMap16ScreenPointers = $A7E000
 
-org $02F2AE
+org $82F2AE
 
 ; Build the 64x64 WRAM Map16 data (TMAPA) from 32x32 flat Map16 data.
 ; This replaces the slower, more complex decompression involving Map32.
@@ -99,9 +99,9 @@ Overworld_LoadOneFlatMap16:
 
     RTS
 
-assert pc() <= $02F39C
+assert pc() <= $82F39C
 
-org $02F52F
+org $82F52F
 
 ; Load the 32x32 flat Map16 overlay into the top-left of TMAPB.
 LoadSubOverlayFlatMap16:
@@ -114,4 +114,4 @@ LoadSubOverlayFlatMap16:
     PLB
     RTS
 
-assert pc() <= $02F5E3
+assert pc() <= $82F5E3

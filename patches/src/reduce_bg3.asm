@@ -11,10 +11,10 @@
 
 lorom
 
-!free_space_bank_00_start = $008878
-!free_space_bank_00_end = $008888
-!free_space_bank_any_start = $27E1E0
-!free_space_bank_any_end = $27E400
+!free_space_bank_00_start = $808878
+!free_space_bank_00_end = $808888
+!free_space_bank_any_start = $A7E1E0
+!free_space_bank_any_end = $A7E400
 
 ; One byte of otherwise unused WRAM tells the NMI handler which source image
 ; supplies the next ring row.
@@ -25,34 +25,34 @@ lorom
 ; Intro_InitializeBackgroundSettings runs when the title-screen intro sets up
 ; its PPU backgrounds. Change BG3SC from $63 (VRAM $6000, 64x64) to $60
 ; (VRAM $6000, 32x32).
-org $02C284
+org $82C284
     db $60
 
 ; File select and name entry use both horizontal BG3 blocks. Restore a 64x32
 ; layout while those modules are active, then switch back when loading a file.
-org $0CCC89
+org $8CCC89
     JSL FileSelectEnableForceBlank
-assert pc() == $0CCC8D
+assert pc() == $8CCC8D
 
 ; ReinitializeFileSelectGraphics normally calls EraseTilemaps_bg3. The shared
 ; routine now clears only the 32x32 gameplay block, so wrap that call with a
 ; file-select-only clear of the second horizontal block.
-org $0CCDA1
+org $8CCDA1
     JSL EraseFileSelectTilemaps
-assert pc() == $0CCDA5
+assert pc() == $8CCDA5
 
-org $028046
+org $828046
     JSL GameplayEnableForceBlank
-assert pc() == $02804A
+assert pc() == $82804A
 
 ; Keep the complete vanilla NamePlayerTilemap stripe list. Its entries after
-; $0CE911 draw the right-hand characters into VRAM $6400-$67FF.
+; $8CE911 draw the right-hand characters into VRAM $6400-$67FF.
 
 ; NMI_UploadTilemap uses WRAM $0116 as an index into
 ; TilemapUpload_HighBytes. ItemMenu_ClearTilemap and ItemMenu_Initialize select
 ; entry $22 for their full-buffer uploads; redirect that entry from the
 ; vanilla menu block at VRAM $6800 to the shared block at VRAM $6000.
-org $0098AA
+org $8098AA
     db $60
 
 ; EraseTilemaps_normal enters the shared EraseTilemaps DMA body here during
@@ -63,7 +63,7 @@ org $0098AA
 ; the top-left block and unused top-right block.
 ;
 ; Reduce each fill to $0400 bytes to clear only the remaining 32x32 block.
-org $0083AA
+org $8083AA
     LDA.w #$0400
 
 ; During each vertical blank, NMI_HandleTileUpdates reads WRAM $17 as a
@@ -71,7 +71,7 @@ org $0083AA
 ; Replace vanilla's unused mode $06 (NMI_TilemapNothing) with our new menu row
 ; streamer. The handler table holds 16-bit bank-00 addresses, so it points to
 ; a small bank-00 JSL trampoline.
-org $008C8A
+org $808C8A
     dw BG3StreamNMITrampoline
 
 ; independent_tile_type.asm makes these final bytes of vanilla
@@ -87,9 +87,9 @@ assert pc() <= !free_space_bank_00_end
 ; menu buffer at WRAM $1000-$17FF, then vanilla uploads that blank menu
 ; to its separate VRAM block. We keep the WRAM clear but skip the VRAM upload,
 ; so the shared VRAM block continues to display the HUD.
-org $0DDD9E
+org $8DDD9E
     BRA +
-org $0DDDA7
+org $8DDDA7
 +
 
 ; ItemMenu_Initialize is state $01, called next while the menu is about to open.
@@ -97,41 +97,41 @@ org $0DDDA7
 ; before advancing to state $02 (ItemMenu_Open). We keep the writing
 ; to WRAM but skip the VRAM upload. ItemMenu_Open will reveal the completed WRAM
 ; buffer one VRAM row at a time.
-org $0DDE4C
+org $8DDE4C
     BRA +
-org $0DDE55
+org $8DDE55
 +
 
 ; ItemMenu_Open is state $02 and runs once per frame during the 29-frame
 ; opening animation. It scrolls 8 pixels per step, so we queue the menu row
 ; update to bring it into view.
-org $0DDE63
+org $8DDE63
     JSL ItemMenuScrollOpening
     NOP
-assert pc() == $0DDE68
+assert pc() == $8DDE68
 
 ; UpdateHUD is state $05, called before ItemMenu_Close begins. We replace the
 ; call to RebuildHUD_update with a call to its subroutine UpdateHUDBuffer.
 ; This way, it rebuilds the current HUD contents in WRAM but skips requesting
 ; an immediate VRAM upload, which would overwrite the still-visible menu. 
 ; RestoreHUDRow consumes this WRAM buffer one VRAM row at a time.
-org $0DDFAC
+org $8DDFAC
     JSR.w $FBB1 ; UpdateHUDBuffer
 
 ; ItemMenu_Close is state $06 and runs once per frame during the 29-frame
 ; closing animation. Replace its 8-pixel scroll step and queue the HUD or blank
 ; row that the step brings into view.
-org $0DDFC2
+org $8DDFC2
     JSL ItemMenuScrollClosing
 
 ; Credits_InitializeTheActualCredits sets the first attribution's stripe
 ; destination before the credits begin scrolling. Start at VRAM row 0 ($6000)
 ; because there is no second vertical screen block, but skip the initial draw
 ; so that row is not replaced until the first 8-pixel scroll moves it offscreen.
-org $0EE6D3
+org $8EE6D3
     dw $6000
 
-org $0EE6E9
+org $8EE6E9
     NOP
     NOP
     NOP
@@ -139,19 +139,19 @@ org $0EE6E9
 ; Credits_FadeColorAndBeginAnimating advances the vertical scroll every frame.
 ; Each 8-pixel boundary queues the next attribution; adjust its line index for
 ; the initialization-time draw removed above.
-org $0EE7BA
+org $8EE7BA
     JSL CreditsAdvanceLine
     NOP
     NOP
-assert pc() == $0EE7C0
+assert pc() == $8EE7C0
 
 ; Credits_AddNextAttribution advances its stripe destination by one row.
 ; Vanilla alternates between two vertical screen blocks after each 32 rows;
 ; instead wrap every 32 rows to VRAM $6000.
-org $0EE90C
+org $8EE90C
     LDY.w #$6000
     BRA +
-org $0EE915
+org $8EE915
 +
 
 org !free_space_bank_any_start
@@ -400,12 +400,12 @@ BlankBG3Row:
 ReduceBG3End:
 assert pc() <= !free_space_bank_any_end
 
-org $27E35B
+org $A7E35B
 
 ; File select inherits the title-screen PPU setup, but unlike gameplay it
 ; needs both horizontal blocks for the name-entry character grid.
 FileSelectEnableForceBlank:
-    JSL $00893D ; EnableForceBlank
+    JSL $80893D ; EnableForceBlank
     LDA.b #$61
     STA.w $2109 ; BG3SC: VRAM $6000, 64x32
     RTL
@@ -413,7 +413,7 @@ FileSelectEnableForceBlank:
 ; Module05_LoadFile is the common exit from file select. Restore the reduced
 ; layout before any gameplay tilemap work begins.
 GameplayEnableForceBlank:
-    JSL $00893D ; EnableForceBlank
+    JSL $80893D ; EnableForceBlank
     LDA.b #$60
     STA.w $2109 ; BG3SC: VRAM $6000, 32x32
     RTL
@@ -422,7 +422,7 @@ GameplayEnableForceBlank:
 ; File select is force-blanked here, so directly fill only BG3's additional
 ; $400-word block instead of expanding the shared DMA into freed gameplay VRAM.
 EraseFileSelectTilemaps:
-    JSL $008333 ; EraseTilemaps_bg3
+    JSL $808333 ; EraseTilemaps_bg3
 
     ; Increment the VRAM word address after the high-byte write.
     LDA.b #$80

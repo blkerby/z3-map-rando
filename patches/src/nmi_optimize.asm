@@ -48,7 +48,7 @@ DMA1SIZEH   = $4316 ; Transfer size high byte
 ; NoIRQThread and SwitchThread both copy the same eight adjacent PPU queue
 ; bytes to adjacent PPU registers. Word writes preserve the byte order while
 ; halving the number of loads and stores.
-org $00814C
+org $80814C
     REP #$20
 
     LDA.b $96                   ; $96 -> W12SEL, $97 -> W34SEL
@@ -77,9 +77,9 @@ org $00814C
 
     JMP.w $8188
 
-assert pc() <= $008188
+assert pc() <= $808188
 
-org $00823D
+org $80823D
     REP #$20
 
     LDA.b $96                   ; $96 -> W12SEL, $97 -> W34SEL
@@ -108,11 +108,11 @@ org $00823D
 
     JMP.w $8279
 
-assert pc() <= $008279
+assert pc() <= $808279
 
 ; Process each stable auto-joypad result directly instead of copying both
 ; bytes through $00/$01 and then loading them again.
-org $0083D1
+org $8083D1
 ReadJoypad:
     STZ.w JOYPAD
 
@@ -134,18 +134,18 @@ ReadJoypad:
 
     RTS
 
-assert pc() <= $0083F8
+assert pc() <= $8083F8
 
 ; OAM normally uploads every frame. Only an explicit one-shot request in
 ; documented free WRAM may skip it; $0710 retains its separate vanilla role
 ; of suppressing the normal graphics DMA group.
-org $008BCD
+org $808BCD
 NMIAfterOAM:
 
-org $008BAA
+org $808BAA
     JML.l NMIPrepareOAM
 
-org $008C22
+org $808C22
 HandleArbitraryDMA:
     LDA.b $18
     BEQ .no_arb_dma
@@ -193,11 +193,11 @@ HandleArbitraryDMA:
     STZ.w $0710
     BRA .no_arb_dma
 
-assert pc() <= $008C75
-org $008C75
+assert pc() <= $808C75
+org $808C75
 .no_arb_dma
 
-org $27E345
+org $A7E345
 NMIPrepareOAM:
     LDA.w !NMISkipOAM
     REP #$20
@@ -209,6 +209,6 @@ NMIPrepareOAM:
     JML.l NMIAfterOAM
 
 .upload_oam
-    JML.l $008BAE               ; Resume at the displaced STZ $15.
+    JML.l $808BAE               ; Resume at the displaced STZ $15.
 
-assert pc() <= $27E35B
+assert pc() <= $A7E35B

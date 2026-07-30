@@ -396,7 +396,7 @@ impl Importer {
             };
 
             let pointer =
-                (u32::from(0x20 + index / 16) << 16) | (0x8000 + u32::from(index % 16) * 0x0800);
+                (u32::from(0xa0 + index / 16) << 16) | (0x8000 + u32::from(index % 16) * 0x0800);
             screen_pointers.extend_from_slice(&pointer.to_le_bytes()[..3]);
         }
         ensure!(
@@ -798,9 +798,9 @@ mod tests {
         let flat = importer.flat_map16().unwrap();
 
         assert_eq!(flat.maps.len(), 124 * 2048);
-        assert_eq!(&flat.screen_pointers[..3], &[0x00, 0x80, 0x20]);
-        assert_eq!(&flat.screen_pointers[123 * 3..124 * 3], &[0x00, 0xD8, 0x27]);
-        assert_eq!(&flat.screen_pointers[124 * 3..125 * 3], &[0x00, 0x80, 0x20]);
+        assert_eq!(&flat.screen_pointers[..3], &[0x00, 0x80, 0xa0]);
+        assert_eq!(&flat.screen_pointers[123 * 3..124 * 3], &[0x00, 0xD8, 0xa7]);
+        assert_eq!(&flat.screen_pointers[124 * 3..125 * 3], &[0x00, 0x80, 0xa0]);
     }
 
     #[test]

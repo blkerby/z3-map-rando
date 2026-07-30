@@ -16,15 +16,15 @@ lorom
 !HDMA6ADDRB = $4364
 !HDMA6ITBLB = $4367
 
-!MirrorBG1FreeStart = $02F3EE
-!MirrorBG1FreeEnd = $02F52F
+!MirrorBG1FreeStart = $82F3EE
+!MirrorBG1FreeEnd = $82F52F
 
 ; InitializeMirrorHDMA
 ;
 ; Vanilla has finished filling $1B00-$1CDF from $E2. Replace its final
 ; "SEP #$20 : LDA #$C0 : STA $9B : RTL" with channel-6 setup, the initial
 ; BG1 table build, and the same HDMA-enable request.
-org $00FE57
+org $80FE57
     JML MirrorBG1Initialize
 
 ; MirrorWarp_BuildWavingHDMATable
@@ -32,27 +32,27 @@ org $00FE57
 ; AnimateMirrorWarp runs before this parity check and may change $E0 while
 ; loading the destination. Refresh BG1 even on frames where vanilla leaves
 ; its wave table unchanged. Updating frames refresh it after finishing $1B00.
-org $00FE68
+org $80FE68
     JML MirrorBG1CheckWavingFrame
     NOP
 
 ; The final value still needs to be written to $1B08 and $1B0C before the
 ; completed vanilla table is translated for BG1.
-org $00FF26
+org $80FF26
     JML MirrorBG1FinishWavingFrame
 
 ; MirrorWarp_BuildDewavingHDMATable has the same alternating-frame behavior.
-org $00FF33
+org $80FF33
     JML MirrorBG1CheckDewavingFrame
     NOP
 
 ; The dewave routine has multiple branches to this common return. Use the
 ; adjacent vanilla free space for a same-bank trampoline.
-org $00FFB4
+org $80FFB4
     BRA MirrorBG1FinishDewavingTrampoline
     NOP
 
-org $00FFB7
+org $80FFB7
 MirrorBG1FinishDewavingTrampoline:
     JML MirrorBG1FinishDewavingFrame
 
@@ -97,7 +97,7 @@ MirrorBG1CheckWavingFrame:
     RTL
 
 .update
-    JML $00FE6D
+    JML $80FE6D
 
 ; Complete the four identical leading values written by vanilla, then build
 ; BG1 from the finished wave table.
@@ -120,7 +120,7 @@ MirrorBG1CheckDewavingFrame:
     RTL
 
 .update
-    JML $00FF38
+    JML $80FF38
 
 MirrorBG1FinishDewavingFrame:
     REP #$30

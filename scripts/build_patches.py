@@ -6,7 +6,7 @@ for asm_path in glob.iglob('patches/src/*.asm'):
     filename = pathlib.Path(asm_path).parts[-1]
     ips_path = pathlib.Path('patches/ips').joinpath(filename).with_suffix('.ips')
     print("Building", asm_path)
-    output = subprocess.run([
+    subprocess.run([
         'asar/build/asar/bin/asar', 
         '--fix-checksum=off', 
         '--no-title-check', 
@@ -14,4 +14,4 @@ for asm_path in glob.iglob('patches/src/*.asm'):
         '--ips', ips_path,
         asm_path, 
         '/tmp/dummy.smc'
-    ])
+    ], check=True)

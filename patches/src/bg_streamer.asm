@@ -26,15 +26,15 @@
 
 lorom
 
-!BG2BulkFreeStart = $1BB1E0
-!BG2BulkFreeEnd = $1BB800
+!BG2BulkFreeStart = $9BB1E0
+!BG2BulkFreeEnd = $9BB800
 
 !NMISkipOAM = $0702
 
-!Map16TopLeft = $288000
-!Map16TopRight = $298000
-!Map16BottomLeft = $2A8000
-!Map16BottomRight = $2B8000
+!Map16TopLeft = $A88000
+!Map16TopRight = $A98000
+!Map16BottomLeft = $AA8000
+!Map16BottomRight = $AB8000
 
 ; Temporary parameters for the shared BG1/BG2 renderer. This documented free
 ; WRAM is only scratch during a renderer call; no state persists between frames.
@@ -46,7 +46,7 @@ lorom
 ;
 ; Every fourth game frame, the rain animation advances to another quarter of
 ; the 512x256 BG1 tilemap: 128 pixels right and 64 pixels down.
-org $02A407
+org $82A407
     REP #$20
 
     LDA.b $E0
@@ -61,7 +61,7 @@ org $02A407
 
     SEP #$20
     BRA +
-org $02A423
+org $82A423
 +
 
 ; Overworld_SetFixedColAndScroll
@@ -70,10 +70,10 @@ org $02A423
 ; and Pyramid BG1 overlay to fixed coordinates while every other overlay keeps
 ; its previous position. Skip that special setup so the old area's BG1 does
 ; not jump when either destination is randomized next to another overlay.
-org $0BFF76
+org $8BFF76
     BRA BGStreamerUseRegularTransitionScroll
 
-org $0BFF9D
+org $8BFF9D
 BGStreamerUseRegularTransitionScroll:
 
 ; OverworldScrollTransition
@@ -81,10 +81,10 @@ BGStreamerUseRegularTransitionScroll:
 ; Vanilla advances BG2 each frame but omits the matching BG1 store for areas
 ; $1B and $5B. Apply the ordinary store for every area so Castle and Pyramid
 ; BG1 scroll smoothly through the transition too.
-org $02BF65
+org $82BF65
     BRA BGStreamerApplyTransitionScrollToBG1
 
-org $02BF6F
+org $82BF6F
 BGStreamerApplyTransitionScrollToBG1:
 
 ; Module09_LoadNewMapAndGFX
@@ -95,7 +95,7 @@ BGStreamerApplyTransitionScrollToBG1:
 ; Vanilla increments $0710 to suppress Link graphics DMA until the initial
 ; mode $03 BG2 stripe upload clears it. That upload is disabled below, so
 ; leave $0710 clear or Link's displayed graphics stop updating permanently.
-org $02AACE
+org $82AACE
     NOP
     NOP
     NOP
@@ -108,7 +108,7 @@ org $02AACE
 ; This forced-blank reload stage follows the BG1 overlay upload in submodule
 ; $20. Replace its obsolete small/large-area BG2 builder with the bulk
 ; renderer, then advance to Module09_22 to fade the screen back in.
-org $02EA89
+org $82EA89
     JSL BG2BulkRender
     SEP #$20
     INC.b $11
@@ -123,7 +123,7 @@ org $02EA89
 ; The first half of this routine saves and adjusts the vanilla BG2 renderer
 ; cursors, calls BuildOverworldFromMap16, and restores the cursors. Skip
 ; directly to the sprite-palette work that follows.
-org $02B283
+org $82B283
     JMP.w $B2CE
 
 ; Module09_2E_Whirlpool
@@ -135,7 +135,7 @@ org $02B283
 ; has just loaded the destination overlay and queued its BG1 bulk window.
 ; Preserve the displaced $15 clear, omit OAM for that NMI, and continue with
 ; the vanilla blue-screen setup.
-org $02B3C7
+org $82B3C7
     STZ.b $15
     INC.w !NMISkipOAM
     BRA BGStreamerWhirlpoolBlueRemoval
@@ -143,7 +143,7 @@ org $02B3C7
 
 ; $B0=$04 or $06, Module09_2E_04. Vanilla queued one BG1 half through
 ; $17=$0D. That upload is obsolete, so advance directly to the next state.
-org $02B3CF
+org $82B3CF
     BRA BGStreamerAdvanceWhirlpooling
     NOP
     NOP
@@ -153,18 +153,18 @@ org $02B3CF
 ; $B0=$05, Module09_2E_05_LoadDestinationMap. Overworld_LoadOverlayAndMap
 ; has just queued the BG2 bulk window. Replace the following $17=$0C upload
 ; with the OAM omission needed by the BG2 NMI, then enable the blue screen.
-org $02B3D9
+org $82B3D9
     INC.w !NMISkipOAM
     BRA BGStreamerEnableWhirlpoolScreen
     NOP
 
-org $02B426
+org $82B426
 BGStreamerWhirlpoolBlueRemoval:
 
-org $02B42A
+org $82B42A
 BGStreamerEnableWhirlpoolScreen:
 
-org $02B42E
+org $82B42E
 BGStreamerAdvanceWhirlpooling:
 
 ; MirrorWarp_Initialize
@@ -172,7 +172,7 @@ BGStreamerAdvanceWhirlpooling:
 ; Before changing $8A to the destination world, fill the three source-world
 ; columns that the horizontal-scroll HDMA can expose outside the normal
 ; 33-tile window.
-org $02B158
+org $82B158
     JSL BG2MirrorInitialize
 
 ; MirrorWarp_BuildWavingHDMATable
@@ -180,7 +180,7 @@ org $02B158
 ; Keep HDMA off on mirror frames that queue a large NMI transfer. The screen
 ; is white during these loading steps. While the destination tilemap is being
 ; staged, keep it off until the final margin repair has also been transferred.
-org $00FE64
+org $80FE64
     JML BG2MirrorRunAnimation
 
 ; AnimateMirrorWarp_DrawDestinationScreen
@@ -189,43 +189,43 @@ org $00FE64
 ; DrawOverworldQuadrantsAndOverlays as a subroutine and returns without
 ; falling through to OverworldBuildMapAndTrigger. Replace its final
 ; "INC $0710 : RTL" with the common bulk renderer, which sets $0710 itself.
-org $00D8F7
+org $80D8F7
     JML BG2BulkRender
 
 ; AnimateMirrorWarp step 5, AnimateMirrorWarp_TriggerOverlayA_2.
 ; MirrorWarp_HandleCastlePyramidSubscreen has just selected and loaded the
 ; logical overlay. Skip the following vanilla $17=$0C BG1 half upload and
-; return through the routine's existing RTL at $00D8F2.
-org $00D8EB
+; return through the routine's existing RTL at $80D8F2.
+org $80D8EB
     BRA BGStreamerMirrorOverlayA2Done
 
-org $00D8F2
+org $80D8F2
 BGStreamerMirrorOverlayA2Done:
 
 ; AnimateMirrorWarp step 8, AnimateMirrorWarp_DoSpritesPalettes.
 ; MirrorWarp_LoadSpritesAndColors has just finalized the destination BG1
 ; scrolls. Replace its vanilla $17=$0C half upload with our BG1 bulk window.
 ; This is a tail call: BG1BulkRender's RTL returns to AnimateMirrorWarp's caller.
-org $00D8FF
+org $80D8FF
     JML BG1BulkRender
 
 ; The now-unreachable remainder of step 8 is reused as a bank-00 trampoline
 ; for the step-10 mirror margins.
-org $00D903
+org $80D903
     JML BG2MirrorRenderMargins
 
 ; AnimateMirrorWarp_TriggerOverlayB is used by both steps 6 and 9. Its only
 ; purpose was the vanilla $17=$0D BG1 half upload, so both steps now return.
-org $00D907
+org $80D907
     RTL
 
 ; AnimateMirrorWarp vector entry 10
 ;
 ; The common bulk renderer already installs the complete destination tilemap
 ; during step 7. Keep step 9 pointing at the no-op routine above, and redirect
-; step 10 to the $00D903 trampoline so it adds margins after its normal
+; step 10 to the $80D903 trampoline so it adds margins after its normal
 ; animated-tile decompression.
-org $00D880
+org $80D880
     db $07, $03
 
 ; OverworldBuildMapAndTrigger
@@ -269,12 +269,12 @@ org $00D880
 ; Skip the BG2-only cursor setup and BuildOverworldFromMap16 call. Resume at
 ; the existing stack-restoration tail, then replace its BG2 mode $04 request
 ; with the new bulk renderer.
-org $02EAF4
+org $82EAF4
     BRA +
-org $02EB04
+org $82EB04
 +
 
-org $02EB11
+org $82EB11
     JSL BG2BulkRender
     NOP
     NOP
@@ -286,20 +286,20 @@ org $02EB11
 ; tile $0DBE. In vanilla, nothing appears to consume that cleared row, so it
 ; has no clear purpose: the VRAM tilemap is already populated before the clear.
 ; It would, however, mess up our streaming renderer, so we skip it.
-org $02EC2E
+org $82EC2E
     BRA BGStreamerOverlayRowClearDone
 
-org $02EC4C
+org $82EC4C
 BGStreamerOverlayRowClearDone:
 
 ; SomeTilemapChange
 ;
 ; Module09_LoadNewMapAndGFX performs the same clear during scrolling
 ; area transitions. Again we skip it.
-org $02ED51
+org $82ED51
     BRA BGStreamerMapChangeRowClearDone
 
-org $02ED6B
+org $82ED6B
 BGStreamerMapChangeRowClearDone:
 
 ; LoadOverworldOverlay
@@ -307,13 +307,13 @@ BGStreamerMapChangeRowClearDone:
 ; Playable-overworld paths retain the logical flat-overlay load but skip
 ; BuildBGOverlayFromMap16 and its $17=$04 full upload. Presentation modules
 ; retain the vanilla build and upload.
-org $02FA7D
+org $82FA7D
     JSR PrepareBG1OverlayForLoad
     BEQ BGStreamerOverlayLoadDone
     STA.b $17
     STA.w $0710
 
-org $02FA87
+org $82FA87
 BGStreamerOverlayLoadDone:
 
 ; Overworld_LoadSubscreenAndSilenceSFX1
@@ -323,7 +323,7 @@ BGStreamerOverlayLoadDone:
 ; blank, allowing the PPU to be configured. For transitions that have
 ; an activate display (mirror, whirlpool) the PPU setup is assumed to
 ; already be correct.
-org $02AE3B
+org $82AE3B
     JSL BG1SelectOverworldLayout
     NOP
 
@@ -332,7 +332,7 @@ org $02AE3B
 ; Restore the vanilla 64x64 BG1 and BG2 layouts at the shared underworld
 ; entrance loader. The replacement routine also performs the overwritten
 ; "LDA #$01 : STA $1B".
-org $02D61A
+org $82D61A
     JSR BGRestoreUnderworldLayouts
     NOP
 
@@ -352,7 +352,7 @@ org $02D61A
 ;   $04: upload the complete vanilla 64x64 presentation tilemap;
 ;   $0D: upload rain's 64x32 tilemap from the former 4 KiB staging half.
 ; This routine uses free space left by the obsolete overlay loader.
-org $02F544
+org $82F544
 PrepareBG1OverlayForLoad:
     LDA.b $10
     CMP.b #$08                  ; First playable module: Module08_OverworldLoad.
@@ -435,7 +435,7 @@ BGRestoreUnderworldLayouts:
 ; Build rain's complete 64x32 tilemap in vanilla's former-half staging buffer.
 ; The shared builder walks backward, two Map16 rows per iteration, so adding
 ; $0800 starts at logical row 15 and eight iterations finish at row 0.
-org $02F6B1
+org $82F6B1
 BuildRainTilemap:
     PHB
 
@@ -497,7 +497,7 @@ BGBuilderCalculateRowOffset:
 .done
     RTS
 
-assert pc() <= $02F6FD
+assert pc() <= $82F6FD
 
 ; CreateInitialNewScreenMapToScroll
 ;
@@ -508,7 +508,7 @@ assert pc() <= $02F6FD
 ; vanilla BG2 streaming cursors and build the first mode $03 stripe batch.
 ; Replace it with the new streamer's destination-edge preload (only needed
 ; for eastward transitions).
-org $02ED95
+org $82ED95
     JSL BG2SeedTransitionEdge
     RTS
 
@@ -519,7 +519,7 @@ org $02ED95
 ;
 ; The caller owns transition control and clears $0416 after this call. This
 ; routine's only contribution is another vanilla BG2 mode $03 stripe batch.
-org $02EF72
+org $82EF72
     SEP #$30
     RTS
 
@@ -532,17 +532,17 @@ org $02EF72
 ; $0418 to serialize diagonal stripes across frames. Skip the whole consumer.
 ; Do not clear either variable here: $0418 also records the direction of
 ; transitions for movement code.
-org $02EFD7
+org $82EFD7
     RTS
 
 ; CopyMap16ToBuffer
 ;
 ; Replace the vanilla 64-row physical destination calculation with the shared
 ; calculation above. Only the dedicated rain build omits the lower screen.
-org $02FB28
+org $82FB28
     JSR BGBuilderCalculateRowOffset
     BRA +
-org $02FB48
+org $82FB48
 +
 
 ; OverworldCameraBoundaryCheck
@@ -551,9 +551,9 @@ org $02FB48
 ; in $0416 solely to request work from OverworldHandleMapScroll. The new
 ; streamer compares the finalized 8-pixel scroll positions instead, so skip
 ; this obsolete producer.
-org $02BCE4
+org $82BCE4
     BRA +
-org $02BCED
+org $82BCED
 +
 
 ; Module09_Overworld / Module0B_OverworldSpecial
@@ -567,28 +567,28 @@ org $02BCED
 ; The first five replaced bytes are:
 ;   STA $E2
 ;   STA $011E
-org $02A37D
+org $82A37D
     JSL BG2StreamHorizontal
     NOP
 ;
 ; The second five replaced bytes are:
 ;   STA $E8
 ;   STA $0122
-org $02A389
+org $82A389
     JSL BG2StreamVertical
     NOP
 ;
 ; The third five replaced bytes are:
 ;   STA $E0
 ;   STA $0120
-org $02A395
+org $82A395
     JSL BG1StreamHorizontal
     NOP
 ;
 ; The fourth five replaced bytes are:
 ;   STA $E6
 ;   STA $0124
-org $02A3A1
+org $82A3A1
     JSL BG1StreamVertical
     NOP
 
@@ -597,12 +597,12 @@ org $02A3A1
 ; duplicated vanilla 64x64 destination calculation with the 64x32 BG2 ring.
 ;
 ; AlterMap16Hardcore has already saved A, written the logical Map16 value, and
-; pushed X. Its stripe emitter begins at $1BCA23 after this replacement.
-org $1BC9E9
+; pushed X. Its stripe emitter begins at $9BCA23 after this replacement.
+org $9BC9E9
     STX.b $00
     JSR.w BG2FindMap16VRAMAddress
     BRA +
-org $1BCA23
+org $9BCA23
 +
 
 ; Input: $00 = byte offset of the Map16 tile in the 64x64 WRAM map.
@@ -611,7 +611,7 @@ org $1BCA23
 ; Each Map16 tile is two 8x8 tiles wide and high. Map16 column bit 4 selects
 ; the second 32x32 screen block; Map16 row bits 0-3 wrap through its 16
 ; physical Map16 rows.
-org $1BCA69
+org $9BCA69
 BG2FindMap16VRAMAddress:
     LDA.b $00
     AND.w #$0020
@@ -634,7 +634,7 @@ BG2FindMap16VRAMAddress:
     STA.b $02                   ; Physical row * 32 words.
     RTS
 
-assert pc() <= $1BCA9F
+assert pc() <= $9BCA9F
 
 ;---------------------------------------------------------------------------------------------------
 ; Build the complete visible BG2 window as an arbitrary DMA list at $1100.
@@ -1808,7 +1808,7 @@ BGCalculateVRAMAddress:
 
 BG2MirrorInitialize:
     STZ.w $420C                 ; HDMAEN: stop hardware before rewriting its table.
-    JSL $00FDEE                 ; InitializeMirrorHDMA
+    JSL $80FDEE                 ; InitializeMirrorHDMA
     JSR BG2BuildMirrorMargins
     STZ.b $9B                   ; Do not combine the margin DMA with HDMA startup.
     RTL
@@ -1851,7 +1851,7 @@ BG2MirrorRunAnimation:
 
     ; The palette and wave are both paused, so their alternating frame would
     ; otherwise do no work. Advance one loading step on every white frame.
-    JSL $00D8A4                 ; AnimateMirrorWarp, without changing palette.
+    JSL $80D8A4                 ; AnimateMirrorWarp, without changing palette.
 
     LDA.b #$01
     STA.w $06BB                 ; Resume with a palette step after loading.
@@ -1865,7 +1865,7 @@ BG2MirrorRunAnimation:
     ; Loading is paused at the same logical palette time. Freeze the software
     ; oscillator too, so it has vanilla-relative history when fading resumes.
     JSR .prepare_nmi
-    RTL                         ; Skip the vanilla wave-table update at $00FE68.
+    RTL                         ; Skip the vanilla wave-table update at $80FE68.
 
 .advance_filter
     DEC.w $06BB                 ; Preserve vanilla's one-filter-step cadence.
@@ -1873,16 +1873,16 @@ BG2MirrorRunAnimation:
 
     LDA.b #$02
     STA.w $06BB
-    JSL $00EEEC                 ; PaletteFilter_BlindingWhite
+    JSL $80EEEC                 ; PaletteFilter_BlindingWhite
     INC.b $15                   ; Its terminal $1F branch omits this request.
     BRA .animation_done
 
 .run_animation
-    JSL $00EEE2                 ; MirrorWarp_RunAnimationSubmodules
+    JSL $80EEE2                 ; MirrorWarp_RunAnimationSubmodules
 
 .animation_done
     JSR .prepare_nmi
-    JML $00FE68                 ; Build the wave table as vanilla does.
+    JML $80FE68                 ; Build the wave table as vanilla does.
 
 .prepare_nmi
     LDA.b $17                   ; Specialized NMI transfer queued?
@@ -1900,7 +1900,7 @@ BG2MirrorRunAnimation:
 
 ; Step 10 retains its animated-tile work, then repairs the mirror margins.
 BG2MirrorRenderMargins:
-    JSL $00D915                 ; AnimateMirrorWarp_DecompressAnimatedTiles
+    JSL $80D915                 ; AnimateMirrorWarp_DecompressAnimatedTiles
     JSR BG2BuildMirrorMargins
     RTL
 
