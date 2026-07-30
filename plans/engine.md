@@ -319,6 +319,9 @@ mechanism.
 Rain remains separate from the streamer. Use a modified rain tilemap and
 offset sequence that fits in 64x32.
 
+The detailed design and incremental test gates are in
+[`bg1_streamer.md`](bg1_streamer.md).
+
 ### Validation and exit criteria
 
 1. Exercise every non-rain overlay across its full camera range, including
