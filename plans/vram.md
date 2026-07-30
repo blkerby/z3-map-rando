@@ -48,7 +48,7 @@ releasing another 2 KiB.
 | `$6400-$6FFF` | 6 KiB | Free |
 | `$7000-$7FFF` | 8 KiB | BG3/HUD character graphics |
 
-## After milestone 7
+## After milestone 7 (current)
 
 BG2 becomes 64x32. It keeps its two horizontal screen blocks and releases its
 lower two blocks.
@@ -121,8 +121,8 @@ stream rows or columns as the camera moves.
 | --- | ---: | ---: | ---: | ---: |
 | Vanilla | `$13` | `$03` | `$63` | `$22` |
 | Milestone 5 | `$13` | `$03` | `$62` | `$22` |
-| Milestone 6 (current) | `$13` | `$03` | `$60` | `$22` |
-| Milestone 7 | `$13` | `$01` | `$60` | `$22` |
+| Milestone 6 | `$13` | `$03` | `$60` | `$22` |
+| Milestone 7 (current) | `$13` | `$01` | `$60` | `$22` |
 | Milestone 8 | `$11` | `$01` | `$60` | `$22` |
 | Milestone 9 | `$69` | `$61` | `$3C` | `$00` |
 

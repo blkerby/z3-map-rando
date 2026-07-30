@@ -29,7 +29,7 @@ It is expected that playtesting will likely uncover the need for additional engi
 
 Each milestone change should end in a playable ROM. The last three milestones will all be based on the same hand-defined rearrangement. Randomized rearrangements and edge variants are deferred until after the engine work is complete.
 
-Current status: Milestones 1 through 6 are complete.
+Current status: Milestones 1 through 7 are complete.
 
 Note: Everything below is mostly raw, unreviewed AI-generated notes. Especially for the not-yet-complete milestones, it should not be taken as a solid plan of what we will actually end up doing.
 
@@ -297,10 +297,10 @@ users; only the vanilla overworld BG2 producers are removed.
 4. Confirm that BG2 never writes `$0800-$0FFF` and that frames without an
    8-pixel boundary crossing perform no BG2 tilemap upload.
 
-Milestone 7 is complete when BG2 uses a 64x32 tilemap on every
-playable-overworld path, all scrolling transitions and immediate Map16
-changes render correctly, and the vanilla-layout ROM remains playable
-through all earlier tests.
+Milestone 7 is complete. BG2 uses a 64x32 tilemap on every
+playable-overworld path, including bulk loads, scrolling transitions,
+immediate Map16 changes, mirror warps, portals, whirlpools, and world-map
+returns.
 
 ## Milestone 8: streamed 64x32 BG1 tilemap
 

@@ -1,5 +1,8 @@
 # BG2 streamer
 
+Status: complete. All five implementation milestones are active in
+`bg_streamer.asm`.
+
 ## Scope
 
 Start with playable-overworld BG2. Do not reuse the experimental BG1
