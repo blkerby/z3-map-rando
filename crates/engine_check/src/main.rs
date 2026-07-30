@@ -157,6 +157,10 @@ mod tests {
         matches!(current.wrapping_sub(resident), 0 | 1 | u16::MAX)
     }
 
+    fn bg1_uses_streamer(module: u8) -> bool {
+        matches!(module, 0x08..=0x0b | 0x0e | 0x15)
+    }
+
     fn bg2_stream_vram(tile_x: u16, tile_y: u16) -> u16 {
         (tile_y & 31) * 32 + (tile_x & 31) + (tile_x & 32) * 32
     }
@@ -244,6 +248,25 @@ mod tests {
         assert!(bg1_stream_delta_is_incremental(31, 32));
         assert!(bg1_stream_delta_is_incremental(33, 32));
         assert!(!bg1_stream_delta_is_incremental(34, 32));
+
+        assert!([0x08, 0x09, 0x0a, 0x0b, 0x0e, 0x15]
+            .into_iter()
+            .all(bg1_uses_streamer));
+        assert!([0x07, 0x0c, 0x18, 0x19, 0x1a]
+            .into_iter()
+            .all(|module| !bg1_uses_streamer(module)));
+
+        let row = 33 * 2 + 2 * 4;
+        let split_column = 29 * 2 + 2 * 4;
+        let after_bg2 = 2 * row + split_column;
+        let after_bg1_horizontal = after_bg2 + split_column;
+        let complete_list = after_bg1_horizontal + row + 2;
+
+        assert_eq!(after_bg2, 214);
+        assert!(after_bg2 <= u8::MAX as usize);
+        assert!(after_bg1_horizontal > u8::MAX as usize);
+        assert_eq!(complete_list, 356);
+        assert!(complete_list <= 0x1980 - 0x1100);
     }
 
     #[test]

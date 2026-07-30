@@ -1,7 +1,7 @@
 ; Overworld background streamer. BG2 is fully streamed in a 64x32 tilemap;
-; BG1 now uses the same renderer for bulk loads, with gameplay streaming to
-; follow. It applies to all areas, small and large. It differs from the vanilla
-; streaming renderer (used by vanilla in large areas) in that it draws new
+; BG1 uses the same renderer for bulk and gameplay edge loads. It applies to
+; all areas, small and large. It differs from the vanilla
+; streaming renderer (used by vanilla for BG2 in large areas) in that it draws new
 ; rows/columns in units of 8x8 tiles rather than 16x16, and only draws them
 ; across the visible area:
 ; rows of 33 tiles and columns of 29 tiles, compared to vanilla
@@ -145,7 +145,7 @@ org $00FE64
 ; falling through to OverworldBuildMapAndTrigger. Replace its final
 ; "INC $0710 : RTL" with the common bulk renderer, which sets $0710 itself.
 org $00D8F7
-    JML BG2MirrorBulkRender
+    JML BG2BulkRender
 
 ; AnimateMirrorWarp step 5, AnimateMirrorWarp_TriggerOverlayA_2.
 ; MirrorWarp_HandleCastlePyramidSubscreen has just selected and loaded the
@@ -235,6 +235,28 @@ org $02EB11
     NOP
     NOP
 
+; DrawOverworldQuadrantsAndOverlays
+;
+; Vanilla replaces its first logical Map16 row at $7E4000-$7E407E with blank
+; tile $0DBE. In vanilla, nothing appears to consume that cleared row, so it
+; has no clear purpose: the VRAM tilemap is already populated before the clear.
+; It would, however, mess up our streaming renderer, so we skip it.
+org $02EC2E
+    BRA BGStreamerOverlayRowClearDone
+
+org $02EC4C
+BGStreamerOverlayRowClearDone:
+
+; SomeTilemapChange
+;
+; Module09_LoadNewMapAndGFX performs the same clear during scrolling
+; area transitions. Again we skip it.
+org $02ED51
+    BRA BGStreamerMapChangeRowClearDone
+
+org $02ED6B
+BGStreamerMapChangeRowClearDone:
+
 ; LoadOverworldOverlay
 ;
 ; Playable-overworld paths retain the logical flat-overlay load but skip
@@ -266,7 +288,8 @@ org $02AE3B
 ; entrance loader. The replacement routine also performs the overwritten
 ; "LDA #$01 : STA $1B".
 org $02D61A
-    JSL BGRestoreUnderworldLayouts
+    JSR BGRestoreUnderworldLayouts
+    NOP
 
 ; LoadOverworldOverlay is shared by gameplay loads and self-contained
 ; presentation scenes. The paths that end in streamed overworld gameplay are:
@@ -332,6 +355,24 @@ BG1SelectOverworldLayout:
     STA.w $012D
     RTL
 
+; Restore vanilla's 64x64 underworld layouts and reproduce the displaced
+; entrance-loader store. This is in bank $02 so its hook needs only a JSR.
+BGRestoreUnderworldLayouts:
+    PHP
+    SEP #$20
+
+    LDA.b #$13                  ; base=$1000, width=64, height=64
+    STA.w $2107                 ; BG1SC
+
+    LDA.b #$03                  ; base=$0000, width=64, height=64
+    STA.w $2108                 ; BG2SC
+
+    LDA.b #$01
+    STA.b $1B
+
+    PLP
+    RTS
+
 ; CreateInitialNewScreenMapToScroll
 ;
 ; Vanilla contexts: modules $09/$0B, submodules $03 and $11, after the
@@ -381,11 +422,11 @@ org $02BCED
 
 ; Module09_Overworld / Module0B_OverworldSpecial
 ;
-; These modules add the current shake offset to BG2HOFS and BG2VOFS after
-; their submodule has run. Each replacement routine compares and stores its
-; own finalized axis. The horizontal routine starts the $1100 list and
-; returns its cursor in Y; the vertical routine receives Y, appends its rows,
-; and finishes the shared list.
+; These modules add the current shake offset to both layers after their
+; submodule has run. Each replacement routine compares and stores its own
+; finalized axis. The four calls append to one $1100 list in this order:
+; BG2 horizontal, BG2 vertical, BG1 horizontal, BG1 vertical. The last call
+; terminates and requests the combined list.
 ;
 ; The first five replaced bytes are:
 ;   STA $E2
@@ -399,6 +440,20 @@ org $02A37D
 ;   STA $0122
 org $02A389
     JSL BG2StreamVertical
+    NOP
+;
+; The third five replaced bytes are:
+;   STA $E0
+;   STA $0120
+org $02A395
+    JSL BG1StreamHorizontal
+    NOP
+;
+; The fourth five replaced bytes are:
+;   STA $E6
+;   STA $0124
+org $02A3A1
+    JSL BG1StreamVertical
     NOP
 
 ; DrawMap16Anywhere and AlterMap16Hardcore append immediate Map16 changes to
@@ -719,31 +774,15 @@ BG2StreamHorizontal:
 
     LDA.b $0E
     CMP.w #$0001
-    BEQ .moving_right
+    BEQ .edge_ready
 
     CMP.w #$FFFF
     BNE .done                   ; No boundary crossed, or this was a larger jump.
 
-    LDA.w #$0000                ; Moving left exposes the new left edge.
-    BRA .save_column_offset
-
-.moving_right
-    LDA.w #$0020                ; Moving right exposes column left+32.
-
-.save_column_offset
-    STA.b $04
-
+.edge_ready
     JSR BG2SelectRenderer
     JSR BG2CalculateLogicalWindowOrigin
-
-    LDA.b $00
-    CLC
-    ADC.b $04
-    AND.w #$007F
-    STA.b $06                   ; Logical X of the entering column.
-    STA.b $0E                   ; Source and destination X are the same.
-
-    JSR BGEmitColumn            ; Return its ending list offset in Y.
+    JSR BGStreamHorizontalEdge
 
 .done
     PLX
@@ -753,11 +792,13 @@ BG2StreamHorizontal:
     RTL
 
 ;---------------------------------------------------------------------------------------------------
-; Store finalized vertical scroll, append entering rows, and finish the list.
+; Store finalized vertical scroll and append entering rows.
 ;
 ; Input:
 ;   A: new BG2 vertical scroll in pixels, including shake
 ;   Y: byte offset after any column emitted by BG2StreamHorizontal
+;
+; BG1 follows this call, so BG1StreamVertical finishes the combined list.
 ;---------------------------------------------------------------------------------------------------
 
 BG2StreamVertical:
@@ -783,7 +824,7 @@ BG2StreamVertical:
     SEC
     SBC.b $0A                   ; Signed vertical tile delta.
     STA.b $0E
-    BEQ .finish_list            ; Finish any horizontal work and return.
+    BEQ .done                   ; Most frames expose no vertical edge.
 
     ; The bulk renderer may already have prepared $1100 earlier this frame.
     ; Keep its complete-window upload instead of replacing it with edges.
@@ -803,20 +844,195 @@ BG2StreamVertical:
     CMP.w #$FFFE
     BEQ .vertical_delta_ready
 
-    BRA .finish_list            ; Ignore larger jumps; bulk loading owns those.
+    BRA .done                   ; Ignore larger jumps; bulk loading owns those.
 
 .vertical_delta_ready
     JSR BG2SelectRenderer
     JSR BG2CalculateLogicalWindowOrigin
+    JSR BGStreamVerticalEdge
 
+.done
+    PLX
+    PLA
+
+    PLP                         ; Restore the caller's original register widths.
+    RTL
+
+;---------------------------------------------------------------------------------------------------
+; Store finalized BG1 scrolls and append overlay edges to the gameplay list.
+;
+; BG1 uses its logical 64x64 overlay directly, so these wrappers differ from
+; BG2 only in the scroll addresses, enable checks, and renderer selection.
+; Rain remains on its separate static path and never reaches the emitters.
+;---------------------------------------------------------------------------------------------------
+
+BG1StreamHorizontal:
+    STA.b $E0                   ; Preserve the first overwritten vanilla store.
+
+    PHP                         ; The caller has 16-bit A but 8-bit X/Y.
+    REP #$30
+
+    PHA                         ; Preserve registers other than the Y cursor.
+    PHX
+
+    LDA.w $0120
+    LSR A                       ; Convert the old scroll to its 8x8 tile column.
+    LSR A
+    LSR A
+    STA.b $0A
+
+    LDA.b $E0
+    STA.w $0120                 ; Preserve the second overwritten vanilla store.
+    LSR A
+    LSR A
+    LSR A
+    SEC
+    SBC.b $0A                   ; Signed horizontal tile delta.
+    STA.b $0E
+    BEQ .save_cursor            ; Most frames expose no horizontal edge.
+
+    LDA.b $18                   ; A bulk renderer may already own $1100.
+    AND.w #$00FF
+    BNE .save_cursor
+
+    JSR BG1CheckStreamingEnabled
+    BEQ .save_cursor
+
+    LDA.b $0E
+    CMP.w #$0001
+    BEQ .edge_ready
+
+    CMP.w #$FFFF
+    BNE .save_cursor            ; Larger jumps are owned by bulk loading.
+
+.edge_ready
+    JSR BG1SelectRenderer
+    JSR BG1CalculateLogicalWindowOrigin
+    JSR BGStreamHorizontalEdge
+
+.save_cursor
+    ; A BG2 two-row update plus this column can pass offset $00FF. Preserve
+    ; the complete cursor before returning to the caller's 8-bit index mode.
+    STY.b $0C
+
+    PLX
+    PLA
+
+    PLP
+    RTL
+
+BG1StreamVertical:
+    STA.b $E6                   ; Preserve the first overwritten vanilla store.
+
+    PHP                         ; The caller has 16-bit A but 8-bit X/Y.
+    REP #$30
+
+    PHA
+    PHX
+
+    LDY.b $0C                   ; Restore the full cursor saved above.
+
+    LDA.w $0124
+    LSR A                       ; Convert the old scroll to its 8x8 tile row.
+    LSR A
+    LSR A
+    STA.b $0A
+
+    LDA.b $E6
+    STA.w $0124                 ; Preserve the second overwritten vanilla store.
+    LSR A
+    LSR A
+    LSR A
+    SEC
+    SBC.b $0A                   ; Signed vertical tile delta.
+    STA.b $0E
+    BEQ .finish_list            ; Finish any earlier edge work.
+
+    LDA.b $18                   ; Keep an earlier bulk list intact.
+    AND.w #$00FF
+    BNE .done
+
+    JSR BG1CheckStreamingEnabled
+    BEQ .finish_list
+
+    ; BG1's observed gameplay movement exposes one row at a time.
+    LDA.b $0E
+    CMP.w #$0001
+    BEQ .edge_ready
+
+    CMP.w #$FFFF
+    BNE .finish_list
+
+.edge_ready
+    JSR BG1SelectRenderer
+    JSR BG1CalculateLogicalWindowOrigin
+    JSR BGStreamVerticalEdge
+
+.finish_list
+    CPY.w #$0000                ; All four stages produced no work.
+    BEQ .done
+
+    JSR BGFinishList            ; Request the combined BG2/BG1 edge list.
+
+.done
+    PLX
+    PLA
+
+    PLP
+    RTL
+
+; Return Z clear when a streamed overlay is active. Disabled overlays and
+; rain return Z set without changing the caller's accumulator width.
+BG1CheckStreamingEnabled:
+    SEP #$20
+
+    LDA.b $1D
+    BEQ .done
+
+    LDA.b $8C
+    CMP.b #$9F
+
+.done
+    REP #$20
+    RTS
+
+;---------------------------------------------------------------------------------------------------
+; Append one entering edge for the selected layer.
+;
+; Inputs:
+;   $00/$02: logical window origin
+;   $0E: signed tile delta
+;   Y: current $1100 list cursor
+;---------------------------------------------------------------------------------------------------
+
+BGStreamHorizontalEdge:
+    LDA.b $0E
+    INC A                       ; -1 becomes 0; +1 becomes 2.
+    ASL A
+    ASL A
+    ASL A
+    ASL A                       ; Select left+0 or left+32.
+    STA.b $04
+
+    LDA.b $00
+    CLC
+    ADC.b $04
+    AND.l !BGLogicalMask
+    STA.b $06                   ; Logical X of the entering column.
+    STA.b $0E                   ; Source and destination X are the same.
+
+    JSR BGEmitColumn
+    RTS
+
+BGStreamVerticalEdge:
     LDA.b $0E
     BMI .moving_up
 
-    ; The supported downward delta is one row, exposing top+28.
+    ; Downward movement exposes row top+28.
     LDA.b $02
     CLC
     ADC.w #$001C
-    AND.w #$007F
+    AND.l !BGLogicalMask
     STA.b $02
     BRA .next_row
 
@@ -829,26 +1045,16 @@ BG2StreamVertical:
     JSR BGEmitRow
 
     DEC.b $0E
-    BEQ .finish_list
+    BEQ .done
 
     LDA.b $02                   ; The second exposed row follows the first.
     INC A
-    AND.w #$007F
+    AND.l !BGLogicalMask
     STA.b $02
     BRA .next_row
 
-.finish_list
-    CPY.w #$0000                ; Horizontal and vertical both had no work.
-    BEQ .done
-
-    JSR BGFinishList            ; Ask NMI to transfer the completed edge list.
-
 .done
-    PLX
-    PLA
-
-    PLP                         ; Restore the caller's original register widths.
-    RTL
+    RTS
 
 ;---------------------------------------------------------------------------------------------------
 ; Convert the finalized BG2 scroll to the logical tile at the window's
@@ -1555,11 +1761,6 @@ BG2MirrorRunAnimation:
 .keep_hdma
     RTS
 
-; Step 7 has finished rebuilding the destination's logical Map16 map.
-BG2MirrorBulkRender:
-    JSL BG2BulkRender
-    RTL
-
 ; Step 10 retains its animated-tile work, then repairs the mirror margins.
 BG2MirrorRenderMargins:
     JSL $00D915                 ; AnimateMirrorWarp_DecompressAnimatedTiles
@@ -1680,26 +1881,5 @@ BG2BuildMirrorMargins:
 
     PLP
     RTS
-
-;---------------------------------------------------------------------------------------------------
-; Restore the vanilla 64x64 BG1/BG2 layouts before a full underworld load.
-;---------------------------------------------------------------------------------------------------
-
-BGRestoreUnderworldLayouts:
-    PHP                         ; Preserve the caller's accumulator width.
-
-    SEP #$20                    ; PPU registers and $1B are byte-wide.
-
-    LDA.b #$13                  ; base=$1000, width=64, height=64
-    STA.w $2107                 ; Restore the vanilla dungeon BG1SC value.
-
-    LDA.b #$03                  ; base=$0000, width=64, height=64
-    STA.w $2108                 ; Restore the vanilla dungeon BG2SC value.
-
-    LDA.b #$01                  ; Reproduce the two instructions replaced by
-    STA.b $1B                   ; the JSL at LoadUnderworldEntrance+$03.
-
-    PLP                         ; Restore the caller's accumulator width.
-    RTL
 
 assert pc() <= !BG2BulkFreeEnd

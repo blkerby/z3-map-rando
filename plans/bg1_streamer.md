@@ -1,7 +1,7 @@
 # BG1 streamer
 
-Status: milestone 3 is implemented; gameplay validation is pending before
-milestone 4 begins.
+Status: milestone 4 is implemented; gameplay validation is pending before
+milestone 5 begins.
 
 ## Goal
 
@@ -98,9 +98,11 @@ Gameplay uses one list cursor:
 BG2 horizontal -> BG2 vertical -> BG1 horizontal -> BG1 vertical -> finish
 ```
 
-Each stage appends zero or more entries and returns Y. Only the last stage
-terminates a nonempty list and sets `$18`. The existing main-loop/NMI barrier
-remains the only synchronization mechanism.
+Each stage appends zero or more entries. BG1 horizontal saves the full Y
+cursor in direct-page scratch before returning to the 8-bit-index caller, and
+BG1 vertical restores it. Only the last stage terminates a nonempty list and
+sets `$18`. The existing main-loop/NMI barrier remains the only synchronization
+mechanism.
 
 A BG1 and BG2 row plus column require about 280 bytes together, well within
 `$1100-$197F`. Two 33x29 bulk windows do not fit together: each is 2148 bytes.
@@ -137,6 +139,7 @@ For playable overworld only:
 - select `BG1SC=$11`;
 - retain the logical flat overlay load into `$7E4000`;
 - skip `BuildBGOverlayFromMap16` and its full `$17=$04` upload;
+- skip vanilla's later `$7E4000-$7E407E` rendered-row clears;
 - disable the old mirror and whirlpool `$17=$0C/$0D` overlay uploads;
 - retain overlay selection, BG1 scroll, color math, and enable controls.
 
@@ -171,12 +174,17 @@ hooks. Compare old and new 8x8 coordinates and return immediately on zero.
 Append an entering 33-tile row and/or 29-tile column through the shared
 emitters.
 
-Do not copy BG2's special two-row north-transition case unless BG1 traces show
-that BG1 can make the same delta. Discontinuities use the bulk path.
+BG1's observed gameplay movement changes one row at a time. Other
+discontinuities use the bulk path.
 
 Test the Pyramid across its complete camera range, Light and Dark Death
 Mountain, both fog overlays, Lost Woods, special overworlds, diagonal motion,
 screen shake, and simultaneous BG1/BG2 edge crossings.
+
+Implementation: the four gameplay stages share one `$1100` list in BG2
+horizontal/vertical then BG1 horizontal/vertical order. BG1 vertical
+terminates the combined list. The full cursor is passed between the BG1 stages
+through direct-page scratch because the caller uses 8-bit index registers.
 
 ### 5. Handle transition exposure
 
