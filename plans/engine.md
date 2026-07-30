@@ -26,6 +26,7 @@ It is expected that playtesting will likely uncover the need for additional engi
 10. Implement area rearrangement, using a hand-specified arrangement and the `Desert Normalized` theme.
 11. Relocate all gameplay objects and special cases, including flute destinations.
 12. Generate the seed-accurate Mode 7 world map and markers, including while using the flute.
+13. Reload destination BG1 logical overlays during ordinary area transitions.
 
 Each milestone change should end in a playable ROM. The last three milestones will all be based on the same hand-defined rearrangement. Randomized rearrangements and edge variants are deferred until after the engine work is complete.
 
@@ -539,6 +540,23 @@ Generate the Mode 7 tilemap, graphics, edge art, and Link, dungeon-reward, porta
 4. Run a final completion playthrough to catch map, flute, or restoration regressions.
 
 Milestone 12 is complete when both Mode 7 maps accurately represent the seed, all markers and flute choices agree with the JSON data, returning from the map restores the playable overworld correctly, and the final ROM passes completion testing.
+
+## Milestone 13: BG1 logical overlays during area transitions
+
+Ordinary overworld transitions currently retain the logical BG1 overlay in
+`$7E4000`; leaving and re-entering an area changes its BG1 enable and scroll
+state but does not call `LoadOverworldOverlay`. This only works when adjacent
+areas share the already-loaded overlay.
+
+Use the generated destination-area descriptor to load its logical BG1 overlay
+when crossing into a different area. Sequence the reload so tiles still
+visible from the source area remain correct while destination tiles stream
+into view. Handle transitions between two different overlays, between an
+overlay and no overlay, and between areas sharing one overlay.
+
+Milestone 13 is complete when all four transition directions replace the
+logical overlay without stale rows, visible source-area changes, or requiring
+a full overworld reload.
 
 ## Deferred design decisions
 

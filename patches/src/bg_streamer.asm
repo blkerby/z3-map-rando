@@ -64,6 +64,29 @@ org $02A407
 org $02A423
 +
 
+; Overworld_SetFixedColAndScroll
+;
+; During an ordinary area transition, vanilla immediately moves the Castle
+; and Pyramid BG1 overlay to fixed coordinates while every other overlay keeps
+; its previous position. Skip that special setup so the old area's BG1 does
+; not jump when either destination is randomized next to another overlay.
+org $0BFF76
+    BRA BGStreamerUseRegularTransitionScroll
+
+org $0BFF9D
+BGStreamerUseRegularTransitionScroll:
+
+; OverworldScrollTransition
+;
+; Vanilla advances BG2 each frame but omits the matching BG1 store for areas
+; $1B and $5B. Apply the ordinary store for every area so Castle and Pyramid
+; BG1 scroll smoothly through the transition too.
+org $02BF65
+    BRA BGStreamerApplyTransitionScrollToBG1
+
+org $02BF6F
+BGStreamerApplyTransitionScrollToBG1:
+
 ; Module09_LoadNewMapAndGFX
 ;
 ; Vanilla contexts: modules $09/$0B, submodules $03 and $11, while preparing
