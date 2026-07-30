@@ -1,8 +1,9 @@
-; BG2 streamer. This reduces the overworld BG2 tilemap from 64x64 to 64x32,
-; by implementing a new streaming renderer that applies for all areas, small
-; and large. It differs from the vanilla streaming renderer (used by vanilla
-; in large areas) in that it draws new rows/columns in units of 8x8 tiles
-; rather than 16x16, and only draws them across the visible area:
+; Overworld background streamer. It currently reduces BG2 from a 64x64 to a
+; 64x32 tilemap; its tile emitters are shared-ready for the later BG1 step.
+; It applies to all areas, small and large. It differs from the vanilla
+; streaming renderer (used by vanilla in large areas) in that it draws new
+; rows/columns in units of 8x8 tiles rather than 16x16, and only draws them
+; across the visible area:
 ; rows of 33 tiles and columns of 29 tiles, compared to vanilla
 ; which would draw a 64x2 block (128 tiles). However, unlike vanilla,
 ; when both a row and column update are needed on the same frame,
@@ -34,6 +35,12 @@ lorom
 !Map16TopRight = $298000
 !Map16BottomLeft = $2A8000
 !Map16BottomRight = $2B8000
+
+; Temporary parameters for the shared BG1/BG2 renderer. This documented free
+; WRAM is only scratch during a renderer call; no state persists between frames.
+!BGMap16SourceOffset = $7EC900
+!BGVRAMBase = $7EC902
+!BGLogicalMask = $7EC904
 
 ; Module09_LoadNewMapAndGFX
 ;
@@ -274,14 +281,14 @@ org $02BCED
 ;   STA $E2
 ;   STA $011E
 org $02A37D
-    JSL BGStreamHorizontal
+    JSL BG2StreamHorizontal
     NOP
 ;
 ; The second five replaced bytes are:
 ;   STA $E8
 ;   STA $0122
 org $02A389
-    JSL BGStreamVertical
+    JSL BG2StreamVertical
     NOP
 
 ; DrawMap16Anywhere and AlterMap16Hardcore append immediate Map16 changes to
@@ -373,13 +380,11 @@ BG2BulkRender:
 
     REP #$20                    ; Return to 16-bit coordinate arithmetic.
 
+    JSR BG2SelectRenderer
     JSR BG2CalculateLogicalWindowOrigin
     ; $00 = logical X tile,  $02 = logical Y tile
 
-    LDA.w #$001D                ; Initialize remaining rows to 29
-    STA.b $04
-
-    JSR BG2BuildRowList
+    JSR BGBulkRender
 
     PLY                         ; Restore registers in reverse push order.
     PLX
@@ -388,34 +393,54 @@ BG2BulkRender:
     PLP                         ; Restore the caller's original widths.
     RTL
 
+; Select the layer parameters consumed by the shared renderer.
+BG2SelectRenderer:
+    LDA.w #$0000
+    STA.l !BGMap16SourceOffset  ; BG2 Map16 begins at $7E2000.
+    STA.l !BGVRAMBase           ; BG2 tilemap begins at VRAM word $0000.
+
+    LDA.w #$007F
+    STA.l !BGLogicalMask        ; BG2 logical coordinates are 0..127.
+    RTS
+
+; Build and request the complete 33x29 window for the selected layer.
+BGBulkRender:
+    LDA.w #$001D
+    STA.b $04                   ; Initialize remaining rows to 29.
+
 ; Build and request a $1100/$18 list containing $04 rows beginning at $02.
-BG2BuildRowList:
+BGBuildRowList:
     LDY.w #$0000
 
 .next_row
-    JSR BG2EmitRow
+    JSR BGEmitRow
 
     LDA.b $02
     INC A
-    AND.w #$007F
+    AND.l !BGLogicalMask
     STA.b $02
 
     DEC.b $04
     BNE .next_row
-
-    LDA.w #$FFFF
-    STA.w $1100,Y
 
     ; Reserve NMI time for this tilemap transfer. The $18 handler clears both
     ; controls after consuming the complete list.
     LDA.w #$0001
     STA.w $0710
 
+    JSR BGFinishList
+
+    RTS
+
+; Terminate and request a nonempty $1100 list assembled by the selected layer.
+BGFinishList:
+    LDA.w #$FFFF
+    STA.w $1100,Y
+
     SEP #$20
     LDA.b #$01
     STA.b $18
     REP #$20
-
     RTS
 
 ;---------------------------------------------------------------------------------------------------
@@ -441,6 +466,7 @@ BG2SeedTransitionEdge:
     CMP.w #$0001                ; East.
     BNE .done                   ; Other directions expose or stream their edge.
 
+    JSR BG2SelectRenderer
     JSR BG2CalculateLogicalWindowOrigin
 
     LDA.b $00
@@ -451,17 +477,9 @@ BG2SeedTransitionEdge:
     STA.b $0E                   ; Source and destination X are the same.
 
     LDY.w #$0000
-    JSR BG2EmitColumn
+    JSR BGEmitColumn
 
-    LDA.w #$FFFF
-    STA.w $1100,Y
-
-    SEP #$20
-
-    LDA.b #$01
-    STA.b $18                   ; Transfer the seed edge before scrolling starts.
-
-    REP #$20
+    JSR BGFinishList            ; Transfer the seed edge before scrolling starts.
 
 .done
     PLY
@@ -481,11 +499,11 @@ BG2SeedTransitionEdge:
 ;   Y: byte offset after the optional column in the $1100 list
 ;
 ; The column uses the previous finalized vertical tile. If vertical movement
-; exposed corner tiles, BGStreamVertical appends their rows afterward and
+; exposed corner tiles, BG2StreamVertical appends their rows afterward and
 ; overwrites those intersections with the same final data.
 ;---------------------------------------------------------------------------------------------------
 
-BGStreamHorizontal:
+BG2StreamHorizontal:
     STA.b $E2                   ; Preserve the first overwritten vanilla store.
 
     PHP                         ; The caller has 16-bit A but 8-bit X/Y.
@@ -533,6 +551,7 @@ BGStreamHorizontal:
 .save_column_offset
     STA.b $04
 
+    JSR BG2SelectRenderer
     JSR BG2CalculateLogicalWindowOrigin
 
     LDA.b $00
@@ -542,7 +561,7 @@ BGStreamHorizontal:
     STA.b $06                   ; Logical X of the entering column.
     STA.b $0E                   ; Source and destination X are the same.
 
-    JSR BG2EmitColumn           ; Return its ending list offset in Y.
+    JSR BGEmitColumn            ; Return its ending list offset in Y.
 
 .done
     PLX
@@ -556,10 +575,10 @@ BGStreamHorizontal:
 ;
 ; Input:
 ;   A: new BG2 vertical scroll in pixels, including shake
-;   Y: byte offset after any column emitted by BGStreamHorizontal
+;   Y: byte offset after any column emitted by BG2StreamHorizontal
 ;---------------------------------------------------------------------------------------------------
 
-BGStreamVertical:
+BG2StreamVertical:
     STA.b $E8                   ; Preserve the first overwritten vanilla store.
 
     PHP                         ; The caller has 16-bit A but 8-bit X/Y.
@@ -605,6 +624,7 @@ BGStreamVertical:
     BRA .finish_list            ; Ignore larger jumps; bulk loading owns those.
 
 .vertical_delta_ready
+    JSR BG2SelectRenderer
     JSR BG2CalculateLogicalWindowOrigin
 
     LDA.b $0E
@@ -624,7 +644,7 @@ BGStreamVertical:
     STA.b $0E                   ; Start at top and emit one or two rows.
 
 .next_row
-    JSR BG2EmitRow
+    JSR BGEmitRow
 
     DEC.b $0E
     BEQ .finish_list
@@ -639,15 +659,7 @@ BGStreamVertical:
     CPY.w #$0000                ; Horizontal and vertical both had no work.
     BEQ .done
 
-    LDA.w #$FFFF                ; Terminate after the last column or row entry.
-    STA.w $1100,Y
-
-    SEP #$20                    ; $18 is a byte flag.
-
-    LDA.b #$01
-    STA.b $18                   ; Ask NMI to transfer the completed edge list.
-
-    REP #$20                    ; Restore 16-bit A for saved registers.
+    JSR BGFinishList            ; Ask NMI to transfer the completed edge list.
 
 .done
     PLX
@@ -720,7 +732,7 @@ BG2CalculateLogicalWindowOrigin:
 ; 32x32 screen blocks, so this appends two horizontal entries.
 ;---------------------------------------------------------------------------------------------------
 
-BG2EmitRow:
+BGEmitRow:
     LDA.b $00                   ; Every row begins at the window's logical X.
     STA.b $06                   ; Initialize the tile X currently being emitted.
 
@@ -735,12 +747,12 @@ BG2EmitRow:
     SBC.b $0C
     STA.b $08                   ; Tiles through the first block boundary.
 
-    JSR BG2EmitHorizontalSegment
+    JSR BGEmitHorizontalSegment
 
     LDA.b $0C                   ; Continue at the X advanced by the first entry.
     STA.b $08
 
-    JSR BG2EmitHorizontalSegment
+    JSR BGEmitHorizontalSegment
     RTS
 
 ;---------------------------------------------------------------------------------------------------
@@ -754,9 +766,9 @@ BG2EmitRow:
 ; Advances $06 and Y past the emitted tiles.
 ;---------------------------------------------------------------------------------------------------
 
-BG2EmitHorizontalSegment:
+BGEmitHorizontalSegment:
     LDX.b $06                   ; Horizontal source and destination X match.
-    JSR BG2CalculateVRAMAddress
+    JSR BGCalculateVRAMAddress
     STA.w $1100,Y               ; Entry bytes 0-1: VRAM word destination.
 
     INY                         ; Advance to the VMAIN/length fields.
@@ -789,6 +801,8 @@ BG2EmitHorizontalSegment:
     AND.w #$007E                ; Map16 column * 2 bytes.
     CLC
     ADC.b $0A
+    CLC
+    ADC.l !BGMap16SourceOffset
     TAX                         ; X is the current Map16 map offset.
 
     LDA.b $08
@@ -951,7 +965,7 @@ BG2EmitHorizontalSegment:
     LDA.b $06                   ; Advance logical X by the original length.
     CLC
     ADC.b $0A
-    AND.w #$007F
+    AND.l !BGLogicalMask
     STA.b $06
     RTS
 
@@ -967,7 +981,7 @@ BG2EmitHorizontalSegment:
 ; horizontal screen block. Restores $02 before returning.
 ;---------------------------------------------------------------------------------------------------
 
-BG2EmitColumn:
+BGEmitColumn:
     LDA.b $02
     PHA                         ; Preserve the window's logical top row.
 
@@ -990,13 +1004,13 @@ BG2EmitColumn:
     SBC.b $08
     STA.b $0C
 
-    JSR BG2EmitVerticalSegment
+    JSR BGEmitVerticalSegment
 
     LDA.b $0C
     BEQ .done
 
     STA.b $08
-    JSR BG2EmitVerticalSegment
+    JSR BGEmitVerticalSegment
 
 .done
     PLA
@@ -1015,9 +1029,9 @@ BG2EmitColumn:
 ; Advances $02 and Y past the emitted tiles.
 ;---------------------------------------------------------------------------------------------------
 
-BG2EmitVerticalSegment:
+BGEmitVerticalSegment:
     LDX.b $0E                   ; Column destination may differ from source X.
-    JSR BG2CalculateVRAMAddress
+    JSR BGCalculateVRAMAddress
     STA.w $1100,Y               ; Entry bytes 0-1: VRAM word destination.
 
     INY
@@ -1049,6 +1063,8 @@ BG2EmitVerticalSegment:
     AND.w #$007E                ; Map16 column * 2 bytes.
     CLC
     ADC.b $0A
+    CLC
+    ADC.l !BGMap16SourceOffset
     TAX                         ; X is the current Map16 map offset.
 
     LDA.b $08
@@ -1219,19 +1235,20 @@ BG2EmitVerticalSegment:
     LDA.b $02                   ; Advance logical Y by the original length.
     CLC
     ADC.b $0A
-    AND.w #$007F
+    AND.l !BGLogicalMask
     STA.b $02
     RTS
 
 ;---------------------------------------------------------------------------------------------------
-; Convert logical (X, $02) to its BG2 VRAM word address.
+; Convert logical (X, $02) to a VRAM word in the selected 64x32 tilemap.
 ;
-; BG2 is two horizontal 32x32 screen blocks based at VRAM word $0000.
-; Returns the address in A and clobbers $0A.
+; The physical layout is two horizontal 32x32 screen blocks. The configured
+; base selects BG2 at $0000 or, later, BG1 at $1000. Returns the address in A
+; and clobbers $0A.
 ;---------------------------------------------------------------------------------------------------
 
-BG2CalculateVRAMAddress:
-    LDA.b $02                   ; Logical Y may be anywhere in 0..127.
+BGCalculateVRAMAddress:
+    LDA.b $02                   ; Logical Y is already wrapped for this layer.
     AND.w #$001F                ; Physical tilemap row wraps every 32 rows.
     ASL A                       ; Multiply the physical row by 32 words.
     ASL A
@@ -1257,6 +1274,8 @@ BG2CalculateVRAMAddress:
 
 .done
     LDA.b $0A
+    CLC
+    ADC.l !BGVRAMBase
     RTS
 
 ;---------------------------------------------------------------------------------------------------
@@ -1388,6 +1407,7 @@ BG2BuildMirrorMargins:
     PHX
     PHY
 
+    JSR BG2SelectRenderer
     JSR BG2CalculateLogicalWindowOrigin
 
     LDY.w #$0000
@@ -1412,7 +1432,7 @@ BG2BuildMirrorMargins:
 
 .left_two_ready
     STA.b $06
-    JSR BG2EmitColumn
+    JSR BGEmitColumn
 
     LDA.b $00
     DEC A
@@ -1425,7 +1445,7 @@ BG2BuildMirrorMargins:
 
 .left_one_ready
     STA.b $06
-    JSR BG2EmitColumn
+    JSR BGEmitColumn
 
     ; Clamp right-side sources to the last logical column: 63 for a small
     ; area, 127 for a large area.
@@ -1456,7 +1476,7 @@ BG2BuildMirrorMargins:
 
     LDA.b $04
     STA.b $06
-    JSR BG2EmitColumn
+    JSR BGEmitColumn
 
 .right_margin
     ; left+33 is the additional column exposed by the mirror wave.
@@ -1476,16 +1496,10 @@ BG2BuildMirrorMargins:
 
 .right_ready
     STA.b $06
-    JSR BG2EmitColumn
+    JSR BGEmitColumn
 
-    LDA.w #$FFFF
-    STA.w $1100,Y
+    JSR BGFinishList
 
-    SEP #$20
-    LDA.b #$01
-    STA.b $18
-
-    REP #$20
     PLY
     PLX
 

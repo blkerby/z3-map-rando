@@ -1,5 +1,8 @@
 # BG1 streamer
 
+Status: milestone 1 is implemented; gameplay validation is pending before
+milestone 2 begins.
+
 ## Goal
 
 Reduce playable-overworld BG1 from a 64x64 to a 64x32 VRAM tilemap while
@@ -9,6 +12,10 @@ second renderer.
 
 Rain remains a separate static 64x32 overlay. Dungeons and presentation modes
 retain their existing tilemap layouts.
+
+Overlay scroll policies and transitions between different policies are out of
+scope. Preserve vanilla scroll behavior; the streamer only follows the final
+BG1 scroll coordinates it receives.
 
 ## BG1 coordinates
 

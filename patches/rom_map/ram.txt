@@ -1,0 +1,7 @@
+These vanilla-free WRAM ranges are reserved by patches.
+
+$7E0702-$7E0702 nmi_optimize.asm, bg_streamer.asm (one-shot skip-OAM flag; accessed as $0702)
+$7EC84A-$7EC84A reduce_bg3.asm (BG3 row source: $00 while opening the item menu, $01 while closing it)
+$7EC900-$7EC901 bg_streamer.asm (temporary Map16 source offset from $7E2000)
+$7EC902-$7EC903 bg_streamer.asm (temporary tilemap VRAM base)
+$7EC904-$7EC905 bg_streamer.asm (temporary logical-coordinate mask)
