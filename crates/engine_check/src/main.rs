@@ -2,10 +2,14 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use patcher::{
     Patcher, PcAddr, SnesAddr,
-    import::{Importer, Tile16},
+    import::{FlatMap16, Importer, Tile16},
 };
 use sha2::{Digest, Sha256};
 use std::{fs, path::PathBuf};
+
+mod rain_tilemap;
+
+use rain_tilemap::RAIN_TILEMAP;
 
 const VANILLA_ROM_SHA256: &str = "794e040b02c7591b59ad8843b51e7c619b88f87cddc6083a8e7a4027b96a2271";
 const FLAT_MAPS_START: SnesAddr = SnesAddr(0x200000);
@@ -22,6 +26,7 @@ const MAP16_PROPERTY_STARTS: [SnesAddr; 4] = [
     SnesAddr(0x2d8000),
     SnesAddr(0x2dc000),
 ];
+const RAIN_OVERLAY: usize = 0x9f;
 
 #[derive(Parser)]
 struct Args {
@@ -55,6 +60,23 @@ fn split_map16_properties(tiles16: &[Tile16], tile_types: &[u8]) -> [Vec<u8>; 4]
     })
 }
 
+fn flat_map_mut(flat: &mut FlatMap16, screen: usize) -> Result<&mut [u8]> {
+    let pointer = &flat.screen_pointers[screen * 3..screen * 3 + 3];
+    let pointer = u32::from_le_bytes([pointer[0], pointer[1], pointer[2], 0]);
+    let map_start: PcAddr = SnesAddr(pointer).into();
+    let flat_start: PcAddr = FLAT_MAPS_START.into();
+    let offset = usize::try_from(map_start.0 - flat_start.0)?;
+    Ok(&mut flat.maps[offset..offset + 32 * 32 * 2])
+}
+
+fn replace_rain_tilemap(flat: &mut FlatMap16) -> Result<()> {
+    let rain = &mut flat_map_mut(flat, RAIN_OVERLAY)?[..32 * 16 * 2];
+    for (bytes, &tile) in rain.chunks_exact_mut(2).zip(RAIN_TILEMAP.iter().flatten()) {
+        bytes.copy_from_slice(&tile.to_le_bytes());
+    }
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
     let mut rom = fs::read(&args.input_rom)
@@ -73,7 +95,8 @@ fn main() -> Result<()> {
         "input ROM SHA-256 mismatch: expected {VANILLA_ROM_SHA256}, got {digest}"
     );
     let mut importer = Importer::new(rom.clone())?;
-    let flat_map16 = importer.flat_map16()?;
+    let mut flat_map16 = importer.flat_map16()?;
+    replace_rain_tilemap(&mut flat_map16)?;
     let tile_types = importer.tile_types()?.to_owned();
     let map16_definitions = split_map16_definitions(importer.tiles16()?);
     let map16_properties = split_map16_properties(importer.tiles16()?, &tile_types);

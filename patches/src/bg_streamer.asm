@@ -42,6 +42,28 @@ lorom
 !BGVRAMBase = $7EC902
 !BGLogicalMask = $7EC904
 
+; OverworldOverlay_HandleRain
+;
+; Every fourth game frame, the rain animation advances to another quarter of
+; the 512x256 BG1 tilemap: 128 pixels right and 64 pixels down.
+org $02A407
+    REP #$20
+
+    LDA.b $E0
+    CLC
+    ADC.w #$0080
+    STA.b $E0
+
+    LDA.b $E6
+    CLC
+    ADC.w #$0040
+    STA.b $E6
+
+    SEP #$20
+    BRA +
+org $02A423
++
+
 ; Module09_LoadNewMapAndGFX
 ;
 ; Vanilla contexts: modules $09/$0B, submodules $03 and $11, while preparing

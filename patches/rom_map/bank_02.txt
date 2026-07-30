@@ -1,4 +1,5 @@
 $028046-$028049 reduce_bg3.asm (restore BG3 32x32 when loading a file)
+$02A407-$02A422 bg_streamer.asm (64x32 rain animation scroll offsets)
 $02C284-$02C284 reduce_bg3.asm (BG3 32x32 screen configuration)
 F1B6-F1E3: expand_map16.asm (banked horizontal Map16 stripe lookup)
 F1E4-F1E5: [FREE] (remainder of CreateMap16Stripes_Horizontal)
