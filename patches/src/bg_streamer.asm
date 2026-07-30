@@ -1722,7 +1722,7 @@ BG2MirrorRunAnimation:
 
 .keep_filter_white
     REP #$20
-    LDA.w #$001E                ; Hold at the full-white boundary.
+    LDA.w #$001F                ; Hold at the completed full-white step.
     STA.l $7EC007
     SEP #$20
 
@@ -1738,6 +1738,7 @@ BG2MirrorRunAnimation:
     LDA.b #$02
     STA.w $06BB
     JSL $00EEEC                 ; PaletteFilter_BlindingWhite
+    INC.b $15                   ; Its terminal $1F branch omits this request.
     BRA .animation_done
 
 .run_animation

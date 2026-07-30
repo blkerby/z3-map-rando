@@ -121,6 +121,7 @@ fn main() -> Result<()> {
         "reduce_bg3.ips",
         "bg_streamer.ips",
         "nmi_optimize.ips",
+        "mirror_bg1.ips",
     ];
     for patch in patches {
         patcher.use_ips(&patch_dir.join(patch))?;
@@ -249,12 +250,16 @@ mod tests {
         assert!(bg1_stream_delta_is_incremental(33, 32));
         assert!(!bg1_stream_delta_is_incremental(34, 32));
 
-        assert!([0x08, 0x09, 0x0a, 0x0b, 0x0e, 0x15]
-            .into_iter()
-            .all(bg1_uses_streamer));
-        assert!([0x07, 0x0c, 0x18, 0x19, 0x1a]
-            .into_iter()
-            .all(|module| !bg1_uses_streamer(module)));
+        assert!(
+            [0x08, 0x09, 0x0a, 0x0b, 0x0e, 0x15]
+                .into_iter()
+                .all(bg1_uses_streamer)
+        );
+        assert!(
+            [0x07, 0x0c, 0x18, 0x19, 0x1a]
+                .into_iter()
+                .all(|module| !bg1_uses_streamer(module))
+        );
 
         let row = 33 * 2 + 2 * 4;
         let split_column = 29 * 2 + 2 * 4;
