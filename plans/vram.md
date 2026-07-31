@@ -64,7 +64,7 @@ lower two blocks.
 | `$6400-$6FFF` | 6 KiB | Free |
 | `$7000-$7FFF` | 8 KiB | BG3/HUD character graphics |
 
-## After milestone 8 (current)
+## After milestone 8
 
 BG1 also becomes 64x32, freeing another 4 KiB. The BG1/BG2 free ranges are
 not yet contiguous.
@@ -81,7 +81,7 @@ not yet contiguous.
 | `$6400-$6FFF` | 6 KiB | Free |
 | `$7000-$7FFF` | 8 KiB | BG3/HUD character graphics |
 
-## After milestone 9A
+## After milestone 9A (current)
 
 The reduced BG1/BG2 tilemaps move to `$6000-$6FFF`, and the BG3 tilemap moves
 to `$3C00`. OBJ and BG3 graphics remain in place. The shared BG1/BG2 character
@@ -123,10 +123,10 @@ stream rows or columns as the camera moves.
 | Milestone 5 | `$13` | `$03` | `$62` | `$22` |
 | Milestone 6 | `$13` | `$03` | `$60` | `$22` |
 | Milestone 7 | `$13` | `$01` | `$60` | `$22` |
-| Milestone 8 (current) | `$11` | `$01` | `$60` | `$22` |
-| Milestone 9A | `$69` | `$61` | `$3C` | `$00` |
+| Milestone 8 | `$11` | `$01` | `$60` | `$22` |
+| Milestone 9A (current) | `$69` | `$61` | `$3C` | `$00` |
 
 `BG1SC`, `BG2SC`, and `BG3SC` select each tilemap's base and dimensions.
-`BG12NBA` selects the shared BG1/BG2 character base. Presentation modes such
-as the world map may use different layouts. Dungeons retain `BG1SC=$13`,
-`BG2SC=$03`, `BG3SC=$60`, and `BG12NBA=$22`.
+`BG12NBA` selects the shared BG1/BG2 character base. Every overworld scene uses
+the milestone 9A layout. Dungeons retain `BG1SC=$13`, `BG2SC=$03`,
+`BG3SC=$60`, and `BG12NBA=$22`.

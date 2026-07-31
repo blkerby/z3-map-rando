@@ -256,7 +256,9 @@ RestoreHUDRow:
     ASL A
     ASL A
     CLC
-    ADC.w #$6000
+    ADC.w $0219                 ; Active HUD destination is tilemap base+$40.
+    SEC
+    SBC.w #$0040
     STA.b $02
     STA.w $2116
 
@@ -356,7 +358,9 @@ UploadMenuRow:
     ASL A
     ASL A
     CLC
-    ADC.w #$6000
+    ADC.w $0219                 ; Active HUD destination is tilemap base+$40.
+    SEC
+    SBC.w #$0040
     STA.w $2116
 
     ; WRAM source = $00:1000 + row * $40.

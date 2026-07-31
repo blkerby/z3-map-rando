@@ -16,8 +16,8 @@ lorom
 !HDMA6ADDRB = $4364
 !HDMA6ITBLB = $4367
 
-!MirrorBG1FreeStart = $82F3EE
-!MirrorBG1FreeEnd = $82F52F
+!free_space_bank_82_start = $82F3EE
+!free_space_bank_82_end = $82F52F
 
 ; InitializeMirrorHDMA
 ;
@@ -57,7 +57,7 @@ MirrorBG1FinishDewavingTrampoline:
     JML MirrorBG1FinishDewavingFrame
 
 ; Obsolete Map32 expansion space in bank $02.
-org !MirrorBG1FreeStart
+org !free_space_bank_82_start
 
 ; Configure channel 6 to read a separate indirect table, build its initial
 ; values, then reproduce InitializeMirrorHDMA's displaced tail.
@@ -166,4 +166,4 @@ MirrorBG1HDMATable:
     db $F8 : dw (!MirrorBG1Table+$00F0)>>0
     db $00
 
-assert pc() <= !MirrorBG1FreeEnd
+assert pc() <= !free_space_bank_82_end

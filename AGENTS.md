@@ -12,3 +12,6 @@
   the user confirms that specific change.
 - Unless the user specifies otherwise, any tests added to verify changes should
   be treated as temporary and removed before completing the task.
+- Name Asar free-space bounds `free_space_bank_<bank>_start` and
+  `free_space_bank_<bank>_end`, using `bank_any` for relocatable blocks. Number
+  multiple ranges as `start_1`/`end_1`, `start_2`/`end_2`, and so on.

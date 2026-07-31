@@ -138,6 +138,7 @@ fn main() -> Result<()> {
         "bg_streamer.ips",
         "nmi_optimize.ips",
         "mirror_bg1.ips",
+        "overworld_vram.ips",
     ];
     for patch in patches {
         patcher.use_ips(&patch_dir.join(patch))?;

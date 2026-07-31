@@ -34,7 +34,7 @@ It is expected that playtesting will likely uncover the need for additional engi
 
 Each milestone and lettered checkpoint should end in a playable ROM. The last three milestones will all be based on the same hand-defined rearrangement. Randomized rearrangements and edge variants are deferred until after the engine work is complete.
 
-Current status: Milestones 1 through 8 are complete.
+Current status: Milestones 1 through 9A are complete.
 
 Note: Everything below is mostly raw, unreviewed AI-generated notes. Especially for the not-yet-complete milestones, it should not be taken as a solid plan of what we will actually end up doing.
 
@@ -372,10 +372,9 @@ Keep the shared code small:
 - Rebase only overworld stripe, ring, and dynamic-tile address calculations. Dungeon quadrant builders remain unchanged.
 - Restore the appropriate layout and graphics under forced blank whenever gameplay or a presentation mode changes between them.
 
-Milestone 9A is complete when the game remains visually vanilla, overworld
-and dungeon gameplay use their intended layouts, and every transition to or
-from a dungeon, menu, world map, attract mode, credits, or other presentation
-mode restores the correct registers, tilemaps, and graphics.
+Milestone 9A is complete. The game remains visually vanilla, all overworld
+scenes use the final layout, dungeons retain their milestone 8 layout, and
+transitions restore the correct registers, tilemaps, and graphics.
 
 ## Milestone 9B: generated 4bpp bundle with vanilla appearance
 
@@ -383,6 +382,9 @@ Have `engine_check` convert the existing vanilla overworld graphics and
 palettes into one flat 4bpp bundle. Load it through generated descriptors into
 the milestone 9A layout while retaining the existing maps, Map16 definitions,
 collision records, and visual appearance.
+
+The implementation sequence begins with the module `$08` forced-blank path
+described in [`asset_loading.md`](asset_loading.md).
 
 Define the runtime ABI here: bundle descriptors contain 24-bit source
 pointers, fixed VRAM or CGRAM destinations, and transfer lengths. Use the same

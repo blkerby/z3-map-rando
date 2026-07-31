@@ -26,12 +26,14 @@
 
 lorom
 
-!BG2BulkFreeStart = $9BB1E0
-!BG2BulkFreeEnd = $9BB800
-!BGMirrorEmitFreeStart = $9BBEEC
-!BGMirrorEmitFreeEnd = $9BBF02
-!BGMirrorFreeStart = $9BC9F0
-!BGMirrorFreeEnd = $9BCA23
+!free_space_bank_any_start = $9BB1E0
+!free_space_bank_any_end = $9BB800
+!free_space_bank_82_start = $82F6FD
+!free_space_bank_82_end = $82FA71
+!free_space_bank_9B_start_1 = $9BBEEC
+!free_space_bank_9B_end_1 = $9BBF02
+!free_space_bank_9B_start_2 = $9BC9F0
+!free_space_bank_9B_end_2 = $9BCA23
 
 !NMISkipOAM = $0702
 
@@ -340,48 +342,32 @@ org $82D61A
     JSR BGRestoreUnderworldLayouts
     NOP
 
-; LoadOverworldOverlay is shared by gameplay loads and self-contained
-; presentation scenes. The paths that end in streamed overworld gameplay are:
-; normal/special overworld modules $08-$0B, the flute landing in module $0E,
-; and the Agahnim mirror transition in module $15. They keep the logical
-; overlay loaded at $7E4000 but skip the vanilla BG1 build and upload.
-;
-; Other callers retain the complete vanilla path. The known callers are
-; Module18_GanonEmerges, Module19_TriforceRoom, and Module1A_Credits; these
-; presentation scenes are outside the streamed-BG1 renderer, so they select
-; BG1SC=$13 and call BuildBGOverlayFromMap16 without further distinctions.
+; LoadOverworldOverlay is shared by gameplay loads and self-contained scenes.
+; Every caller keeps the logical overlay at $7E4000 and uses the 64x32 BG1
+; ring. Module $15 queues its window later in the mirror sequence.
 ;
 ; The caller stores a nonzero return value in $17 as the NMI update mode:
 ;   $00: queue no BG1 upload (disabled or streamed overlay);
-;   $04: upload the complete vanilla 64x64 presentation tilemap;
 ;   $0D: upload rain's 64x32 tilemap from the former 4 KiB staging half.
 ; This routine uses free space left by the obsolete overlay loader.
 org $82F544
 PrepareBG1OverlayForLoad:
     LDA.b $10
-    CMP.b #$08                  ; First playable module: Module08_OverworldLoad.
-    BCC .vanilla
-    CMP.b #$0C                  ; Exclusive end of the $08-$0B module range.
-    BCC .streamed
-    CMP.b #$0E                  ; Module0E_Interface: flute-menu landing.
-    BEQ .streamed
     CMP.b #$15                  ; Mirror step 8 queues its streamed BG1.
     BEQ .done
+    CMP.b #$19                  ; Triforce-room scrolls finalize one phase later.
+    BEQ .done
 
-.vanilla
-    LDA.b #$13                  ; base=$1000, width=64, height=64
-    STA.w $2107                 ; BG1SC
-
-    JSR $FA8A                   ; BuildBGOverlayFromMap16
-    LDA.b #$04
-    RTS
-
-.streamed
     ; Rain is a complete static 64x32 tilemap. Build all 16 Map16 rows and
     ; return vanilla's 4 KiB former-half upload instead of a visible window.
     LDA.b $8C
     CMP.b #$9F
     BNE .streamed_window
+
+    REP #$20
+    LDA.w #$6800                ; Final overworld BG1 tilemap base.
+    STA.b $CC
+    SEP #$20
 
     JSR BuildRainTilemap
     LDA.b #$0D
@@ -422,10 +408,10 @@ PrepareBG1OverlayForLoad:
     LDA.b #$00
     RTS
 
-; Select playable overworld's 64x32 BG1 layout, then reproduce the SFX write
+; Select the overworld's 64x32 BG1 layout, then reproduce the SFX write
 ; displaced at Overworld_LoadSubscreenAndSilenceSFX1.
 BG1SelectOverworldLayout:
-    LDA.b #$11                  ; base=$1000, width=64, height=32
+    LDA.b #$69                  ; base=$6800, width=64, height=32
     STA.w $2107                 ; BG1SC
 
     LDA.b #$05                  ; SFX1.05
@@ -443,6 +429,17 @@ BGRestoreUnderworldLayouts:
 
     LDA.b #$03                  ; base=$0000, width=64, height=64
     STA.w $2108                 ; BG2SC
+
+    LDA.b #$60                  ; base=$6000, width=32, height=32
+    STA.w $2109                 ; BG3SC
+
+    LDA.b #$22                  ; BG1/BG2 characters begin at $2000.
+    STA.w $210B                 ; BG12NBA
+
+    REP #$20
+    LDA.w #$6040                ; Default HUD upload destination.
+    STA.w $0219
+    SEP #$20
 
     LDA.b #$01
     STA.b $1B                   ; Mark the active environment as indoors.
@@ -517,6 +514,39 @@ BGBuilderCalculateRowOffset:
 
 assert pc() <= $82F6FD
 
+org !free_space_bank_82_start
+
+CreditsStreamBackgrounds:
+    REP #$20
+
+    LDA.b $E2
+    JSL BG2StreamHorizontal
+    LDA.b $E8
+    JSL BG2StreamVertical
+    LDA.b $E0
+    JSL BG1StreamHorizontal
+    LDA.b $E6
+    JSL BG1StreamVertical
+
+    SEP #$20
+    RTL
+
+Module19RenderBG1:
+    JSR.w $C44F                 ; SpecialOverworld_CopyPalettesToCache
+    JSL BG1BulkRender
+    INC.b $B0
+    RTL
+
+CreditsPrepareCoolBackground:
+    REP #$20
+    STZ.b $E0
+    STZ.b $E6
+    STZ.w $0120
+    STZ.w $0124
+    JMP.w $AE40                 ; Tail-call ReloadSubscreenOverlay.
+
+assert pc() <= !free_space_bank_82_end
+
 ; CreateInitialNewScreenMapToScroll
 ;
 ; Vanilla contexts: modules $09/$0B, submodules $03 and $11, after the
@@ -552,6 +582,44 @@ org $82EF72
 ; transitions for movement code.
 org $82EFD7
     RTS
+
+; Credits_OperateScrollingAndTilemap
+;
+; Credits use the same overworld rings but update their scrolls outside the
+; normal overworld module. Stream their finalized BG2 and BG1 edges each frame.
+org $8285B9
+    JML CreditsStreamBackgrounds
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+assert pc() == $8285C2
+
+; Credits_LoadCoolBackground resets its overlay scroll after loading it in
+; vanilla. Reset both live and finalized scrolls first so the ring is built at
+; the position the scene will display.
+org $8285F1
+    JSR CreditsPrepareCoolBackground
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+assert pc() == $8285FC
+
+; Module19_03_PrepTileSetsPalette
+;
+; The Triforce room finalizes its BG1 scroll after loading the overlay. Render
+; the ring in the following phase, before BG2 is built.
+org $829F7A
+    JML Module19RenderBG1
+    NOP
+    NOP
+assert pc() == $829F80
 
 ; CopyMap16ToBuffer
 ;
@@ -649,7 +717,9 @@ BG2FindMap16VRAMAddress:
     AND.w #$0780
     LSR A
     ORA.b $02
-    STA.b $02                   ; Physical row * 32 words.
+    CLC
+    ADC.w #$6000
+    STA.b $02                   ; Physical row * 32 words plus BG2 base.
     RTS
 
 assert pc() <= $9BCA9F
@@ -659,7 +729,7 @@ assert pc() <= $9BCA9F
 ;
 ; The logical window starts at the 8x8 tile containing the viewport's
 ; top-left pixel and is always 33 tiles wide by 29 tiles high. BG2 is a
-; 64x32 tilemap based at VRAM word $0000.
+; 64x32 tilemap based at VRAM word $6000.
 ;
 ; Each 33-tile row crosses exactly one discontinuity in the two horizontal
 ; 32x32 screen blocks. Emit two $18 entries per row, writing tile words
@@ -680,7 +750,7 @@ assert pc() <= $9BCA9F
 ; Y is the byte offset into the $1100 list.
 ;---------------------------------------------------------------------------------------------------
 
-org !BG2BulkFreeStart
+org !free_space_bank_any_start
 BG2BulkRender:
     PHP                         ; Preserve the caller's register-width flags.
 
@@ -690,16 +760,10 @@ BG2BulkRender:
     PHX                         ; change any registers, so save all three.
     PHY
 
-    ; Select a 64x32 BG2 tilemap at VRAM word $0000. Full-load paths reach
-    ; this under forced blank. Mirror and whirlpool reach this with the
-    ; display active, but they started from overworld gameplay where BG2SC
-    ; is already set to the correct value of $01.
-    SEP #$20                    ; PPU registers are byte-wide.
-
-    LDA.b #$01                  ; base=$0000, width=64, height=32
+    SEP #$20
+    LDA.b #$61                  ; base=$6000, width=64, height=32
     STA.w $2108                 ; BG2SC
-
-    REP #$20                    ; Return to 16-bit coordinate arithmetic.
+    REP #$20
 
     JSR BG2SelectRenderer
     JSR BG2CalculateLogicalWindowOrigin
@@ -718,7 +782,9 @@ BG2BulkRender:
 BG2SelectRenderer:
     LDA.w #$0000
     STA.l !BGMap16SourceOffset  ; BG2 Map16 begins at $7E2000.
-    STA.l !BGVRAMBase           ; BG2 tilemap begins at VRAM word $0000.
+
+    LDA.w #$6000
+    STA.l !BGVRAMBase           ; BG2 tilemap begins at VRAM word $6000.
 
     LDA.w #$007F
     STA.l !BGLogicalMask        ; BG2 logical coordinates are 0..127.
@@ -768,8 +834,8 @@ BG1SelectRenderer:
     LDA.w #$2000
     STA.l !BGMap16SourceOffset  ; BG1 Map16 begins at $7E4000.
 
-    LDA.w #$1000
-    STA.l !BGVRAMBase           ; BG1 tilemap begins at VRAM word $1000.
+    LDA.w #$6800
+    STA.l !BGVRAMBase           ; BG1 tilemap begins at VRAM word $6800.
 
     LDA.w #$003F
     STA.l !BGLogicalMask        ; BG1 logical coordinates are 0..63.
@@ -2030,11 +2096,11 @@ BGMirrorBuildMargins:
     JSR BGEmitColumn
     JMP BG1BuildMirrorMargins
 
-assert pc() <= !BG2BulkFreeEnd
+assert pc() <= !free_space_bank_any_end
 
 ; A small remainder of the old terrain-property lookup holds the shared
 ; source/destination setup for one wrapped BG1 margin column.
-org !BGMirrorEmitFreeStart
+org !free_space_bank_9B_start_1
 
 BG1EmitMirrorColumn:
     STA.b $06
@@ -2042,11 +2108,11 @@ BG1EmitMirrorColumn:
     JSR BGEmitColumn
     RTS
 
-assert pc() <= !BGMirrorEmitFreeEnd
+assert pc() <= !free_space_bank_9B_end_1
 
 ; The obsolete vanilla 64x64 Map16 address calculation leaves just enough
 ; room for the BG1 half of the shared mirror-margin list.
-org !BGMirrorFreeStart
+org !free_space_bank_9B_start_2
 
 BG1BuildMirrorMargins:
     JSR BG1CheckStreamingEnabled
@@ -2083,4 +2149,4 @@ BG1BuildMirrorMargins:
     PLP
     RTS
 
-assert pc() <= !BGMirrorFreeEnd
+assert pc() <= !free_space_bank_9B_end_2
