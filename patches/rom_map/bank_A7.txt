@@ -1,0 +1,6 @@
+$A78000-$A7DFFF used flat Map16 submaps 112-123
+$A7E000-$A7E1DF used screen-to-flat-map pointer table
+$A7E1E0-$A7E344 reduce_bg3.asm (BG3 menu/HUD row streaming)
+$A7E345-$A7E35A nmi_optimize.asm (conditional OAM upload)
+$A7E35B-$A7E38E reduce_bg3.asm (BG3 layout and file-select clear helpers)
+$A7E38F-$A7FFFF free

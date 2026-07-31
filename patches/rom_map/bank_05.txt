@@ -1,2 +1,0 @@
-$05FAC2-$05FAC5 independent_tile_type.asm (ReadOverworldTileType quadrant lookup)
-$05FAC6-$05FAC9 [FREE] (remainder of vanilla ReadOverworldTileType)

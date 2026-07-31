@@ -1,4 +1,0 @@
-$0EE6D3-$0EE6D4 reduce_bg3.asm (credits tilemap starts at $6000)
-$0EE6E9-$0EE6EB reduce_bg3.asm (delay first credits row until it is offscreen)
-$0EE7BA-$0EE7C2 reduce_bg3.asm (zero-based streamed credits row)
-$0EE90C-$0EE914 reduce_bg3.asm (credits tilemap wrap at $6400)

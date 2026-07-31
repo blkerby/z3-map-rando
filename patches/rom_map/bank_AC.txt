@@ -1,0 +1,2 @@
+$AC8000-$ACBFFF top-left Map16 property bytes
+$ACC000-$ACFFFF top-right Map16 property bytes

@@ -1,1 +1,0 @@
-$0B8000-$0BFE48 [FREE] (obsolete compressed Map32 data)

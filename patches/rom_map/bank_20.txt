@@ -1,1 +1,0 @@
-$208000-$20FFFF used flat Map16 submaps 0-15

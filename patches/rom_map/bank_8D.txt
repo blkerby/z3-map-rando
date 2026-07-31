@@ -1,0 +1,5 @@
+$8DDD9E-$8DDDA6 reduce_bg3.asm (defer item-menu upload until scrolling)
+$8DDE4C-$8DDE54 reduce_bg3.asm (defer initialized item-menu upload until scrolling)
+$8DDE5B-$8DDE65 reduce_bg3.asm (stream item-menu opening rows)
+$8DDFAC-$8DDFAE reduce_bg3.asm (rebuild HUD buffer without immediate upload)
+$8DDFBC-$8DDFC3 reduce_bg3.asm (stream HUD rows while closing)
