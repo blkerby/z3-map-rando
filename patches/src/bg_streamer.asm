@@ -402,6 +402,20 @@ PrepareBG1OverlayForLoad:
 .render
     ; Other paths use the same earlier phase in which vanilla uploaded BG1.
     ; Their callers build BG2 in a later phase.
+    ; The hobo overlay selects its lower logical half by adding $0100 to BG1
+    ; after this call. Render from that final scroll now; vanilla will update
+    ; the base scroll immediately afterward.
+    LDA.b $8C
+    CMP.b #$94
+    BNE .scroll_ready
+
+    REP #$20
+    LDA.b $E6
+    ORA.w #$0100
+    STA.w $0124
+    SEP #$20
+
+.scroll_ready
     JSL BG1BulkRender
 
 .done
