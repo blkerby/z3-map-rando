@@ -4,7 +4,7 @@ Addresses below are VRAM word addresses. Sizes are physical bytes, so each `$400
 
 Milestones 5 and 6 are global gameplay changes: their BG3 reductions apply to
 both overworld and dungeons because those modes share the HUD and pause-menu
-paths. Milestones 7 through 9 rearrange only overworld VRAM; dungeons retain
+paths. Milestones 7, 8, and 9A rearrange only overworld VRAM; dungeons retain
 their vanilla BG1, BG2, graphics, and OBJ locations.
 
 ## Vanilla layout
@@ -48,7 +48,7 @@ releasing another 2 KiB.
 | `$6400-$6FFF` | 6 KiB | Free |
 | `$7000-$7FFF` | 8 KiB | BG3/HUD character graphics |
 
-## After milestone 7 (current)
+## After milestone 7
 
 BG2 becomes 64x32. It keeps its two horizontal screen blocks and releases its
 lower two blocks.
@@ -64,7 +64,7 @@ lower two blocks.
 | `$6400-$6FFF` | 6 KiB | Free |
 | `$7000-$7FFF` | 8 KiB | BG3/HUD character graphics |
 
-## After milestone 8
+## After milestone 8 (current)
 
 BG1 also becomes 64x32, freeing another 4 KiB. The BG1/BG2 free ranges are
 not yet contiguous.
@@ -81,7 +81,7 @@ not yet contiguous.
 | `$6400-$6FFF` | 6 KiB | Free |
 | `$7000-$7FFF` | 8 KiB | BG3/HUD character graphics |
 
-## After milestone 9
+## After milestone 9A
 
 The reduced BG1/BG2 tilemaps move to `$6000-$6FFF`, and the BG3 tilemap moves
 to `$3C00`. OBJ and BG3 graphics remain in place. The shared BG1/BG2 character
@@ -96,9 +96,9 @@ region expands from 16 KiB to 30 KiB, or from 512 to 960 characters.
 | `$6800-$6FFF` | 4 KiB | BG1 64x32 tilemap |
 | `$7000-$7FFF` | 8 KiB | BG3/HUD character graphics |
 
-## Dungeon gameplay layout retained by milestone 9
+## Dungeon gameplay layout retained by milestone 9A
 
-Milestone 9 does not rearrange dungeon VRAM. BG1, BG2, their graphics, and OBJ
+Milestone 9A does not rearrange dungeon VRAM. BG1, BG2, their graphics, and OBJ
 graphics retain their vanilla locations. The BG3 entry below is intentionally
 non-vanilla because milestones 5 and 6 apply to dungeons as well as the
 overworld. Dungeons keep complete 64x64 BG1 and BG2 tilemaps resident and
@@ -122,9 +122,9 @@ stream rows or columns as the camera moves.
 | Vanilla | `$13` | `$03` | `$63` | `$22` |
 | Milestone 5 | `$13` | `$03` | `$62` | `$22` |
 | Milestone 6 | `$13` | `$03` | `$60` | `$22` |
-| Milestone 7 (current) | `$13` | `$01` | `$60` | `$22` |
-| Milestone 8 | `$11` | `$01` | `$60` | `$22` |
-| Milestone 9 | `$69` | `$61` | `$3C` | `$00` |
+| Milestone 7 | `$13` | `$01` | `$60` | `$22` |
+| Milestone 8 (current) | `$11` | `$01` | `$60` | `$22` |
+| Milestone 9A | `$69` | `$61` | `$3C` | `$00` |
 
 `BG1SC`, `BG2SC`, and `BG3SC` select each tilemap's base and dimensions.
 `BG12NBA` selects the shared BG1/BG2 character base. Presentation modes such
