@@ -330,6 +330,11 @@ pub struct FlatMap16 {
     pub screen_pointers: Vec<u8>,
 }
 
+pub struct OverworldAreaAssets {
+    pub palette_rows: Vec<[u8; 32]>,
+    pub character_rows: Vec<[u8; 512]>,
+}
+
 impl Importer {
     pub fn new(data: Vec<u8>) -> Result<Self> {
         let rom = Rom::new(data);
@@ -429,6 +434,81 @@ impl Importer {
         Ok(&self.tile_types)
     }
 
+    pub fn overworld_area_assets(&mut self) -> Result<Vec<OverworldAreaAssets>> {
+        if self.palettes.is_empty() {
+            self.load_palettes()?;
+        }
+        if self.tiles8.is_empty() {
+            self.load_graphics()?;
+        }
+        if self.map_parents.is_empty() {
+            self.load_map_parents();
+        }
+        if self.map_palettes.is_empty() {
+            self.load_map_palettes()?;
+        }
+        if self.map_gfx.is_empty() {
+            self.load_map_gfx()?;
+        }
+
+        self.map_gfx
+            .iter()
+            .zip(&self.map_palettes)
+            .map(|(gfx, palettes)| {
+                let mut character_rows = Vec::with_capacity(32);
+                for (slot, &sheet) in gfx.iter().enumerate() {
+                    let right_palette = matches!(slot, 0 | 3 | 4 | 5);
+                    let start = usize::from(sheet) * 64;
+                    ensure!(
+                        start + 64 <= self.tiles8.len(),
+                        "overworld graphics sheet {sheet:02X} is unavailable"
+                    );
+                    let tiles = &self.tiles8[start..start + 64];
+                    for tiles in tiles.chunks_exact(16) {
+                        let mut row = [0; 512];
+                        for (tile, output) in tiles.iter().zip(row.chunks_exact_mut(32)) {
+                            encode_4bpp_tile(tile, right_palette, output);
+                        }
+                        character_rows.push(row);
+                    }
+                }
+
+                let mut palette_rows = vec![[0; 32]; 6];
+                let main = 2 + usize::from(palettes.main) * 5;
+                for (row, palette) in palette_rows[..5]
+                    .iter_mut()
+                    .zip(&self.palettes[main..main + 5])
+                {
+                    encode_palette_half(palette, &mut row[..16]);
+                }
+
+                let aux1 = 32 + usize::from(palettes.aux1) * 3;
+                for (row, palette) in palette_rows[..3]
+                    .iter_mut()
+                    .zip(&self.palettes[aux1..aux1 + 3])
+                {
+                    encode_palette_half(palette, &mut row[16..]);
+                }
+
+                let aux2 = 32 + usize::from(palettes.aux2) * 3;
+                for (row, palette) in palette_rows[3..]
+                    .iter_mut()
+                    .zip(&self.palettes[aux2..aux2 + 3])
+                {
+                    encode_palette_half(palette, &mut row[16..]);
+                }
+
+                let animated = 92 + usize::from(palettes.animated);
+                encode_palette_half(&self.palettes[animated], &mut palette_rows[5][..16]);
+
+                Ok(OverworldAreaAssets {
+                    palette_rows,
+                    character_rows,
+                })
+            })
+            .collect()
+    }
+
     fn load_palette(&self, addr: PcAddr, size: usize) -> Result<[ColorRgb; 16]> {
         let mut colors = [[0, 0, 0]; 16];
         for i in 0..size {
@@ -466,7 +546,9 @@ impl Importer {
         let gfx_high = self.rom.read_u16(self.constants.gfx_high_addr.into())?;
         let gfx_low = self.rom.read_u16(self.constants.gfx_low_addr.into())?;
 
-        for i in 0..113 {
+        // Map graphics select sheets through $72. The last two deliberately
+        // pass 4bpp sprite data through vanilla's background conversion.
+        for i in 0..=0x72 {
             let bank = self
                 .rom
                 .read_u8(SnesAddr::from_bank_offset(0, gfx_bank + i).into())?;
@@ -481,7 +563,12 @@ impl Importer {
                 SnesAddr::from_bytes(bank, high, low).into(),
                 false,
             )?;
-            ensure!(data.len() == 0x600, "unexpected graphics sheet length");
+            let expected_len = if i <= 0x70 { 0x600 } else { 0x800 };
+            ensure!(
+                data.len() == expected_len,
+                "unexpected graphics sheet {i:02X} length: {}",
+                data.len()
+            );
 
             for j in 0..64 {
                 let mut tile = [[0; 8]; 8];
@@ -697,6 +784,27 @@ impl Importer {
             .read_n(self.constants.tile_types.into(), 512)?
             .to_owned();
         Ok(())
+    }
+}
+
+fn encode_palette_half(palette: &[ColorRgb; 16], output: &mut [u8]) {
+    for (&[red, green, blue], output) in palette[1..8].iter().zip(output[2..].chunks_exact_mut(2)) {
+        output.copy_from_slice(
+            &(u16::from(red) | u16::from(green) << 5 | u16::from(blue) << 10).to_le_bytes(),
+        );
+    }
+}
+
+fn encode_4bpp_tile(tile: &[[u8; 8]; 8], right_palette: bool, output: &mut [u8]) {
+    for (y, pixels) in tile.iter().enumerate() {
+        for (x, &pixel) in pixels.iter().enumerate() {
+            let pixel = pixel | u8::from(right_palette && pixel != 0) << 3;
+            let mask = 0x80 >> x;
+            output[y * 2] |= (pixel & 1 != 0) as u8 * mask;
+            output[y * 2 + 1] |= (pixel & 2 != 0) as u8 * mask;
+            output[16 + y * 2] |= (pixel & 4 != 0) as u8 * mask;
+            output[16 + y * 2 + 1] |= (pixel & 8 != 0) as u8 * mask;
+        }
     }
 }
 

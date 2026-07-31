@@ -19,54 +19,94 @@ lorom
 
 !OverworldHUD = $3C40
 !DefaultHUD = $6040
+!GeneratedAssetMarker = $FF
+!OverworldAssetBundlePointers = $AE8000
 
 ; Module08_00_LoadProperties is the common forced-blank entry for normal and
 ; special overworld loads. Select and clear the relocated layout before any
 ; animated or static background graphics are loaded, then reproduce the
 ; displaced color-math setup.
 org $8282D1
-    JSL Module08SelectOverworldVRAM
+    JSL hook_Module08LoadProperties
 assert pc() == $8282D5
 
 ; The Triforce room and each overworld credits scene bypass module $08.
 ; Replace their vanilla tilemap clears with the relocated-layout clear before
 ; they load background graphics.
 org $828506
-    JSL SelectAndClearOverworldVRAMLong
+    JSL hook_OverworldSceneTilemapClear
 assert pc() == $82850A
 
 org $829F4A
-    JSL SelectAndClearOverworldVRAMLong
+    JSL hook_OverworldSceneTilemapClear
 assert pc() == $829F4E
 
 ; The scrolling credits background is also overworld-based, but its clear uses
 ; the distinct blank tiles selected by EraseTilemaps_bg3.
 org $8EE649
-    JSL SelectAndClearCreditsOverworldVRAMLong
+    JSL hook_CreditsOverworldTilemapClear
 assert pc() == $8EE64D
 
 ; Agahnim's mirror warp builds its overworld destination without passing
 ; through module $08. Switch layouts once the effect reaches that load step.
 org $829D5C
-    JSR Module15LoadOverworld
+    JSR hook_Module15LoadOverworld
 assert pc() == $829D5F
 
 ; Both the ordinary world map and flute map pass through this forced-blank
 ; restoration step before reloading overworld graphics.
 org $8ABBF9
-    JSL WorldMapSelectOverworldVRAM
+    JSL hook_WorldMapOverworldRestore
 assert pc() == $8ABBFD
 
 ; InitializeTilesets normally begins its eight background sheets at $2000.
 ; Choose $0000 for the final overworld layout and retain $2000 elsewhere.
 org $80E259
-    JML InitializeTilesetsSelectBGVRAM
+    JML hook_InitializeTilesetsBeforeBGSetup
     NOP
 assert pc() == $80E25E
 
+; Preserve InitializeTilesets' resolved BG sheet cache in $7EC2F8-$7EC2FB.
+; Scrolling, mirror, whirlpool, and Agahnim-warp loaders still consume
+; that cache until those transitions move to generated descriptors.
+org $80E2C2
+    JML hook_InitializeTilesetsAfterBGSheetResolution
+    NOP
+    NOP
+assert pc() == $80E2C8
+
+; Mark the shared forced-blank load before InitializeTilesets, then replace
+; the generated background assets immediately before the existing background
+; color and palette-presentation work.
+org $828390
+    JSL hook_Module08InitializeTilesets
+assert pc() == $828394
+
+org $8283A7
+    JSL hook_Module08AfterBGPaletteSelection
+assert pc() == $8283AB
+
+; Keep the state, HUD, and sprite portions of the vanilla palette loaders,
+; but omit their background writes while the generated full reload is active.
+org $82C44A
+    JSL hook_OverworldScreenPalettesAfterHUD
+assert pc() == $82C44E
+
+org $8CFF4F
+    JSL hook_OverworldPalettesAfterSetSelection
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+assert pc() == $8CFF5B
+
 ; Animated overworld tiles follow the active overworld layout.
 org $80D3FC
-    JSL SelectAnimatedOverworldVRAM
+    JSL hook_DecompressAnimatedOverworldTilesAfterConversion
     NOP
     NOP
 assert pc() == $80D402
@@ -75,7 +115,7 @@ assert pc() == $80D402
 ; Its destination follows the active BG3 tilemap rather than a fixed table
 ; byte. Other indexes retain the vanilla table.
 org $808CB0
-    JML NMISelectTilemapUploadDestination
+    JML hook_NMITilemapUploadDestination
     NOP
     NOP
 assert pc() == $808CB6
@@ -83,19 +123,19 @@ assert pc() == $808CB6
 ; Rebase overworld background-character transfer modes. These entry hooks are
 ; separate because modes $09 and $0A do not use the later common DMA entry.
 org $808EE7
-    JML NMIUpdateBGChar3And4SelectVRAM
+    JML hook_NMIUpdateBGChar3And4
     NOP
 assert pc() == $808EEC
 
 org $808F16
-    JML NMIUpdateBGChar5And6SelectVRAM
+    JML hook_NMIUpdateBGChar5And6
     NOP
 assert pc() == $808F1B
 
 ; Modes $0E-$11 and OBJ modes $13-$14 share this DMA entry. The helper only
 ; rebases destinations below $4000, so OBJ transfers remain unchanged.
 org $808FC9
-    JML NMISelectBGCharacterDestination
+    JML hook_NMIBGCharacterDMASetup
     NOP
     NOP
 assert pc() == $808FCF
@@ -103,26 +143,26 @@ assert pc() == $808FCF
 ; Message-window positions are offsets within the active gameplay BG3
 ; tilemap. Replace both fixed $6000-based lookups with a shared selector.
 org $8EF0ED
-    JSL RenderTextSelectBG3Position
+    JSL hook_RenderTextPosition
     NOP
     NOP
 assert pc() == $8EF0F3
 
 org $8EFBDF
-    JSL RenderTextSelectBG3Position
+    JSL hook_RenderTextPosition
     NOP
     NOP
 assert pc() == $8EFBE5
 
 org !free_space_bank_82_start
-Module15LoadOverworld:
+hook_Module15LoadOverworld:
     JSL SelectOverworldVRAM
     JMP.w $E207                 ; Tail-call LoadOverworldFromUnderworld.
 assert pc() <= !free_space_bank_82_end
 
 org !free_space_bank_any_start
 
-Module08SelectOverworldVRAM:
+hook_Module08LoadProperties:
     JSR SelectAndClearOverworldVRAM
 
     ; Run hi-jacked instructions:
@@ -130,16 +170,60 @@ Module08SelectOverworldVRAM:
     STA.b $99
     RTL
 
-WorldMapSelectOverworldVRAM:
+hook_Module08InitializeTilesets:
+    ; $0412 is normally the incremental character-upload cursor ($00-$10).
+    ; $FF is therefore available as a transient marker for this forced-blank
+    ; load and lets the shared palette routines distinguish this caller.
+    LDA.b #!GeneratedAssetMarker
+    STA.w $0412
+
+    ; Keep InitializeTilesets' sprite loading and BG sheet-cache setup. The
+    ; hook at $80E2C2 returns before it decompresses the static BG sheets.
+    JSL $80E1DB                 ; InitializeTilesets
+    RTL
+
+; Install generated source palettes and static BG characters after the
+; vanilla palette selectors have established the area's palette state. Clear
+; the marker before resuming the normal background-color/cache setup.
+hook_Module08AfterBGPaletteSelection:
+    JSR LoadGeneratedOverworldAssets
+    STZ.w $0412
+    JSL $8CFF91                 ; SetOverworldBackgroundColor
+    RTL
+
+; OverworldLoadScreensPaletteSet still loads sprite, equipment, Link, and HUD
+; palettes. Suppress only its final main-background palette call while the
+; generated loader owns BG palette rows 2-7.
+hook_OverworldScreenPalettesAfterHUD:
+    LDA.w $0412
+    CMP.b #!GeneratedAssetMarker
+    BEQ .skip
+    JSL $9BEEC7                 ; PaletteLoad_OWBGMain
+.skip
+    RTL
+
+; OverworldPalettesLoader must still resolve palette IDs and load its sprite
+; palettes. Suppress only the three auxiliary BG palette writes.
+hook_OverworldPalettesAfterSetSelection:
+    LDA.w $0412
+    CMP.b #!GeneratedAssetMarker
+    BEQ .skip
+    JSL $9BEEE8                 ; PaletteLoad_OWBG1
+    JSL $9BEF0C                 ; PaletteLoad_OWBG2
+    JSL $9BEEA8                 ; PaletteLoad_OWBG3
+.skip
+    RTL
+
+hook_WorldMapOverworldRestore:
     JSL $80893D                 ; EnableForceBlank
     JSR SelectAndClearOverworldVRAM
     RTL
 
-SelectAndClearOverworldVRAMLong:
+hook_OverworldSceneTilemapClear:
     JSR SelectAndClearOverworldVRAM
     RTL
 
-SelectAndClearCreditsOverworldVRAMLong:
+hook_CreditsOverworldTilemapClear:
     JSR SelectAndClearCreditsOverworldVRAM
     RTL
 
@@ -278,7 +362,7 @@ BlankCreditsBG3Tile:
     dw $0188
 
 ; Tail of InitializeTilesets' displaced background-VRAM setup.
-InitializeTilesetsSelectBGVRAM:
+hook_InitializeTilesetsBeforeBGSetup:
     REP #$30
     LDA.w $0219
     CMP.w #!OverworldHUD
@@ -293,8 +377,202 @@ InitializeTilesetsSelectBGVRAM:
 .store
     JML $80E25E
 
+; This hook is reached after InitializeTilesets has loaded all sprite sheets
+; and resolved the four variable BG sheet IDs into $7EC2F8-$7EC2FB.
+hook_InitializeTilesetsAfterBGSheetResolution:
+    SEP #$30
+    LDA.w $0412
+    CMP.b #!GeneratedAssetMarker
+    BEQ .skip
+
+    ; Run hi-jacked instructions:
+    LDA.b #$07
+    STA.b $0F
+    JML $80E2C8
+
+.skip
+    ; We are replacing InitializeTilesets' tail, so balance its PHB and return
+    ; directly to hook_Module08InitializeTilesets' JSL caller.
+    PLB
+    RTL
+
+; Load the asset record selected by $8A and synchronously process every batch
+; in its full-reload sequence. Metadata pointers are little-endian until the
+; sequence; sequence and descriptor pointers put the bank first so zero can
+; terminate each list.
+;
+; Direct-page scratch:
+;   $00-$02: current asset-record or batch-sequence pointer
+;   $03-$05: current batch pointer
+;   $06-$07: 16-bit copy of the 8-bit screen ID
+; DMA channel 1 is scratch during this forced-blank load. Flags, X, and Y are
+; preserved for the surrounding module code.
+LoadGeneratedOverworldAssets:
+    PHP
+    REP #$10
+    PHX
+    PHY
+
+    SEP #$20
+    LDA.b $8A
+    STA.b $06
+    STZ.b $07
+
+    ; Each of the 256 screen entries is a packed 24-bit pointer, so X = 3*$8A.
+    REP #$20
+    LDA.b $06
+    ASL A
+    CLC
+    ADC.b $06
+    TAX
+
+    ; The top-level table uses ordinary little-endian 24-bit pointers because
+    ; every entry has a fixed size and therefore needs no terminator.
+    SEP #$20
+    LDA.l !OverworldAssetBundlePointers,X
+    STA.b $00
+    LDA.l !OverworldAssetBundlePointers+1,X
+    STA.b $01
+    LDA.l !OverworldAssetBundlePointers+2,X
+    STA.b $02
+
+    ; The first three bytes of the 18-byte asset record point to its full-load
+    ; batch sequence. The remaining transition pointers are reserved for
+    ; later 9B checkpoints.
+    LDY.w #$0000
+    LDA.b [$00],Y
+    STA.b $03
+    INY
+    LDA.b [$00],Y
+    STA.b $04
+    INY
+    LDA.b [$00],Y
+    STA.b $05
+
+    LDA.b $03
+    STA.b $00
+    LDA.b $04
+    STA.b $01
+    LDA.b $05
+    STA.b $02
+    BEQ .done                  ; A zero bank means there is no full-load list.
+
+    ; A sequence is [bank, address low, address high] repeated, followed by a
+    ; single zero bank. Keep Y as its cursor while each batch uses its own Y.
+    LDY.w #$0000
+.next_batch
+    LDA.b [$00],Y
+    BEQ .done
+    STA.b $05
+    INY
+    LDA.b [$00],Y
+    STA.b $03
+    INY
+    LDA.b [$00],Y
+    STA.b $04
+    INY
+
+    ; ProcessGeneratedAssetBatch consumes Y, so preserve the sequence cursor.
+    PHY
+    JSR ProcessGeneratedAssetBatch
+    PLY
+    BRA .next_batch
+
+.done
+    PLY
+    PLX
+    PLP
+    RTS
+
+; Process one batch containing a null-terminated palette list followed by a
+; null-terminated character list. Each descriptor is:
+;   source bank, source address low, source address high, destination row
+; Palette rows are 32 bytes; character rows are 16 4bpp tiles (512 bytes).
+; Input: $03-$05 = batch pointer. Clobbers A, Y, and DMA channel 1.
+ProcessGeneratedAssetBatch:
+    LDY.w #$0000
+
+.next_palette
+    ; Load the ROM source directly into DMA channel 1's A-bus address.
+    LDA.b [$03],Y
+    BEQ .palette_done
+    STA.w $4314
+    INY
+    LDA.b [$03],Y
+    STA.w $4312
+    INY
+    LDA.b [$03],Y
+    STA.w $4313
+    INY
+    LDA.b [$03],Y
+    INY
+
+    ; Convert destination row n to $7EC300 + n*$20. WMDATA makes the ROM-to-
+    ; WRAM transfer direct; vanilla presentation code later derives $7EC500
+    ; and schedules the CGRAM upload appropriate to this module.
+    REP #$20
+    AND.w #$00FF
+    ASL A
+    ASL A
+    ASL A
+    ASL A
+    ASL A
+    CLC
+    ADC.w #$C300
+    STA.w $2181
+    LDA.w #$8000              ; DMA mode 0 to WMDATA.
+    STA.w $4310
+    LDA.w #$0020              ; One complete 16-color palette row.
+    STA.w $4315
+
+    SEP #$20
+    LDA.b #$7E
+    STA.w $2183               ; Complete the $7EC300 WRAM destination.
+    LDA.b #$02
+    STA.w $420B               ; Run DMA channel 1 while display is blank.
+    BRA .next_palette
+
+.palette_done
+    INY                       ; Skip the palette list's one-byte terminator.
+    LDA.b #$80
+    STA.w $2115               ; Increment VRAM after writes to $2119.
+
+.next_character
+    ; Parse the character descriptor's ROM source into the same DMA channel.
+    LDA.b [$03],Y
+    BEQ .done
+    STA.w $4314
+    INY
+    LDA.b [$03],Y
+    STA.w $4312
+    INY
+    LDA.b [$03],Y
+    STA.w $4313
+    INY
+    LDA.b [$03],Y
+    INY
+
+    ; Character destination row n begins at VRAM word n*$100. The low byte is
+    ; therefore zero and the descriptor row is the VMADDR high byte.
+    STZ.w $2116
+    STA.w $2117
+
+    REP #$20
+    LDA.w #$1801              ; DMA mode 1 to VMDATA.
+    STA.w $4310
+    LDA.w #$0200              ; Sixteen 32-byte 4bpp characters.
+    STA.w $4315
+
+    SEP #$20
+    LDA.b #$02
+    STA.w $420B               ; Run DMA channel 1 while display is blank.
+    BRA .next_character
+
+.done
+    RTS
+
 ; Tail of NMI_UploadTilemap's displaced destination lookup.
-NMISelectTilemapUploadDestination:
+hook_NMITilemapUploadDestination:
     LDX.w $0116
     CPX.b #$22
     BNE .table
@@ -306,25 +584,25 @@ NMISelectTilemapUploadDestination:
     LDA.w $9888,X              ; TilemapUpload_HighBytes
     JML $808CB6
 
-NMIUpdateBGChar3And4SelectVRAM:
+hook_NMIUpdateBGChar3And4:
     REP #$20
     LDA.w #$2C00
     JSR RebaseBGCharacterVRAM
     JML $808EEC
 
-NMIUpdateBGChar5And6SelectVRAM:
+hook_NMIUpdateBGChar5And6:
     REP #$20
     LDA.w #$3400
     JSR RebaseBGCharacterVRAM
     JML $808F1B
 
-NMISelectBGCharacterDestination:
+hook_NMIBGCharacterDMASetup:
     JSR RebaseBGCharacterVRAM
     STA.w $2116
     LDA.w #$0000               ; Low word of source $7F0000.
     JML $808FCF
 
-SelectAnimatedOverworldVRAM:
+hook_DecompressAnimatedOverworldTilesAfterConversion:
     LDA.w #$3C00
     JSR RebaseBGCharacterVRAM
     STA.w $0134
@@ -355,7 +633,7 @@ RebaseBGCharacterVRAM:
 ; RenderText_TextPosition contains the two vanilla positions relative to the
 ; default $6040 HUD destination. Preserve those offsets and add the active
 ; gameplay destination, defaulting safely when no save has initialized $0219.
-RenderTextSelectBG3Position:
+hook_RenderTextPosition:
     LDA.l $0EFD3E,X
     SEC
     SBC.w #!DefaultHUD

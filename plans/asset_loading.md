@@ -1,6 +1,6 @@
 # Overworld asset loading
 
-Status: planned. The first checkpoint covers modules `$08` and `$0A`.
+Status: submilestone 9B.1 implemented; gameplay validation pending.
 
 ## Goal
 
@@ -10,10 +10,11 @@ the complete applicable asset set; do not track residency, compare bundles,
 or retain ranges from the previous area.
 
 The first checkpoint changes the shared `Module08_00_LoadProperties` path used
-by module `$08` when returning from an interior and module `$0A` when loading
-a special overworld. Both resolve the destination screen ID in `$8A` before
-reaching the common graphics and palette work, so they can use the same asset
-lookup. Other overworld transitions and dungeon loading remain unchanged.
+by module `$08` when returning from an interior and module `$0A` when restoring
+the saved gameplay area after a special overworld. Both resolve the destination
+screen ID in `$8A` before reaching the common graphics and palette work, so
+they can use the same asset lookup. Other overworld transitions and dungeon
+loading remain unchanged.
 
 ## Payloads
 
@@ -167,19 +168,19 @@ metadata bank. Store each generated graphics or palette payload once in banks
 the other. `engine_check` reports their independent usage and fails if either
 range overflows.
 
-The ASM patch exports the pointer-table and asset-region bounds through its
-symbol manifest. `engine_check` writes the vanilla bundle for milestone 9B,
-and the patcher can populate the same region with seed-specific data in later
-milestones. Milestone 10 may replace the `$8A` index with its area descriptor
-without changing the asset-list format.
+Submilestone 9B.1 uses this fixed ABI directly: the table starts at `$AE8000`,
+metadata starts at `$AE8300`, and payloads start at `$B28000`. `engine_check`
+writes the vanilla bundle. A generated manifest is unnecessary unless these
+locations later become configurable.
 
 ## Modules `$08` and `$0A`
 
 Both modules are forced blank before `Module08_00_LoadProperties` loads
-graphics and palettes. The first implementation therefore indexes
-`OverworldAssetBundlePointers`, selects the full-reload list, and processes all
-of its pointed-to batches synchronously. It does not use NMI or define a new
-queue.
+graphics and palettes. The first implementation indexes
+`OverworldAssetBundlePointers` by `$8A`, selects the full-reload list, and
+processes four batches synchronously. The first batch contains all six owned
+palette rows; each batch contains eight 512-byte character rows, for at most
+4 KiB of graphics DMA per batch. It does not use NMI or define a new queue.
 
 Keep sprite and dungeon assets on their existing loaders. `InitializeTilesets`
 currently handles both sprite and background sheets, so retain its sprite half
@@ -219,11 +220,15 @@ generated payloads directly from ROM.
 
 ## Submilestone 9B.1: forced-blank playable checkpoint
 
-Generate the static graphics and palette bundles and install them through the
-shared module `$08`/`$0A` path. Retain vanilla animated-tile loading and every
-other transition path. This checkpoint is complete when both modules match
-vanilla VRAM and CGRAM, remain playable, and no static overworld background
-asset on those paths uses the old loaders.
+Implemented: `engine_check` uses the importer's resolved map graphics and
+palette sets to generate deduplicated payloads, records, four-batch full-load
+sequences, and the 256-entry `$8A` lookup table. The shared module `$08`/`$0A`
+path loads those assets directly from ROM while retaining vanilla sprite, HUD,
+animated-tile, palette-cache, and presentation work. Other transition paths
+remain unchanged.
+
+Gameplay validation must confirm vanilla VRAM and CGRAM for Light World, Dark
+World, and special-overworld returns before this checkpoint is marked complete.
 
 ## Submilestone 9B.2: scrolling transitions and ROM-source NMI queue
 

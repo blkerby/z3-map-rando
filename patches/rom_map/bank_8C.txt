@@ -1,3 +1,4 @@
 $8C8000-$8CC0AA [FREE] (obsolete compressed Map32 data)
 $8CCC89-$8CCC8C reduce_bg3.asm (use 64x32 BG3 for file select)
 $8CCDA1-$8CCDA4 reduce_bg3.asm (clear both file-select BG3 blocks)
+$8CFF4F-$8CFF5A overworld_vram.asm (skip vanilla auxiliary BG palette loads)

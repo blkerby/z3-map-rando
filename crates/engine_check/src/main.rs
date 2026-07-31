@@ -7,6 +7,7 @@ use patcher::{
 use sha2::{Digest, Sha256};
 use std::{fs, path::PathBuf};
 
+mod asset_bundle;
 mod rain_tilemap;
 
 use rain_tilemap::RAIN_TILEMAP;
@@ -111,6 +112,15 @@ fn main() -> Result<()> {
     let tile_types = importer.tile_types()?.to_owned();
     let map16_definitions = split_map16_definitions(importer.tiles16()?);
     let map16_properties = split_map16_properties(importer.tiles16()?, &tile_types);
+    let area_assets = importer.overworld_area_assets()?;
+    let asset_bundle = asset_bundle::build(&area_assets)?;
+    eprintln!(
+        "overworld assets: {} bytes total ({} metadata, {} payload), 16576 DMA bytes/area, {} unique payloads",
+        asset_bundle.metadata.len() + asset_bundle.payload.len(),
+        asset_bundle.metadata.len(),
+        asset_bundle.payload.len(),
+        asset_bundle.unique_payloads
+    );
     rom.resize(2 * 1024 * 1024, 0);
 
     let mut patcher = Patcher::default();
@@ -127,6 +137,18 @@ fn main() -> Result<()> {
     for (start, properties) in MAP16_PROPERTY_STARTS.into_iter().zip(map16_properties) {
         context.write(start.into(), properties)?;
     }
+
+    let mut context = patcher.context("overworld asset metadata");
+    context.write(
+        SnesAddr(asset_bundle::METADATA_START).into(),
+        asset_bundle.metadata,
+    )?;
+
+    let mut context = patcher.context("overworld asset payloads");
+    context.write(
+        SnesAddr(asset_bundle::PAYLOAD_START).into(),
+        asset_bundle.payload,
+    )?;
 
     let patches = [
         "fastrom_extra.ips",

@@ -386,8 +386,13 @@ collision records, and visual appearance.
 The implementation sequence begins with the module `$08` forced-blank path
 described in [`asset_loading.md`](asset_loading.md).
 
+Submilestone 9B.1 is implemented, with gameplay validation pending. It
+generates the vanilla-equivalent static bundle and loads it through the shared
+module `$08`/`$0A` forced-blank path. Later 9B checkpoints cover scrolling,
+remaining transitions, and animation.
+
 Define the runtime ABI here: bundle descriptors contain 24-bit source
-pointers, fixed VRAM or CGRAM destinations, and transfer lengths. Use the same
+pointers and fixed-size VRAM or palette-row destinations. Use the same
 descriptor path for forced-blank overworld entry, flute travel, interior
 return, non-scrolling travel, and restoration from presentation modes. Store
 the data flat unless ROM-size measurement demonstrates that compression is
