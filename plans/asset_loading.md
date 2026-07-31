@@ -233,6 +233,21 @@ other NMI modes. The queue receives a 24-bit pointer to a null-terminated VRAM
 descriptor list. Palette-source descriptors are processed by the main loop and
 are not part of this NMI handler.
 
+Store the active VRAM-list pointer in the vanilla-free direct-page range
+`$35-$37`:
+
+```text
+$35: address low
+$36: address high
+$37: bank
+```
+
+This runtime byte order permits direct `[$35],Y` reads in NMI. After processing
+a batch's palette list, the main loop advances past its terminator, stores the
+resulting VRAM-list address in `$35-$37`, and sets `$17=$03` only when that list
+is nonempty. The `$12` main-loop/NMI handshake protects the pointer. Its stale
+value needs no clearing after NMI consumes `$17`.
+
 For each scrolling transition, select the list from the destination `$8A` and
 the edge through which it is entered. These lists use the same batch and
 descriptor formats as full reloads but contain only the payload rows required
