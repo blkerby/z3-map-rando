@@ -47,7 +47,7 @@ Establish the minimum build and patching path needed to make playable engine cha
 ### Implemented
 
 - Add Asar as a submodule and scripts to build it and assemble each file in `patches/src` into a corresponding file in `patches/ips`. Assembly uses a dummy ROM with reads disabled, so building the IPS files does not require a vanilla ROM.
-- Add `expand.asm`, which changes the LoROM size byte at `$00FFD7` from 1 MiB to 2 MiB. The Rust tool explicitly resizes the output buffer to 2 MiB before applying patches.
+- Add `expand.asm`, which changes the LoROM size byte at `$80FFD7` from 1 MiB to 2 MiB. The Rust tool explicitly resizes the output buffer to 2 MiB before applying patches.
 - Add a Cargo workspace containing the `patcher` library and the small `engine_check` CLI.
 - In `patcher`, support LoROM address conversion, contextual writes, overlap detection, IPS records including RLE records, and bounds checking when patches are applied.
 - In `engine_check`, accept input and output ROM paths, require the known 1 MiB unheadered vanilla ROM by SHA-256 digest, resize a copy, apply the IPS patches through `Patcher`, and write the result. Later milestones extend this tool with their test data and patches.
@@ -90,7 +90,7 @@ Large areas load four submaps into the four WRAM quadrants. Small areas load onl
 - Add ASM through `patches/src` and generated data through contextual `Patcher` writes, without modifying the disassembly itself. Record occupied and free ranges in `patches/rom_map`.
 - Use assembler assertions for code placement and `Patcher` checks for overlapping or out-of-bounds writes.
 
-Banks `$20-$27` hold the 248 KiB flat maps. The 480-byte screen-to-map pointer table starts at `$27E000`, leaving banks `$28-$3F` for later milestones.
+Banks `$A0-$A7` hold the 248 KiB flat maps. The 480-byte screen-to-map pointer table starts at `$A7E000`, leaving banks `$A8-$BF` for later milestones.
 
 ### Map32 removal: code and data to replace
 
@@ -120,19 +120,19 @@ Milestone 2 is complete when no runtime path depends on Map32 data, the generate
 
 Expand Map16 definitions across four banks while retaining the milestone 2 flat maps, vanilla definition contents, collision behavior, palettes, tilesets, and 64x64 PPU tilemaps. Store one quadrant word per bank so every table uses the same `ID * 2` index. Do not make the original coarse per-Map16 property table part of the final representation; the milestone 4 quadrant-property work replaces it.
 
-Banks `$28-$2B` contain the top-left, top-right, bottom-left, and bottom-right words respectively. The original coarse-property data remain unchanged until milestone 4 replaces them.
+Banks `$A8-$AB` contain the top-left, top-right, bottom-left, and bottom-right words respectively. The original coarse-property data remain unchanged until milestone 4 replaces them.
 
 ### Expanding the Map16 ID namespace
 
 The WRAM maps and persistent-change records already store 16-bit Map16 IDs, so they do not need to become wider. Removing Map32 also removes its packed 12-bit Map16 encoding. The limiting assumption is instead the definition lookup: current IDs are shifted left three times and used as a 16-bit index into [`Map16Definitions`](../jpdasm/bank_0F.asm#L9). The table presently ends at tile `$E9D`, and each interleaved entry occupies eight bytes.
 
-A simpler LoROM layout splits each definition into four parallel word tables:
+A simple banked layout splits each definition into four parallel word tables:
 
 ```text
-bank $28: top-left words
-bank $29: top-right words
-bank $2A: bottom-left words
-bank $2B: bottom-right words
+bank $A8: top-left words
+bank $A9: top-right words
+bank $AA: bottom-left words
+bank $AB: bottom-right words
 
 address in each bank = $8000 + (id * 2)
 ```
@@ -167,11 +167,11 @@ Hard-coded tile IDs such as `$0DBE`, `$0D9E`, and `$0DA0` in banks 02/04/07/1B c
 
 ### Implementation and validation
 
-- `engine_check` imports the 3,742 vanilla definitions and writes their four quadrants to banks `$28-$2B` without changing IDs or words.
+- `engine_check` imports the 3,742 vanilla definitions and writes their four quadrants to banks `$A8-$AB` without changing IDs or words.
 - `expand_map16.asm` migrates every direct definition load, including full builds, scrolling stripes, dynamic tile changes, entrances, terrain actions, and liftable objects.
 - Runtime-selected quadrants use banked lookup routines; fixed-quadrant paths load their bank directly.
 - The split-definition unit test checks quadrant ordering and byte layout.
-- `engine_check` zeros the original table at `$0F8000-$0FF4EF`, so any remaining runtime dependency is visible during playtesting.
+- `engine_check` zeros the original table at `$8F8000-$8FF4EF`, so any remaining runtime dependency is visible during playtesting.
 
 Milestone 3 is complete. The banked representation supports IDs `$0000-$3FFF` while retaining vanilla collision, palettes, tilesets, and 64x64 PPU tilemaps.
 
@@ -202,7 +202,7 @@ properties:  top-left byte, top-right byte, bottom-left byte, bottom-right byte
 
 `engine_check` derives the vanilla records from the four 8x8 tiles in each Map16 and the vanilla `OverworldTileTypes` table. It also folds the graphics word's horizontal-flip bit into directional slope properties `$10-$1B`, matching the vanilla runtime calculation. Milestone 9C will generate the same records directly from properties authored in `ALTTPRetiling`.
 
-The four dense 16 KiB quadrant tables occupy `$2C8000`, `$2CC000`, `$2D8000`, and `$2DC000`. They are indexed directly by Map16 ID and cover the full `$0000-$3FFF` namespace in 64 KiB.
+The four dense 16 KiB quadrant tables occupy `$AC8000`, `$ACC000`, `$AD8000`, and `$ADC000`. They are indexed directly by Map16 ID and cover the full `$0000-$3FFF` namespace in 64 KiB.
 
 ### Implementation and validation
 

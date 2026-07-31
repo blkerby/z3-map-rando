@@ -1,0 +1,337 @@
+# Overworld asset loading
+
+Status: planned. The first checkpoint covers modules `$08` and `$0A`.
+
+## Goal
+
+Load generated overworld background graphics directly from ROM to VRAM and
+palette source data directly from ROM to `$7EC300`. Every area load installs
+the complete applicable asset set; do not track residency, compare bundles,
+or retain ranges from the previous area.
+
+The first checkpoint changes the shared `Module08_00_LoadProperties` path used
+by module `$08` when returning from an interior and module `$0A` when loading
+a special overworld. Both resolve the destination screen ID in `$8A` before
+reaching the common graphics and palette work, so they can use the same asset
+lookup. Other overworld transitions and dungeon loading remain unchanged.
+
+## Payloads
+
+`engine_check` generates flat 4bpp graphics and BGR555 palette data matching
+the vanilla result. Keep the payload uncompressed unless its measured ROM cost
+requires reconsideration.
+
+Use two fixed payload sizes:
+
+- One palette row: 16 colors, or 32 bytes.
+- One character row: 16 sequential 4bpp tiles, or 512 bytes.
+
+Store each distinct payload once. Full-reload, scrolling-transition, and later
+animation lists all reference this shared payload data. Align tile allocation
+and VRAM destinations to 16-character rows; align palette allocation and
+`$7EC300` destinations to 16-color rows. No payload may cross a 64 KiB
+ROM-bank boundary.
+
+## DMA batches
+
+Every descriptor is four bytes:
+
+```text
+1 byte:  ROM payload source bank
+2 bytes: ROM payload source address, low byte then high byte
+1 byte: destination row
+```
+
+Palette destination row `n` means byte address `$7EC300 + n * $20`. VRAM
+destination row `n` means word address `n * $100`, because 16 4bpp characters
+occupy `$100` VRAM words.
+
+A source bank of zero terminates a descriptor list. Payloads will live only in
+FastROM banks `$B2-$BF`, so there is never ambiguity between the terminator
+`$00` and an actual bank.
+
+Each DMA batch contains two null-terminated lists:
+
+```text
+zero or more palette-source descriptors
+1 byte: $00
+zero or more VRAM descriptors
+1 byte: $00
+```
+
+The main loop copies each palette payload from ROM to `$7EC300` until the first
+zero. At that point its cursor already identifies the VRAM list. Forced-blank
+paths process that list directly; display-on paths pass its address to the NMI
+queue. An empty list is represented by its terminator alone.
+
+Palette presentation remains separate. Existing loading and transition code
+copies or transforms `$7EC300` into the displayed mirror at `$7EC500`, then
+uses `$15` when CGRAM must change. Mirror and whirlpool effects instead leave
+the displayed palette covered and derive it from the new source palette as
+their filters unwind.
+
+## Full-reload batch sequences
+
+A full reload is a null-terminated sequence of batch pointers. Batch pointers
+also put their nonzero metadata bank first:
+
+```text
+1 byte:  batch bank, or $00 to end the sequence
+2 bytes: batch address, low byte then high byte
+```
+
+The extra indirection costs three bytes per batch but lets the same batch
+bodies be reused and lets active-display code select a batch without scanning
+the variable-length bodies before it.
+
+Forced-blank loading processes all batches synchronously. For active-display
+full reloads such as mirror and whirlpool, the main loop processes one batch's
+palette list per frame and submits its VRAM list to NMI when nonempty.
+`engine_check` chooses how many payloads to place in each batch. Batch
+boundaries affect scheduling only; they do not duplicate payload data.
+
+## Scrolling-transition schedules
+
+Each directional transition pointer selects one schedule with three
+concatenated sections:
+
+```text
+pre-scroll batch pointers, terminated by bank $00
+scroll entries, terminated by frame $FF
+post-scroll batch pointers, terminated by bank $00
+```
+
+The pre-scroll and post-scroll sections use the same bank-first batch pointers
+as a full reload. Process one batch per frame, delaying scroll start or final
+handoff until the corresponding section reaches its terminator.
+
+Each scroll entry is:
+
+```text
+1 byte:  zero-based scrolling frame, $00-$1F
+1 byte:  batch bank
+2 bytes: batch address, low byte then high byte
+```
+
+Entries are sorted by frame and at most one entry may select a given frame. A
+batch itself contains every payload scheduled for that frame. The `$FF` frame
+value ends the scrolling section. Horizontal transitions have 32 scrolling
+frames (`$00-$1F`), while vertical transitions have 28 (`$00-$1B`); generated
+schedules must stay within the applicable range. The post-scroll pointer
+sequence begins immediately after the terminator.
+
+This representation lets the runtime consume every section sequentially with
+one cursor. It does not need batch counts, offsets, or a scan over descriptor
+bodies. `engine_check` chooses the batch boundaries and frame assignments.
+
+The generated data must reject overlapping or out-of-range destinations and
+verify that every descriptor is contained within its payload. Graphics may
+only target the milestone 9A overworld character region. Palette descriptors
+may only target palette ranges owned by the overworld background loader.
+
+## ROM storage and lookup
+
+Banks `$A8-$AD` already hold generated Map16 definitions and properties. Keep
+asset metadata and payloads in separate remaining bank ranges:
+
+- `$AE8000-$B1FFFF`: pointer table, asset records, and descriptor lists.
+- `$B28000-$BFFFFF`: shared palette and character payloads.
+
+Reserve `$AE8000-$AE82FF` for `OverworldAssetBundlePointers`, a table of 256
+little-endian 24-bit pointers. The loader computes `3 * $8A`, reads the table
+entry into a direct-page long pointer, and follows it to an asset record:
+
+```text
+3 bytes: full-reload list pointer
+3 bytes: enter-from-west list pointer
+3 bytes: enter-from-east list pointer
+3 bytes: enter-from-north list pointer
+3 bytes: enter-from-south list pointer
+3 bytes: animation-track-list pointer, or zero
+```
+
+The entry side names the edge of the destination area: entering from west
+means moving east through its west edge, and similarly for the other sides.
+Full-reload paths use the first pointer. A scrolling transition selects one of
+the following four pointers from the destination `$8A` and entry side.
+
+Normal, Dark World, and special-overworld screen IDs therefore use the same
+lookup without runtime classification. IDs which share one complete asset set
+may point to the same asset record. Every ID reachable through modules `$08`
+or `$0A` must have a generated entry; unused IDs point to one empty record.
+
+Asset records, batch sequences, transition schedules, DMA batches, and
+animation definitions begin at `$AE8300`. Keep each structure within one
+metadata bank. Store each generated graphics or palette payload once in banks
+`$B2-$BF` and let multiple batches reference it. Neither region may spill into
+the other. `engine_check` reports their independent usage and fails if either
+range overflows.
+
+The ASM patch exports the pointer-table and asset-region bounds through its
+symbol manifest. `engine_check` writes the vanilla bundle for milestone 9B,
+and the patcher can populate the same region with seed-specific data in later
+milestones. Milestone 10 may replace the `$8A` index with its area descriptor
+without changing the asset-list format.
+
+## Modules `$08` and `$0A`
+
+Both modules are forced blank before `Module08_00_LoadProperties` loads
+graphics and palettes. The first implementation therefore indexes
+`OverworldAssetBundlePointers`, selects the full-reload list, and processes all
+of its pointed-to batches synchronously. It does not use NMI or define a new
+queue.
+
+Keep sprite and dungeon assets on their existing loaders. `InitializeTilesets`
+currently handles both sprite and background sheets, so retain its sprite half
+and replace only its overworld-background work. Replace the shared path's
+background half of `InitializeTilesets`, `OverworldLoadScreensPaletteSet`, and
+`OverworldPalettesLoader` when their behavior has been represented in the
+generated bundle. Keep `DecompressAnimatedOverworldTiles` temporarily for the
+first checkpoint.
+
+Palette descriptors populate `$7EC300`. Retain the normal and special
+overworld cache setup which derives `$7EC500` and requests the appropriate
+`$15` upload. This keeps fades, lighting, damage effects, and later palette
+uploads consistent.
+
+Reload the full descriptor list even when the destination area selects the
+same assets as the previous area. This is intentionally redundant and avoids
+residency state in milestone 9B.
+
+## Generated checks
+
+For every module `$08` or `$0A` destination, `engine_check` should:
+
+1. Reproduce the final vanilla BG character data and overworld-owned palette
+   ranges.
+2. Apply the generated descriptors and the existing presentation step in
+   software, then compare `$7EC300`, VRAM, and CGRAM with the reference.
+3. Check descriptor bounds, ROM-bank boundaries, payload sizes and alignment,
+   null termination, batch pointers, schedule ordering, VRAM ownership,
+   palette ownership, and the complete reload requirement.
+4. Report total ROM size and forced-blank DMA bytes per area.
+
+Runtime validation should cover Light World, Dark World, special graphics
+sets reachable through modules `$08` and `$0A`, save loading into an interior
+followed by an overworld exit, and palette fades and effects.
+DMA logging should show that background VRAM and `$7EC300` receive their
+generated payloads directly from ROM.
+
+## Submilestone 9B.1: forced-blank playable checkpoint
+
+Generate the static graphics and palette bundles and install them through the
+shared module `$08`/`$0A` path. Retain vanilla animated-tile loading and every
+other transition path. This checkpoint is complete when both modules match
+vanilla VRAM and CGRAM, remain playable, and no static overworld background
+asset on those paths uses the old loaders.
+
+## Submilestone 9B.2: scrolling transitions and ROM-source NMI queue
+
+Introduce a descriptor queue dispatched through the obsolete `$17=$03`
+overworld-stripe handler slot. Reusing the existing vector adds no work to
+other NMI modes. The queue receives a 24-bit pointer to a null-terminated VRAM
+descriptor list. Palette-source descriptors are processed by the main loop and
+are not part of this NMI handler.
+
+For each scrolling transition, select the list from the destination `$8A` and
+the edge through which it is entered. These lists use the same batch and
+descriptor formats as full reloads but contain only the payload rows required
+for that transition. They reference the same shared payload catalog as the
+full-reload lists.
+
+For the vanilla arrangement, `engine_check` derives the expected source area
+from the destination and entry side. Applying the transition list to the
+source area's complete asset state must produce the destination state required
+at the end of the transition. Empty lists are valid where no asset row changes.
+
+The transition state machine processes the schedule's pre-scroll batches,
+submits its frame-indexed batches during scrolling, and processes its
+post-scroll batches before returning control. For a palette batch it updates
+`$7EC300`, copies the changed source palette into `$7EC500`, and uses `$15` to
+upload the displayed palette. It must coordinate with `$14`, `$18`, `$19`,
+`$0710`, and optional OAM suppression, and must not reveal destination tiles
+before their required palette and graphics batches have completed. Batch
+construction and runtime validation enforce the combined NMI byte and cycle
+budget.
+
+This checkpoint is complete when scrolling transitions in every direction
+match vanilla, use only ROM-source payloads, and no batch overruns NMI.
+
+## Submilestone 9B.3: remaining transitions
+
+Apply the full-reload lists to mirror and return-portal travel, whirlpools,
+mosaic and other non-scrolling area changes, flute travel, and restoration
+from the world map, credits, and other overworld scenes.
+
+Forced-blank paths process every batch synchronously. Display-on full reloads
+process palette-source descriptors in the main loop and submit nonempty VRAM
+lists through `$17=$03`; they do not require another list format. Mirror and
+whirlpool loads update `$7EC300` while their cover effect remains active, then
+let the existing filter derive `$7EC500` and CGRAM as the effect clears.
+Continue reloading the complete applicable asset set for every destination and
+do not add residency tracking.
+
+## Submilestone 9B.4: animated tiles
+
+The current area loader decompresses animated overworld frames into WRAM, and
+the normal per-frame NMI group uploads one selected frame from there. Replace
+that with generated ROM frames using the queue introduced in 9B.2.
+
+An area may activate multiple animation tracks. Each generated track defines
+one or more destination character rows, the shared row payloads for every
+frame, its frame count, update period, and initial phase. Runtime state keeps
+an independent frame index and countdown for each active track. When a
+countdown expires, the main loop appends that track's next ROM-to-VRAM
+descriptors to a dedicated WRAM list; several tracks may therefore update in
+the same NMI while others update on different frames.
+
+Build one batch in dedicated WRAM using the same null-terminated
+palette-then-VRAM format, normally with an empty palette list. The `$12`
+main-loop/NMI handshake protects it. Suspend ordinary animation scheduling
+while a transition owns the asset queue, and do not reuse `$1100`, which
+remains owned by BG1/BG2 streaming.
+
+Remove only the animated-background portion of the normal per-frame graphics
+DMA group; Link, item, follower, and OBJ updates remain unchanged. Generated
+animation schedules must enforce the combined NMI byte and cycle budget. If
+simultaneous tracks exceed it, change their generated phases or reject the
+bundle rather than silently dropping an update.
+
+This checkpoint is complete when vanilla animations match, at least two test
+tracks can run with different periods or phases, and no animated overworld
+graphics depend on `DecompressAnimatedOverworldTiles` or its WRAM frame cache.
+
+Milestone 9B is complete only after every overworld load and restoration path
+uses the generated descriptors and no overworld background asset depends on
+the old graphics or palette loaders.
+
+## Deferred optimization: fine-grained CGRAM uploads
+
+This optimization applies only to ordinary area-scrolling transitions, where
+no transition palette filter is active. Initially these transitions may use
+vanilla `$15` to upload all 512 bytes of `$7EC500` even when only one or two
+background palette rows changed. Keep this simple path unless NMI measurements
+show that it is too expensive.
+
+If needed, extend the existing palette control:
+
+```text
+$15 = $00: no palette upload
+$15 = $80: upload rows selected by an 8-bit BG-row mask
+other nonzero values: upload all 512 bytes
+```
+
+Each dirty bit selects one of the eight 32-byte background palette rows. The
+main loop loads the row into `$7EC300`, copies it unchanged to the matching
+`$7EC500` row, and sets its bit. NMI transfers each selected row directly from
+`$7EC300` to the corresponding CGRAM row, then clears the mask. Keeping
+`$7EC500` synchronized ensures that a later vanilla full upload or palette
+effect cannot restore stale colors.
+
+A pending full upload supersedes the mask; if legacy code increments
+`$15=$80`, the resulting `$81` also selects the full upload. The full-upload
+path must clear the mask as well.
+
+This palette submode remains independent of `$17=$03`, so fine-grained CGRAM
+and ROM-to-VRAM queues may run in the same NMI when their combined measured
+budget permits it.
