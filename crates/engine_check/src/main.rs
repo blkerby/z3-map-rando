@@ -288,6 +288,21 @@ mod tests {
         assert!(after_bg1_horizontal > u8::MAX as usize);
         assert_eq!(complete_list, 356);
         assert!(complete_list <= 0x1980 - 0x1100);
+
+        let mirror_margins = |left: u16| {
+            [
+                left.wrapping_sub(2) & 63,
+                left.wrapping_sub(1) & 63,
+                (left + 33) & 63,
+            ]
+        };
+        assert_eq!(mirror_margins(0), [62, 63, 33]);
+        assert_eq!(mirror_margins(31), [29, 30, 0]);
+        assert_eq!(mirror_margins(63), [61, 62, 32]);
+
+        let mirror_list = 7 * split_column + 2;
+        assert_eq!(mirror_list, 464);
+        assert!(mirror_list <= 0x1980 - 0x1100);
     }
 
     #[test]

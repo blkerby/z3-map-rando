@@ -28,6 +28,10 @@ lorom
 
 !BG2BulkFreeStart = $9BB1E0
 !BG2BulkFreeEnd = $9BB800
+!BGMirrorEmitFreeStart = $9BBEEC
+!BGMirrorEmitFreeEnd = $9BBF02
+!BGMirrorFreeStart = $9BC9F0
+!BGMirrorFreeEnd = $9BCA23
 
 !NMISkipOAM = $0702
 
@@ -169,9 +173,9 @@ BGStreamerAdvanceWhirlpooling:
 
 ; MirrorWarp_Initialize
 ;
-; Before changing $8A to the destination world, fill the three source-world
-; columns that the horizontal-scroll HDMA can expose outside the normal
-; 33-tile window.
+; Before changing $8A to the destination world, fill the source-world columns
+; that the horizontal-scroll HDMA can expose outside the normal 33-tile
+; windows.
 org $82B158
     JSL BG2MirrorInitialize
 
@@ -1809,7 +1813,7 @@ BGCalculateVRAMAddress:
 BG2MirrorInitialize:
     STZ.w $420C                 ; HDMAEN: stop hardware before rewriting its table.
     JSL $80FDEE                 ; InitializeMirrorHDMA
-    JSR BG2BuildMirrorMargins
+    JSR BGMirrorBuildMargins
     STZ.b $9B                   ; Do not combine the margin DMA with HDMA startup.
     RTL
 
@@ -1898,10 +1902,10 @@ BG2MirrorRunAnimation:
 .keep_hdma
     RTS
 
-; Step 10 retains its animated-tile work, then repairs the mirror margins.
+; Step 10 retains its animated-tile work, then repairs both layers' margins.
 BG2MirrorRenderMargins:
     JSL $80D915                 ; AnimateMirrorWarp_DecompressAnimatedTiles
-    JSR BG2BuildMirrorMargins
+    JSR BGMirrorBuildMargins
     RTL
 
 ;---------------------------------------------------------------------------------------------------
@@ -1909,11 +1913,11 @@ BG2MirrorRenderMargins:
 ;
 ; The HDMA oscillator reaches -9..+9 pixels. Across every possible subpixel
 ; camera position, the normal left..left+32 window therefore needs columns
-; left-2, left-1, and left+33. At the far-right area edge, also repair the
-; normal window's out-of-bounds left+32 column.
+; left-2, left-1, and left+33. BG2 clamps source data at world edges and also
+; repairs an out-of-bounds left+32 column. BG1 wraps its logical 64x64 overlay.
 ;---------------------------------------------------------------------------------------------------
 
-BG2BuildMirrorMargins:
+BGMirrorBuildMargins:
     PHP
     REP #$30
 
@@ -2010,7 +2014,53 @@ BG2BuildMirrorMargins:
 .right_ready
     STA.b $06
     JSR BGEmitColumn
+    JMP BG1BuildMirrorMargins
 
+assert pc() <= !BG2BulkFreeEnd
+
+; A small remainder of the old terrain-property lookup holds the shared
+; source/destination setup for one wrapped BG1 margin column.
+org !BGMirrorEmitFreeStart
+
+BG1EmitMirrorColumn:
+    STA.b $06
+    STA.b $0E
+    JSR BGEmitColumn
+    RTS
+
+assert pc() <= !BGMirrorEmitFreeEnd
+
+; The obsolete vanilla 64x64 Map16 address calculation leaves just enough
+; room for the BG1 half of the shared mirror-margin list.
+org !BGMirrorFreeStart
+
+BG1BuildMirrorMargins:
+    JSR BG1CheckStreamingEnabled
+    BEQ .finish
+
+    JSR BG1SelectRenderer
+    JSR BG1CalculateLogicalWindowOrigin
+
+    ; BG1's logical overlay wraps with its tilemap, so source and destination
+    ; use the same wrapped coordinate for all three exposed columns.
+    LDA.b $00
+    DEC A
+    DEC A
+    AND.w #$003F
+    JSR BG1EmitMirrorColumn
+
+    LDA.b $00
+    DEC A
+    AND.w #$003F
+    JSR BG1EmitMirrorColumn
+
+    LDA.b $00
+    CLC
+    ADC.w #$0021
+    AND.w #$003F
+    JSR BG1EmitMirrorColumn
+
+.finish
     JSR BGFinishList
 
     PLY
@@ -2019,4 +2069,4 @@ BG2BuildMirrorMargins:
     PLP
     RTS
 
-assert pc() <= !BG2BulkFreeEnd
+assert pc() <= !BGMirrorFreeEnd
