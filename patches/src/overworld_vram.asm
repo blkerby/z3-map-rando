@@ -359,12 +359,13 @@ org $82A9F3
     JSL hook_ScrollTransitionBeforeAssetPreparation
     RTS
 
-; Module09_LoadAuxGFX, module $09 submodule $01: retain destination sprite-sheet
-; staging and its incremental-upload reset, but omit BG-sheet decompression,
-; conversion, and the vanilla $17=$09 upload. Continue directly into patched
-; submodule $02, which replaces that work with generated batches.
+; Module09_LoadAuxGFX, module $09 submodules $01/$0F/$1A/$26: retain destination
+; sprite-sheet staging and its incremental-upload reset, but omit BG-sheet
+; decompression, conversion, and the vanilla $17=$09 upload. Mosaic phase $0F
+; also installs the destination bundle while forced blank remains active.
+; Continue directly into the following patched submodule in the same frame.
 org $82AAAF
-    JSL $80D739                 ; LoadTransAuxGFX_sprite
+    JSL hook_Module09AuxGraphicsPreparation
     INC.b $11
     JMP.w $AABB                 ; Tail-dispatch submodule $02 in the same frame.
 assert pc() == $82AAB8
@@ -376,9 +377,10 @@ org $82AABB
     JML hook_Module09BeforePreScrollAssetBatch
 assert pc() == $82AABF
 
-; RunScrollOverworldTransition, module $09 submodule $06: retain the vanilla
-; IncrementalVRAMUpload call, then queue any generated batch assigned to the
-; scrolling frame that is about to begin.
+; RunScrollOverworldTransition, module $09 submodules $06/$14: retain the
+; vanilla IncrementalVRAMUpload call. Ordinary scrolling phase $06 then queues
+; any generated batch assigned to the frame about to begin; mosaic phase $14
+; already completed a forced-blank full reload and has no scrolling schedule.
 org $82AADD
     JSL hook_RunScrollBeforeScrollStep
 assert pc() == $82AAE1
@@ -1018,6 +1020,18 @@ hook_Module09BeforeSpecialSpriteReload:
     JSL $89AFD6                 ; Run hi-jacked instruction
     RTL
 
+hook_Module09AuxGraphicsPreparation:
+    JSL $80D739                 ; LoadTransAuxGFX_sprite
+
+    LDA.b $11
+    CMP.b #$0F
+    BNE .return
+
+    JSR SynchronousLoadCurrentOverworldAssets
+
+.return
+    RTL
+
 hook_FluteLoadLandingScreenPalettes:
     LDA.b #$01
     STA.l !GeneratedAssetMarker
@@ -1282,11 +1296,13 @@ InitializeScrollingAssetSchedule:
 
 ; Replace the obsolete mode-$0A preparation submodule. Ordinary scrolling
 ; transitions consume their initialized pre-scroll schedule one batch per
-; frame. Special-overworld entry and exit reach the same code as submodules
-; $1B and $27 after their assets were synchronously loaded during forced blank,
-; so advance them directly to mosaic recovery or map rebuilding.
+; frame. Mosaic phases $10/$1B/$27 reach the same code after their assets were
+; synchronously loaded during forced blank, so advance them directly to map
+; rebuilding or mosaic recovery.
 hook_Module09BeforePreScrollAssetBatch:
     LDA.b $11
+    CMP.b #$10
+    BEQ .advance
     CMP.b #$1B
     BEQ .advance
     CMP.b #$27
@@ -1306,11 +1322,19 @@ hook_Module09BeforePreScrollAssetBatch:
 .return
     JML $82AAC4                 ; Return through the vanilla RTS.
 
-; Retain the sprite upload queued by the displaced call, then consume the
-; optional batch for the zero-based scroll frame in $0126.
+; Retain the sprite upload queued by the displaced call. Consume the optional
+; batch for the zero-based scroll frame in $0126 only during ordinary phase
+; $06; phase $14 is the scrolling portion of a mosaic transition.
 hook_RunScrollBeforeScrollStep:
     JSL $80DF3F                 ; Run hi-jacked instruction
+
+    LDA.b $11
+    CMP.b #$14
+    BEQ .return
+
     JSR ProcessScheduledScrollAssetBatch
+
+.return
     RTL
 
 ; Consume one pointer from a pre- or post-scroll section.
