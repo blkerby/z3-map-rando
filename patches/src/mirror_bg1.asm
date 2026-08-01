@@ -25,7 +25,7 @@ lorom
 ; "SEP #$20 : LDA #$C0 : STA $9B : RTL" with channel-6 setup, the initial
 ; BG1 table build, and the same HDMA-enable request.
 org $80FE57
-    JML MirrorBG1Initialize
+    JML hook_InitializeMirrorHDMAAfterTableBuild
 
 ; MirrorWarp_BuildWavingHDMATable
 ;
@@ -33,27 +33,27 @@ org $80FE57
 ; loading the destination. Refresh BG1 even on frames where vanilla leaves
 ; its wave table unchanged. Updating frames refresh it after finishing $1B00.
 org $80FE68
-    JML MirrorBG1CheckWavingFrame
+    JML hook_MirrorWarpWavingFrameStart
     NOP
 
 ; The final value still needs to be written to $1B08 and $1B0C before the
 ; completed vanilla table is translated for BG1.
 org $80FF26
-    JML MirrorBG1FinishWavingFrame
+    JML hook_MirrorWarpWavingTableComplete
 
 ; MirrorWarp_BuildDewavingHDMATable has the same alternating-frame behavior.
 org $80FF33
-    JML MirrorBG1CheckDewavingFrame
+    JML hook_MirrorWarpDewavingFrameStart
     NOP
 
 ; The dewave routine has multiple branches to this common return. Use the
 ; adjacent vanilla free space for a same-bank trampoline.
 org $80FFB4
-    BRA MirrorBG1FinishDewavingTrampoline
+    BRA hook_MirrorWarpDewavingCommonReturn
     NOP
 
 org $80FFB7
-MirrorBG1FinishDewavingTrampoline:
+hook_MirrorWarpDewavingCommonReturn:
     JML MirrorBG1FinishDewavingFrame
 
 ; Obsolete Map32 expansion space in bank $02.
@@ -61,7 +61,7 @@ org !free_space_bank_82_start
 
 ; Configure channel 6 to read a separate indirect table, build its initial
 ; values, then reproduce InitializeMirrorHDMA's displaced tail.
-MirrorBG1Initialize:
+hook_InitializeMirrorHDMAAfterTableBuild:
     PHP
 
     SEP #$20
@@ -78,15 +78,17 @@ MirrorBG1Initialize:
     JSR MirrorBG1CopyTable
 
     PLP
-    SEP #$20
 
+    ; Run hi-jacked instructions:
+    SEP #$20
     LDA.b #$C0
     STA.b $9B
     RTL
 
 ; Preserve vanilla's odd-frame early return, but first account for any BG1
 ; base-scroll change made by AnimateMirrorWarp.
-MirrorBG1CheckWavingFrame:
+hook_MirrorWarpWavingFrameStart:
+    ; Run hi-jacked instructions:
     LDA.b $1A
     LSR A
     BCC .update
@@ -101,7 +103,8 @@ MirrorBG1CheckWavingFrame:
 
 ; Complete the four identical leading values written by vanilla, then build
 ; BG1 from the finished wave table.
-MirrorBG1FinishWavingFrame:
+hook_MirrorWarpWavingTableComplete:
+    ; Run hi-jacked instructions:
     STA.w $1B08
     STA.w $1B0C
 
@@ -109,7 +112,8 @@ MirrorBG1FinishWavingFrame:
     SEP #$30
     RTL
 
-MirrorBG1CheckDewavingFrame:
+hook_MirrorWarpDewavingFrameStart:
+    ; Run hi-jacked instructions:
     LDA.b $1A
     LSR A
     BCC .update
@@ -125,6 +129,8 @@ MirrorBG1CheckDewavingFrame:
 MirrorBG1FinishDewavingFrame:
     REP #$30
     JSR MirrorBG1CopyTable
+
+    ; Run hi-jacked instructions:
     SEP #$30
     RTL
 

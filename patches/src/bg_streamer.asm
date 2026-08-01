@@ -77,10 +77,10 @@ org $82A423
 ; its previous position. Skip that special setup so the old area's BG1 does
 ; not jump when either destination is randomized next to another overlay.
 org $8BFF76
-    BRA BGStreamerUseRegularTransitionScroll
+    BRA return_OverworldSetFixedColAndScrollAfterOverlaySpecialCase
 
 org $8BFF9D
-BGStreamerUseRegularTransitionScroll:
+return_OverworldSetFixedColAndScrollAfterOverlaySpecialCase:
 
 ; OverworldScrollTransition
 ;
@@ -88,10 +88,10 @@ BGStreamerUseRegularTransitionScroll:
 ; $1B and $5B. Apply the ordinary store for every area so Castle and Pyramid
 ; BG1 scroll smoothly through the transition too.
 org $82BF65
-    BRA BGStreamerApplyTransitionScrollToBG1
+    BRA return_OverworldScrollTransitionBG1Store
 
 org $82BF6F
-BGStreamerApplyTransitionScrollToBG1:
+return_OverworldScrollTransitionBG1Store:
 
 ; Module09_LoadNewMapAndGFX
 ;
@@ -144,13 +144,13 @@ org $82B283
 org $82B3C7
     STZ.b $15
     INC.w !NMISkipOAM
-    BRA BGStreamerWhirlpoolBlueRemoval
+    BRA return_WhirlpoolBeforeBlueRemoval
     NOP
 
 ; $B0=$04 or $06, Module09_2E_04. Vanilla queued one BG1 half through
 ; $17=$0D. That upload is obsolete, so advance directly to the next state.
 org $82B3CF
-    BRA BGStreamerAdvanceWhirlpooling
+    BRA return_WhirlpoolBeforeStateAdvance
     NOP
     NOP
     NOP
@@ -161,17 +161,17 @@ org $82B3CF
 ; with the OAM omission needed by the BG2 NMI, then enable the blue screen.
 org $82B3D9
     INC.w !NMISkipOAM
-    BRA BGStreamerEnableWhirlpoolScreen
+    BRA return_WhirlpoolBeforeBlueScreenEnable
     NOP
 
 org $82B426
-BGStreamerWhirlpoolBlueRemoval:
+return_WhirlpoolBeforeBlueRemoval:
 
 org $82B42A
-BGStreamerEnableWhirlpoolScreen:
+return_WhirlpoolBeforeBlueScreenEnable:
 
 org $82B42E
-BGStreamerAdvanceWhirlpooling:
+return_WhirlpoolBeforeStateAdvance:
 
 ; MirrorWarp_Initialize
 ;
@@ -179,7 +179,7 @@ BGStreamerAdvanceWhirlpooling:
 ; that the horizontal-scroll HDMA can expose outside the normal 33-tile
 ; windows.
 org $82B158
-    JSL BG2MirrorInitialize
+    JSL hook_MirrorWarpBeforeWorldChange
 
 ; MirrorWarp_BuildWavingHDMATable
 ;
@@ -187,7 +187,7 @@ org $82B158
 ; is white during these loading steps. While the destination tilemap is being
 ; staged, keep it off until the final margin repair has also been transferred.
 org $80FE64
-    JML BG2MirrorRunAnimation
+    JML hook_MirrorWarpWavingFrameAfterAnimation
 
 ; AnimateMirrorWarp_DrawDestinationScreen
 ;
@@ -203,10 +203,10 @@ org $80D8F7
 ; logical overlay. Skip the following vanilla $17=$0C BG1 half upload and
 ; return through the routine's existing RTL at $80D8F2.
 org $80D8EB
-    BRA BGStreamerMirrorOverlayA2Done
+    BRA return_MirrorWarpAfterOverlayAUpload
 
 org $80D8F2
-BGStreamerMirrorOverlayA2Done:
+return_MirrorWarpAfterOverlayAUpload:
 
 ; AnimateMirrorWarp step 8, AnimateMirrorWarp_DoSpritesPalettes.
 ; MirrorWarp_LoadSpritesAndColors has just finalized the destination BG1
@@ -218,7 +218,7 @@ org $80D8FF
 ; The now-unreachable remainder of step 8 is reused as a bank-00 trampoline
 ; for the step-10 mirror margins.
 org $80D903
-    JML BG2MirrorRenderMargins
+    JML hook_MirrorWarpMarginPhase
 
 ; AnimateMirrorWarp_TriggerOverlayB is used by both steps 6 and 9. Its only
 ; purpose was the vanilla $17=$0D BG1 half upload, so both steps now return.
@@ -293,20 +293,20 @@ org $82EB11
 ; has no clear purpose: the VRAM tilemap is already populated before the clear.
 ; It would, however, mess up our streaming renderer, so we skip it.
 org $82EC2E
-    BRA BGStreamerOverlayRowClearDone
+    BRA return_DrawOverworldAfterFirstRowClear
 
 org $82EC4C
-BGStreamerOverlayRowClearDone:
+return_DrawOverworldAfterFirstRowClear:
 
 ; SomeTilemapChange
 ;
 ; Module09_LoadNewMapAndGFX performs the same clear during scrolling
 ; area transitions. Again we skip it.
 org $82ED51
-    BRA BGStreamerMapChangeRowClearDone
+    BRA return_ScrollingTransitionAfterFirstRowClear
 
 org $82ED6B
-BGStreamerMapChangeRowClearDone:
+return_ScrollingTransitionAfterFirstRowClear:
 
 ; LoadOverworldOverlay
 ;
@@ -314,13 +314,13 @@ BGStreamerMapChangeRowClearDone:
 ; BuildBGOverlayFromMap16 and its $17=$04 full upload. Presentation modules
 ; retain the vanilla build and upload.
 org $82FA7D
-    JSR PrepareBG1OverlayForLoad
-    BEQ BGStreamerOverlayLoadDone
+    JSR hook_LoadOverworldOverlayBeforeUploadRequest
+    BEQ return_LoadOverworldOverlayAfterUploadRequest
     STA.b $17
     STA.w $0710
 
 org $82FA87
-BGStreamerOverlayLoadDone:
+return_LoadOverworldOverlayAfterUploadRequest:
 
 ; Overworld_LoadSubscreenAndSilenceSFX1
 ;
@@ -330,7 +330,7 @@ BGStreamerOverlayLoadDone:
 ; an activate display (mirror, whirlpool) the PPU setup is assumed to
 ; already be correct.
 org $82AE3B
-    JSL BG1SelectOverworldLayout
+    JSL hook_LoadOverworldSubscreenBeforeSFX
     NOP
 
 ; LoadUnderworldEntrance
@@ -339,7 +339,7 @@ org $82AE3B
 ; entrance loader. The replacement routine also performs the overwritten
 ; "LDA #$01 : STA $1B".
 org $82D61A
-    JSR BGRestoreUnderworldLayouts
+    JSR hook_LoadUnderworldEntranceBeforeEnvironmentFlag
     NOP
 
 ; LoadOverworldOverlay is shared by gameplay loads and self-contained scenes.
@@ -351,7 +351,7 @@ org $82D61A
 ;   $0D: upload rain's 64x32 tilemap from the former 4 KiB staging half.
 ; This routine uses free space left by the obsolete overlay loader.
 org $82F544
-PrepareBG1OverlayForLoad:
+hook_LoadOverworldOverlayBeforeUploadRequest:
     LDA.b $10
     CMP.b #$15                  ; Mirror step 8 queues its streamed BG1.
     BEQ .done
@@ -410,17 +410,19 @@ PrepareBG1OverlayForLoad:
 
 ; Select the overworld's 64x32 BG1 layout, then reproduce the SFX write
 ; displaced at Overworld_LoadSubscreenAndSilenceSFX1.
-BG1SelectOverworldLayout:
+hook_LoadOverworldSubscreenBeforeSFX:
     LDA.b #$69                  ; base=$6800, width=64, height=32
     STA.w $2107                 ; BG1SC
 
+    ; Run hi-jacked instructions:
     LDA.b #$05                  ; SFX1.05
     STA.w $012D
+
     RTL
 
 ; Restore vanilla's 64x64 underworld layouts and reproduce the displaced
 ; entrance-loader store. This is in bank $02 so its hook needs only a JSR.
-BGRestoreUnderworldLayouts:
+hook_LoadUnderworldEntranceBeforeEnvironmentFlag:
     PHP
     SEP #$20
 
@@ -441,6 +443,7 @@ BGRestoreUnderworldLayouts:
     STA.w $0219
     SEP #$20
 
+    ; Run hi-jacked instructions:
     LDA.b #$01
     STA.b $1B                   ; Mark the active environment as indoors.
 
@@ -516,7 +519,7 @@ assert pc() <= $82F6FD
 
 org !free_space_bank_82_start
 
-CreditsStreamBackgrounds:
+hook_CreditsAfterScrollUpdate:
     REP #$20
 
     LDA.b $E2
@@ -531,19 +534,22 @@ CreditsStreamBackgrounds:
     SEP #$20
     RTL
 
-Module19RenderBG1:
-    JSR.w $C44F                 ; SpecialOverworld_CopyPalettesToCache
+hook_Module19AfterBG1ScrollFinalized:
+    JSR.w $C44F                 ; Run hi-jacked instruction
     JSL BG1BulkRender
-    INC.b $B0
+    INC.b $B0                   ; Run hi-jacked instruction
     RTL
 
-CreditsPrepareCoolBackground:
+hook_CreditsCoolBackgroundAfterOverlayLoad:
     REP #$20
+
+    ; Run hi-jacked instructions:
     STZ.b $E0
     STZ.b $E6
+
     STZ.w $0120
     STZ.w $0124
-    JMP.w $AE40                 ; Tail-call ReloadSubscreenOverlay.
+    JMP.w $AE40                 ; Run hi-jacked instruction
 
 assert pc() <= !free_space_bank_82_end
 
@@ -557,7 +563,7 @@ assert pc() <= !free_space_bank_82_end
 ; Replace it with the new streamer's destination-edge preload (only needed
 ; for eastward transitions).
 org $82ED95
-    JSL BG2SeedTransitionEdge
+    JSL hook_CreateInitialNewScreenMap
     RTS
 
 ; OverworldTransitionScrollAndLoadMap
@@ -588,7 +594,7 @@ org $82EFD7
 ; Credits use the same overworld rings but update their scrolls outside the
 ; normal overworld module. Stream their finalized BG2 and BG1 edges each frame.
 org $8285B9
-    JML CreditsStreamBackgrounds
+    JML hook_CreditsAfterScrollUpdate
     NOP
     NOP
     NOP
@@ -600,7 +606,7 @@ assert pc() == $8285C2
 ; vanilla. Reset both live and finalized scrolls first so the ring is built at
 ; the position the scene will display.
 org $8285F1
-    JSR CreditsPrepareCoolBackground
+    JSR hook_CreditsCoolBackgroundAfterOverlayLoad
     NOP
     NOP
     NOP
@@ -616,7 +622,7 @@ assert pc() == $8285FC
 ; The Triforce room finalizes its BG1 scroll after loading the overlay. Render
 ; the ring in the following phase, before BG2 is built.
 org $829F7A
-    JML Module19RenderBG1
+    JML hook_Module19AfterBG1ScrollFinalized
     NOP
     NOP
 assert pc() == $829F80
@@ -910,7 +916,7 @@ BGFinishList:
 ; crosses a tile boundary and invokes the normal vertical streamer.
 ;---------------------------------------------------------------------------------------------------
 
-BG2SeedTransitionEdge:
+hook_CreateInitialNewScreenMap:
     PHP
     REP #$30
 
@@ -961,7 +967,7 @@ BG2SeedTransitionEdge:
 ;---------------------------------------------------------------------------------------------------
 
 BG2StreamHorizontal:
-    STA.b $E2                   ; Preserve the first overwritten vanilla store.
+    STA.b $E2                   ; Run hi-jacked instruction
 
     PHP                         ; The caller has 16-bit A but 8-bit X/Y.
     REP #$30
@@ -978,7 +984,8 @@ BG2StreamHorizontal:
     STA.b $0A
 
     LDA.b $E2
-    STA.w $011E                 ; Preserve the second overwritten vanilla store.
+
+    STA.w $011E                 ; Run hi-jacked instruction
     LSR A
     LSR A
     LSR A
@@ -1022,7 +1029,7 @@ BG2StreamHorizontal:
 ;---------------------------------------------------------------------------------------------------
 
 BG2StreamVertical:
-    STA.b $E8                   ; Preserve the first overwritten vanilla store.
+    STA.b $E8                   ; Run hi-jacked instruction
 
     PHP                         ; The caller has 16-bit A but 8-bit X/Y.
     REP #$30                    ; Use 16-bit coordinates, offsets, and tiles.
@@ -1037,7 +1044,8 @@ BG2StreamVertical:
     STA.b $0A
 
     LDA.b $E8
-    STA.w $0122                 ; Preserve the second overwritten vanilla Y store.
+
+    STA.w $0122                 ; Run hi-jacked instruction
     LSR A                       ; Convert the new scroll to its tile row.
     LSR A
     LSR A
@@ -1087,7 +1095,7 @@ BG2StreamVertical:
 ;---------------------------------------------------------------------------------------------------
 
 BG1StreamHorizontal:
-    STA.b $E0                   ; Preserve the first overwritten vanilla store.
+    STA.b $E0                   ; Run hi-jacked instruction
 
     PHP                         ; The caller has 16-bit A but 8-bit X/Y.
     REP #$30
@@ -1102,7 +1110,8 @@ BG1StreamHorizontal:
     STA.b $0A
 
     LDA.b $E0
-    STA.w $0120                 ; Preserve the second overwritten vanilla store.
+
+    STA.w $0120                 ; Run hi-jacked instruction
     LSR A
     LSR A
     LSR A
@@ -1142,7 +1151,7 @@ BG1StreamHorizontal:
     RTL
 
 BG1StreamVertical:
-    STA.b $E6                   ; Preserve the first overwritten vanilla store.
+    STA.b $E6                   ; Run hi-jacked instruction
 
     PHP                         ; The caller has 16-bit A but 8-bit X/Y.
     REP #$30
@@ -1159,7 +1168,8 @@ BG1StreamVertical:
     STA.b $0A
 
     LDA.b $E6
-    STA.w $0124                 ; Preserve the second overwritten vanilla store.
+
+    STA.w $0124                 ; Run hi-jacked instruction
     LSR A
     LSR A
     LSR A
@@ -1890,14 +1900,14 @@ BGCalculateVRAMAddress:
 ; Prepare the source-world margins before MirrorWarp_Initialize changes $8A.
 ;---------------------------------------------------------------------------------------------------
 
-BG2MirrorInitialize:
+hook_MirrorWarpBeforeWorldChange:
     STZ.w $420C                 ; HDMAEN: stop hardware before rewriting its table.
-    JSL $80FDEE                 ; InitializeMirrorHDMA
+    JSL $80FDEE                 ; Run hi-jacked instruction
     JSR BGMirrorBuildMargins
     STZ.b $9B                   ; Do not combine the margin DMA with HDMA startup.
     RTL
 
-BG2MirrorRunAnimation:
+hook_MirrorWarpWavingFrameAfterAnimation:
     ; Choose the next NMI's HDMA state before running an animation step.
     ; Several loading steps take most of a frame; setting $9B afterward lets
     ; NMI observe the temporary enabled value in the middle of that work.
@@ -1962,7 +1972,7 @@ BG2MirrorRunAnimation:
     BRA .animation_done
 
 .run_animation
-    JSL $80EEE2                 ; MirrorWarp_RunAnimationSubmodules
+    JSL $80EEE2                 ; Run hi-jacked instruction
 
 .animation_done
     JSR .prepare_nmi
@@ -1983,8 +1993,8 @@ BG2MirrorRunAnimation:
     RTS
 
 ; Step 10 retains its animated-tile work, then repairs both layers' margins.
-BG2MirrorRenderMargins:
-    JSL $80D915                 ; AnimateMirrorWarp_DecompressAnimatedTiles
+hook_MirrorWarpMarginPhase:
+    JSL $80D915                 ; Run hi-jacked instruction
     JSR BGMirrorBuildMargins
     RTL
 

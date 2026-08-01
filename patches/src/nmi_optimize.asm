@@ -140,15 +140,15 @@ assert pc() <= $8083F8
 ; documented free WRAM may skip it; $0710 retains its separate vanilla role
 ; of suppressing the normal graphics DMA group.
 org $808BCD
-NMIAfterOAM:
+return_NMIAfterOAMUpload:
 
 org $808BAA
-    JML.l NMIPrepareOAM
+    JML.l hook_NMIBeforeOAMUpload
 
 org $808C22
 HandleArbitraryDMA:
     LDA.b $18
-    BEQ .no_arb_dma
+    BEQ return_NMIAfterArbitraryDMA
 
     REP #$10                    ; 16-bit X/Y; leave A 8-bit.
 
@@ -191,22 +191,23 @@ HandleArbitraryDMA:
     SEP #$30
     STZ.b $18
     STZ.w $0710
-    BRA .no_arb_dma
+    BRA return_NMIAfterArbitraryDMA
 
 assert pc() <= $808C75
 org $808C75
-.no_arb_dma
+return_NMIAfterArbitraryDMA:
 
 org $A7E345
-NMIPrepareOAM:
+hook_NMIBeforeOAMUpload:
     LDA.w !NMISkipOAM
     REP #$20
     SEP #$10
     BEQ .upload_oam
 
     STZ.w !NMISkipOAM           ; Consume the one-shot request.
-    STZ.b $15                   ; Reproduce the displaced clear.
-    JML.l NMIAfterOAM
+
+    STZ.b $15                   ; Run hi-jacked instruction
+    JML.l return_NMIAfterOAMUpload
 
 .upload_oam
     JML.l $808BAE               ; Resume at the displaced STZ $15.

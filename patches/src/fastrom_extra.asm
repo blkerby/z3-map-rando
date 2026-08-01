@@ -6,7 +6,7 @@
 ; vanilla's NMITIMEN setup with a jump that enables both FastROM and NMI,
 ; then continues into the FastROM mirror of the main loop.
 org $80802F
-    JML FastROMEnable
+    JML hook_InitializeMemoryAndSRAMAfterReturn
     NOP
 
 assert pc() == $808034
@@ -14,7 +14,7 @@ assert pc() == $808034
 ; Hardware enters NMI through the 16-bit vector in bank $00. Jump to a
 ; high-bank copy before doing the substantial NMI work.
 org $8080C9
-    JML FastROMNMIEntry
+    JML hook_NMIEntry
 
 ; Mark the cartridge as FastROM LoROM rather than SlowROM LoROM.
 org $80FFD5
@@ -22,10 +22,11 @@ org $80FFD5
 
 ; Obsolete Map32 expansion space, immediately after mirror_bg1.asm.
 org $82F46C
-FastROMEnable:
+hook_InitializeMemoryAndSRAMAfterReturn:
     LDA.b #$01
     STA.l $00420D
 
+    ; Run hi-jacked instructions:
     LDA.b #$81
     STA.l $004200
 
@@ -33,10 +34,12 @@ FastROMEnable:
 
 ; Reproduce the NMI instructions displaced by the entry hook, then continue
 ; through the existing routine's FastROM mirror.
-FastROMNMIEntry:
+hook_NMIEntry:
+    ; Run hi-jacked instructions:
     SEI
     REP #$30
     PHA
+
     JML $8080CD
 
 ;===================================================================================================

@@ -26,7 +26,7 @@ lorom
 
 ; Vanilla has loaded the next horizontal-stripe Map16 ID into A.
 org $82F1AD
-CreateMap16Stripes_Horizontal_Banked_Next:
+return_CreateMap16StripesHorizontalLoop:
 
 org $82F1B6
     ASL A
@@ -51,7 +51,7 @@ org $82F1B6
     INY
 
     DEC.b $06
-    BNE CreateMap16Stripes_Horizontal_Banked_Next
+    BNE return_CreateMap16StripesHorizontalLoop
 
     TYA
     CLC
@@ -63,7 +63,7 @@ assert pc() <= $82F1E4
 
 ; Vanilla has loaded the next vertical-stripe Map16 ID into A.
 org $82F275
-CreateMap16Stripes_Vertical_Banked_Next:
+return_CreateMap16StripesVerticalLoop:
 
 org $82F27E
     ASL A
@@ -88,7 +88,7 @@ org $82F27E
     INY
 
     DEC.b $06
-    BNE CreateMap16Stripes_Vertical_Banked_Next
+    BNE return_CreateMap16StripesVerticalLoop
 
     TYA
     CLC

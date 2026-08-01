@@ -157,7 +157,7 @@ assert pc() == $8EFBE5
 org !free_space_bank_82_start
 hook_Module15LoadOverworld:
     JSL SelectOverworldVRAM
-    JMP.w $E207                 ; Tail-call LoadOverworldFromUnderworld.
+    JMP.w $E207                 ; Run hi-jacked instruction
 assert pc() <= !free_space_bank_82_end
 
 org !free_space_bank_any_start
@@ -168,6 +168,7 @@ hook_Module08LoadProperties:
     ; Run hi-jacked instructions:
     LDA.b #$82
     STA.b $99
+
     RTL
 
 hook_Module08InitializeTilesets:
@@ -179,7 +180,7 @@ hook_Module08InitializeTilesets:
 
     ; Keep InitializeTilesets' sprite loading and BG sheet-cache setup. The
     ; hook at $80E2C2 returns before it decompresses the static BG sheets.
-    JSL $80E1DB                 ; InitializeTilesets
+    JSL $80E1DB                 ; Run hi-jacked instruction
     RTL
 
 ; Install generated source palettes and static BG characters after the
@@ -188,7 +189,8 @@ hook_Module08InitializeTilesets:
 hook_Module08AfterBGPaletteSelection:
     JSR LoadGeneratedOverworldAssets
     STZ.w $0412
-    JSL $8CFF91                 ; SetOverworldBackgroundColor
+
+    JSL $8CFF91                 ; Run hi-jacked instruction
     RTL
 
 ; OverworldLoadScreensPaletteSet still loads sprite, equipment, Link, and HUD
@@ -198,7 +200,8 @@ hook_OverworldScreenPalettesAfterHUD:
     LDA.w $0412
     CMP.b #!GeneratedAssetMarker
     BEQ .skip
-    JSL $9BEEC7                 ; PaletteLoad_OWBGMain
+
+    JSL $9BEEC7                 ; Run hi-jacked instruction
 .skip
     RTL
 
@@ -208,14 +211,17 @@ hook_OverworldPalettesAfterSetSelection:
     LDA.w $0412
     CMP.b #!GeneratedAssetMarker
     BEQ .skip
+
+    ; Run hi-jacked instructions:
     JSL $9BEEE8                 ; PaletteLoad_OWBG1
     JSL $9BEF0C                 ; PaletteLoad_OWBG2
     JSL $9BEEA8                 ; PaletteLoad_OWBG3
+
 .skip
     RTL
 
 hook_WorldMapOverworldRestore:
-    JSL $80893D                 ; EnableForceBlank
+    JSL $80893D                 ; Run hi-jacked instruction
     JSR SelectAndClearOverworldVRAM
     RTL
 
@@ -363,7 +369,8 @@ BlankCreditsBG3Tile:
 
 ; Tail of InitializeTilesets' displaced background-VRAM setup.
 hook_InitializeTilesetsBeforeBGSetup:
-    REP #$30
+    REP #$30                    ; Run hi-jacked instruction
+
     LDA.w $0219
     CMP.w #!OverworldHUD
     BNE .default
@@ -372,7 +379,7 @@ hook_InitializeTilesetsBeforeBGSetup:
     BRA .store
 
 .default
-    LDA.w #$2000
+    LDA.w #$2000                ; Run hi-jacked instruction
 
 .store
     JML $80E25E
@@ -388,6 +395,7 @@ hook_InitializeTilesetsAfterBGSheetResolution:
     ; Run hi-jacked instructions:
     LDA.b #$07
     STA.b $0F
+
     JML $80E2C8
 
 .skip
@@ -573,7 +581,8 @@ ProcessGeneratedAssetBatch:
 
 ; Tail of NMI_UploadTilemap's displaced destination lookup.
 hook_NMITilemapUploadDestination:
-    LDX.w $0116
+    LDX.w $0116                 ; Run hi-jacked instruction
+
     CPX.b #$22
     BNE .table
 
@@ -581,31 +590,38 @@ hook_NMITilemapUploadDestination:
     JML $808CB6
 
 .table
-    LDA.w $9888,X              ; TilemapUpload_HighBytes
+    LDA.w $9888,X               ; Run hi-jacked instruction
     JML $808CB6
 
 hook_NMIUpdateBGChar3And4:
+    ; Run hi-jacked instructions:
     REP #$20
     LDA.w #$2C00
+
     JSR RebaseBGCharacterVRAM
     JML $808EEC
 
 hook_NMIUpdateBGChar5And6:
+    ; Run hi-jacked instructions:
     REP #$20
     LDA.w #$3400
+
     JSR RebaseBGCharacterVRAM
     JML $808F1B
 
 hook_NMIBGCharacterDMASetup:
     JSR RebaseBGCharacterVRAM
+
+    ; Run hi-jacked instructions:
     STA.w $2116
     LDA.w #$0000               ; Low word of source $7F0000.
+
     JML $808FCF
 
 hook_DecompressAnimatedOverworldTilesAfterConversion:
-    LDA.w #$3C00
+    LDA.w #$3C00                ; Run hi-jacked instruction
     JSR RebaseBGCharacterVRAM
-    STA.w $0134
+    STA.w $0134                 ; Run hi-jacked instruction
     RTL
 
 ; A.w: VRAM destination. Move shared BG character writes down by $2000 only
@@ -634,10 +650,10 @@ RebaseBGCharacterVRAM:
 ; default $6040 HUD destination. Preserve those offsets and add the active
 ; gameplay destination, defaulting safely when no save has initialized $0219.
 hook_RenderTextPosition:
-    LDA.l $0EFD3E,X
+    LDA.l $0EFD3E,X             ; Run hi-jacked instruction
     SEC
     SBC.w #!DefaultHUD
-    STA.w $1CD2
+    STA.w $1CD2                 ; Run hi-jacked instruction
 
     LDA.w $0219
     CMP.w #!OverworldHUD

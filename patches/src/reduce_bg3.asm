@@ -31,18 +31,18 @@ org $82C284
 ; File select and name entry use both horizontal BG3 blocks. Restore a 64x32
 ; layout while those modules are active, then switch back when loading a file.
 org $8CCC89
-    JSL FileSelectEnableForceBlank
+    JSL hook_FileSelectBackgroundSetup
 assert pc() == $8CCC8D
 
 ; ReinitializeFileSelectGraphics normally calls EraseTilemaps_bg3. The shared
 ; routine now clears only the 32x32 gameplay block, so wrap that call with a
 ; file-select-only clear of the second horizontal block.
 org $8CCDA1
-    JSL EraseFileSelectTilemaps
+    JSL hook_ReinitializeFileSelectGraphics
 assert pc() == $8CCDA5
 
 org $828046
-    JSL GameplayEnableForceBlank
+    JSL hook_LoadFileGameplayBackgroundSetup
 assert pc() == $82804A
 
 ; Keep the complete vanilla NamePlayerTilemap stripe list. Its entries after
@@ -106,7 +106,7 @@ org $8DDE55
 ; opening animation. It scrolls 8 pixels per step, so we queue the menu row
 ; update to bring it into view.
 org $8DDE63
-    JSL ItemMenuScrollOpening
+    JSL hook_ItemMenuOpeningScrollStep
     NOP
 assert pc() == $8DDE68
 
@@ -122,7 +122,7 @@ org $8DDFAC
 ; closing animation. Replace its 8-pixel scroll step and queue the HUD or blank
 ; row that the step brings into view.
 org $8DDFC2
-    JSL ItemMenuScrollClosing
+    JSL hook_ItemMenuClosingScrollStep
 
 ; Credits_InitializeTheActualCredits sets the first attribution's stripe
 ; destination before the credits begin scrolling. Start at VRAM row 0 ($6000)
@@ -140,7 +140,7 @@ org $8EE6E9
 ; Each 8-pixel boundary queues the next attribution; adjust its line index for
 ; the initialization-time draw removed above.
 org $8EE7BA
-    JSL CreditsAdvanceLine
+    JSL hook_CreditsAfterScrollStep
     NOP
     NOP
 assert pc() == $8EE7C0
@@ -160,7 +160,7 @@ org !free_space_bank_any_start
 ; 0 to -232 in 8-pixel steps. Queue the VRAM row at the new top of the ring,
 ; then reproduce vanilla's comparison flags so the caller advances its menu
 ; state at -232.
-ItemMenuScrollOpening:
+hook_ItemMenuOpeningScrollStep:
     SEP #$20
 
     LDA.b #!BG3StreamOpening
@@ -172,17 +172,18 @@ ItemMenuScrollOpening:
     REP #$20
 
     LDA.b $EA
-    CMP.w #$FF18
 
+    ; Run hi-jacked instructions:
+    CMP.w #$FF18
     SEP #$20
+
     RTL
 
 ; Called with 16-bit A. Move the BG3 scroll value in WRAM $00EA back toward 0,
 ; queue the VRAM row entering at the bottom, and reproduce the new scroll
 ; value/flags expected by the caller.
-ItemMenuScrollClosing:
-    ; Run hi-jacked instructions:
-    STA.b $EA
+hook_ItemMenuClosingScrollStep:
+    STA.b $EA                   ; Run hi-jacked instruction
 
     SEP #$20
     LDA.b #!BG3StreamClosing
@@ -198,13 +199,16 @@ ItemMenuScrollClosing:
 ; Convert the scroll position to a zero-based credits line index in WRAM $00CA.
 ; The vanilla initialization-time line was removed, so the first 8-pixel step
 ; is line 0.
-CreditsAdvanceLine:
+hook_CreditsAfterScrollStep:
+    ; Run hi-jacked instructions:
     TYA
     LSR A
     LSR A
     LSR A
+
     DEC A
-    STA.b $CA
+
+    STA.b $CA                   ; Run hi-jacked instruction
 
     RTL
 
@@ -408,16 +412,16 @@ org $A7E35B
 
 ; File select inherits the title-screen PPU setup, but unlike gameplay it
 ; needs both horizontal blocks for the name-entry character grid.
-FileSelectEnableForceBlank:
-    JSL $80893D ; EnableForceBlank
+hook_FileSelectBackgroundSetup:
+    JSL $80893D                 ; Run hi-jacked instruction
     LDA.b #$61
     STA.w $2109 ; BG3SC: VRAM $6000, 64x32
     RTL
 
 ; Module05_LoadFile is the common exit from file select. Restore the reduced
 ; layout before any gameplay tilemap work begins.
-GameplayEnableForceBlank:
-    JSL $80893D ; EnableForceBlank
+hook_LoadFileGameplayBackgroundSetup:
+    JSL $80893D                 ; Run hi-jacked instruction
     LDA.b #$60
     STA.w $2109 ; BG3SC: VRAM $6000, 32x32
     RTL
@@ -425,8 +429,8 @@ GameplayEnableForceBlank:
 ; Preserve the shared gameplay clear: it erases BG1, BG2, and BG3's left block.
 ; File select is force-blanked here, so directly fill only BG3's additional
 ; $400-word block instead of expanding the shared DMA into freed gameplay VRAM.
-EraseFileSelectTilemaps:
-    JSL $808333 ; EraseTilemaps_bg3
+hook_ReinitializeFileSelectGraphics:
+    JSL $808333                 ; Run hi-jacked instruction
 
     ; Increment the VRAM word address after the high-byte write.
     LDA.b #$80
