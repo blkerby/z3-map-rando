@@ -29,6 +29,21 @@ const MAP16_PROPERTY_STARTS: [SnesAddr; 4] = [
 ];
 const RAIN_OVERLAY: usize = 0x9f;
 
+// TEMPORARY: These sources are blanked after importing the generated asset
+// bundle so any remaining use of the vanilla overworld loaders is visible.
+const VANILLA_BG_PALETTE_SOURCES: [(SnesAddr, usize); 3] = [
+    (SnesAddr(0x1be6c8), 6 * 5 * 7 * 2),
+    (SnesAddr(0x1be86c), 20 * 3 * 7 * 2),
+    (SnesAddr(0x1be604), 14 * 7 * 2),
+];
+const GFX_BANK_TABLE_POINTER: SnesAddr = SnesAddr(0x00e7d0);
+const GFX_HIGH_TABLE_POINTER: SnesAddr = SnesAddr(0x00e7d5);
+const GFX_LOW_TABLE_POINTER: SnesAddr = SnesAddr(0x00e7da);
+const BLANK_3BPP_SHEET: SnesAddr = SnesAddr(0xbfe1e0);
+const BLANK_4BPP_SHEET: SnesAddr = SnesAddr(0xbfe1e7);
+const COMPRESSED_BLANK_3BPP: [u8; 7] = [0xe7, 0xff, 0, 0xe5, 0xff, 0, 0xff];
+const COMPRESSED_BLANK_4BPP: [u8; 7] = [0xe7, 0xff, 0, 0xe7, 0xff, 0, 0xff];
+
 #[derive(Parser)]
 struct Args {
     input_rom: PathBuf,
@@ -78,6 +93,59 @@ fn replace_rain_tilemap(flat: &mut FlatMap16) -> Result<()> {
     Ok(())
 }
 
+fn read_u16(rom: &[u8], address: SnesAddr) -> Result<u16> {
+    let start = usize::try_from(PcAddr::from(address).0)?;
+    let bytes = rom
+        .get(start..start + 2)
+        .with_context(|| format!("read past ROM at ${:06X}", address.0))?;
+    Ok(u16::from_le_bytes(bytes.try_into().unwrap()))
+}
+
+fn blank_vanilla_overworld_assets(
+    patcher: &mut Patcher,
+    rom: &[u8],
+    graphics_sheets: &[u8],
+) -> Result<()> {
+    let mut context = patcher.context("temporary blank vanilla BG palettes");
+    for (start, length) in VANILLA_BG_PALETTE_SOURCES {
+        context.write(start.into(), vec![0; length])?;
+    }
+
+    let mut context = patcher.context("temporary blank compressed BG graphics");
+    context.write(BLANK_3BPP_SHEET.into(), COMPRESSED_BLANK_3BPP.to_vec())?;
+    context.write(BLANK_4BPP_SHEET.into(), COMPRESSED_BLANK_4BPP.to_vec())?;
+
+    let tables = [
+        read_u16(rom, GFX_BANK_TABLE_POINTER)?,
+        read_u16(rom, GFX_HIGH_TABLE_POINTER)?,
+        read_u16(rom, GFX_LOW_TABLE_POINTER)?,
+    ];
+    let mut context = patcher.context("temporary redirect vanilla BG graphics");
+    for &sheet in graphics_sheets {
+        if (0x58..=0x5b).contains(&sheet) {
+            // Skip animated tile sheets for now.
+            continue;
+        }
+        anyhow::ensure!(
+            sheet <= 0x72,
+            "invalid overworld graphics sheet {sheet:02X}"
+        );
+        let source = if sheet <= 0x70 {
+            BLANK_3BPP_SHEET.0
+        } else {
+            BLANK_4BPP_SHEET.0
+        };
+        let pointer = [(source >> 16) as u8, (source >> 8) as u8, source as u8];
+        for (&table, &byte) in tables.iter().zip(&pointer) {
+            context.write(
+                SnesAddr(u32::from(table) + u32::from(sheet)).into(),
+                vec![byte],
+            )?;
+        }
+    }
+    Ok(())
+}
+
 fn main() -> Result<()> {
     let args = Args::parse();
     let mut rom = fs::read(&args.input_rom)
@@ -113,6 +181,7 @@ fn main() -> Result<()> {
     let map16_definitions = split_map16_definitions(importer.tiles16()?);
     let map16_properties = split_map16_properties(importer.tiles16()?, &tile_types);
     let area_assets = importer.overworld_area_assets()?;
+    let graphics_sheets = importer.overworld_graphics_sheets()?;
     let asset_bundle = asset_bundle::build(&area_assets)?;
     eprintln!(
         "overworld assets: {} bytes total ({} metadata, {} payload), 16576 DMA bytes/area, {} unique payloads",
@@ -124,6 +193,8 @@ fn main() -> Result<()> {
     rom.resize(2 * 1024 * 1024, 0);
 
     let mut patcher = Patcher::default();
+    blank_vanilla_overworld_assets(&mut patcher, &rom, &graphics_sheets)?;
+
     let mut context = patcher.context("flat Map16 data");
     context.write(FLAT_MAPS_START.into(), flat_map16.maps)?;
     context.write(FLAT_MAP_POINTERS_START.into(), flat_map16.screen_pointers)?;

@@ -67,4 +67,5 @@ $BE8000-$BEFFFF flat Map16 submaps 96-111
 Bank $BF
 $BF8000-$BFDFFF flat Map16 submaps 112-123
 $BFE000-$BFE1DF screen-to-flat-map pointer table
-$BFE1E0-$BFFFFF [FREE]
+$BFE1E0-$BFE1ED engine_check temporary compressed blank graphics sheets
+$BFE1EE-$BFFFFF [FREE]
