@@ -13,39 +13,46 @@ The controls are separate because they serve different recurring workloads:
 fixed HUD and palette buffers, compact tilemap stripe lists, one fixed-size
 graphics chunk, a general DMA list, and specialized bulk-transfer handlers.
 
-`DoNMIUpdates` processes the controls in this order:
+Vanilla `DoNMIUpdates` processes the controls in this order:
 
 1. Upload the normal per-frame graphics group unless `$0710` is nonzero.
 2. Upload the HUD/BG3 buffer if `$16` is nonzero.
 3. Upload CGRAM if `$15` is nonzero, then clear both `$15` and `$16`.
-4. Upload OAM unless the one-shot mirror-transfer flag at `$0702` is set.
+4. Upload OAM.
 5. Process the stripe list selected by `$14`, then clear `$14`.
 6. Perform the incremental upload selected by `$19`, then clear `$19`.
 7. Process the arbitrary DMA list if `$18` is nonzero, then clear `$18` and
    `$0710`.
 8. Clear `$17` and dispatch the NMI handler it selected.
 
+The patched handler changes two parts of this sequence:
+
+- `$0710` skips both the normal graphics group and the HUD/BG3 upload.
+- The new one-shot flag `$0702` can skip the OAM upload.
+
 These mechanisms are independent. For example, setting `$17` does not stop
 the `$14` or `$18` lists from also being processed during the same NMI.
 
 ## Update controls
 
-| Control | Meaning | Lifetime |
-| --- | --- | --- |
-| `$0710` | Suppress the normal per-frame graphics DMA group when nonzero | Cleared by the associated large transfer |
-| `$0702` | Skip one OAM upload during a deliberately flagged mirror transfer | Cleared by NMI |
-| `$16` | Upload the HUD/BG3 buffer | Cleared with `$15` by NMI |
-| `$15` | Upload the complete CGRAM palette | Cleared with `$16` by NMI |
-| `$14` | Process a selected stripe list | Cleared by NMI |
-| `$19` | Perform one 512-byte incremental VRAM upload | Cleared by NMI |
-| `$18` | Process the arbitrary DMA list at `$1100` | Cleared by NMI |
-| `$17` | Dispatch one specialized NMI handler | Cleared before dispatch |
+This table describes the patched game:
+
+| Control | Origin | Meaning | Lifetime |
+| --- | --- | --- | --- |
+| `$0710` | Vanilla; extended by patch | Suppress the normal per-frame graphics and HUD DMA groups when nonzero | Cleared by the associated large transfer |
+| `$0702` | Patch | Skip one OAM upload during a deliberately flagged mirror transfer | Cleared by NMI |
+| `$16` | Vanilla | Upload the HUD/BG3 buffer when `$0710` is zero | Cleared with `$15` by NMI |
+| `$15` | Vanilla | Upload the complete CGRAM palette | Cleared with `$16` by NMI |
+| `$14` | Vanilla | Process a selected stripe list | Cleared by NMI |
+| `$19` | Vanilla | Perform one 512-byte incremental VRAM upload | Cleared by NMI |
+| `$18` | Vanilla | Process the arbitrary DMA list at `$1100` | Cleared by NMI |
+| `$17` | Vanilla; handlers repurposed by patches | Dispatch one specialized NMI handler | Cleared before dispatch |
 
 Except for the 16-bit `$0710`, these are 8-bit direct-page variables.
 
 ### `$0710`: per-frame graphics DMA suppression
 
-At the start of `DoNMIUpdates`, zero permits a group of graphics uploads for:
+In vanilla, zero permits a group of graphics uploads for:
 
 - Link's head, body, hands, sword, shield, and active item
 - followers, item-get graphics, push blocks, rupees, and the flute duck
@@ -71,9 +78,14 @@ that clears it.
 
 ### `$16`: HUD/BG3 upload request
 
-When `$16` is nonzero, NMI uploads `$014A` bytes from `$7EC700` to the
-VRAM destination in `$0219`. It is a one-shot trigger, although regular
-gameplay sets it every frame.
+In vanilla, `$16` requests a `$014A`-byte upload from `$7EC700` to the VRAM
+destination in `$0219`, independently of `$0710`. If `$0710` is nonzero, the
+HUD path assumes DMA0 was left configured for VRAM by the surrounding
+transfer, likely resulting in corruption if it ever occurs. The patch instead
+skips the HUD DMA with the graphics group, avoiding that implicit DMA0-state
+dependency and freeing more vblank time for large transfers. A suppressed
+upload remains in the WRAM buffer, and regular gameplay requests it again
+after the large transfer finishes.
 
 After the optional `$16` HUD and `$15` palette uploads, NMI enters 16-bit
 accumulator mode and executes:
@@ -319,7 +331,7 @@ addresses. It clears `$17` before jumping to the selected handler.
 | `$00` | No tile update | Normal frame with no specialized request |
 | `$01` | Upload tilemap | HUD, item menu, and bottle-menu redraws |
 | `$02` | Upload BG3 text | Message and text screens |
-| `$03` | Update overworld scrolling tilemap data | Vanilla overworld area transitions |
+| `$03` | Upload a generated ROM-to-VRAM character-row list | Overworld asset transitions |
 | `$04` | Update subscreen overlay | Large overlay or tilemap replacement |
 | `$05` | Update BG1 wall | Dungeon wall changes |
 | `$06` | Unused in vanilla | BG3 row streaming in this project |
@@ -340,9 +352,9 @@ addresses. It clears `$17` before jumping to the selected handler.
 | `$18` | Update star tiles | Dungeon star-switch animation |
 
 Most handlers which perform a large transfer clear `$0710` before returning.
-Unlike `$14` and `$18`, `$17` does not describe a general list format. Each
-mode has fixed source, destination, size, or parameter conventions implemented
-by its handler.
+`$17` remains a selector rather than one shared list format: mode `$03` uses
+the generated ROM-source descriptor list, while the other modes retain their
+fixed source, destination, size, or parameter conventions.
 
 ## Related NMI state
 

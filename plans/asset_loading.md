@@ -1,6 +1,6 @@
 # Overworld asset loading
 
-Status: submilestone 9B.1 implemented; gameplay validation pending.
+Status: submilestones 9B.1 and 9B.2 implemented; gameplay validation pending.
 
 ## Goal
 
@@ -253,6 +253,12 @@ resulting VRAM-list address in `$35-$37`, and sets `$17=$03` only when that list
 is nonempty. The `$12` main-loop/NMI handshake protects the pointer. Its stale
 value needs no clearing after NMI consumes `$17`.
 
+Store the persistent scrolling-schedule cursor at `$7EC906-$7EC908`. This is
+immediately after the BG streamer's temporary `$7EC900-$7EC904` parameters and
+remains valid between transition frames. The main loop copies it to `$35-$37`
+only while parsing metadata; queuing a VRAM list then replaces that temporary
+direct-page value for NMI.
+
 For each scrolling transition, select the list from the destination `$8A` and
 the edge through which it is entered. These lists use the same batch and
 descriptor formats as full reloads but contain only the payload rows required
@@ -264,18 +270,30 @@ from the destination and entry side. Applying the transition list to the
 source area's complete asset state must produce the destination state required
 at the end of the transition. Empty lists are valid where no asset row changes.
 
-The transition state machine processes the schedule's pre-scroll batches,
-submits its frame-indexed batches during scrolling, and processes its
-post-scroll batches before returning control. For a palette batch it updates
-`$7EC300`, copies the changed source palette into `$7EC500`, and uses `$15` to
-upload the displayed palette. It must coordinate with `$14`, `$18`, `$19`,
-`$0710`, and optional OAM suppression, and must not reveal destination tiles
-before their required palette and graphics batches have completed. Batch
-construction and runtime validation enforce the combined NMI byte and cycle
-budget.
+The existing transition submodules process one pre-scroll batch per frame,
+submit frame-indexed batches before their scroll step, and hold finalization
+until post-scroll batches finish. A palette batch updates `$7EC300`, then copies
+the complete source palette to `$7EC500` so retained sprite-palette changes and
+generated BG rows become visible together through `$15`. A nonempty VRAM list
+uses `$17=$03` and `$0710`; the existing sprite `$19` upload and BG-streamer
+`$18` list remain independent.
 
-This checkpoint is complete when scrolling transitions in every direction
-match vanilla, use only ROM-source payloads, and no batch overruns NMI.
+The generated vanilla schedule includes palette rows 2-4 unless the first
+auxiliary palette selector is `$FF`, and rows 5-7 unless the second selector is
+`$FF`. It then includes the character rows for each nonzero area-specific sheet
+override, grouped into batches of at most eight rows. Omitted palette groups and
+zero sheet overrides preserve the assets already resident from the source area.
+Full reloads still resolve these neutral entries to defaults and load the
+complete asset set. The scroll and post-scroll sections are empty, and all four
+directional record fields may share the same schedule for now.
+
+Implemented: ordinary scrolling transitions now use generated ROM-source
+payloads and the new mode `$03` NMI list. Gameplay validation must still confirm
+all four directions, Light and Dark World boundaries, Castle/Pyramid parallax,
+sprite and animated-tile continuity, and the absence of NMI overruns.
+The `engine_check --transition-asset-phase` option can place the generated
+batches in the pre-scroll, consecutive scroll-frame, or post-scroll section to
+exercise each runtime path.
 
 ## Submilestone 9B.3: remaining transitions
 

@@ -17,6 +17,13 @@ pub struct AssetBundle {
     pub unique_payloads: usize,
 }
 
+#[derive(Clone, Copy, clap::ValueEnum)]
+pub enum TransitionAssetPhase {
+    PreScroll,
+    Scroll,
+    PostScroll,
+}
+
 struct Region {
     base_bank: u8,
     limit: usize,
@@ -59,7 +66,10 @@ impl Region {
     }
 }
 
-pub fn build(areas: &[OverworldAreaAssets]) -> Result<AssetBundle> {
+pub fn build(
+    areas: &[OverworldAreaAssets],
+    transition_phase: TransitionAssetPhase,
+) -> Result<AssetBundle> {
     ensure!(areas.len() == 0xa0, "expected 160 overworld asset sets");
 
     let mut metadata = Region::new(METADATA_BANK, METADATA_SIZE, POINTER_TABLE_SIZE);
@@ -108,8 +118,76 @@ pub fn build(areas: &[OverworldAreaAssets]) -> Result<AssetBundle> {
         sequence.push(0);
         let sequence = metadata.intern(&sequence, 1)?;
 
+        // Vanilla scrolling transitions retain palette groups selected by
+        // $FF and character sheets selected by zero.
+        let transition_palette_rows = area
+            .transition_palette_groups
+            .iter()
+            .zip([0..3, 3..6])
+            .filter(|(load, _)| **load)
+            .flat_map(|(_, rows)| rows)
+            .collect::<Vec<_>>();
+
+        let palette_batch = if transition_palette_rows.is_empty() {
+            None
+        } else {
+            let mut batch = Vec::with_capacity(transition_palette_rows.len() * 4 + 2);
+            for &row in &transition_palette_rows {
+                descriptor(&mut batch, palette_sources[row], u8::try_from(row + 2)?);
+            }
+            batch.extend_from_slice(&[0, 0]);
+            Some(metadata.intern(&batch, 1)?)
+        };
+
+        let transition_rows = area
+            .transition_sheets
+            .iter()
+            .enumerate()
+            .filter(|(_, load)| **load)
+            .flat_map(|(sheet, _)| sheet * 4..sheet * 4 + 4)
+            .collect::<Vec<_>>();
+
+        let mut transition_batches = Vec::new();
+        for rows in transition_rows.chunks(8) {
+            let mut batch = vec![0];
+            for &row in rows {
+                descriptor(&mut batch, character_sources[row], u8::try_from(row)?);
+            }
+            batch.push(0);
+            transition_batches.push(metadata.intern(&batch, 1)?);
+        }
+
+        let transition_batches = palette_batch
+            .into_iter()
+            .chain(transition_batches)
+            .collect::<Vec<_>>();
+        let mut schedule = Vec::with_capacity(3 + transition_batches.len() * 4);
+        if matches!(transition_phase, TransitionAssetPhase::PreScroll) {
+            for &source in &transition_batches {
+                bank_first_pointer(&mut schedule, source);
+            }
+        }
+        schedule.push(0);
+        if matches!(transition_phase, TransitionAssetPhase::Scroll) {
+            for (frame, &source) in transition_batches.iter().enumerate() {
+                schedule.push(u8::try_from(frame)?);
+                bank_first_pointer(&mut schedule, source);
+            }
+        }
+        schedule.push(0xff);
+        if matches!(transition_phase, TransitionAssetPhase::PostScroll) {
+            for source in transition_batches {
+                bank_first_pointer(&mut schedule, source);
+            }
+        }
+        schedule.push(0);
+        let schedule = metadata.intern(&schedule, 1)?;
+
         let mut record = vec![0; 18];
         record[..3].copy_from_slice(&little_endian_pointer(sequence));
+        for offset in [3, 6, 9, 12] {
+            record[offset..offset + 3].copy_from_slice(&little_endian_pointer(schedule));
+        }
         area_records.push(metadata.intern(&record, 1)?);
     }
 
@@ -196,51 +274,14 @@ fn validate(bundle: &AssetBundle, areas: &[OverworldAreaAssets]) -> Result<()> {
 
         while let Some(batch) = read_bank_first_pointer(&bundle.metadata, &mut sequence)? {
             batches += 1;
-            let mut cursor = region_offset(batch, METADATA_BANK, bundle.metadata.len())?;
-            while let Some(source) = read_bank_first_pointer(&bundle.metadata, &mut cursor)? {
-                ensure!(
-                    cursor < bundle.metadata.len(),
-                    "missing palette destination"
-                );
-                let destination = usize::from(bundle.metadata[cursor]);
-                cursor += 1;
-                ensure!(
-                    (2..8).contains(&destination),
-                    "palette destination outside rows 2-7"
-                );
-                let destination = destination - 2;
-                ensure!(
-                    !palette_written[destination],
-                    "duplicate palette destination"
-                );
-                let source = region_offset(source, PAYLOAD_BANK, bundle.payload.len())?;
-                ensure!(
-                    source + 32 <= bundle.payload.len(),
-                    "truncated palette payload"
-                );
-                palettes[destination].copy_from_slice(&bundle.payload[source..source + 32]);
-                palette_written[destination] = true;
-            }
-            while let Some(source) = read_bank_first_pointer(&bundle.metadata, &mut cursor)? {
-                ensure!(
-                    cursor < bundle.metadata.len(),
-                    "missing character destination"
-                );
-                let destination = usize::from(bundle.metadata[cursor]);
-                cursor += 1;
-                ensure!(destination < 32, "character destination outside rows 0-31");
-                ensure!(
-                    !character_written[destination],
-                    "duplicate character destination"
-                );
-                let source = region_offset(source, PAYLOAD_BANK, bundle.payload.len())?;
-                ensure!(
-                    source + 512 <= bundle.payload.len(),
-                    "truncated character payload"
-                );
-                characters[destination].copy_from_slice(&bundle.payload[source..source + 512]);
-                character_written[destination] = true;
-            }
+            apply_batch(
+                bundle,
+                batch,
+                &mut palettes,
+                &mut characters,
+                &mut palette_written,
+                &mut character_written,
+            )?;
         }
 
         ensure!(batches == 4, "expected four full-reload batches");
@@ -254,6 +295,189 @@ fn validate(bundle: &AssetBundle, areas: &[OverworldAreaAssets]) -> Result<()> {
             characters == expected.character_rows,
             "character descriptor mismatch"
         );
+    }
+
+    // Validate every ordinary adjacency in both worlds. Large-area child
+    // screens already resolve to their parent's assets in the importer.
+    for world in [0, 0x40] {
+        for y in 0..8 {
+            for x in 0..8 {
+                let destination = world + y * 8 + x;
+                if x > 0 {
+                    validate_transition(bundle, areas, destination - 1, destination, 3, 0x1f)?;
+                }
+                if x < 7 {
+                    validate_transition(bundle, areas, destination + 1, destination, 6, 0x1f)?;
+                }
+                if y > 0 {
+                    validate_transition(bundle, areas, destination - 8, destination, 9, 0x1b)?;
+                }
+                if y < 7 {
+                    validate_transition(bundle, areas, destination + 8, destination, 12, 0x1b)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_transition(
+    bundle: &AssetBundle,
+    areas: &[OverworldAreaAssets],
+    source: usize,
+    destination: usize,
+    record_offset: usize,
+    last_frame: u8,
+) -> Result<()> {
+    let record = read_little_endian_pointer(&bundle.metadata, destination * 3)?;
+    let record = region_offset(record, METADATA_BANK, bundle.metadata.len())?;
+    let schedule = read_little_endian_pointer(&bundle.metadata, record + record_offset)?;
+    let mut cursor = region_offset(schedule, METADATA_BANK, bundle.metadata.len())?;
+    let mut palettes = areas[source].palette_rows.clone();
+    let mut expected_palettes = palettes.clone();
+    let mut expected_palette_written = [false; 6];
+    for (&load, rows) in areas[destination]
+        .transition_palette_groups
+        .iter()
+        .zip([0..3, 3..6])
+    {
+        if load {
+            expected_palettes[rows.clone()]
+                .copy_from_slice(&areas[destination].palette_rows[rows.clone()]);
+            expected_palette_written[rows].fill(true);
+        }
+    }
+    let mut characters = areas[source].character_rows.clone();
+    let mut expected_characters = characters.clone();
+    for (sheet, &load) in areas[destination].transition_sheets.iter().enumerate() {
+        if load {
+            let rows = sheet * 4..sheet * 4 + 4;
+            expected_characters[rows.clone()]
+                .copy_from_slice(&areas[destination].character_rows[rows]);
+        }
+    }
+    let mut palette_written = [false; 6];
+    let mut character_written = [false; 32];
+
+    while let Some(batch) = read_bank_first_pointer(&bundle.metadata, &mut cursor)? {
+        apply_batch(
+            bundle,
+            batch,
+            &mut palettes,
+            &mut characters,
+            &mut palette_written,
+            &mut character_written,
+        )?;
+    }
+
+    let mut previous_frame = None;
+    loop {
+        ensure!(
+            cursor < bundle.metadata.len(),
+            "unterminated scroll schedule"
+        );
+        let frame = bundle.metadata[cursor];
+        cursor += 1;
+        if frame == 0xff {
+            break;
+        }
+        ensure!(frame <= last_frame, "scroll frame outside transition");
+        ensure!(previous_frame.is_none_or(|previous| frame > previous));
+        previous_frame = Some(frame);
+        let batch = read_bank_first_pointer(&bundle.metadata, &mut cursor)?
+            .ok_or_else(|| anyhow::anyhow!("null scroll batch pointer"))?;
+        apply_batch(
+            bundle,
+            batch,
+            &mut palettes,
+            &mut characters,
+            &mut palette_written,
+            &mut character_written,
+        )?;
+    }
+
+    while let Some(batch) = read_bank_first_pointer(&bundle.metadata, &mut cursor)? {
+        apply_batch(
+            bundle,
+            batch,
+            &mut palettes,
+            &mut characters,
+            &mut palette_written,
+            &mut character_written,
+        )?;
+    }
+
+    ensure!(palette_written == expected_palette_written);
+    for (sheet, &load) in areas[destination].transition_sheets.iter().enumerate() {
+        ensure!(
+            character_written[sheet * 4..sheet * 4 + 4]
+                .iter()
+                .all(|&written| written == load)
+        );
+    }
+    ensure!(palettes == expected_palettes);
+    ensure!(characters == expected_characters);
+    Ok(())
+}
+
+fn apply_batch(
+    bundle: &AssetBundle,
+    batch: u32,
+    palettes: &mut [[u8; 32]],
+    characters: &mut [[u8; 512]],
+    palette_written: &mut [bool; 6],
+    character_written: &mut [bool; 32],
+) -> Result<()> {
+    let mut cursor = region_offset(batch, METADATA_BANK, bundle.metadata.len())?;
+    let mut palette_count = 0;
+    while let Some(source) = read_bank_first_pointer(&bundle.metadata, &mut cursor)? {
+        palette_count += 1;
+        ensure!(palette_count <= 6, "too many palette rows in one batch");
+        ensure!(
+            cursor < bundle.metadata.len(),
+            "missing palette destination"
+        );
+        let destination = usize::from(bundle.metadata[cursor]);
+        cursor += 1;
+        ensure!((2..8).contains(&destination));
+        let destination = destination - 2;
+        ensure!(
+            !palette_written[destination],
+            "duplicate palette destination"
+        );
+        let source = region_offset(source, PAYLOAD_BANK, bundle.payload.len())?;
+        ensure!(
+            source + 32 <= bundle.payload.len(),
+            "truncated palette payload"
+        );
+        palettes[destination].copy_from_slice(&bundle.payload[source..source + 32]);
+        palette_written[destination] = true;
+    }
+    let mut character_count = 0;
+    while let Some(source) = read_bank_first_pointer(&bundle.metadata, &mut cursor)? {
+        character_count += 1;
+        ensure!(
+            character_count <= 8,
+            "more than 4 KiB of characters in one batch"
+        );
+        ensure!(
+            cursor < bundle.metadata.len(),
+            "missing character destination"
+        );
+        let destination = usize::from(bundle.metadata[cursor]);
+        cursor += 1;
+        ensure!(destination < 32, "character destination outside rows 0-31");
+        ensure!(
+            !character_written[destination],
+            "duplicate character destination"
+        );
+        let source = region_offset(source, PAYLOAD_BANK, bundle.payload.len())?;
+        ensure!(
+            source + 512 <= bundle.payload.len(),
+            "truncated character payload"
+        );
+        characters[destination].copy_from_slice(&bundle.payload[source..source + 512]);
+        character_written[destination] = true;
     }
     Ok(())
 }

@@ -308,6 +308,7 @@ struct MapPalettes {
     aux1: u8,
     aux2: u8,
     animated: u8,
+    transition_groups: [bool; 2],
 }
 
 pub struct Importer {
@@ -322,6 +323,7 @@ pub struct Importer {
     map_parents: Vec<MapIdx>,
     map_palettes: Vec<MapPalettes>,
     map_gfx: Vec<[u8; 8]>,
+    map_gfx_transition_sheets: Vec<[bool; 8]>,
     tile_types: Vec<u8>,
 }
 
@@ -333,6 +335,8 @@ pub struct FlatMap16 {
 pub struct OverworldAreaAssets {
     pub palette_rows: Vec<[u8; 32]>,
     pub character_rows: Vec<[u8; 512]>,
+    pub transition_palette_groups: [bool; 2],
+    pub transition_sheets: [bool; 8],
 }
 
 impl Importer {
@@ -350,6 +354,7 @@ impl Importer {
             map_parents: Vec::new(),
             map_palettes: Vec::new(),
             map_gfx: Vec::new(),
+            map_gfx_transition_sheets: Vec::new(),
             tile_types: Vec::new(),
         })
     }
@@ -453,8 +458,9 @@ impl Importer {
 
         self.map_gfx
             .iter()
+            .zip(&self.map_gfx_transition_sheets)
             .zip(&self.map_palettes)
-            .map(|(gfx, palettes)| {
+            .map(|((gfx, &transition_sheets), palettes)| {
                 let mut character_rows = Vec::with_capacity(32);
                 for (slot, &sheet) in gfx.iter().enumerate() {
                     let right_palette = matches!(slot, 0 | 3 | 4 | 5);
@@ -504,6 +510,8 @@ impl Importer {
                 Ok(OverworldAreaAssets {
                     palette_rows,
                     character_rows,
+                    transition_palette_groups: palettes.transition_groups,
+                    transition_sheets,
                 })
             })
             .collect()
@@ -729,6 +737,7 @@ impl Importer {
             let mut aux1 = self.rom.read_u8(addr.into())?;
             let mut aux2 = self.rom.read_u8((addr + 1).into())?;
             let mut animated = self.rom.read_u8((addr + 2).into())?;
+            let transition_groups = [aux1 != 0xff, aux2 != 0xff];
             if aux1 >= 20 {
                 aux1 = 0;
             }
@@ -743,6 +752,7 @@ impl Importer {
                 aux1,
                 aux2,
                 animated,
+                transition_groups,
             });
         }
         Ok(())
@@ -756,6 +766,7 @@ impl Importer {
                 0x88 => 0x24,
                 _ => 0x20,
             };
+            let mut transition_sheets = [false; 8];
             let mut gfx: Vec<u8> = self
                 .rom
                 .read_n((self.constants.global_gfx_set_addr + global * 8).into(), 8)?
@@ -765,6 +776,7 @@ impl Importer {
                 for i in 0..8 {
                     if local[i] != 0xff {
                         gfx[i] = local[i];
+                        transition_sheets[i] = true;
                     }
                 }
             } else {
@@ -784,10 +796,12 @@ impl Importer {
                 for j in 0..4 {
                     if local[j] != 0 {
                         gfx[3 + j] = local[j];
+                        transition_sheets[3 + j] = true;
                     }
                 }
             }
             self.map_gfx.push(gfx.try_into().unwrap());
+            self.map_gfx_transition_sheets.push(transition_sheets);
         }
         Ok(())
     }
@@ -914,6 +928,7 @@ mod tests {
             map_parents: Vec::new(),
             map_palettes: Vec::new(),
             map_gfx: Vec::new(),
+            map_gfx_transition_sheets: Vec::new(),
             tile_types: Vec::new(),
         };
 

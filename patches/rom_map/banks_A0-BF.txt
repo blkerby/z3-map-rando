@@ -14,7 +14,9 @@ $A0864D-$A086FF [FREE]
 $A08700-$A08777 flat_map16.asm (flat Map16 loaders)
 $A08778-$A088FF [FREE]
 $A08900-$A08F72 bg_streamer.asm (BG1/BG2 renderers and transition helpers)
-$A08F73-$A0FFFF [FREE]
+$A08F73-$A098FF [FREE]
+$A09900-$A09ADF overworld_vram.asm (scrolling asset schedules and ROM-source NMI queue)
+$A09AE0-$A0FFFF [FREE]
 
 Bank $A1
 $A18000-$A1FFFF top-left Map16 definition words

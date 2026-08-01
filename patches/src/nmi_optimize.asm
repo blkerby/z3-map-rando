@@ -139,9 +139,20 @@ ReadJoypad:
 
 assert pc() <= $8083F8
 
+; DoNMIUpdates: when $0710 suppresses the normal graphics DMA group, skip the
+; HUD DMA as well. The HUD path inherits DMA0's target from that graphics group
+; and is unsafe when the initialization was skipped.
+org $8089EC
+hook_NMISkipGraphicsBeforeHUD:
+    JMP.w return_NMIBeforeCGRAMUpload
+assert pc() == $8089EF
+
+org $808B87
+return_NMIBeforeCGRAMUpload:
+
 ; OAM normally uploads every frame. Only an explicit one-shot request in
 ; documented free WRAM may skip it; $0710 retains its separate vanilla role
-; of suppressing the normal graphics DMA group.
+; of suppressing the normal graphics and HUD DMA groups.
 org $808BCD
 return_NMIAfterOAMUpload:
 

@@ -48,6 +48,8 @@ const COMPRESSED_BLANK_4BPP: [u8; 7] = [0xe7, 0xff, 0, 0xe7, 0xff, 0, 0xff];
 struct Args {
     input_rom: PathBuf,
     output_rom: PathBuf,
+    #[arg(long, value_enum, default_value = "pre-scroll")]
+    transition_asset_phase: asset_bundle::TransitionAssetPhase,
 }
 
 fn split_map16_definitions(tiles16: &[Tile16]) -> [Vec<u8>; 4] {
@@ -182,7 +184,7 @@ fn main() -> Result<()> {
     let map16_properties = split_map16_properties(importer.tiles16()?, &tile_types);
     let area_assets = importer.overworld_area_assets()?;
     let graphics_sheets = importer.overworld_graphics_sheets()?;
-    let asset_bundle = asset_bundle::build(&area_assets)?;
+    let asset_bundle = asset_bundle::build(&area_assets, args.transition_asset_phase)?;
     eprintln!(
         "overworld assets: {} bytes total ({} metadata, {} payload), 16576 DMA bytes/area, {} unique payloads",
         asset_bundle.metadata.len() + asset_bundle.payload.len(),

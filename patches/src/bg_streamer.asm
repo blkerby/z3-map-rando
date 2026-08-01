@@ -94,13 +94,11 @@ return_OverworldScrollTransitionBG1Store:
 ; Vanilla contexts: modules $09/$0B, submodules $03 and $11, while preparing
 ; the destination map for an area transition.
 ;
-; Vanilla increments $0710 to suppress Link graphics DMA until the initial
-; mode $03 BG2 stripe upload clears it. That upload is disabled below, so
-; leave $0710 clear or Link's displayed graphics stop updating permanently.
+; Vanilla increments $0710 until its initial mode-$03 stripe upload clears it.
+; That upload is disabled, so clear any reservation inherited from pre-scroll
+; asset loading. The new edge preload sets $0710 again if it queues $18 work.
 org $82AACE
-    NOP
-    NOP
-    NOP
+    STZ.w $0710
 
 ; Module09_21
 ;
