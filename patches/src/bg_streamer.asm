@@ -329,15 +329,6 @@ org $82AE3B
     JSL hook_LoadOverworldSubscreenBeforeSFX
     NOP
 
-; LoadUnderworldEntrance
-;
-; Restore the vanilla 64x64 BG1 and BG2 layouts at the shared underworld
-; entrance loader. The replacement routine also performs the overwritten
-; "LDA #$01 : STA $1B".
-org $82D61A
-    JSR hook_LoadUnderworldEntranceBeforeEnvironmentFlag
-    NOP
-
 ; LoadOverworldOverlay is shared by gameplay loads and self-contained scenes.
 ; Every caller keeps the logical overlay at $7E4000 and uses the 64x32 BG1
 ; ring. Module $15 queues its window later in the mirror sequence.
@@ -415,36 +406,6 @@ hook_LoadOverworldSubscreenBeforeSFX:
     STA.w $012D
 
     RTL
-
-; Restore vanilla's 64x64 underworld layouts and reproduce the displaced
-; entrance-loader store. This is in bank $02 so its hook needs only a JSR.
-hook_LoadUnderworldEntranceBeforeEnvironmentFlag:
-    PHP
-    SEP #$20
-
-    LDA.b #$13                  ; base=$1000, width=64, height=64
-    STA.w $2107                 ; BG1SC
-
-    LDA.b #$03                  ; base=$0000, width=64, height=64
-    STA.w $2108                 ; BG2SC
-
-    LDA.b #$60                  ; base=$6000, width=32, height=32
-    STA.w $2109                 ; BG3SC
-
-    LDA.b #$22                  ; BG1/BG2 characters begin at $2000.
-    STA.w $210B                 ; BG12NBA
-
-    REP #$20
-    LDA.w #$6040                ; Default HUD upload destination.
-    STA.w $0219
-    SEP #$20
-
-    ; Run hi-jacked instructions:
-    LDA.b #$01
-    STA.b $1B                   ; Mark the active environment as indoors.
-
-    PLP
-    RTS
 
 ; Build rain's complete 64x32 tilemap in vanilla's former-half staging buffer.
 ; The shared builder walks backward, two Map16 rows per iteration, so adding

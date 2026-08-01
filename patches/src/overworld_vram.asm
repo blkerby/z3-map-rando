@@ -9,7 +9,11 @@
 ; This includes hooking the NMI handler, which is a bit undesirable but
 ; at this stage may be preferable to a wider overhaul. And the extra cost
 ; should be offset by the optimizations in nmi_optimize.asm to some extent.
-
+;
+; This patch also replaces the vanilla overworld graphics/palettes loading
+; routines, switching them to use flexible loading descriptor lists which
+; allow taking advantage of the expanded space.
+;
 lorom
 
 !free_space_bank_any_start = $A083A0
@@ -104,6 +108,18 @@ org $8CFF4F
     NOP
 assert pc() == $8CFF5B
 
+; Save-and-quit resumes the intro after its normal background setup. Restore
+; the default layout before its graphics loader clears and rebuilds VRAM.
+org $8CC208
+    JSL hook_IntroDefaultGraphicsBeforeTilemapClear
+assert pc() == $8CC20C
+
+; Every underworld entrance rebuilds the room under forced blank. Restore and
+; clear the default layout before the room and HUD are uploaded.
+org $82D61A
+    JSL hook_LoadUnderworldEntranceBeforeEnvironmentFlag
+assert pc() == $82D61E
+
 ; Animated overworld tiles follow the active overworld layout.
 org $80D3FC
     JSL hook_DecompressAnimatedOverworldTilesAfterConversion
@@ -161,6 +177,26 @@ hook_Module15LoadOverworld:
 assert pc() <= !free_space_bank_82_end
 
 org !free_space_bank_any_start
+
+hook_IntroDefaultGraphicsBeforeTilemapClear:
+    JSL $80893D                 ; Run hi-jacked instruction
+    JSR SelectDefaultVRAM
+    RTL
+
+hook_LoadUnderworldEntranceBeforeEnvironmentFlag:
+    JSR SelectDefaultVRAM
+
+    ; Remove overworld tilemap data before the underworld room rebuild.
+    JSL $80834B                 ; EraseTilemaps_normal
+
+    LDA.b #$01
+    STA.b $16                   ; Upload the HUD into the restored BG3 block.
+
+    ; Run hi-jacked instructions:
+    LDA.b #$01
+    STA.b $1B                   ; Mark the active environment as indoors.
+
+    RTL
 
 hook_Module08LoadProperties:
     JSR SelectAndClearOverworldVRAM
@@ -313,6 +349,26 @@ SelectOverworldVRAM:
 
     REP #$20
     LDA.w #!OverworldHUD
+    STA.w $0219
+    PLP
+    RTS
+
+; Select the shared non-overworld layout. BG3 uses the reduced 32x32 tilemap
+; while BG1/BG2 retain their vanilla underworld and presentation arrangement.
+SelectDefaultVRAM:
+    PHP
+    SEP #$20
+    LDA.b #$13                  ; BG1: $1000, 64x64
+    STA.w $2107
+    LDA.b #$03                  ; BG2: $0000, 64x64
+    STA.w $2108
+    LDA.b #$60                  ; BG3: $6000, 32x32
+    STA.w $2109
+    LDA.b #$22                  ; BG1/BG2 characters begin at $2000.
+    STA.w $210B
+
+    REP #$20
+    LDA.w #!DefaultHUD
     STA.w $0219
     PLP
     RTS

@@ -9,8 +9,8 @@ $A08180-$A0830E reduce_bg3.asm (BG3 layout and row streaming)
 $A0830F-$A0837F [FREE]
 $A08380-$A08395 nmi_optimize.asm (conditional OAM upload)
 $A08396-$A0839F [FREE]
-$A083A0-$A0863B overworld_vram.asm (VRAM layout and generated asset loading)
-$A0863C-$A086FF [FREE]
+$A083A0-$A08674 overworld_vram.asm (VRAM layout and generated asset loading)
+$A08675-$A086FF [FREE]
 $A08700-$A08777 flat_map16.asm (flat Map16 loaders)
 $A08778-$A088FF [FREE]
 $A08900-$A08F72 bg_streamer.asm (BG1/BG2 renderers and transition helpers)
