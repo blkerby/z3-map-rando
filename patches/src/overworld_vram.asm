@@ -205,6 +205,9 @@ assert pc() == $80D8FF
 
 ; Module09_2E_07/08, whirlpool phases $07/$08: replace the scrolling-only
 ; shared calls with a destination full-reload sequence, one batch per frame.
+org $82A375
+return_Module09AfterSubmodule:
+
 org $82B3DF
     JML hook_WhirlpoolBeforeGeneratedAssets
     NOP
@@ -1065,11 +1068,12 @@ hook_WhirlpoolBeforeGeneratedAssets:
     STA.b $13
     LDA.b #$09
     STA.b $B0
-    RTS
+    BRA .return
 
 .wait
     INC.b $B0
-    RTS
+.return
+    BRA ReturnFromWhirlpoolGeneratedAssetPhase
 
 ; Hold whirlpool phase $08 until the last full-reload batch is submitted.
 hook_WhirlpoolBeforeNextGeneratedAssetBatch:
@@ -1080,7 +1084,11 @@ hook_WhirlpoolBeforeNextGeneratedAssetBatch:
     STA.b $13
     INC.b $B0
 .wait
-    RTS
+
+ReturnFromWhirlpoolGeneratedAssetPhase:
+    REP #$20
+    PLA                         ; Discard Module09's local JSR return address.
+    JML return_Module09AfterSubmodule
 
 hook_WhirlpoolBeforePaletteWork:
     LDA.b #$01
