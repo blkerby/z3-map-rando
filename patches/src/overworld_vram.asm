@@ -218,7 +218,7 @@ hook_Module08InitializeTilesets:
 ; vanilla palette selectors have established the area's palette state. Clear
 ; the marker before resuming the normal background-color/cache setup.
 hook_Module08AfterBGPaletteSelection:
-    JSR LoadGeneratedOverworldAssets
+    JSR SynchronousLoadOverworldAssets
     STZ.w $0412
 
     JSL $8CFF91                 ; Run hi-jacked instruction
@@ -436,17 +436,17 @@ hook_InitializeTilesetsAfterBGSheetResolution:
     RTL
 
 ; Load the asset record selected by $8A and synchronously process every batch
-; in its full-reload sequence. Metadata pointers are little-endian until the
-; sequence; sequence and descriptor pointers put the bank first so zero can
-; terminate each list.
+; in its full-reload sequence. This routine is for loading during forced blank,
+; where there is no need to schedule batches onto individual frames.
+; See plans/asset_loading.md for details.
 ;
 ; Direct-page scratch:
-;   $00-$02: current asset-record or batch-sequence pointer
-;   $03-$05: current batch pointer
+;   $00-$02: area asset-record pointer, then current batch pointer
+;   $03-$05: full-load batch-sequence pointer
 ;   $06-$07: 16-bit copy of the 8-bit screen ID
 ; DMA channel 1 is scratch during this forced-blank load. Flags, X, and Y are
 ; preserved for the surrounding module code.
-LoadGeneratedOverworldAssets:
+SynchronousLoadOverworldAssets:
     PHP
     REP #$10                    ; Use 16-bit X/Y for metadata offsets and cursors.
     PHX
@@ -465,54 +465,43 @@ LoadGeneratedOverworldAssets:
     ADC.b $06                   ; A = 3 * screen ID.
     TAX                         ; X indexes the packed pointer table.
 
-    ; The top-level table uses ordinary little-endian 24-bit pointers
-    SEP #$20                    ; Copy the pointer one byte at a time.
+    ; $00:$02 <- 24-bit pointer to area asset record
     LDA.l !OverworldAssetBundlePointers,X
-    STA.b $00                   ; Asset-record address low.
-    LDA.l !OverworldAssetBundlePointers+1,X
-    STA.b $01                   ; Asset-record address high.
+    STA.b $00                   ; Asset-record 16-bit address.
+    SEP #$20
     LDA.l !OverworldAssetBundlePointers+2,X
     STA.b $02                   ; Asset-record bank.
 
-    ; The first three bytes of the 18-byte asset record point to its full-load
-    ; batch sequence. The remaining transition pointers are reserved for
-    ; later 9B checkpoints.
+    ; $03:$05 <- 24-bit pointer to full-load batch sequence
     LDY.w #$0000                ; Start at the full-load pointer in the record.
     LDA.b [$00],Y               ; Read it through the asset-record pointer.
     STA.b $03                   ; Batch-sequence address low.
-    INY                         ; Advance to the pointer's high byte.
+    INY
     LDA.b [$00],Y
     STA.b $04                   ; Batch-sequence address high.
-    INY                         ; Advance to the pointer's bank.
+    INY
     LDA.b [$00],Y
     STA.b $05                   ; Batch-sequence bank.
-
-    LDA.b $03                   ; Replace the record pointer only after all
-    STA.b $00                   ; three source bytes have been read.
-    LDA.b $04
-    STA.b $01
-    LDA.b $05                   ; Leave the bank in A for the null check.
-    STA.b $02
     BEQ .done                  ; A zero bank means there is no full-load list.
 
     ; A sequence is [bank, address low, address high] repeated, followed by a
     ; single zero bank. Keep Y as its cursor while each batch uses its own Y.
     LDY.w #$0000                ; Begin at the first batch pointer.
 .next_batch
-    LDA.b [$00],Y               ; Read the bank first so zero can terminate.
+    LDA.b [$03],Y               ; Read the bank first so zero can terminate.
     BEQ .done                   ; End after the last batch in the sequence.
-    STA.b $05                   ; Current batch bank.
+    STA.b $02                   ; Current batch bank.
     INY                         ; Advance to the address low byte.
-    LDA.b [$00],Y
-    STA.b $03                   ; Current batch address low.
+    LDA.b [$03],Y
+    STA.b $00                   ; Current batch address low.
     INY                         ; Advance to the address high byte.
-    LDA.b [$00],Y
-    STA.b $04                   ; Current batch address high.
+    LDA.b [$03],Y
+    STA.b $01                   ; Current batch address high.
     INY                         ; Leave Y at the next sequence entry.
 
-    ; ProcessGeneratedAssetBatch consumes Y, so preserve the sequence cursor.
+    ; SynchronousProcessAssetBatch consumes Y, so preserve the sequence cursor.
     PHY                         ; Save the next batch-pointer position.
-    JSR ProcessGeneratedAssetBatch
+    JSR SynchronousProcessAssetBatch
     PLY                         ; Resume walking the batch sequence.
     BRA .next_batch
 
@@ -526,28 +515,28 @@ LoadGeneratedOverworldAssets:
 ; null-terminated character list. Each descriptor is:
 ;   source bank, source address low, source address high, destination row
 ; Palette rows are 32 bytes; character rows are 16 4bpp tiles (512 bytes).
-; Input: $03-$05 = batch pointer. Clobbers A, Y, and DMA channel 1.
-ProcessGeneratedAssetBatch:
+; Input: $00-$02 = batch pointer. Clobbers A, Y, and DMA channel 1.
+SynchronousProcessAssetBatch:
     LDY.w #$0000
 
 .next_palette
     ; Load the ROM source directly into DMA channel 1's A-bus address.
-    LDA.b [$03],Y
+    LDA.b [$00],Y
     BEQ .palette_done
     STA.w $4314
     INY
-    LDA.b [$03],Y
+    LDA.b [$00],Y
     STA.w $4312
     INY
-    LDA.b [$03],Y
+    LDA.b [$00],Y
     STA.w $4313
     INY
-    LDA.b [$03],Y
+    LDA.b [$00],Y
     INY
 
     ; Convert destination row n to $7EC300 + n*$20. WMDATA makes the ROM-to-
-    ; WRAM transfer direct; vanilla presentation code later derives $7EC500
-    ; and schedules the CGRAM upload appropriate to this module.
+    ; WRAM transfer direct; vanilla code later derives $7EC500 and schedules
+    ; the CGRAM upload appropriate to this module.
     REP #$20
     AND.w #$00FF
     ASL A
@@ -577,17 +566,17 @@ ProcessGeneratedAssetBatch:
 
 .next_character
     ; Parse the character descriptor's ROM source into the same DMA channel.
-    LDA.b [$03],Y
+    LDA.b [$00],Y
     BEQ .done
     STA.w $4314
     INY
-    LDA.b [$03],Y
+    LDA.b [$00],Y
     STA.w $4312
     INY
-    LDA.b [$03],Y
+    LDA.b [$00],Y
     STA.w $4313
     INY
-    LDA.b [$03],Y
+    LDA.b [$00],Y
     INY
 
     ; Character destination row n begins at VRAM word n*$100. The low byte is
