@@ -1,8 +1,9 @@
 ; Set up a rearranged VRAM layout which allows for a larger overworld BG1/BG2
 ; character set (960 compared to the vanilla 512). All overworld scenes use
-; this layout; dungeons keep their existing layout. The active HUD destination
-; doubles as the layout marker: $3C40 means overworld, while $6040 is the
-; default gameplay destination.
+; this layout; dungeons keep their existing layout. The expanded character set
+; is made possible by the reduction of BG1/2/3 tilemap (in reduce_bg3.asm and
+; bg_streamer.asm). The active HUD destinatio doubles as the layout marker:
+; $3C40 means overworld, while $6040 is the default gameplay destination.
 ;
 ; This requires installing a bunch of hooks to apply conditional logic
 ; for a VRAM destination depending on whether we are in overworld or not.
@@ -98,15 +99,9 @@ assert pc() == $82C44E
 
 org $8CFF4F
     JSL hook_OverworldPalettesAfterSetSelection
-    NOP
-    NOP
-    NOP
-    NOP
-    NOP
-    NOP
-    NOP
-    NOP
-assert pc() == $8CFF5B
+    BRA +
+org $8CFF5B
++
 
 ; Save-and-quit resumes the intro after its normal background setup. Restore
 ; the default layout before its graphics loader clears and rebuilds VRAM.
@@ -275,62 +270,45 @@ SelectAndClearOverworldVRAM:
     PHP
     REP #$30
     PHX
-    LDX.w #$0000
-    BRA SelectAndClearOverworldVRAMCommon
+    PHY
+
+    JSR SelectOverworldVRAM
+
+    LDY.w #BlankBG12Tile
+    LDA.w #$6000
+    LDX.w #$1000
+    JSR ClearVRAMRegion
+
+    LDY.w #BlankBG3Tile
+    LDA.w #$3C00
+    LDX.w #$0400
+    JSR ClearVRAMRegion
+
+    PLY
+    PLX
+    PLP
+    RTS
 
 SelectAndClearCreditsOverworldVRAM:
     PHP
     REP #$30
     PHX
-    LDX.w #$0001
-
-SelectAndClearOverworldVRAMCommon:
     PHY
-    LDA.b $00
-    PHA
-    LDA.b $02
-    PHA
-    LDA.b $04
-    PHA
-    STX.b $04
 
     JSR SelectOverworldVRAM
 
-    LDA.b $04
-    BNE .credits_bg12
-    LDY.w #BlankBG12Tile
-    BRA .clear_bg12
-
-.credits_bg12
     LDY.w #BlankCreditsBG12Tile
-
-.clear_bg12
     LDA.w #$6000
     LDX.w #$1000
     JSR ClearVRAMRegion
 
-    LDA.b $04
-    BNE .credits_bg3
-    LDY.w #BlankBG3Tile
-    BRA .clear_bg3
-
-.credits_bg3
     LDY.w #BlankCreditsBG3Tile
-
-.clear_bg3
     LDA.w #$3C00
     LDX.w #$0400
     JSR ClearVRAMRegion
 
-    PLA
-    STA.b $04
-    PLA
-    STA.b $02
-    PLA
-    STA.b $00
     PLY
     PLX
-
     PLP
     RTS
 
@@ -377,8 +355,7 @@ SelectDefaultVRAM:
 ; bank. As in vanilla EraseTilemaps, separate fixed-source DMAs fill the low
 ; and high byte of every tilemap word.
 ClearVRAMRegion:
-    STA.b $00
-    STX.b $02
+    PHA
 
     STZ.w $2115
     STA.w $2116
@@ -386,8 +363,7 @@ ClearVRAMRegion:
     LDA.w #$1808
     STA.w $4310
     STY.w $4312
-    LDA.b $02
-    STA.w $4315
+    STX.w $4315
 
     SEP #$20
     LDA.b #!free_space_bank_any_start>>16
@@ -396,14 +372,13 @@ ClearVRAMRegion:
     STA.w $420B
 
     REP #$20
-    LDA.b $00
+    PLA
     STA.w $2116
     LDA.w #$1908
     STA.w $4310
     INY
     STY.w $4312
-    LDA.b $02
-    STA.w $4315
+    STX.w $4315
 
     SEP #$20
     LDA.b #$80
@@ -473,77 +448,76 @@ hook_InitializeTilesetsAfterBGSheetResolution:
 ; preserved for the surrounding module code.
 LoadGeneratedOverworldAssets:
     PHP
-    REP #$10
+    REP #$10                    ; Use 16-bit X/Y for metadata offsets and cursors.
     PHX
     PHY
 
-    SEP #$20
-    LDA.b $8A
-    STA.b $06
-    STZ.b $07
+    SEP #$20                    ; Read the one-byte overworld screen ID.
+    LDA.b $8A                   ; Select this screen's generated asset record.
+    STA.b $06                   ; Store the low byte for 16-bit arithmetic below.
+    STZ.b $07                   ; Zero-extend the screen ID through $06-$07.
 
     ; Each of the 256 screen entries is a packed 24-bit pointer, so X = 3*$8A.
-    REP #$20
-    LDA.b $06
-    ASL A
+    REP #$20                    ; Calculate the table offset with 16-bit A.
+    LDA.b $06                   ; A = screen ID.
+    ASL A                       ; A = 2 * screen ID.
     CLC
-    ADC.b $06
-    TAX
+    ADC.b $06                   ; A = 3 * screen ID.
+    TAX                         ; X indexes the packed pointer table.
 
-    ; The top-level table uses ordinary little-endian 24-bit pointers because
-    ; every entry has a fixed size and therefore needs no terminator.
-    SEP #$20
+    ; The top-level table uses ordinary little-endian 24-bit pointers
+    SEP #$20                    ; Copy the pointer one byte at a time.
     LDA.l !OverworldAssetBundlePointers,X
-    STA.b $00
+    STA.b $00                   ; Asset-record address low.
     LDA.l !OverworldAssetBundlePointers+1,X
-    STA.b $01
+    STA.b $01                   ; Asset-record address high.
     LDA.l !OverworldAssetBundlePointers+2,X
-    STA.b $02
+    STA.b $02                   ; Asset-record bank.
 
     ; The first three bytes of the 18-byte asset record point to its full-load
     ; batch sequence. The remaining transition pointers are reserved for
     ; later 9B checkpoints.
-    LDY.w #$0000
+    LDY.w #$0000                ; Start at the full-load pointer in the record.
+    LDA.b [$00],Y               ; Read it through the asset-record pointer.
+    STA.b $03                   ; Batch-sequence address low.
+    INY                         ; Advance to the pointer's high byte.
     LDA.b [$00],Y
-    STA.b $03
-    INY
+    STA.b $04                   ; Batch-sequence address high.
+    INY                         ; Advance to the pointer's bank.
     LDA.b [$00],Y
-    STA.b $04
-    INY
-    LDA.b [$00],Y
-    STA.b $05
+    STA.b $05                   ; Batch-sequence bank.
 
-    LDA.b $03
-    STA.b $00
+    LDA.b $03                   ; Replace the record pointer only after all
+    STA.b $00                   ; three source bytes have been read.
     LDA.b $04
     STA.b $01
-    LDA.b $05
+    LDA.b $05                   ; Leave the bank in A for the null check.
     STA.b $02
     BEQ .done                  ; A zero bank means there is no full-load list.
 
     ; A sequence is [bank, address low, address high] repeated, followed by a
     ; single zero bank. Keep Y as its cursor while each batch uses its own Y.
-    LDY.w #$0000
+    LDY.w #$0000                ; Begin at the first batch pointer.
 .next_batch
+    LDA.b [$00],Y               ; Read the bank first so zero can terminate.
+    BEQ .done                   ; End after the last batch in the sequence.
+    STA.b $05                   ; Current batch bank.
+    INY                         ; Advance to the address low byte.
     LDA.b [$00],Y
-    BEQ .done
-    STA.b $05
-    INY
+    STA.b $03                   ; Current batch address low.
+    INY                         ; Advance to the address high byte.
     LDA.b [$00],Y
-    STA.b $03
-    INY
-    LDA.b [$00],Y
-    STA.b $04
-    INY
+    STA.b $04                   ; Current batch address high.
+    INY                         ; Leave Y at the next sequence entry.
 
     ; ProcessGeneratedAssetBatch consumes Y, so preserve the sequence cursor.
-    PHY
+    PHY                         ; Save the next batch-pointer position.
     JSR ProcessGeneratedAssetBatch
-    PLY
+    PLY                         ; Resume walking the batch sequence.
     BRA .next_batch
 
 .done
-    PLY
+    PLY                         ; Restore the caller's registers and flags.
     PLX
     PLP
     RTS

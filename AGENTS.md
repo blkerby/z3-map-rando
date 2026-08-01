@@ -30,6 +30,8 @@
   separate the block from other instructions with blank lines. For a single
   displaced instruction, append `; Run hi-jacked instruction` to that
   instruction instead.
+- When patching vanilla code, do not use more than 3 NOP instructions in a row.
+  Instead use BRA.
 - For labels that only identify where patched code returns to existing vanilla
   code, use `return_<point>`, where `<point>` describes the point or process
   being returned to.
