@@ -203,11 +203,12 @@ org $80D8F2
 return_MirrorWarpAfterOverlayAUpload:
 
 ; AnimateMirrorWarp step 8, AnimateMirrorWarp_DoSpritesPalettes.
-; MirrorWarp_LoadSpritesAndColors has just finalized the destination BG1
-; scrolls. Replace its vanilla $17=$0C half upload with our BG1 bulk window.
-; This is a tail call: BG1BulkRender's RTL returns to AnimateMirrorWarp's caller.
+; MirrorWarp_LoadSpritesAndColors has just calculated the destination BG1 base
+; scrolls, but the common module tail has not copied them to the finalized
+; scrolls yet. Finalize them before replacing the vanilla $17=$0C half upload
+; with our BG1 bulk window.
 org $80D8FF
-    JML BG1BulkRender
+    JML hook_MirrorWarpBeforeBG1BulkRender
 
 ; The now-unreachable remainder of step 8 is reused as a bank-00 trampoline
 ; for the step-10 mirror margins.
@@ -790,6 +791,26 @@ BG1BulkRender:
 
     PLP
     RTL
+
+; Make the mirror bulk renderer use the destination scroll which the common
+; module tail will otherwise finalize only after this loading step returns.
+; Include shake exactly as that tail does, then tail-call the shared renderer.
+hook_MirrorWarpBeforeBG1BulkRender:
+    PHP
+    REP #$20
+
+    LDA.b $E0
+    CLC
+    ADC.w $011A
+    STA.w $0120
+
+    LDA.b $E6
+    CLC
+    ADC.w $011C
+    STA.w $0124
+
+    PLP
+    JML BG1BulkRender
 
 ; Select the BG1 overlay source and VRAM destination for the shared renderer.
 BG1SelectRenderer:

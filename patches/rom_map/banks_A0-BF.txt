@@ -13,8 +13,8 @@ $A083A0-$A0864C overworld_vram.asm (VRAM layout and generated asset loading)
 $A0864D-$A086FF [FREE]
 $A08700-$A08777 flat_map16.asm (flat Map16 loaders)
 $A08778-$A088FF [FREE]
-$A08900-$A08F72 bg_streamer.asm (BG1/BG2 renderers and transition helpers)
-$A08F73-$A098FF [FREE]
+$A08900-$A08F8C bg_streamer.asm (BG1/BG2 renderers and transition helpers)
+$A08F8D-$A098FF [FREE]
 $A09900-$A09C83 overworld_vram.asm (generated asset schedules, transition hooks, and ROM-source NMI queue)
 $A09C84-$A0FFFF [FREE]
 
