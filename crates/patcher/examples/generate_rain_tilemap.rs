@@ -5,7 +5,7 @@ use patcher::{
 };
 use std::{collections::BTreeMap, env, fs};
 
-const FLAT_MAPS_START: SnesAddr = SnesAddr(0xa00000);
+const FLAT_MAPS_START: SnesAddr = SnesAddr(0xb80000);
 const RAIN_OVERLAY: usize = 0x9f;
 const BLANK: u16 = 0x026f;
 // Index bits identify the left and right 8x8 columns within a Map16 tile.
@@ -216,7 +216,7 @@ fn main() -> Result<()> {
         .nth(1)
         .context("usage: generate_rain_tilemap VANILLA_ROM")?;
     let mut importer = Importer::new(fs::read(path)?)?;
-    let mut map = load_rain_map(&importer.flat_map16()?);
+    let mut map = load_rain_map(&importer.flat_map16(0xb8)?);
     let vanilla_falling_rain = falling_rain_count(&map);
     align_splashes(&mut map)?;
     adjust_falling_rain(&mut map);

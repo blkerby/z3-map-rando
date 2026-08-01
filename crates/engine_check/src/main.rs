@@ -13,19 +13,19 @@ mod rain_tilemap;
 use rain_tilemap::RAIN_TILEMAP;
 
 const VANILLA_ROM_SHA256: &str = "794e040b02c7591b59ad8843b51e7c619b88f87cddc6083a8e7a4027b96a2271";
-const FLAT_MAPS_START: SnesAddr = SnesAddr(0xa00000);
-const FLAT_MAP_POINTERS_START: SnesAddr = SnesAddr(0xa7e000);
+const FLAT_MAPS_START: SnesAddr = SnesAddr(0xb80000);
+const FLAT_MAP_POINTERS_START: SnesAddr = SnesAddr(0xbfe000);
 const MAP16_DEFINITION_STARTS: [SnesAddr; 4] = [
-    SnesAddr(0xa88000),
-    SnesAddr(0xa98000),
-    SnesAddr(0xaa8000),
-    SnesAddr(0xab8000),
+    SnesAddr(0xa18000),
+    SnesAddr(0xa28000),
+    SnesAddr(0xa38000),
+    SnesAddr(0xa48000),
 ];
 const MAP16_PROPERTY_STARTS: [SnesAddr; 4] = [
-    SnesAddr(0xac8000),
-    SnesAddr(0xacc000),
-    SnesAddr(0xad8000),
-    SnesAddr(0xadc000),
+    SnesAddr(0xa58000),
+    SnesAddr(0xa5c000),
+    SnesAddr(0xa68000),
+    SnesAddr(0xa6c000),
 ];
 const RAIN_OVERLAY: usize = 0x9f;
 
@@ -107,7 +107,7 @@ fn main() -> Result<()> {
     fastrom_base.apply(&mut rom)?;
 
     let mut importer = Importer::new(rom.clone())?;
-    let mut flat_map16 = importer.flat_map16()?;
+    let mut flat_map16 = importer.flat_map16((FLAT_MAPS_START.0 >> 16) as u8)?;
     replace_rain_tilemap(&mut flat_map16)?;
     let tile_types = importer.tile_types()?.to_owned();
     let map16_definitions = split_map16_definitions(importer.tiles16()?);

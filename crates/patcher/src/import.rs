@@ -367,7 +367,7 @@ impl Importer {
         Ok(())
     }
 
-    pub fn flat_map16(&mut self) -> Result<FlatMap16> {
+    pub fn flat_map16(&mut self, first_bank: u8) -> Result<FlatMap16> {
         if self.tiles32.is_empty() {
             self.load_32x32_tiles()?;
         }
@@ -400,8 +400,8 @@ impl Importer {
                 index
             };
 
-            let pointer =
-                (u32::from(0xa0 + index / 16) << 16) | (0x8000 + u32::from(index % 16) * 0x0800);
+            let pointer = (u32::from(first_bank + index / 16) << 16)
+                | (0x8000 + u32::from(index % 16) * 0x0800);
             screen_pointers.extend_from_slice(&pointer.to_le_bytes()[..3]);
         }
         ensure!(
@@ -903,12 +903,12 @@ mod tests {
             tile_types: Vec::new(),
         };
 
-        let flat = importer.flat_map16().unwrap();
+        let flat = importer.flat_map16(0xb8).unwrap();
 
         assert_eq!(flat.maps.len(), 124 * 2048);
-        assert_eq!(&flat.screen_pointers[..3], &[0x00, 0x80, 0xa0]);
-        assert_eq!(&flat.screen_pointers[123 * 3..124 * 3], &[0x00, 0xD8, 0xa7]);
-        assert_eq!(&flat.screen_pointers[124 * 3..125 * 3], &[0x00, 0x80, 0xa0]);
+        assert_eq!(&flat.screen_pointers[..3], &[0x00, 0x80, 0xb8]);
+        assert_eq!(&flat.screen_pointers[123 * 3..124 * 3], &[0x00, 0xD8, 0xbf]);
+        assert_eq!(&flat.screen_pointers[124 * 3..125 * 3], &[0x00, 0x80, 0xb8]);
     }
 
     #[test]

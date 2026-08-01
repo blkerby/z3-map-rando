@@ -8,13 +8,13 @@
 
 lorom
 
-!free_space_bank_any_start = $82F3C6
-!free_space_bank_any_end = $82F3EE
+!free_space_bank_any_start = $A08000
+!free_space_bank_any_end = $A08040
 
-!Map16TopLeft = $A88000
-!Map16TopRight = $A98000
-!Map16BottomLeft = $AA8000
-!Map16BottomRight = $AB8000
+!Map16TopLeft = $A18000
+!Map16TopRight = $A28000
+!Map16BottomLeft = $A38000
+!Map16BottomRight = $A48000
 
 ; When using this patch without independent_tile_type.asm, enable this hook so
 ; GetOverworldTileType can still derive properties from the banked graphics.

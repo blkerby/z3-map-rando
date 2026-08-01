@@ -26,21 +26,17 @@
 
 lorom
 
-!free_space_bank_any_start = $9BB1E0
-!free_space_bank_any_end = $9BB800
+!free_space_bank_any_start = $A08900
+!free_space_bank_any_end = $A09900
 !free_space_bank_82_start = $82F6FD
-!free_space_bank_82_end = $82FA71
-!free_space_bank_9B_start_1 = $9BBEEC
-!free_space_bank_9B_end_1 = $9BBF02
-!free_space_bank_9B_start_2 = $9BC9F0
-!free_space_bank_9B_end_2 = $9BCA23
+!free_space_bank_82_end = $82F720
 
 !NMISkipOAM = $0702
 
-!Map16TopLeft = $A88000
-!Map16TopRight = $A98000
-!Map16BottomLeft = $AA8000
-!Map16BottomRight = $AB8000
+!Map16TopLeft = $A18000
+!Map16TopRight = $A28000
+!Map16BottomLeft = $A38000
+!Map16BottomRight = $A48000
 
 ; Temporary parameters for the shared BG1/BG2 renderer. This documented free
 ; WRAM is only scratch during a renderer call; no state persists between frames.
@@ -519,21 +515,6 @@ assert pc() <= $82F6FD
 
 org !free_space_bank_82_start
 
-hook_CreditsAfterScrollUpdate:
-    REP #$20
-
-    LDA.b $E2
-    JSL BG2StreamHorizontal
-    LDA.b $E8
-    JSL BG2StreamVertical
-    LDA.b $E0
-    JSL BG1StreamHorizontal
-    LDA.b $E6
-    JSL BG1StreamVertical
-
-    SEP #$20
-    RTL
-
 hook_Module19AfterBG1ScrollFinalized:
     JSR.w $C44F                 ; Run hi-jacked instruction
     JSL BG1BulkRender
@@ -757,6 +738,22 @@ assert pc() <= $9BCA9F
 ;---------------------------------------------------------------------------------------------------
 
 org !free_space_bank_any_start
+
+hook_CreditsAfterScrollUpdate:
+    REP #$20
+
+    LDA.b $E2
+    JSL BG2StreamHorizontal
+    LDA.b $E8
+    JSL BG2StreamVertical
+    LDA.b $E0
+    JSL BG1StreamHorizontal
+    LDA.b $E6
+    JSL BG1StreamVertical
+
+    SEP #$20
+    RTL
+
 BG2BulkRender:
     PHP                         ; Preserve the caller's register-width flags.
 
@@ -2106,23 +2103,11 @@ BGMirrorBuildMargins:
     JSR BGEmitColumn
     JMP BG1BuildMirrorMargins
 
-assert pc() <= !free_space_bank_any_end
-
-; A small remainder of the old terrain-property lookup holds the shared
-; source/destination setup for one wrapped BG1 margin column.
-org !free_space_bank_9B_start_1
-
 BG1EmitMirrorColumn:
     STA.b $06
     STA.b $0E
     JSR BGEmitColumn
     RTS
-
-assert pc() <= !free_space_bank_9B_end_1
-
-; The obsolete vanilla 64x64 Map16 address calculation leaves just enough
-; room for the BG1 half of the shared mirror-margin list.
-org !free_space_bank_9B_start_2
 
 BG1BuildMirrorMargins:
     JSR BG1CheckStreamingEnabled
@@ -2159,4 +2144,4 @@ BG1BuildMirrorMargins:
     PLP
     RTS
 
-assert pc() <= !free_space_bank_9B_end_2
+assert pc() <= !free_space_bank_any_end

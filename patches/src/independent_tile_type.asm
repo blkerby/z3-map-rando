@@ -3,10 +3,10 @@
 
 lorom
 
-!Map16PropertyTopLeft = $AC8000
-!Map16PropertyTopRight = $ACC000
-!Map16PropertyBottomLeft = $AD8000
-!Map16PropertyBottomRight = $ADC000
+!Map16PropertyTopLeft = $A58000
+!Map16PropertyTopRight = $A5C000
+!Map16PropertyBottomLeft = $A68000
+!Map16PropertyBottomRight = $A6C000
 
 ; Vanilla has already loaded the Map16 ID into A.
 ;

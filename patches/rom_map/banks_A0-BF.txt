@@ -1,0 +1,70 @@
+Bank $A0
+$A08000-$A08027 expand_map16.asm (banked interleaved Map16 definition lookup)
+$A08028-$A0803F [FREE]
+$A08040-$A08057 fastrom_extra.asm (FastROM startup and NMI entry)
+$A08058-$A0807F [FREE]
+$A08080-$A080FD mirror_bg1.asm (independent BG1 mirror-wave HDMA table)
+$A080FE-$A0817F [FREE]
+$A08180-$A0830E reduce_bg3.asm (BG3 layout and row streaming)
+$A0830F-$A0837F [FREE]
+$A08380-$A08395 nmi_optimize.asm (conditional OAM upload)
+$A08396-$A0839F [FREE]
+$A083A0-$A0863B overworld_vram.asm (VRAM layout and generated asset loading)
+$A0863C-$A086FF [FREE]
+$A08700-$A08777 flat_map16.asm (flat Map16 loaders)
+$A08778-$A088FF [FREE]
+$A08900-$A08F72 bg_streamer.asm (BG1/BG2 renderers and transition helpers)
+$A08F73-$A0FFFF [FREE]
+
+Bank $A1
+$A18000-$A1FFFF top-left Map16 definition words
+
+Bank $A2
+$A28000-$A2FFFF top-right Map16 definition words
+
+Bank $A3
+$A38000-$A3FFFF bottom-left Map16 definition words
+
+Bank $A4
+$A48000-$A4FFFF bottom-right Map16 definition words
+
+Bank $A5
+$A58000-$A5BFFF top-left Map16 property bytes
+$A5C000-$A5FFFF top-right Map16 property bytes
+
+Bank $A6
+$A68000-$A6BFFF bottom-left Map16 property bytes
+$A6C000-$A6FFFF bottom-right Map16 property bytes
+
+Banks $A7-$A9
+$A78000-$A782FF generated overworld asset pointer table
+$A78300-$A9FFFF generated overworld asset metadata
+
+Banks $AA-$B7
+$AA8000-$B7FFFF generated overworld palette and character payloads
+
+Bank $B8
+$B88000-$B8FFFF flat Map16 submaps 0-15
+
+Bank $B9
+$B98000-$B9FFFF flat Map16 submaps 16-31
+
+Bank $BA
+$BA8000-$BAFFFF flat Map16 submaps 32-47
+
+Bank $BB
+$BB8000-$BBFFFF flat Map16 submaps 48-63
+
+Bank $BC
+$BC8000-$BCFFFF flat Map16 submaps 64-79
+
+Bank $BD
+$BD8000-$BDFFFF flat Map16 submaps 80-95
+
+Bank $BE
+$BE8000-$BEFFFF flat Map16 submaps 96-111
+
+Bank $BF
+$BF8000-$BFDFFF flat Map16 submaps 112-123
+$BFE000-$BFE1DF screen-to-flat-map pointer table
+$BFE1E0-$BFFFFF [FREE]

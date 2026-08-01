@@ -1,9 +1,24 @@
 lorom
 
 !OverworldScreenSize = $82F5F1
-!FlatMap16ScreenPointers = $A7E000
+!FlatMap16ScreenPointers = $BFE000
+
+!free_space_bank_any_start = $A08700
+!free_space_bank_any_end = $A08900
 
 org $82F2AE
+hook_OverworldLoadAllMapQuadrants:
+    JSL Overworld_LoadAllFlatMap16
+    RTS
+assert pc() == $82F2B3
+
+org $82F52F
+hook_LoadSubOverlayMap:
+    JSL LoadSubOverlayFlatMap16
+    RTS
+assert pc() == $82F534
+
+org !free_space_bank_any_start
 
 ; Build the 64x64 WRAM Map16 data (TMAPA) from 32x32 flat Map16 data.
 ; This replaces the slower, more complex decompression involving Map32.
@@ -43,7 +58,7 @@ Overworld_LoadAllFlatMap16:
 
 .done
     PLB
-    RTS
+    RTL
 
 ; A: screen ID
 ; Y: destination address in WRAM bank $7E
@@ -99,10 +114,6 @@ Overworld_LoadOneFlatMap16:
 
     RTS
 
-assert pc() <= $82F39C
-
-org $82F52F
-
 ; Load the 32x32 flat Map16 overlay into the top-left of TMAPB.
 LoadSubOverlayFlatMap16:
     PHB
@@ -112,6 +123,6 @@ LoadSubOverlayFlatMap16:
     JSR Overworld_LoadOneFlatMap16
 
     PLB
-    RTS
+    RTL
 
-assert pc() <= $82F5E3
+assert pc() <= !free_space_bank_any_end

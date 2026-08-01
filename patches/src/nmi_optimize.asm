@@ -45,6 +45,9 @@ DMA1SIZEH   = $4316 ; Transfer size high byte
 
 !NMISkipOAM = $0702
 
+!free_space_bank_any_start = $A08380
+!free_space_bank_any_end = $A083A0
+
 ; NoIRQThread and SwitchThread both copy the same eight adjacent PPU queue
 ; bytes to adjacent PPU registers. Word writes preserve the byte order while
 ; halving the number of loads and stores.
@@ -197,7 +200,7 @@ assert pc() <= $808C75
 org $808C75
 return_NMIAfterArbitraryDMA:
 
-org $A7E345
+org !free_space_bank_any_start
 hook_NMIBeforeOAMUpload:
     LDA.w !NMISkipOAM
     REP #$20
@@ -212,4 +215,4 @@ hook_NMIBeforeOAMUpload:
 .upload_oam
     JML.l $808BAE               ; Resume at the displaced STZ $15.
 
-assert pc() <= $A7E35B
+assert pc() <= !free_space_bank_any_end

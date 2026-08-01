@@ -90,7 +90,7 @@ Large areas load four submaps into the four WRAM quadrants. Small areas load onl
 - Add ASM through `patches/src` and generated data through contextual `Patcher` writes, without modifying the disassembly itself. Record occupied and free ranges in `patches/rom_map`.
 - Use assembler assertions for code placement and `Patcher` checks for overlapping or out-of-bounds writes.
 
-Banks `$A0-$A7` hold the 248 KiB flat maps. The 480-byte screen-to-map pointer table starts at `$A7E000`, leaving banks `$A8-$BF` for later milestones.
+Banks `$B8-$BF` hold the 248 KiB flat maps. The 480-byte screen-to-map pointer table starts at `$BFE000`.
 
 ### Map32 removal: code and data to replace
 
@@ -120,7 +120,7 @@ Milestone 2 is complete when no runtime path depends on Map32 data, the generate
 
 Expand Map16 definitions across four banks while retaining the milestone 2 flat maps, vanilla definition contents, collision behavior, palettes, tilesets, and 64x64 PPU tilemaps. Store one quadrant word per bank so every table uses the same `ID * 2` index. Do not make the original coarse per-Map16 property table part of the final representation; the milestone 4 quadrant-property work replaces it.
 
-Banks `$A8-$AB` contain the top-left, top-right, bottom-left, and bottom-right words respectively. The original coarse-property data remain unchanged until milestone 4 replaces them.
+Banks `$A1-$A4` contain the top-left, top-right, bottom-left, and bottom-right words respectively. The original coarse-property data remain unchanged until milestone 4 replaces them.
 
 ### Expanding the Map16 ID namespace
 
@@ -129,10 +129,10 @@ The WRAM maps and persistent-change records already store 16-bit Map16 IDs, so t
 A simple banked layout splits each definition into four parallel word tables:
 
 ```text
-bank $A8: top-left words
-bank $A9: top-right words
-bank $AA: bottom-left words
-bank $AB: bottom-right words
+bank $A1: top-left words
+bank $A2: top-right words
+bank $A3: bottom-left words
+bank $A4: bottom-right words
 
 address in each bank = $8000 + (id * 2)
 ```
@@ -167,7 +167,7 @@ Hard-coded tile IDs such as `$0DBE`, `$0D9E`, and `$0DA0` in banks 02/04/07/1B c
 
 ### Implementation and validation
 
-- `engine_check` imports the 3,742 vanilla definitions and writes their four quadrants to banks `$A8-$AB` without changing IDs or words.
+- `engine_check` imports the 3,742 vanilla definitions and writes their four quadrants to banks `$A1-$A4` without changing IDs or words.
 - `expand_map16.asm` migrates every direct definition load, including full builds, scrolling stripes, dynamic tile changes, entrances, terrain actions, and liftable objects.
 - Runtime-selected quadrants use banked lookup routines; fixed-quadrant paths load their bank directly.
 - The split-definition unit test checks quadrant ordering and byte layout.
@@ -202,7 +202,7 @@ properties:  top-left byte, top-right byte, bottom-left byte, bottom-right byte
 
 `engine_check` derives the vanilla records from the four 8x8 tiles in each Map16 and the vanilla `OverworldTileTypes` table. It also folds the graphics word's horizontal-flip bit into directional slope properties `$10-$1B`, matching the vanilla runtime calculation. Milestone 9C will generate the same records directly from properties authored in `ALTTPRetiling`.
 
-The four dense 16 KiB quadrant tables occupy `$AC8000`, `$ACC000`, `$AD8000`, and `$ADC000`. They are indexed directly by Map16 ID and cover the full `$0000-$3FFF` namespace in 64 KiB.
+The four dense 16 KiB quadrant tables occupy `$A58000`, `$A5C000`, `$A68000`, and `$A6C000`. They are indexed directly by Map16 ID and cover the full `$0000-$3FFF` namespace in 64 KiB.
 
 ### Implementation and validation
 

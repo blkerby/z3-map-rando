@@ -1,5 +1,8 @@
 ; Based on https://raw.githubusercontent.com/codemann8/z3randomizer/e40be2a148f66c7928ef64fc04608e31e2a41753/fastrom.asm
 
+!free_space_bank_any_start = $A08040
+!free_space_bank_any_end = $A08080
+
 ;===================================================================================================
 
 ; InitializeMemoryAndSRAM has completed and returned in 8-bit mode. Replace
@@ -20,8 +23,7 @@ org $8080C9
 org $80FFD5
     db $30
 
-; Obsolete Map32 expansion space, immediately after mirror_bg1.asm.
-org $82F46C
+org !free_space_bank_any_start
 hook_InitializeMemoryAndSRAMAfterReturn:
     LDA.b #$01
     STA.l $00420D
@@ -41,6 +43,8 @@ hook_NMIEntry:
     PHA
 
     JML $8080CD
+
+assert pc() <= !free_space_bank_any_end
 
 ;===================================================================================================
 

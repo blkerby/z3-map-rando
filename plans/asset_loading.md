@@ -48,7 +48,7 @@ destination row `n` means word address `n * $100`, because 16 4bpp characters
 occupy `$100` VRAM words.
 
 A source bank of zero terminates a descriptor list. Payloads will live only in
-FastROM banks `$B2-$BF`, so there is never ambiguity between the terminator
+FastROM banks `$AA-$B7`, so there is never ambiguity between the terminator
 `$00` and an actual bank.
 
 Each DMA batch contains two null-terminated lists:
@@ -132,13 +132,13 @@ may only target palette ranges owned by the overworld background loader.
 
 ## ROM storage and lookup
 
-Banks `$A8-$AD` already hold generated Map16 definitions and properties. Keep
+Banks `$A1-$A6` hold generated Map16 definitions and properties. Keep
 asset metadata and payloads in separate remaining bank ranges:
 
-- `$AE8000-$B1FFFF`: pointer table, asset records, and descriptor lists.
-- `$B28000-$BFFFFF`: shared palette and character payloads.
+- `$A78000-$A9FFFF`: pointer table, asset records, and descriptor lists.
+- `$AA8000-$B7FFFF`: shared palette and character payloads.
 
-Reserve `$AE8000-$AE82FF` for `OverworldAssetBundlePointers`, a table of 256
+Reserve `$A78000-$A782FF` for `OverworldAssetBundlePointers`, a table of 256
 little-endian 24-bit pointers. The loader computes `3 * $8A`, reads the table
 entry into a direct-page long pointer, and follows it to an asset record:
 
@@ -162,14 +162,14 @@ may point to the same asset record. Every ID reachable through modules `$08`
 or `$0A` must have a generated entry; unused IDs point to one empty record.
 
 Asset records, batch sequences, transition schedules, DMA batches, and
-animation definitions begin at `$AE8300`. Keep each structure within one
+animation definitions begin at `$A78300`. Keep each structure within one
 metadata bank. Store each generated graphics or palette payload once in banks
-`$B2-$BF` and let multiple batches reference it. Neither region may spill into
+`$AA-$B7` and let multiple batches reference it. Neither region may spill into
 the other. `engine_check` reports their independent usage and fails if either
 range overflows.
 
-Submilestone 9B.1 uses this fixed ABI directly: the table starts at `$AE8000`,
-metadata starts at `$AE8300`, and payloads start at `$B28000`. `engine_check`
+Submilestone 9B.1 uses this fixed ABI directly: the table starts at `$A78000`,
+metadata starts at `$A78300`, and payloads start at `$AA8000`. `engine_check`
 writes the vanilla bundle. A generated manifest is unnecessary unless these
 locations later become configurable.
 

@@ -13,8 +13,8 @@ lorom
 
 !free_space_bank_00_start = $808878
 !free_space_bank_00_end = $808888
-!free_space_bank_any_start = $A7E1E0
-!free_space_bank_any_end = $A7E400
+!free_space_bank_any_start = $A08180
+!free_space_bank_any_end = $A08380
 
 ; One byte of otherwise unused WRAM tells the NMI handler which source image
 ; supplies the next ring row.
@@ -404,11 +404,6 @@ BlankBG3Row:
     ; Tilemap word $207F is the transparent space used by the HUD and menu.
     fillword $207F
     fill 64
-
-ReduceBG3End:
-assert pc() <= !free_space_bank_any_end
-
-org $A7E35B
 
 ; File select inherits the title-screen PPU setup, but unlike gameplay it
 ; needs both horizontal blocks for the name-entry character grid.

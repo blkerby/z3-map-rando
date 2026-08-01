@@ -1,1 +1,0 @@
-$A28000-$A2FFFF used flat Map16 submaps 32-47

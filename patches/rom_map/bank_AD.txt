@@ -1,2 +1,0 @@
-$AD8000-$ADBFFF bottom-left Map16 property bytes
-$ADC000-$ADFFFF bottom-right Map16 property bytes

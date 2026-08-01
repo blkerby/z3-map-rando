@@ -12,15 +12,15 @@
 
 lorom
 
-!free_space_bank_any_start = $A7E38F
-!free_space_bank_any_end = $A7FFFF
+!free_space_bank_any_start = $A083A0
+!free_space_bank_any_end = $A08700
 !free_space_bank_82_start = $82F5C0
 !free_space_bank_82_end = $82F5E7
 
 !OverworldHUD = $3C40
 !DefaultHUD = $6040
 !GeneratedAssetMarker = $FF
-!OverworldAssetBundlePointers = $AE8000
+!OverworldAssetBundlePointers = $A78000
 
 ; Module08_00_LoadProperties is the common forced-blank entry for normal and
 ; special overworld loads. Select and clear the relocated layout before any
