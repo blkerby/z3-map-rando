@@ -197,6 +197,13 @@ org $82B01B
     JSL hook_MosaicDestinationPaletteSelection
 assert pc() == $82B01F
 
+; Module09_25, used directly by special-overworld entry phase $18 and as exit
+; phase $25: install the resolved destination assets while forced blank is
+; still active, then retain the shared sprite-slot initialization.
+org $82AE2D
+    JSL hook_Module09BeforeSpecialSpriteReload
+assert pc() == $82AE31
+
 ; AnimateMirrorWarp_DoSpritesPalettes, mirror/portal and Agahnim transitions:
 ; bracket the destination sprite/palette routine so its BG writes are skipped.
 org $80D8FB
@@ -992,6 +999,25 @@ hook_TriforceAfterPaletteSelection:
 hook_MosaicDestinationPaletteSelection:
     JML LoadGeneratedOverworldSpritePalettes
 
+hook_Module09BeforeSpecialSpriteReload:
+    LDA.b $11
+    CMP.b #$18
+    BNE .check_exit
+
+    LDA.b $A0                   ; Special entry uses the destination special-map ID.
+    JSR SynchronousLoadOverworldAssets
+    BRA .reload_sprites
+
+.check_exit
+    CMP.b #$25
+    BNE .reload_sprites
+
+    JSR SynchronousLoadCurrentOverworldAssets
+
+.reload_sprites
+    JSL $89AFD6                 ; Run hi-jacked instruction
+    RTL
+
 hook_FluteLoadLandingScreenPalettes:
     LDA.b #$01
     STA.l !GeneratedAssetMarker
@@ -1254,15 +1280,30 @@ InitializeScrollingAssetSchedule:
 .record_offsets
     db 12, 9, 6, 3
 
-; Replace the obsolete mode-$0A preparation submodule. A terminated pre-scroll
-; section advances to map loading; a submitted batch waits for the next frame.
+; Replace the obsolete mode-$0A preparation submodule. Ordinary scrolling
+; transitions consume their initialized pre-scroll schedule one batch per
+; frame. Special-overworld entry and exit reach the same code as submodules
+; $1B and $27 after their assets were synchronously loaded during forced blank,
+; so advance them directly to mosaic recovery or map rebuilding.
 hook_Module09BeforePreScrollAssetBatch:
+    LDA.b $11
+    CMP.b #$1B
+    BEQ .advance
+    CMP.b #$27
+    BNE .scheduled
+
+.advance
+    INC.b $11
+    BRA .return
+
+.scheduled
     JSL ProcessNextScheduledAssetBatch
     BCC .wait
 
     INC.b $11
 
 .wait
+.return
     JML $82AAC4                 ; Return through the vanilla RTS.
 
 ; Retain the sprite upload queued by the displaced call, then consume the
