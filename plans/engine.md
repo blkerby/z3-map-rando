@@ -386,10 +386,10 @@ collision records, and visual appearance.
 The implementation sequence begins with the module `$08` forced-blank path
 described in [`asset_loading.md`](asset_loading.md).
 
-Submilestone 9B.1 is implemented, with gameplay validation pending. It
-generates the vanilla-equivalent static bundle and loads it through the shared
-module `$08`/`$0A` forced-blank path. Later 9B checkpoints cover scrolling,
-remaining transitions, and animation.
+Submilestones 9B.1-9B.3 are implemented, with gameplay validation pending.
+Generated static assets now cover forced-blank entry, scrolling, mirror and
+whirlpool effects, mosaic recovery, flute travel, world-map restoration,
+credits scenes, and the Triforce room. Submilestone 9B.4 covers animation.
 
 Define the runtime ABI here: bundle descriptors contain 24-bit source
 pointers and fixed-size VRAM or palette-row destinations. Use the same

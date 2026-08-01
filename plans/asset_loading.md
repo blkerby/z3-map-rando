@@ -1,6 +1,6 @@
 # Overworld asset loading
 
-Status: submilestones 9B.1 and 9B.2 implemented; gameplay validation pending.
+Status: submilestones 9B.1-9B.3 implemented; gameplay validation pending.
 
 ## Goal
 
@@ -308,6 +308,18 @@ whirlpool loads update `$7EC300` while their cover effect remains active, then
 let the existing filter derive `$7EC500` and CGRAM as the effect clears.
 Continue reloading the complete applicable asset set for every destination and
 do not add residency tracking.
+
+Implemented: mirror/portal and whirlpool transitions consume the existing
+full-reload sequence one batch per frame while their palette effects cover the
+change. Mosaic recovery retains only its sprite-palette work. Flute travel,
+world-map restoration, credits scenes, and the Triforce room load full bundles
+synchronously under forced blank. The credits scrolling background uses asset
+key `$FF` for its area `$5B` graphics and auxiliary palette group `$03`; the
+Triforce room uses its final `$8A=$88` record and palette set `$0E`. The dormant
+Zora-area Triforce trigger is not treated as a reachable load path.
+
+Gameplay validation must still exercise each of these paths and verify NMI
+timing, sprite continuity, palette-filter recovery, and vanilla appearance.
 
 ## Submilestone 9B.4: animated tiles
 

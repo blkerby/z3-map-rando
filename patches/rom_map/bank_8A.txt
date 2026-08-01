@@ -1,1 +1,4 @@
+$8AB911-$8AB914 overworld_vram.asm (flute landing generated palette setup)
+$8AB937-$8AB93A overworld_vram.asm (flute landing generated OBJ setup)
 $8ABBF9-$8ABBFC overworld_vram.asm (restore overworld layout from world map)
+$8ABC79-$8ABC7C overworld_vram.asm (world-map exit generated OBJ setup)

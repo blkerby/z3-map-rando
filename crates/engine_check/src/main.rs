@@ -183,8 +183,13 @@ fn main() -> Result<()> {
     let map16_definitions = split_map16_definitions(importer.tiles16()?);
     let map16_properties = split_map16_properties(importer.tiles16()?, &tile_types);
     let area_assets = importer.overworld_area_assets()?;
+    let credits_cool_background = importer.credits_cool_background_assets()?;
     let graphics_sheets = importer.overworld_graphics_sheets()?;
-    let asset_bundle = asset_bundle::build(&area_assets, args.transition_asset_phase)?;
+    let asset_bundle = asset_bundle::build(
+        &area_assets,
+        &credits_cool_background,
+        args.transition_asset_phase,
+    )?;
     eprintln!(
         "overworld assets: {} bytes total ({} metadata, {} payload), 16576 DMA bytes/area, {} unique payloads",
         asset_bundle.metadata.len() + asset_bundle.payload.len(),

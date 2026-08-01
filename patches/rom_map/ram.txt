@@ -6,3 +6,5 @@ $7EC84A-$7EC84A reduce_bg3.asm (BG3 row source: $00 while opening the item menu,
 $7EC900-$7EC901 bg_streamer.asm (temporary Map16 source offset from $7E2000)
 $7EC902-$7EC903 bg_streamer.asm (temporary tilemap VRAM base)
 $7EC904-$7EC905 bg_streamer.asm (temporary logical-coordinate mask)
+$7EC906-$7EC908 overworld_vram.asm (active generated asset-sequence cursor)
+$7EC909-$7EC909 overworld_vram.asm (generated BG-loader marker)

@@ -20,15 +20,16 @@ lorom
 !free_space_bank_any_start_1 = $A083A0
 !free_space_bank_any_end_1 = $A08700
 !free_space_bank_any_start_2 = $A09900
-!free_space_bank_any_end_2 = $A0A000
+!free_space_bank_any_end_2 = $A0B000
 !free_space_bank_82_start = $82F5C0
 !free_space_bank_82_end = $82F5E7
 
 !OverworldHUD = $3C40
 !DefaultHUD = $6040
-!GeneratedAssetMarker = $FF
 !OverworldAssetBundlePointers = $A78000
 !OverworldAssetSchedule = $7EC906
+!GeneratedAssetMarker = $7EC909
+!CreditsCoolBackgroundAssetKey = $FF
 
 ; Module08_00_LoadProperties, modules $08/$0A submodule $00: common
 ; forced-blank entry for normal and special overworld loads. Select and clear
@@ -68,7 +69,8 @@ assert pc() == $829D5F
 
 ; WorldMap_RestoreGraphics, module $0E submodule $07 or $0A, internal phase
 ; $0200=$06: select and clear the overworld layout during the forced-blank
-; restoration shared by the ordinary world map and flute map.
+; restoration shared by the ordinary world map and flute map, then reload the
+; current area's generated background assets.
 org $8ABBF9
     JSL hook_WorldMapOverworldRestore
 assert pc() == $8ABBFD
@@ -83,8 +85,8 @@ assert pc() == $80E25E
 
 ; InitializeTilesets, shared graphics-loading routine with no fixed module or
 ; submodule: preserve its resolved BG sheet cache in $7EC2F8-$7EC2FB, then
-; bypass static BG decompression only for a generated module $08/$0A load.
-; Other transition callers still consume that cache.
+; bypass static BG decompression while any generated overworld load is active.
+; Other callers still consume that cache and the vanilla BG loader.
 org $80E2C2
     JML hook_InitializeTilesetsAfterBGSheetResolution
     NOP
@@ -119,6 +121,140 @@ org $8CFF4F
     BRA +
 org $8CFF5B
 +
+
+; ReloadPreviouslyLoadedSheets, mirror/portal, Agahnim, and whirlpool cleanup:
+; generated assets own BG characters, so retain only the four OBJ-sheet loads.
+org $80D7CB
+    JML hook_ReloadPreviouslyLoadedSheetsBeforeBG
+assert pc() == $80D7CF
+
+; AnimateMirrorWarp's NMI request table, mirror/portal and Agahnim transitions:
+; generated batches replace the four vanilla BG-character uploads in phases 1-4.
+org $80D896
+    db $00, $00, $00, $00
+assert pc() == $80D89A
+
+; AnimateMirrorWarp_DecompressNewTileSets, after it resolves the destination
+; BG and OBJ sheet caches: initialize and submit the first generated batch.
+org $80D9BA
+    JML hook_MirrorAfterSheetResolution
+assert pc() == $80D9BE
+
+; AnimateMirrorWarp_DecompressBackgroundsA/B/C, phases 2-4: replace each
+; obsolete BG decompression pass with the next generated full-reload batch.
+org $80D9F9
+    JML hook_MirrorNextGeneratedAssetBatch
+assert pc() == $80D9FD
+
+org $80DA38
+    JML hook_MirrorNextGeneratedAssetBatch
+assert pc() == $80DA3C
+
+org $80DA6C
+    JML hook_MirrorNextGeneratedAssetBatch
+assert pc() == $80DA70
+
+; Credits_LoadOverworldScene_PrepGFX, module $1A while preparing an overworld
+; vignette: retain OBJ setup, then keep the generated marker active through
+; the following background palette selectors.
+org $828558
+    JSL hook_CreditsInitializeTilesets
+assert pc() == $82855C
+
+; Credits_LoadOverworldScene_PrepGFX, after the destination palette selectors
+; are known: install the current area's generated assets before palette cache.
+org $828568
+    JSL hook_CreditsAfterPaletteSelection
+assert pc() == $82856C
+
+; Credits_LoadCoolBackground, module $1A scrolling-background setup: keep its
+; scripted OBJ setup while generated assets replace the static BG load.
+org $8285D1
+    JSL hook_CreditsCoolBackgroundInitializeTilesets
+assert pc() == $8285D5
+
+; Credits_LoadCoolBackground, after selecting its nonstandard BG2 palette:
+; replace the direct vanilla palette write with generated asset key $FF.
+org $8285EA
+    JSL hook_CreditsCoolBackgroundAfterPaletteSelection
+assert pc() == $8285EE
+
+; Module19_03_PrepTileSetsPalette, Triforce room forced-blank setup: preserve
+; OBJ loading and mark its following BG palette selection as generated.
+org $829F6B
+    JSL hook_TriforceInitializeTilesets
+assert pc() == $829F6F
+
+; Module19_03_PrepTileSetsPalette, after its palette selectors are established:
+; install the generated $8A=$88 Triforce bundle before the special cache copy.
+org $829F76
+    JSL hook_TriforceAfterPaletteSelection
+assert pc() == $829F7A
+
+; OverworldMosaicTransition_RecoverDestinationPalettes, modules $09/$0B:
+; retain selector and OBJ palette work without replacing generated BG rows.
+org $82B01B
+    JSL hook_MosaicDestinationPaletteSelection
+assert pc() == $82B01F
+
+; AnimateMirrorWarp_DoSpritesPalettes, mirror/portal and Agahnim transitions:
+; bracket the destination sprite/palette routine so its BG writes are skipped.
+org $80D8FB
+    JSL hook_MirrorWarpBeforeSpritesAndColors
+assert pc() == $80D8FF
+
+; Module09_2E_07/08, whirlpool phases $07/$08: replace the scrolling-only
+; shared calls with a destination full-reload sequence, one batch per frame.
+org $82B3DF
+    JML hook_WhirlpoolBeforeGeneratedAssets
+    NOP
+assert pc() == $82B3E4
+
+org $82B3E4
+    JML hook_WhirlpoolBeforeNextGeneratedAssetBatch
+assert pc() == $82B3E8
+
+; Module09_2E_09_LoadPalettes, whirlpool phase $09: mark the complete retained
+; sprite/HUD/effect palette block as generated before its first instruction.
+org $82B3F3
+    JML hook_WhirlpoolBeforePaletteWork
+assert pc() == $82B3F7
+
+; Module09_2E_09_LoadPalettes, after all palette selectors and background
+; state are established: retain sprite-set loading and clear the marker.
+org $82B422
+    JSL hook_WhirlpoolAfterPaletteWork
+assert pc() == $82B426
+
+; Module09_2E_09_LoadPalettes, whirlpool phase $09: the direct main-BG call
+; does not pass through the shared generated-load guard, so suppress it here.
+org $82B406
+    JSL hook_WhirlpoolMainBackgroundPalette
+assert pc() == $82B40A
+
+; LoadLandingScreenPalettes, flute landing after destination palette selection:
+; install generated assets before background color and palette caching.
+org $82EA54
+    JSL hook_FluteAfterPaletteSelection
+assert pc() == $82EA58
+
+; FluteMenu_LoadSelectedScreen, module $0E flute restoration: keep the marker
+; active while the landing-palette routine chooses destination palette state.
+org $8AB911
+    JSL hook_FluteLoadLandingScreenPalettes
+assert pc() == $8AB915
+
+; FluteMenu_LoadSelectedScreen, after animated and fixed-color setup: retain
+; only InitializeTilesets' OBJ half because generated BG assets are resident.
+org $8AB937
+    JSL hook_FluteInitializeTilesets
+assert pc() == $8AB93B
+
+; WorldMap_ExitMap, forced-blank world-map restoration: retain only
+; InitializeTilesets' OBJ half after the generated background reload.
+org $8ABC79
+    JSL hook_WorldMapInitializeTilesets
+assert pc() == $8ABC7D
 
 ; Intro_InitializeDefaultGFX, intro initialization after startup or
 ; save-and-quit: restore the default layout before the routine clears and
@@ -215,11 +351,13 @@ org $82A9F3
 
 ; Module09_LoadAuxGFX, module $09 submodule $01: retain destination sprite-sheet
 ; staging and its incremental-upload reset, but omit BG-sheet decompression,
-; conversion, and the vanilla $17=$09 upload. Generated batches replace them.
+; conversion, and the vanilla $17=$09 upload. Continue directly into patched
+; submodule $02, which replaces that work with generated batches.
 org $82AAAF
     JSL $80D739                 ; LoadTransAuxGFX_sprite
     INC.b $11
-    RTS
+    JMP.w $AABB                 ; Tail-dispatch submodule $02 in the same frame.
+assert pc() == $82AAB8
 
 ; Module09_TriggerTilemapUpdate, module $09 submodule $02: replace the vanilla
 ; $17=$0A BG-character upload with the pre-scroll generated batches, processing
@@ -288,11 +426,8 @@ hook_Module08LoadProperties:
     RTL
 
 hook_Module08InitializeTilesets:
-    ; $0412 is normally the incremental character-upload cursor ($00-$10).
-    ; $FF is therefore available as a transient marker for this forced-blank
-    ; load and lets the shared palette routines distinguish this caller.
-    LDA.b #!GeneratedAssetMarker
-    STA.w $0412
+    LDA.b #$01
+    STA.l !GeneratedAssetMarker
 
     ; Keep InitializeTilesets' sprite loading and BG sheet-cache setup. The
     ; hook at $80E2C2 returns before it decompresses the static BG sheets.
@@ -303,8 +438,9 @@ hook_Module08InitializeTilesets:
 ; vanilla palette selectors have established the area's palette state. Clear
 ; the marker before resuming the normal background-color/cache setup.
 hook_Module08AfterBGPaletteSelection:
-    JSR SynchronousLoadOverworldAssets
-    STZ.w $0412
+    JSR SynchronousLoadCurrentOverworldAssets
+    LDA.b #$00
+    STA.l !GeneratedAssetMarker
 
     JSL $8CFF91                 ; Run hi-jacked instruction
     RTL
@@ -313,9 +449,8 @@ hook_Module08AfterBGPaletteSelection:
 ; palettes. Suppress only its final main-background palette call while the
 ; generated loader owns BG palette rows 2-7.
 hook_OverworldScreenPalettesAfterHUD:
-    LDA.w $0412
-    CMP.b #!GeneratedAssetMarker
-    BEQ .skip
+    LDA.l !GeneratedAssetMarker
+    BNE .skip
 
     JSL $9BEEC7                 ; Run hi-jacked instruction
 .skip
@@ -324,9 +459,8 @@ hook_OverworldScreenPalettesAfterHUD:
 ; OverworldPalettesLoader must still resolve palette IDs and load its sprite
 ; palettes. Suppress only the three auxiliary BG palette writes.
 hook_OverworldPalettesAfterSetSelection:
-    LDA.w $0412
-    CMP.b #!GeneratedAssetMarker
-    BEQ .skip
+    LDA.l !GeneratedAssetMarker
+    BNE .skip
 
     ; Run hi-jacked instructions:
     JSL $9BEEE8                 ; PaletteLoad_OWBG1
@@ -339,6 +473,7 @@ hook_OverworldPalettesAfterSetSelection:
 hook_WorldMapOverworldRestore:
     JSL $80893D                 ; Run hi-jacked instruction
     JSR SelectAndClearOverworldVRAM
+    JSR SynchronousLoadCurrentOverworldAssets
     RTL
 
 hook_OverworldSceneTilemapClear:
@@ -429,6 +564,8 @@ SelectDefaultVRAM:
     STA.w $2109
     LDA.b #$22                  ; BG1/BG2 characters begin at $2000.
     STA.w $210B
+    LDA.b #$00
+    STA.l !GeneratedAssetMarker
 
     REP #$20
     LDA.w #!DefaultHUD
@@ -504,9 +641,8 @@ hook_InitializeTilesetsBeforeBGSetup:
 ; and resolved the four variable BG sheet IDs into $7EC2F8-$7EC2FB.
 hook_InitializeTilesetsAfterBGSheetResolution:
     SEP #$30
-    LDA.w $0412
-    CMP.b #!GeneratedAssetMarker
-    BEQ .skip
+    LDA.l !GeneratedAssetMarker
+    BNE .skip
 
     ; Run hi-jacked instructions:
     LDA.b #$07
@@ -520,7 +656,7 @@ hook_InitializeTilesetsAfterBGSheetResolution:
     PLB
     RTL
 
-; Load the asset record selected by $8A and synchronously process every batch
+; Load the asset record selected by A and synchronously process every batch
 ; in its full-reload sequence. This routine is for loading during forced blank,
 ; where there is no need to schedule batches onto individual frames.
 ; See plans/asset_loading.md for details.
@@ -528,21 +664,26 @@ hook_InitializeTilesetsAfterBGSheetResolution:
 ; Direct-page scratch:
 ;   $00-$02: area asset-record pointer, then current batch pointer
 ;   $03-$05: full-load batch-sequence pointer
-;   $06-$07: 16-bit copy of the 8-bit screen ID
+;   $06-$07: 16-bit copy of the 8-bit asset key
 ; DMA channel 1 is scratch during this forced-blank load. Flags, X, and Y are
 ; preserved for the surrounding module code.
+SynchronousLoadCurrentOverworldAssets:
+    PHP
+    LDA.b $8A
+    BRA SynchronousLoadOverworldAssetsStart
+
 SynchronousLoadOverworldAssets:
     PHP
+SynchronousLoadOverworldAssetsStart:
+    STA.b $06                   ; Preserve the asset key before changing A width.
     REP #$10                    ; Use 16-bit X/Y for metadata offsets and cursors.
     PHX
     PHY
 
-    SEP #$20                    ; Read the one-byte overworld screen ID.
-    LDA.b $8A                   ; Select this screen's generated asset record.
-    STA.b $06                   ; Store the low byte for 16-bit arithmetic below.
+    SEP #$20
     STZ.b $07                   ; Zero-extend the screen ID through $06-$07.
 
-    ; Each of the 256 screen entries is a packed 24-bit pointer, so X = 3*$8A.
+    ; Each of the 256 entries is a packed 24-bit pointer, so X = 3*asset key.
     REP #$20                    ; Calculate the table offset with 16-bit A.
     LDA.b $06                   ; A = screen ID.
     ASL A                       ; A = 2 * screen ID.
@@ -774,6 +915,269 @@ assert pc() <= !free_space_bank_any_end_1
 
 org !free_space_bank_any_start_2
 
+; ReloadPreviouslyLoadedSheets has already established DB=$80. Skip its four
+; obsolete BG-sheet decompressions and point directly at the retained OBJ set.
+hook_ReloadPreviouslyLoadedSheetsBeforeBG:
+    STZ.b $00
+    LDA.b #$78
+    STA.b $01
+    LDA.b #$7E
+    STA.b $02
+    JML $80D814
+
+; Run InitializeTilesets with generated BG ownership active. Its shared hook
+; retains OBJ loading and the resolved sheet cache, then skips static BG work.
+InitializeGeneratedOverworldOBJ:
+    LDA.b #$01
+    STA.l !GeneratedAssetMarker
+    JSL $80E1DB                 ; Run hi-jacked instruction
+    LDA.b #$00
+    STA.l !GeneratedAssetMarker
+    RTL
+
+; Run OverworldPalettesLoader while retaining selector and OBJ-palette work
+; but suppressing its three generated BG rows. Input A is its palette set.
+LoadGeneratedOverworldSpritePalettes:
+    PHA
+    LDA.b #$01
+    STA.l !GeneratedAssetMarker
+    PLA
+    JSL $8CFF18                 ; Run hi-jacked instruction
+    LDA.b #$00
+    STA.l !GeneratedAssetMarker
+    RTL
+
+hook_CreditsInitializeTilesets:
+    LDA.b #$01
+    STA.l !GeneratedAssetMarker
+    JSL $80E1DB                 ; Run hi-jacked instruction
+    RTL
+
+hook_CreditsAfterPaletteSelection:
+    JSL $8CFF18                 ; Run hi-jacked instruction
+    JSR SynchronousLoadCurrentOverworldAssets
+    LDA.b #$00
+    STA.l !GeneratedAssetMarker
+    RTL
+
+hook_CreditsCoolBackgroundInitializeTilesets:
+    LDA.b #$01
+    STA.l !GeneratedAssetMarker
+    JSL $80E1DB                 ; Run hi-jacked instruction
+    RTL
+
+hook_CreditsCoolBackgroundAfterPaletteSelection:
+    LDA.b #!CreditsCoolBackgroundAssetKey
+    JSR SynchronousLoadOverworldAssets
+    LDA.b #$00
+    STA.l !GeneratedAssetMarker
+    RTL
+
+hook_TriforceInitializeTilesets:
+    LDA.b #$01
+    STA.l !GeneratedAssetMarker
+    JSL $80E1DB                 ; Run hi-jacked instruction
+    RTL
+
+hook_TriforceAfterPaletteSelection:
+    JSL $8CFF18                 ; Run hi-jacked instruction
+    JSR SynchronousLoadCurrentOverworldAssets
+    LDA.b #$00
+    STA.l !GeneratedAssetMarker
+    RTL
+
+hook_MosaicDestinationPaletteSelection:
+    JML LoadGeneratedOverworldSpritePalettes
+
+hook_FluteLoadLandingScreenPalettes:
+    LDA.b #$01
+    STA.l !GeneratedAssetMarker
+    JSL $82EA41                 ; Run hi-jacked instruction
+    LDA.b #$00
+    STA.l !GeneratedAssetMarker
+    RTL
+
+hook_FluteAfterPaletteSelection:
+    JSR SynchronousLoadCurrentOverworldAssets
+    LDA.b #$00
+    STA.l !GeneratedAssetMarker
+    JSL $8CFF91                 ; Run hi-jacked instruction
+    RTL
+
+hook_FluteInitializeTilesets:
+    JML InitializeGeneratedOverworldOBJ
+
+hook_WorldMapInitializeTilesets:
+    JML InitializeGeneratedOverworldOBJ
+
+; Mirror phase 1 has resolved both BG and OBJ sheet IDs. Balance its saved X
+; and DB, then replace its decompression tail with the first generated batch.
+hook_MirrorAfterSheetResolution:
+    ; Run hi-jacked instructions:
+    SEP #$10
+    PLX
+
+    JSR InitializeFullAssetSchedule
+    JSR ProcessNextFullAssetBatch
+    JSR AdvanceMirrorGeneratedAssetPhase
+    PLB
+    RTL
+
+; Mirror phases 2-4 no longer need their vanilla BG decompression bodies.
+hook_MirrorNextGeneratedAssetBatch:
+    JSR ProcessNextFullAssetBatch
+    JSR AdvanceMirrorGeneratedAssetPhase
+    RTL
+
+; Carry from ProcessNextFullAssetBatch says whether the submitted batch was
+; final. Hold phase 4 when a longer generated sequence still has work.
+AdvanceMirrorGeneratedAssetPhase:
+    BCS .done
+    LDA.w $0200
+    CMP.b #$05
+    BNE .return
+    DEC.w $0200
+    RTS
+
+.done
+    LDA.b #$05
+    STA.w $0200
+.return
+    RTS
+
+hook_MirrorWarpBeforeSpritesAndColors:
+    LDA.b #$01
+    STA.l !GeneratedAssetMarker
+    JSL $82B27E                 ; Run hi-jacked instruction
+    LDA.b #$00
+    STA.l !GeneratedAssetMarker
+    RTL
+
+; Start a destination full reload in whirlpool phase $07 after retaining its
+; OBJ staging. A one-batch sequence may skip phase $08 entirely.
+hook_WhirlpoolBeforeGeneratedAssets:
+    JSL $80D739
+    JSR InitializeFullAssetSchedule
+    JSR ProcessNextFullAssetBatch
+    BCC .wait
+
+    LDA.b #$0F
+    STA.b $13
+    LDA.b #$09
+    STA.b $B0
+    RTS
+
+.wait
+    INC.b $B0
+    RTS
+
+; Hold whirlpool phase $08 until the last full-reload batch is submitted.
+hook_WhirlpoolBeforeNextGeneratedAssetBatch:
+    JSR ProcessNextFullAssetBatch
+    BCC .wait
+
+    LDA.b #$0F
+    STA.b $13
+    INC.b $B0
+.wait
+    RTS
+
+hook_WhirlpoolBeforePaletteWork:
+    LDA.b #$01
+    STA.l !GeneratedAssetMarker
+    STZ.w $0AA9                 ; Run hi-jacked instruction
+    JML $82B3F6
+
+hook_WhirlpoolMainBackgroundPalette:
+    RTL
+
+hook_WhirlpoolAfterPaletteWork:
+    JSL $80E071                 ; Run hi-jacked instruction
+    LDA.b #$00
+    STA.l !GeneratedAssetMarker
+    RTL
+
+; Select the full-reload sequence at record offset zero for the current $8A.
+InitializeFullAssetSchedule:
+    PHP
+    REP #$10
+    PHX
+    PHY
+
+    SEP #$20
+    LDA.b $8A
+    STA.b $06
+    STZ.b $07
+
+    REP #$20
+    LDA.b $06
+    ASL A
+    CLC
+    ADC.b $06
+    TAX                         ; X = 3 * destination screen ID.
+
+    LDA.l !OverworldAssetBundlePointers,X
+    STA.b $00
+    SEP #$20
+    LDA.l !OverworldAssetBundlePointers+2,X
+    STA.b $02                   ; $00-$02 = asset-record pointer.
+
+    LDY.w #$0000
+    LDA.b [$00],Y
+    STA.l !OverworldAssetSchedule
+    INY
+    LDA.b [$00],Y
+    STA.l !OverworldAssetSchedule+1
+    INY
+    LDA.b [$00],Y
+    STA.l !OverworldAssetSchedule+2
+
+    PLY
+    PLX
+    PLP
+    RTS
+
+; Submit one batch from a full-reload sequence without presenting its palette.
+; Carry is set when the submitted batch is final (or the sequence is empty).
+ProcessNextFullAssetBatch:
+    REP #$10
+    PHY
+
+    JSR LoadAssetScheduleCursor
+    LDY.w #$0000
+    LDA.b [$35],Y
+    BEQ .done
+    STA.b $02
+    INY
+    LDA.b [$35],Y
+    STA.b $00
+    INY
+    LDA.b [$35],Y
+    STA.b $01
+    INY
+    JSR AdvanceAssetScheduleByY
+
+    ; Peek before queuing because the queue replaces $35-$37 with its VRAM
+    ; list pointer for NMI.
+    JSR LoadAssetScheduleCursor
+    LDY.w #$0000
+    LDA.b [$35],Y
+    PHA
+    JSR QueueGeneratedAssetBatchSourceOnly
+    PLA
+    BEQ .done
+
+    PLY
+    SEP #$10
+    CLC
+    RTS
+
+.done
+    PLY
+    SEP #$10
+    SEC
+    RTS
+
 ; Retain the vanilla destination-dependent sprite palette selection, while
 ; the existing marker hooks suppress its obsolete background palette writes.
 ; Then select the generated directional asset schedule.
@@ -783,13 +1187,14 @@ hook_ScrollTransitionBeforeAssetPreparation:
     LDA.l $7EFD40,X
     STA.b $00
 
-    LDA.b #!GeneratedAssetMarker
-    STA.w $0412
+    LDA.b #$01
+    STA.l !GeneratedAssetMarker
 
     LDA.l $8CFE6C,X             ; Run hi-jacked instruction
     JSL $8CFF18                 ; Run hi-jacked instruction
 
-    STZ.w $0412
+    LDA.b #$00
+    STA.l !GeneratedAssetMarker
     JSR InitializeScrollingAssetSchedule
     RTL
 
@@ -980,8 +1385,18 @@ AdvanceAssetScheduleByY:
 ; source palette to $7EC500 so the retained sprite palette changes and the new
 ; BG rows become visible together. A nonempty VRAM list is queued for NMI.
 ;
-; Input: $00-$02 = batch pointer. Clobbers A, X, Y, $03-$06, and DMA channel 1.
+; Input: $00-$02 = batch pointer. Clobbers A, X, Y, $03-$07, and DMA channel 1.
 QueueGeneratedAssetBatch:
+    LDA.b #$01
+    STA.b $07                   ; Present palette changes after copying sources.
+    BRA QueueGeneratedAssetBatchCommon
+
+; Effect-covered full reloads update only the source palette. Their retained
+; mirror/whirlpool filters later derive $7EC500 and CGRAM from $7EC300.
+QueueGeneratedAssetBatchSourceOnly:
+    STZ.b $07
+
+QueueGeneratedAssetBatchCommon:
     LDY.w #$0000
     STZ.b $06                   ; Palette-dirty flag.
 
@@ -1025,6 +1440,8 @@ QueueGeneratedAssetBatch:
 .palette_done
     INY                         ; Skip the palette-list terminator.
     LDA.b $06
+    BEQ .queue_vram
+    LDA.b $07
     BEQ .queue_vram
 
     REP #$30

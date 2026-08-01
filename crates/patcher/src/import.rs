@@ -461,60 +461,98 @@ impl Importer {
             .zip(&self.map_gfx_transition_sheets)
             .zip(&self.map_palettes)
             .map(|((gfx, &transition_sheets), palettes)| {
-                let mut character_rows = Vec::with_capacity(32);
-                for (slot, &sheet) in gfx.iter().enumerate() {
-                    let right_palette = matches!(slot, 0 | 3 | 4 | 5);
-                    let start = usize::from(sheet) * 64;
-                    ensure!(
-                        start + 64 <= self.tiles8.len(),
-                        "overworld graphics sheet {sheet:02X} is unavailable"
-                    );
-                    let tiles = &self.tiles8[start..start + 64];
-                    for tiles in tiles.chunks_exact(16) {
-                        let mut row = [0; 512];
-                        for (tile, output) in tiles.iter().zip(row.chunks_exact_mut(32)) {
-                            encode_4bpp_tile(tile, right_palette, output);
-                        }
-                        character_rows.push(row);
-                    }
-                }
-
-                let mut palette_rows = vec![[0; 32]; 6];
-                let main = 2 + usize::from(palettes.main) * 5;
-                for (row, palette) in palette_rows[..5]
-                    .iter_mut()
-                    .zip(&self.palettes[main..main + 5])
-                {
-                    encode_palette_half(palette, &mut row[..16]);
-                }
-
-                let aux1 = 32 + usize::from(palettes.aux1) * 3;
-                for (row, palette) in palette_rows[..3]
-                    .iter_mut()
-                    .zip(&self.palettes[aux1..aux1 + 3])
-                {
-                    encode_palette_half(palette, &mut row[16..]);
-                }
-
-                let aux2 = 32 + usize::from(palettes.aux2) * 3;
-                for (row, palette) in palette_rows[3..]
-                    .iter_mut()
-                    .zip(&self.palettes[aux2..aux2 + 3])
-                {
-                    encode_palette_half(palette, &mut row[16..]);
-                }
-
-                let animated = 92 + usize::from(palettes.animated);
-                encode_palette_half(&self.palettes[animated], &mut palette_rows[5][..16]);
-
-                Ok(OverworldAreaAssets {
-                    palette_rows,
-                    character_rows,
-                    transition_palette_groups: palettes.transition_groups,
-                    transition_sheets,
-                })
+                self.encode_overworld_area_assets(gfx, transition_sheets, palettes)
             })
             .collect()
+    }
+
+    pub fn credits_cool_background_assets(&mut self) -> Result<OverworldAreaAssets> {
+        if self.palettes.is_empty() {
+            self.load_palettes()?;
+        }
+        if self.tiles8.is_empty() {
+            self.load_graphics()?;
+        }
+        if self.map_parents.is_empty() {
+            self.load_map_parents();
+        }
+        if self.map_palettes.is_empty() {
+            self.load_map_palettes()?;
+        }
+        if self.map_gfx.is_empty() {
+            self.load_map_gfx()?;
+        }
+
+        let area = 0x5b;
+        let ordinary = &self.map_palettes[area];
+        let palettes = MapPalettes {
+            main: ordinary.main,
+            aux1: ordinary.aux1,
+            aux2: 3,
+            animated: ordinary.animated,
+            transition_groups: [false; 2],
+        };
+        self.encode_overworld_area_assets(&self.map_gfx[area], [false; 8], &palettes)
+    }
+
+    fn encode_overworld_area_assets(
+        &self,
+        gfx: &[u8; 8],
+        transition_sheets: [bool; 8],
+        palettes: &MapPalettes,
+    ) -> Result<OverworldAreaAssets> {
+        let mut character_rows = Vec::with_capacity(32);
+        for (slot, &sheet) in gfx.iter().enumerate() {
+            let right_palette = matches!(slot, 0 | 3 | 4 | 5);
+            let start = usize::from(sheet) * 64;
+            ensure!(
+                start + 64 <= self.tiles8.len(),
+                "overworld graphics sheet {sheet:02X} is unavailable"
+            );
+            let tiles = &self.tiles8[start..start + 64];
+            for tiles in tiles.chunks_exact(16) {
+                let mut row = [0; 512];
+                for (tile, output) in tiles.iter().zip(row.chunks_exact_mut(32)) {
+                    encode_4bpp_tile(tile, right_palette, output);
+                }
+                character_rows.push(row);
+            }
+        }
+
+        let mut palette_rows = vec![[0; 32]; 6];
+        let main = 2 + usize::from(palettes.main) * 5;
+        for (row, palette) in palette_rows[..5]
+            .iter_mut()
+            .zip(&self.palettes[main..main + 5])
+        {
+            encode_palette_half(palette, &mut row[..16]);
+        }
+
+        let aux1 = 32 + usize::from(palettes.aux1) * 3;
+        for (row, palette) in palette_rows[..3]
+            .iter_mut()
+            .zip(&self.palettes[aux1..aux1 + 3])
+        {
+            encode_palette_half(palette, &mut row[16..]);
+        }
+
+        let aux2 = 32 + usize::from(palettes.aux2) * 3;
+        for (row, palette) in palette_rows[3..]
+            .iter_mut()
+            .zip(&self.palettes[aux2..aux2 + 3])
+        {
+            encode_palette_half(palette, &mut row[16..]);
+        }
+
+        let animated = 92 + usize::from(palettes.animated);
+        encode_palette_half(&self.palettes[animated], &mut palette_rows[5][..16]);
+
+        Ok(OverworldAreaAssets {
+            palette_rows,
+            character_rows,
+            transition_palette_groups: palettes.transition_groups,
+            transition_sheets,
+        })
     }
 
     pub fn overworld_graphics_sheets(&mut self) -> Result<Vec<u8>> {
@@ -724,7 +762,7 @@ impl Importer {
                 }
             };
             let palette_set = if i == 0x88 {
-                0
+                0x0e
             } else if parent >= 0x80 {
                 self.rom.read_u8(
                     (self.constants.special_map_pal_set_addr + u32::from(parent - 0x80)).into(),

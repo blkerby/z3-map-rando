@@ -8,6 +8,7 @@ pub const PAYLOAD_START: u32 = 0xaa8000;
 const METADATA_BANK: u8 = (METADATA_START >> 16) as u8;
 const METADATA_SIZE: usize = 3 * BANK_SIZE;
 const POINTER_TABLE_SIZE: usize = 256 * 3;
+pub const CREDITS_COOL_BACKGROUND_KEY: usize = 0xff;
 const PAYLOAD_BANK: u8 = (PAYLOAD_START >> 16) as u8;
 const PAYLOAD_SIZE: usize = 14 * BANK_SIZE;
 
@@ -68,6 +69,7 @@ impl Region {
 
 pub fn build(
     areas: &[OverworldAreaAssets],
+    credits_cool_background: &OverworldAreaAssets,
     transition_phase: TransitionAssetPhase,
 ) -> Result<AssetBundle> {
     ensure!(areas.len() == 0xa0, "expected 160 overworld asset sets");
@@ -78,45 +80,8 @@ pub fn build(
     let mut area_records = Vec::with_capacity(areas.len());
 
     for area in areas {
-        ensure!(area.palette_rows.len() == 6, "expected six BG palette rows");
-        ensure!(
-            area.character_rows.len() == 32,
-            "expected 32 BG character rows"
-        );
-
-        let palette_sources = area
-            .palette_rows
-            .iter()
-            .map(|row| payload.intern(row, 32))
-            .collect::<Result<Vec<_>>>()?;
-        let character_sources = area
-            .character_rows
-            .iter()
-            .map(|row| payload.intern(row, 512))
-            .collect::<Result<Vec<_>>>()?;
-
-        let mut batch_sources = Vec::with_capacity(4);
-        for batch_index in 0..4 {
-            let mut batch = Vec::new();
-            if batch_index == 0 {
-                for (row, &source) in palette_sources.iter().enumerate() {
-                    descriptor(&mut batch, source, u8::try_from(row + 2)?);
-                }
-            }
-            batch.push(0);
-            for row in batch_index * 8..batch_index * 8 + 8 {
-                descriptor(&mut batch, character_sources[row], u8::try_from(row)?);
-            }
-            batch.push(0);
-            batch_sources.push(metadata.intern(&batch, 1)?);
-        }
-
-        let mut sequence = Vec::with_capacity(13);
-        for source in batch_sources {
-            bank_first_pointer(&mut sequence, source);
-        }
-        sequence.push(0);
-        let sequence = metadata.intern(&sequence, 1)?;
+        let (sequence, palette_sources, character_sources) =
+            intern_full_sequence(&mut metadata, &mut payload, area)?;
 
         // Vanilla scrolling transitions retain palette groups selected by
         // $FF and character sheets selected by zero.
@@ -191,8 +156,18 @@ pub fn build(
         area_records.push(metadata.intern(&record, 1)?);
     }
 
+    let (credits_sequence, _, _) =
+        intern_full_sequence(&mut metadata, &mut payload, credits_cool_background)?;
+    let mut credits_record_bytes = vec![0; 18];
+    credits_record_bytes[..3].copy_from_slice(&little_endian_pointer(credits_sequence));
+    let credits_record = metadata.intern(&credits_record_bytes, 1)?;
+
     for screen in 0..256 {
-        let record = area_records.get(screen).copied().unwrap_or(empty_record);
+        let record = if screen == CREDITS_COOL_BACKGROUND_KEY {
+            credits_record
+        } else {
+            area_records.get(screen).copied().unwrap_or(empty_record)
+        };
         let offset = screen * 3;
         metadata.bytes[offset..offset + 3].copy_from_slice(&little_endian_pointer(record));
     }
@@ -202,8 +177,56 @@ pub fn build(
         metadata: metadata.bytes,
         payload: payload.bytes,
     };
-    validate(&bundle, areas)?;
+    validate(&bundle, areas, credits_cool_background)?;
     Ok(bundle)
+}
+
+fn intern_full_sequence(
+    metadata: &mut Region,
+    payload: &mut Region,
+    assets: &OverworldAreaAssets,
+) -> Result<(u32, Vec<u32>, Vec<u32>)> {
+    ensure!(
+        assets.palette_rows.len() == 6,
+        "expected six BG palette rows"
+    );
+    ensure!(
+        assets.character_rows.len() == 32,
+        "expected 32 BG character rows"
+    );
+
+    let palette_sources = assets
+        .palette_rows
+        .iter()
+        .map(|row| payload.intern(row, 32))
+        .collect::<Result<Vec<_>>>()?;
+    let character_sources = assets
+        .character_rows
+        .iter()
+        .map(|row| payload.intern(row, 512))
+        .collect::<Result<Vec<_>>>()?;
+
+    let mut sequence = Vec::with_capacity(13);
+    for batch_index in 0..4 {
+        let mut batch = Vec::new();
+        if batch_index == 0 {
+            for (row, &source) in palette_sources.iter().enumerate() {
+                descriptor(&mut batch, source, u8::try_from(row + 2)?);
+            }
+        }
+        batch.push(0);
+        for row in batch_index * 8..batch_index * 8 + 8 {
+            descriptor(&mut batch, character_sources[row], u8::try_from(row)?);
+        }
+        batch.push(0);
+        bank_first_pointer(&mut sequence, metadata.intern(&batch, 1)?);
+    }
+    sequence.push(0);
+    Ok((
+        metadata.intern(&sequence, 1)?,
+        palette_sources,
+        character_sources,
+    ))
 }
 
 fn descriptor(output: &mut Vec<u8>, source: u32, destination: u8) {
@@ -260,42 +283,15 @@ fn read_bank_first_pointer(bytes: &[u8], offset: &mut usize) -> Result<Option<u3
     Ok(Some(u32::from(bank) << 16 | u32::from(address)))
 }
 
-fn validate(bundle: &AssetBundle, areas: &[OverworldAreaAssets]) -> Result<()> {
+fn validate(
+    bundle: &AssetBundle,
+    areas: &[OverworldAreaAssets],
+    credits_cool_background: &OverworldAreaAssets,
+) -> Result<()> {
     for (screen, expected) in areas.iter().enumerate() {
-        let record = read_little_endian_pointer(&bundle.metadata, screen * 3)?;
-        let record = region_offset(record, METADATA_BANK, bundle.metadata.len())?;
-        let sequence = read_little_endian_pointer(&bundle.metadata, record)?;
-        let mut sequence = region_offset(sequence, METADATA_BANK, bundle.metadata.len())?;
-        let mut palettes = vec![[0; 32]; 6];
-        let mut characters = vec![[0; 512]; 32];
-        let mut palette_written = [false; 6];
-        let mut character_written = [false; 32];
-        let mut batches = 0;
-
-        while let Some(batch) = read_bank_first_pointer(&bundle.metadata, &mut sequence)? {
-            batches += 1;
-            apply_batch(
-                bundle,
-                batch,
-                &mut palettes,
-                &mut characters,
-                &mut palette_written,
-                &mut character_written,
-            )?;
-        }
-
-        ensure!(batches == 4, "expected four full-reload batches");
-        ensure!(palette_written.into_iter().all(|written| written));
-        ensure!(character_written.into_iter().all(|written| written));
-        ensure!(
-            palettes == expected.palette_rows,
-            "palette descriptor mismatch"
-        );
-        ensure!(
-            characters == expected.character_rows,
-            "character descriptor mismatch"
-        );
+        validate_full_record(bundle, screen, expected)?;
     }
+    validate_full_record(bundle, CREDITS_COOL_BACKGROUND_KEY, credits_cool_background)?;
 
     // Validate every ordinary adjacency in both worlds. Large-area child
     // screens already resolve to their parent's assets in the importer.
@@ -318,6 +314,44 @@ fn validate(bundle: &AssetBundle, areas: &[OverworldAreaAssets]) -> Result<()> {
             }
         }
     }
+    Ok(())
+}
+
+fn validate_full_record(
+    bundle: &AssetBundle,
+    key: usize,
+    expected: &OverworldAreaAssets,
+) -> Result<()> {
+    let record = read_little_endian_pointer(&bundle.metadata, key * 3)?;
+    let record = region_offset(record, METADATA_BANK, bundle.metadata.len())?;
+    let sequence = read_little_endian_pointer(&bundle.metadata, record)?;
+    let mut sequence = region_offset(sequence, METADATA_BANK, bundle.metadata.len())?;
+    let mut palettes = vec![[0; 32]; 6];
+    let mut characters = vec![[0; 512]; 32];
+    let mut palette_written = [false; 6];
+    let mut character_written = [false; 32];
+
+    while let Some(batch) = read_bank_first_pointer(&bundle.metadata, &mut sequence)? {
+        apply_batch(
+            bundle,
+            batch,
+            &mut palettes,
+            &mut characters,
+            &mut palette_written,
+            &mut character_written,
+        )?;
+    }
+
+    ensure!(palette_written.into_iter().all(|written| written));
+    ensure!(character_written.into_iter().all(|written| written));
+    ensure!(
+        palettes == expected.palette_rows,
+        "palette descriptor mismatch"
+    );
+    ensure!(
+        characters == expected.character_rows,
+        "character descriptor mismatch"
+    );
     Ok(())
 }
 
