@@ -970,6 +970,13 @@ SynchronousProcessAssetBatch:
     BRA .next_palette
 
 .palette_done
+    ; Vanilla BG palette loaders preserve color 0 of palette row 2 because
+    ; palette effects use it as a protected copy of the backdrop color.
+    REP #$20
+    LDA.l $7EC300
+    STA.l $7EC340
+    SEP #$20
+
     INY                       ; Skip the palette list's one-byte terminator.
     LDA.b #$80
     STA.w $2115               ; Increment VRAM after writes to $2119.
@@ -1678,6 +1685,14 @@ QueueGeneratedAssetBatchCommon:
     INY                         ; Skip the palette-list terminator.
     LDA.b $06
     BEQ .queue_vram
+
+    ; Whole-row DMA overwrites the color-0 slot skipped by vanilla's loaders.
+    ; Restore the protected backdrop copy before presenting the new palette.
+    REP #$20
+    LDA.l $7EC300
+    STA.l $7EC340
+    SEP #$20
+
     LDA.b $07
     BEQ .queue_vram
 
