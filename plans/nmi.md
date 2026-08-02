@@ -40,7 +40,7 @@ This table describes the patched game:
 | Control | Origin | Meaning | Lifetime |
 | --- | --- | --- | --- |
 | `$0710` | Vanilla; extended by patch | Suppress the normal per-frame graphics and HUD DMA groups when nonzero | Cleared by the associated large transfer |
-| `$0702` | Patch | Skip one OAM upload during a deliberately flagged mirror transfer | Cleared by NMI |
+| `$0702` | Patch | Skip one OAM upload during a stationary or effect-covered asset batch | Cleared by NMI |
 | `$16` | Vanilla | Upload the HUD/BG3 buffer when `$0710` is zero | Cleared with `$15` by NMI |
 | `$15` | Vanilla | Upload the complete CGRAM palette | Cleared with `$16` by NMI |
 | `$14` | Vanilla | Process a selected stripe list | Cleared by NMI |

@@ -1576,7 +1576,7 @@ ProcessScheduledScrollAssetBatch:
     STA.b $01
     INY
     JSR AdvanceAssetScheduleByY
-    JSR QueueGeneratedAssetBatch
+    JSR QueueGeneratedScrollingAssetBatch
     BRA .return
 
 .done
@@ -1619,6 +1619,13 @@ AdvanceAssetScheduleByY:
 QueueGeneratedAssetBatch:
     LDA.b #$01
     STA.b $07                   ; Present palette changes after copying sources.
+    BRA QueueGeneratedAssetBatchCommon
+
+; Scrolling batches suppress dynamic graphics and HUD work but retain OAM so
+; Link's position continues to follow the moving camera.
+QueueGeneratedScrollingAssetBatch:
+    LDA.b #$02
+    STA.b $07                   ; Present palettes and retain OAM.
     BRA QueueGeneratedAssetBatchCommon
 
 ; Effect-covered full reloads update only the source palette. Their retained
@@ -1707,7 +1714,14 @@ QueueGeneratedAssetBatchCommon:
 .return
     LDA.b #$01
     STA.w $0710                ; Suppress normal graphics and HUD DMA for this NMI.
-    STA.w $0702                ; Also suppress OAM upload (NMISkipOAM)
+
+    LDA.b $07
+    CMP.b #$02
+    BEQ .done
+
+    LDA.b #$01
+    STA.w $0702                ; The stationary/covered frame may omit OAM too.
+.done
     RTS
 
 ; NMI mode $03: transfer every character-row descriptor directly from its ROM

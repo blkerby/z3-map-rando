@@ -289,17 +289,19 @@ at the end of the transition. Empty lists are valid where no asset row changes.
 
 The existing transition submodules process one pre-scroll batch per frame,
 submit frame-indexed batches before their scroll step, and hold finalization
-until post-scroll batches finish. A palette batch updates `$7EC300`, then copies
-the complete source palette to `$7EC500` so retained sprite-palette changes and
-generated BG rows become visible together through `$15`. A nonempty VRAM list
-uses `$17=$03` and `$0710`; the existing sprite `$19` upload and BG-streamer
-`$18` list remain independent.
+until post-scroll batches finish. Palette descriptors update `$7EC300`, then
+copy the complete source palette to `$7EC500` so retained sprite-palette changes
+and generated BG rows become visible together through `$15`. A nonempty VRAM
+list uses `$17=$03`. Pre-scroll and post-scroll batches set `$0710` and `$0702`;
+scrolling batches set only `$0710`, retaining OAM updates while suppressing
+dynamic graphics and HUD work. The BG streamer's `$18` list remains independent.
 
 The generated vanilla schedule includes palette rows 2-4 unless the first
 auxiliary palette selector is `$FF`, and rows 5-7 unless the second selector is
 `$FF`. It then includes the character rows for each nonzero area-specific sheet
-override, grouped into batches of at most eight rows. Omitted palette groups and
-zero sheet overrides preserve the assets already resident from the source area.
+override. A graphics row costs 16 batching units and a palette row costs two.
+All transition batches have a 128-unit limit. Omitted palette groups and zero
+sheet overrides preserve the assets already resident from the source area.
 Full reloads still resolve these neutral entries to defaults and load the
 complete asset set. The scroll and post-scroll sections are empty, and all four
 directional record fields may share the same schedule for now.
@@ -359,12 +361,12 @@ sets. File initialization writes sheet `$46` to all four slots through key
 `$FE`, matching vanilla's initial resident state.
 
 Put sprite and background rows in the same batches so `engine_check` schedules
-their combined NMI cost and enforces the existing eight-row limit. Converted
-overworld paths no longer stage these four slots in WRAM or run the vanilla
-`$19` upload. Common/effect sprites at `$4400-$47FF`, Link graphics, followers,
-fixed auxiliary graphics, sprite palettes, and unrelated NMI work remain on
-their existing paths. Dungeon and other non-generated callers retain the
-vanilla `$0AA3` cache behavior.
+their combined NMI cost and enforces the phase-specific weighted limits above.
+Converted overworld paths no longer stage these four slots in WRAM or run the
+vanilla `$19` upload. Common/effect sprites at `$4400-$47FF`, Link graphics,
+followers, fixed auxiliary graphics, sprite palettes, and unrelated NMI work
+remain on their existing paths. Dungeon and other non-generated callers retain
+the vanilla `$0AA3` cache behavior.
 
 Implemented: the shared runtime resolver selects records by game state for
 synchronous, full-sequence, and directional loads. Full loads and every

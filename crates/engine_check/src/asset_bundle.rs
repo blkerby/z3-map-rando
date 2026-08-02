@@ -13,6 +13,10 @@ pub const CREDITS_FIRST_KEY: usize = 0xa0;
 pub const SPRITE_SEED_KEY: usize = 0xfe;
 const PAYLOAD_BANK: u8 = (PAYLOAD_START >> 16) as u8;
 const PAYLOAD_SIZE: usize = 14 * BANK_SIZE;
+// One unit is one 32-byte 4bpp tile; double palette bytes for parsing overhead.
+const GRAPHICS_ROW_UNITS: usize = 16;
+const PALETTE_ROW_UNITS: usize = 2;
+const TRANSITION_BATCH_UNITS: usize = 8 * GRAPHICS_ROW_UNITS;
 
 pub struct AssetBundle {
     pub metadata: Vec<u8>,
@@ -196,17 +200,6 @@ fn intern_record(
             .filter(|(load, _)| **load)
             .flat_map(|(_, rows)| rows)
             .collect::<Vec<_>>();
-        let palette_batch = if transition_palette_rows.is_empty() {
-            None
-        } else {
-            let mut batch = Vec::with_capacity(transition_palette_rows.len() * 4 + 2);
-            for &row in &transition_palette_rows {
-                descriptor(&mut batch, palette_sources[row], u8::try_from(row + 2)?);
-            }
-            batch.extend_from_slice(&[0, 0]);
-            Some(metadata.intern(&batch, 1)?)
-        };
-
         let mut transition_characters = assets
             .transition_sheets
             .iter()
@@ -218,7 +211,26 @@ fn intern_record(
         transition_characters.extend_from_slice(&character_sources[assets.character_rows.len()..]);
 
         let mut transition_batches = Vec::new();
-        for rows in transition_characters.chunks(8) {
+        let mut character_offset = 0;
+        if !transition_palette_rows.is_empty() || !transition_characters.is_empty() {
+            let character_count = ((TRANSITION_BATCH_UNITS
+                - transition_palette_rows.len() * PALETTE_ROW_UNITS)
+                / GRAPHICS_ROW_UNITS)
+                .min(transition_characters.len());
+            let mut batch = Vec::new();
+            for &row in &transition_palette_rows {
+                descriptor(&mut batch, palette_sources[row], u8::try_from(row + 2)?);
+            }
+            batch.push(0);
+            for &(destination, source) in &transition_characters[..character_count] {
+                descriptor(&mut batch, source, destination);
+            }
+            batch.push(0);
+            transition_batches.push(metadata.intern(&batch, 1)?);
+            character_offset = character_count;
+        }
+        let rows_per_batch = TRANSITION_BATCH_UNITS / GRAPHICS_ROW_UNITS;
+        for rows in transition_characters[character_offset..].chunks(rows_per_batch) {
             let mut batch = vec![0];
             for &(destination, source) in rows {
                 descriptor(&mut batch, source, destination);
@@ -226,11 +238,7 @@ fn intern_record(
             batch.push(0);
             transition_batches.push(metadata.intern(&batch, 1)?);
         }
-        let batches = palette_batch
-            .into_iter()
-            .chain(transition_batches)
-            .collect::<Vec<_>>();
-        let schedule = intern_schedule(metadata, &batches, transition_phase)?;
+        let schedule = intern_schedule(metadata, &transition_batches, transition_phase)?;
         for offset in [3, 6, 9, 12] {
             record[offset..offset + 3].copy_from_slice(&little_endian_pointer(schedule));
         }
