@@ -454,6 +454,16 @@ org $82AADD
     JSL hook_RunScrollBeforeScrollStep
 assert pc() == $82AAE1
 
+; StartOverworldScrollTransition, module $09 ordinary scrolling phases $04/$05:
+; vanilla calls this once from phase $04 and again as phase $05 so vertical
+; transitions can prepare two initial BG2 stripes. Those stripes are obsolete,
+; so advance directly from $04 to $06 while retaining the shared routine's
+; direction setup. Mosaic phases $12/$13 keep their existing timing.
+org $82AB26
+    JSL hook_StartOverworldScrollTransition
+    NOP
+assert pc() == $82AB2B
+
 ; OverworldMosaicTransition_LoadSpriteGraphicsAndSetMosaic and
 ; OverworldMosaicTransition_FilterAndLoadGraphics, modules $09/$0B: generated
 ; forced-blank loads replace both the old conversion and incremental upload.
@@ -1468,6 +1478,19 @@ hook_RunScrollBeforeScrollStep:
 
     JSR ProcessScheduledScrollAssetBatch
 
+.return
+    RTL
+
+hook_StartOverworldScrollTransition:
+    ; Run hi-jacked instructions:
+    INC.b $11
+    LDX.w $0410
+
+    LDA.b $11
+    CMP.b #$05
+    BNE .return
+
+    INC.b $11
 .return
     RTL
 
