@@ -555,20 +555,6 @@ impl Importer {
         })
     }
 
-    pub fn overworld_graphics_sheets(&mut self) -> Result<Vec<u8>> {
-        if self.map_parents.is_empty() {
-            self.load_map_parents();
-        }
-        if self.map_gfx.is_empty() {
-            self.load_map_gfx()?;
-        }
-
-        let mut sheets = self.map_gfx.iter().flatten().copied().collect::<Vec<_>>();
-        sheets.sort_unstable();
-        sheets.dedup();
-        Ok(sheets)
-    }
-
     fn load_palette(&self, addr: PcAddr, size: usize) -> Result<[ColorRgb; 16]> {
         let mut colors = [[0, 0, 0]; 16];
         for i in 0..size {

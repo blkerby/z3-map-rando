@@ -1634,7 +1634,6 @@ hook_NMIBeforeGeneratedAssetList:
     STZ.w $4315
     LDA.b #$02
     STA.w $4316                ; One 512-byte character row.
-    print hex(pc())
     STA.w $420B                ; Run DMA channel 1.
     BRA .next_descriptor
 
