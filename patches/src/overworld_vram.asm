@@ -401,6 +401,14 @@ org $8EFBDF
     NOP
 assert pc() == $8EFBE5
 
+; RenderText_PostDeathSaveOptions, game-over module $12 submodule $08: replace
+; its hard-coded BG3 position with the equivalent position in the active
+; gameplay layout.
+org $8EEE34
+    JSL hook_RenderTextPostDeathSaveOptionsPosition
+    BRA $04
+assert pc() == $8EEE3A
+
 ; NMI_UpdateOWScroll, NMI request $17=$03: the BG streamer moved vanilla
 ; overworld stripes to its $1100/$18 list, so replace this handler with the
 ; generated ROM-to-VRAM character-row queue. Module $09 can request it from
@@ -1100,6 +1108,15 @@ hook_RenderTextPosition:
     CLC
     ADC.w $1CD2
     STA.w $1CD2
+    RTL
+
+hook_RenderTextPostDeathSaveOptionsPosition:
+    REP #$20
+    LDA.w $0219                 ; Active BG3 tilemap plus the vanilla offset.
+    CLC
+    ADC.w #$01A8
+    STA.w $1CD2
+    SEP #$20
     RTL
 
 assert pc() <= !free_space_bank_any_end_1
