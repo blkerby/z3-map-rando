@@ -63,12 +63,32 @@ org $829F4A
     JSL hook_TriforceRoomBeforeSpecialOverworldLoad
 assert pc() == $829F4E
 
+; Credits_InitializePolyhedral briefly selects full brightness before
+; Credits_InitializeTheActualCredits restores zero brightness later in the
+; same frame. Keep the display black throughout that initialization so an NMI
+; cannot expose partially loaded BG and OBJ graphics.
+org $8CC999
+    LDA.b #$00
+assert pc() == $8CC99B
+
 ; Credits_InitializeTheActualCredits, module $1A submodule $20: replace its
 ; EraseTilemaps_bg3 call with the relocated-layout clear, retaining the
 ; distinct blank tiles used by the scrolling credits background.
 org $8EE649
     JSL hook_CreditsOverworldTilemapClear
 assert pc() == $8EE64D
+
+; Credits_InitializeTheActualCredits initially selects vanilla's vertical BG2
+; tilemap at $1000. Select its rebased static 32x64 map at $6000 instead.
+org $8EE6F9
+    LDA.b #$62
+assert pc() == $8EE6FB
+
+; Credits_FadeColorAndBeginAnimating later selects vanilla BG1/BG2 tilemaps
+; together. Point both layers at the rebased shared static tilemap.
+org $8EE783
+    LDY.w #$6263
+assert pc() == $8EE786
 
 ; Credits_AddEndingSequenceText, module $1A while preparing an overworld or
 ; underworld vignette: derive its full BG3 fill destination from the active

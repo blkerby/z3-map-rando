@@ -125,11 +125,11 @@ org $8DDFC2
     JSL hook_ItemMenuClosingScrollStep
 
 ; Credits_InitializeTheActualCredits sets the first attribution's stripe
-; destination before the credits begin scrolling. Start at VRAM row 0 ($6000)
-; because there is no second vertical screen block, but skip the initial draw
-; so that row is not replaced until the first 8-pixel scroll moves it offscreen.
+; destination before the credits begin scrolling. Start at row 0 of the
+; relocated overworld BG3 tilemap ($3C00), but skip the initial draw so that
+; row is not replaced until the first 8-pixel scroll moves it offscreen.
 org $8EE6D3
-    dw $6000
+    dw $3C00
 
 org $8EE6E9
     NOP
@@ -147,9 +147,9 @@ assert pc() == $8EE7C0
 
 ; Credits_AddNextAttribution advances its stripe destination by one row.
 ; Vanilla alternates between two vertical screen blocks after each 32 rows;
-; instead wrap every 32 rows to VRAM $6000.
+; instead wrap every 32 rows to the relocated BG3 tilemap at VRAM $3C00.
 org $8EE90C
-    LDY.w #$6000
+    LDY.w #$3C00
     BRA +
 org $8EE915
 +

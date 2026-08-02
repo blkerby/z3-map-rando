@@ -330,10 +330,11 @@ Implemented: mirror/portal and whirlpool transitions consume the existing
 full-reload sequence one batch per frame while their palette effects cover the
 change. Mosaic recovery retains only its sprite-palette work. Flute travel,
 world-map restoration, credits scenes, and the Triforce room load full bundles
-synchronously under forced blank. The credits scrolling background uses asset
-key `$FF` for its area `$5B` graphics and auxiliary palette group `$03`; the
-Triforce room uses its final `$8A=$88` record and palette set `$0E`. The dormant
-Zora-area Triforce trigger is not treated as a reachable load path.
+synchronously under forced blank. The final scrolling-names landscape uses
+asset key `$FF` and a static shared BG1/BG2 tilemap rebased to `$6000-$6FFF`;
+its text remains on BG3. The Triforce room uses its final `$8A=$88` record and
+palette set `$0E`. The dormant Zora-area Triforce trigger is not treated as a
+reachable load path.
 
 Gameplay validation must still exercise each of these paths and verify NMI
 timing, sprite continuity, palette-filter recovery, and vanilla appearance.

@@ -334,10 +334,29 @@ org $82AE3B
 ;
 ; The caller stores a nonzero return value in $17 as the NMI update mode:
 ;   $00: queue no BG1 upload (disabled or streamed overlay);
+;   $04: upload the final credits' static shared BG1/BG2 tilemap;
 ;   $0D: upload rain's 64x32 tilemap from the former 4 KiB staging half.
 ; This routine uses free space left by the obsolete overlay loader.
 org $82F544
 hook_LoadOverworldOverlayBeforeUploadRequest:
+    LDA.b $10
+    CMP.b #$1A                  ; Final credits retain one static full tilemap.
+    BNE .not_final_credits
+
+    LDA.b $11
+    CMP.b #$20
+    BNE .not_final_credits
+
+    REP #$20
+    LDA.w #$6000                ; Rebase vanilla's shared map from $1000.
+    STA.b $CC
+    SEP #$20
+
+    JSR.w $FA8A                 ; BuildBGOverlayFromMap16
+    LDA.b #$04
+    RTS
+
+.not_final_credits
     LDA.b $10
     CMP.b #$15                  ; Mirror step 8 queues its streamed BG1.
     BEQ .done
