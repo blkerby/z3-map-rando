@@ -1,13 +1,14 @@
 # Overworld asset loading
 
-Status: submilestones 9B.1-9B.3 implemented; gameplay validation pending.
+Status: submilestones 9B.1-9B.4 implemented; gameplay validation pending.
 
 ## Goal
 
-Load generated overworld background graphics directly from ROM to VRAM and
-palette source data directly from ROM to `$7EC300`. Every area load installs
-the complete applicable asset set; do not track residency, compare bundles,
-or retain ranges from the previous area.
+Load generated overworld background and area-dependent sprite graphics
+directly from ROM to VRAM, and palette source data directly from ROM to
+`$7EC300`. Every area load installs the complete applicable asset set; do not
+track residency or compare bundles. Zero sprite overrides explicitly retain
+their current VRAM slots.
 
 The first checkpoint changes the shared `Module08_00_LoadProperties` path used
 by module `$08` when returning from an interior and module `$0A` when restoring
@@ -127,8 +128,9 @@ bodies. `engine_check` chooses the batch boundaries and frame assignments.
 
 The generated data must reject overlapping or out-of-range destinations and
 verify that every descriptor is contained within its payload. Graphics may
-only target the milestone 9A overworld character region. Palette descriptors
-may only target palette ranges owned by the overworld background loader.
+only target the milestone 9A overworld BG character region or area-dependent
+OBJ rows `$50-$5F`. Palette descriptors may only target palette ranges owned
+by the overworld background loader.
 
 ## ROM storage and lookup
 
@@ -139,8 +141,21 @@ asset metadata and payloads in separate remaining bank ranges:
 - `$AA8000-$B7FFFF`: shared palette and character payloads.
 
 Reserve `$A78000-$A782FF` for `OverworldAssetBundlePointers`, a table of 256
-little-endian 24-bit pointers. The loader computes `3 * $8A`, reads the table
-entry into a direct-page long pointer, and follows it to an asset record:
+little-endian 24-bit pointers. Each pointer selects a compact list of asset
+record variants:
+
+```text
+1 byte: inclusive maximum game state
+3 bytes: asset-record pointer, low byte, high byte, bank
+```
+
+The runtime selects the first entry whose maximum is at least `$7EF3C5`.
+Bounds are strictly increasing and a final `$FF` entry is mandatory, so the
+scan needs neither a terminator nor fallback logic. Adjacent variants with
+identical records are merged. Light World areas use maximums `$01`, `$02`, and
+`$FF` where their sprite graphics differ; fixed areas need only `$FF`.
+
+The selected record keeps the existing 18-byte format:
 
 ```text
 3 bytes: full-reload list pointer
@@ -156,10 +171,11 @@ means moving east through its west edge, and similarly for the other sides.
 Full-reload paths use the first pointer. A scrolling transition selects one of
 the following four pointers from the destination `$8A` and entry side.
 
-Normal, Dark World, and special-overworld screen IDs therefore use the same
-lookup without runtime classification. IDs which share one complete asset set
-may point to the same asset record. Every ID reachable through modules `$08`
-or `$0A` must have a generated entry; unused IDs point to one empty record.
+Normal, Dark World, and special-overworld screen IDs use the same lookup
+without runtime classification. Credits overworld scenes use keys `$A0-$AF`,
+the initial OBJ seed uses `$FE`, and the cool credits background uses `$FF`.
+IDs which share data may point to the same list or record. Every reachable key
+must have a generated entry; unused keys point to one empty `$FF` variant.
 
 Asset records, batch sequences, transition schedules, DMA batches, and
 animation definitions begin at `$A78300`. Keep each structure within one
@@ -180,14 +196,15 @@ graphics and palettes. The first implementation indexes
 `OverworldAssetBundlePointers` by `$8A`, selects the full-reload list, and
 processes four batches synchronously. The first batch contains all six owned
 palette rows; each batch contains eight 512-byte character rows, for at most
-4 KiB of graphics DMA per batch. It does not use NMI or define a new queue.
+4 KiB of graphics DMA per batch. Submilestone 9B.4 extends the sequence with
+additional OBJ rows as needed while retaining that per-batch limit. Forced-
+blank loading does not use NMI.
 
-Keep sprite and dungeon assets on their existing loaders. `InitializeTilesets`
-currently handles both sprite and background sheets, so retain its sprite half
-and replace only its overworld-background work. Replace the shared path's
-background half of `InitializeTilesets`, `OverworldLoadScreensPaletteSet`, and
-`OverworldPalettesLoader` when their behavior has been represented in the
-generated bundle. Keep `DecompressAnimatedOverworldTiles` temporarily for the
+Submilestone 9B.1 keeps sprite and dungeon assets on their existing loaders.
+Replace the shared path's background half of `InitializeTilesets`,
+`OverworldLoadScreensPaletteSet`, and `OverworldPalettesLoader` when their
+behavior has been represented in the generated bundle. Keep
+`DecompressAnimatedOverworldTiles` temporarily for the
 first checkpoint.
 
 Palette descriptors populate `$7EC300`. Retain the normal and special
@@ -321,7 +338,42 @@ Zora-area Triforce trigger is not treated as a reachable load path.
 Gameplay validation must still exercise each of these paths and verify NMI
 timing, sprite continuity, palette-filter recovery, and vanilla appearance.
 
-## Submilestone 9B.4: animated tiles
+## Submilestone 9B.4: area-dependent sprite graphics
+
+Move the four area-dependent sprite slots at VRAM word addresses
+`$5000-$5FFF` into the generated asset bundles. Each slot contains 64 8x8
+characters, so it maps to four existing 16-character payload rows. Preserve
+the fixed destinations assumed by OAM tile numbers.
+
+The importer uses vanilla sprite-set IDs only while compiling the final 4bpp
+rows, including the loader's upper- or lower-palette-half conversion. Runtime
+records contain only destination rows and payload pointers. A zero sheet
+override emits nothing and retains the current VRAM slot in both full and
+scrolling loads.
+
+Normal Light World records use the game-state variants described above. Dark
+World and fixed special areas use one `$FF` variant; Triforce uses asset key
+`$88`. Credits overworld scenes use their dedicated keys and scripted sprite
+sets. File initialization writes sheet `$46` to all four slots through key
+`$FE`, matching vanilla's initial resident state.
+
+Put sprite and background rows in the same batches so `engine_check` schedules
+their combined NMI cost and enforces the existing eight-row limit. Converted
+overworld paths no longer stage these four slots in WRAM or run the vanilla
+`$19` upload. Common/effect sprites at `$4400-$47FF`, Link graphics, followers,
+fixed auxiliary graphics, sprite palettes, and unrelated NMI work remain on
+their existing paths. Dungeon and other non-generated callers retain the
+vanilla `$0AA3` cache behavior.
+
+Implemented: the shared runtime resolver selects records by game state for
+synchronous, full-sequence, and directional loads. Full loads and every
+converted overworld transition use generated OBJ rows, while zero overrides
+retain the current slots. `engine_check` validates variant coverage, full
+loads, ordinary adjacencies, credits keys, the initial seed, destinations, and
+batch limits. Gameplay validation must still cover game-state changes,
+dungeon/presentation boundaries, every transition type, and NMI timing.
+
+## Submilestone 9B.5: animated tiles
 
 The current area loader decompresses animated overworld frames into WRAM, and
 the normal per-frame NMI group uploads one selected frame from there. Replace
@@ -352,8 +404,8 @@ tracks can run with different periods or phases, and no animated overworld
 graphics depend on `DecompressAnimatedOverworldTiles` or its WRAM frame cache.
 
 Milestone 9B is complete only after every overworld load and restoration path
-uses the generated descriptors and no overworld background asset depends on
-the old graphics or palette loaders.
+uses the generated descriptors and no overworld background asset or
+area-dependent sprite graphic depends on the old graphics or palette loaders.
 
 ## Deferred optimization: fine-grained CGRAM uploads
 

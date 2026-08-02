@@ -79,6 +79,12 @@ struct Constants {
     gfx_bank_addr: SnesAddr,
     gfx_high_addr: SnesAddr,
     gfx_low_addr: SnesAddr,
+    sprite_gfx_bank_addr: SnesAddr,
+    sprite_gfx_high_addr: SnesAddr,
+    sprite_gfx_low_addr: SnesAddr,
+    sprite_sets_addr: SnesAddr,
+    sprite_sheet_sets_addr: SnesAddr,
+    special_sprite_sets_addr: SnesAddr,
     tiles16_addr: SnesAddr,
     tiles16_cnt: u32,
     tiles32_tl_addr: SnesAddr,
@@ -112,6 +118,12 @@ impl Constants {
             gfx_bank_addr: SnesAddr(0x00e7d0),
             gfx_high_addr: SnesAddr(0x00e7d5),
             gfx_low_addr: SnesAddr(0x00e7da),
+            sprite_gfx_bank_addr: SnesAddr(0x00d033),
+            sprite_gfx_high_addr: SnesAddr(0x00d112),
+            sprite_gfx_low_addr: SnesAddr(0x00d1f1),
+            sprite_sets_addr: SnesAddr(0x00fa41),
+            sprite_sheet_sets_addr: SnesAddr(0x00db97),
+            special_sprite_sets_addr: SnesAddr(0x02e575),
             tiles16_addr: SnesAddr(0x0f8000),
             tiles16_cnt: 3742,
             tiles32_tl_addr: SnesAddr(0x038000),
@@ -145,6 +157,12 @@ impl Constants {
             gfx_bank_addr: SnesAddr(0x00e790),
             gfx_high_addr: SnesAddr(0x00e795),
             gfx_low_addr: SnesAddr(0x00e79a),
+            sprite_gfx_bank_addr: SnesAddr(0x00cff3),
+            sprite_gfx_high_addr: SnesAddr(0x00d0d2),
+            sprite_gfx_low_addr: SnesAddr(0x00d1b1),
+            sprite_sets_addr: SnesAddr(0x00fa41),
+            sprite_sheet_sets_addr: SnesAddr(0x00db57),
+            special_sprite_sets_addr: SnesAddr(0x02e811),
             tiles16_addr: SnesAddr(0x0f8000),
             tiles16_cnt: 3742,
             tiles32_tl_addr: SnesAddr(0x038000),
@@ -324,6 +342,7 @@ pub struct Importer {
     map_palettes: Vec<MapPalettes>,
     map_gfx: Vec<[u8; 8]>,
     map_gfx_transition_sheets: Vec<[bool; 8]>,
+    sprite_character_rows: HashMap<u8, Vec<[u8; 512]>>,
     tile_types: Vec<u8>,
 }
 
@@ -332,11 +351,19 @@ pub struct FlatMap16 {
     pub screen_pointers: Vec<u8>,
 }
 
+#[derive(Clone, PartialEq, Eq)]
+pub struct OverworldSpriteVariant {
+    pub max_game_state: u8,
+    pub character_rows: Vec<(u8, [u8; 512])>,
+}
+
+#[derive(Clone)]
 pub struct OverworldAreaAssets {
     pub palette_rows: Vec<[u8; 32]>,
     pub character_rows: Vec<[u8; 512]>,
     pub transition_palette_groups: [bool; 2],
     pub transition_sheets: [bool; 8],
+    pub sprite_variants: Vec<OverworldSpriteVariant>,
 }
 
 impl Importer {
@@ -355,6 +382,7 @@ impl Importer {
             map_palettes: Vec::new(),
             map_gfx: Vec::new(),
             map_gfx_transition_sheets: Vec::new(),
+            sprite_character_rows: HashMap::new(),
             tile_types: Vec::new(),
         })
     }
@@ -456,14 +484,68 @@ impl Importer {
             self.load_map_gfx()?;
         }
 
-        self.map_gfx
-            .iter()
-            .zip(&self.map_gfx_transition_sheets)
-            .zip(&self.map_palettes)
-            .map(|((gfx, &transition_sheets), palettes)| {
-                self.encode_overworld_area_assets(gfx, transition_sheets, palettes)
-            })
-            .collect()
+        let mut assets = Vec::with_capacity(self.map_gfx.len());
+        for area in 0..self.map_gfx.len() {
+            let mut area_assets = self.encode_overworld_area_assets(
+                &self.map_gfx[area],
+                self.map_gfx_transition_sheets[area],
+                &self.map_palettes[area],
+            )?;
+            area_assets.sprite_variants = self.overworld_sprite_variants(area)?;
+            assets.push(area_assets);
+        }
+        Ok(assets)
+    }
+
+    pub fn credits_overworld_assets(&mut self) -> Result<Vec<(u8, OverworldAreaAssets)>> {
+        let areas = self.overworld_area_assets()?;
+        // Final $8A for each scripted credits scene; None marks a dungeon.
+        let area_keys = [
+            Some(0x1b),
+            None,
+            Some(0x18),
+            Some(0x30),
+            Some(0x03),
+            Some(0x2c),
+            Some(0x81),
+            Some(0x16),
+            Some(0x02),
+            Some(0x2a),
+            None,
+            None,
+            Some(0x18),
+            Some(0x05),
+            Some(0x00),
+            Some(0x80),
+        ];
+        let sprite_sets = [
+            0x28, 0x46, 0x27, 0x2e, 0x2b, 0x2b, 0x0e, 0x2c, 0x1a, 0x29, 0x47, 0x28, 0x27, 0x28,
+            0x2a, 0x28,
+        ];
+        let mut credits = Vec::new();
+        for (scene, area) in area_keys.into_iter().enumerate() {
+            if let Some(area) = area {
+                let mut assets = areas[area].clone();
+                assets.sprite_variants = vec![self.sprite_variant(0xff, sprite_sets[scene])?];
+                credits.push((u8::try_from(scene)?, assets));
+            }
+        }
+        Ok(credits)
+    }
+
+    pub fn overworld_sprite_seed(&mut self) -> Result<OverworldSpriteVariant> {
+        let rows = self.sprite_sheet_rows(0x46)?.clone();
+        Ok(OverworldSpriteVariant {
+            max_game_state: 0xff,
+            character_rows: (0..4)
+                .flat_map(|slot| {
+                    rows.iter()
+                        .cloned()
+                        .enumerate()
+                        .map(move |(row, data)| (0x50 + slot * 4 + row as u8, data))
+                })
+                .collect(),
+        })
     }
 
     pub fn credits_cool_background_assets(&mut self) -> Result<OverworldAreaAssets> {
@@ -492,7 +574,10 @@ impl Importer {
             animated: ordinary.animated,
             transition_groups: [false; 2],
         };
-        self.encode_overworld_area_assets(&self.map_gfx[area], [false; 8], &palettes)
+        let mut assets =
+            self.encode_overworld_area_assets(&self.map_gfx[area], [false; 8], &palettes)?;
+        assets.sprite_variants = vec![self.sprite_variant(0xff, 0x2d)?];
+        Ok(assets)
     }
 
     fn encode_overworld_area_assets(
@@ -552,7 +637,114 @@ impl Importer {
             character_rows,
             transition_palette_groups: palettes.transition_groups,
             transition_sheets,
+            sprite_variants: Vec::new(),
         })
+    }
+
+    fn overworld_sprite_variants(&mut self, area: usize) -> Result<Vec<OverworldSpriteVariant>> {
+        let parent = usize::from(self.map_parents[area]);
+        let variants = if area < 0x40 {
+            // Three Light World progress blocks followed by the fixed Dark World block.
+            [(0x01, area), (0x02, 0x40 + area), (0xff, 0x80 + area)]
+                .into_iter()
+                .map(|(max_state, index)| {
+                    let set = self
+                        .rom
+                        .read_u8((self.constants.sprite_sets_addr + index as u32).into())?;
+                    self.sprite_variant(max_state, set)
+                })
+                .collect::<Result<Vec<_>>>()?
+        } else if area < 0x80 {
+            let set = self
+                .rom
+                .read_u8((self.constants.sprite_sets_addr + 0xc0 + (area - 0x40) as u32).into())?;
+            vec![self.sprite_variant(0xff, set)?]
+        } else if parent == 0x88 {
+            // Triforce's $0AA3=$7D row names raw common sheet $08, which its
+            // later dedicated loader installs outside the area-dependent slots.
+            vec![OverworldSpriteVariant {
+                max_game_state: 0xff,
+                character_rows: Vec::new(),
+            }]
+        } else {
+            let set = self.rom.read_u8(
+                (self.constants.special_sprite_sets_addr + (parent - 0x80) as u32).into(),
+            )?;
+            vec![self.sprite_variant(0xff, set)?]
+        };
+
+        let mut merged: Vec<OverworldSpriteVariant> = Vec::new();
+        for variant in variants {
+            if let Some(previous) = merged.last_mut()
+                && previous.character_rows == variant.character_rows
+            {
+                previous.max_game_state = variant.max_game_state;
+            } else {
+                merged.push(variant);
+            }
+        }
+        Ok(merged)
+    }
+
+    fn sprite_variant(&mut self, max_game_state: u8, set: u8) -> Result<OverworldSpriteVariant> {
+        let mut character_rows = Vec::new();
+        for slot in 0..4 {
+            let sheet = self.rom.read_u8(
+                (self.constants.sprite_sheet_sets_addr + u32::from(set) * 4 + u32::try_from(slot)?)
+                    .into(),
+            )?;
+            if sheet == 0 {
+                continue;
+            }
+            for (row, data) in self
+                .sprite_sheet_rows(sheet)?
+                .clone()
+                .into_iter()
+                .enumerate()
+            {
+                character_rows.push((0x50 + slot as u8 * 4 + row as u8, data));
+            }
+        }
+        Ok(OverworldSpriteVariant {
+            max_game_state,
+            character_rows,
+        })
+    }
+
+    fn sprite_sheet_rows(&mut self, sheet: u8) -> Result<&Vec<[u8; 512]>> {
+        if !self.sprite_character_rows.contains_key(&sheet) {
+            let bank = self
+                .rom
+                .read_u8((self.constants.sprite_gfx_bank_addr + u32::from(sheet)).into())?;
+            let high = self
+                .rom
+                .read_u8((self.constants.sprite_gfx_high_addr + u32::from(sheet)).into())?;
+            let low = self
+                .rom
+                .read_u8((self.constants.sprite_gfx_low_addr + u32::from(sheet)).into())?;
+            let data = decompress(
+                &self.rom,
+                SnesAddr::from_bytes(bank, high, low).into(),
+                false,
+            )?;
+            ensure!(
+                data.len() == 0x600,
+                "unexpected sprite graphics sheet {sheet:02X} length: {}",
+                data.len()
+            );
+            let right_palette = matches!(sheet, 0x52 | 0x53 | 0x5a | 0x5b | 0x5c | 0x5e | 0x5f);
+            let tiles = decode_3bpp_tiles(&data);
+            let mut rows = Vec::with_capacity(4);
+            for tiles in tiles.chunks_exact(16) {
+                let mut row = [0; 512];
+                for (tile, output) in tiles.iter().zip(row.chunks_exact_mut(32)) {
+                    encode_4bpp_tile(tile, right_palette, output);
+                }
+                rows.push(row);
+            }
+            self.sprite_character_rows.insert(sheet, rows);
+        }
+        Ok(&self.sprite_character_rows[&sheet])
     }
 
     fn load_palette(&self, addr: PcAddr, size: usize) -> Result<[ColorRgb; 16]> {
@@ -616,18 +808,7 @@ impl Importer {
                 data.len()
             );
 
-            for j in 0..64 {
-                let mut tile = [[0; 8]; 8];
-                for (y, row) in tile.iter_mut().enumerate() {
-                    for (x, pixel) in row.iter_mut().enumerate() {
-                        let c0 = (data[j * 24 + y * 2] >> (7 - x)) & 1;
-                        let c1 = (data[j * 24 + y * 2 + 1] >> (7 - x)) & 1;
-                        let c2 = (data[j * 24 + y + 16] >> (7 - x)) & 1;
-                        *pixel = c0 | c1 << 1 | c2 << 2;
-                    }
-                }
-                self.tiles8.push(tile);
-            }
+            self.tiles8.extend(decode_3bpp_tiles(&data));
         }
         Ok(())
     }
@@ -847,6 +1028,23 @@ fn encode_palette_half(palette: &[ColorRgb; 16], output: &mut [u8]) {
     }
 }
 
+fn decode_3bpp_tiles(data: &[u8]) -> Vec<[[u8; 8]; 8]> {
+    (0..64)
+        .map(|tile_index| {
+            let mut tile = [[0; 8]; 8];
+            for (y, row) in tile.iter_mut().enumerate() {
+                for (x, pixel) in row.iter_mut().enumerate() {
+                    let c0 = (data[tile_index * 24 + y * 2] >> (7 - x)) & 1;
+                    let c1 = (data[tile_index * 24 + y * 2 + 1] >> (7 - x)) & 1;
+                    let c2 = (data[tile_index * 24 + y + 16] >> (7 - x)) & 1;
+                    *pixel = c0 | c1 << 1 | c2 << 2;
+                }
+            }
+            tile
+        })
+        .collect()
+}
+
 fn encode_4bpp_tile(tile: &[[u8; 8]; 8], right_palette: bool, output: &mut [u8]) {
     for (y, pixels) in tile.iter().enumerate() {
         for (x, &pixel) in pixels.iter().enumerate() {
@@ -953,6 +1151,7 @@ mod tests {
             map_palettes: Vec::new(),
             map_gfx: Vec::new(),
             map_gfx_transition_sheets: Vec::new(),
+            sprite_character_rows: HashMap::new(),
             tile_types: Vec::new(),
         };
 
