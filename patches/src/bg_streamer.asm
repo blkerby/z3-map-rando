@@ -475,11 +475,17 @@ assert pc() <= $82F6FD
 
 org !free_space_bank_82_start
 
-hook_Module19AfterBG1ScrollFinalized:
+hook_Module19AfterPaletteCacheCopy:
     JSR.w $C44F                 ; Run hi-jacked instruction
+
+    REP #$20
+    LDA.w #$0100                ; Phase 4 will expose BG1's right-hand half.
+    STA.w $0120                 ; Render that forthcoming viewport now.
+    SEP #$20
+
     JSL BG1BulkRender
     INC.b $B0                   ; Run hi-jacked instruction
-    RTL
+    RTS
 
 hook_CreditsCoolBackgroundAfterOverlayLoad:
     REP #$20
@@ -560,10 +566,10 @@ assert pc() == $8285FC
 
 ; Module19_03_PrepTileSetsPalette
 ;
-; The Triforce room finalizes its BG1 scroll after loading the overlay. Render
-; the ring in the following phase, before BG2 is built.
+; The Triforce room advances its BG1 horizontal scroll to $0100 in the next
+; phase. Render that forthcoming viewport now, before BG2 is built.
 org $829F7A
-    JML hook_Module19AfterBG1ScrollFinalized
+    JML hook_Module19AfterPaletteCacheCopy
     NOP
     NOP
 assert pc() == $829F80
@@ -729,9 +735,23 @@ BG2BulkRender:
     REP #$20
 
     JSR BG2SelectRenderer
+
+    LDA.b $10
+    AND.w #$00FF
+    CMP.w #$0019
+    BNE .calculate_world_origin
+
+    ; The Triforce room's flat special map starts at logical (0,0); its $88
+    ; area ID is not an ordinary overworld screen-grid coordinate.
+    STZ.b $00
+    STZ.b $02
+    BRA .render
+
+.calculate_world_origin
     JSR BG2CalculateLogicalWindowOrigin
     ; $00 = logical X tile,  $02 = logical Y tile
 
+.render
     JSR BGBulkRender
 
     PLY                         ; Restore registers in reverse push order.

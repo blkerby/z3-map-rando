@@ -41,16 +41,17 @@ assert pc() == $8282D5
 
 ; Credits_LoadOverworldScene_PrepGFX, module $1A while loading an overworld
 ; credits scene: replace its vanilla tilemap clear with the relocated-layout
-; clear before it loads background graphics.
+; credits clear before it loads background graphics.
 org $828506
-    JSL hook_OverworldSceneTilemapClear
+    JSL hook_CreditsOverworldTilemapClear
 assert pc() == $82850A
 
 ; Module19_02_LoadMusicAndScreen, module $19 submodule $02 while loading the
 ; Triforce room: replace its vanilla tilemap clear with the relocated-layout
-; clear before it loads the special overworld screen.
+; clear before it loads the special overworld screen, and discard any pending
+; HUD upload so the scene's BG3 remains blank.
 org $829F4A
-    JSL hook_OverworldSceneTilemapClear
+    JSL hook_TriforceRoomBeforeSpecialOverworldLoad
 assert pc() == $829F4E
 
 ; Credits_InitializeTheActualCredits, module $1A submodule $20: replace its
@@ -59,6 +60,21 @@ assert pc() == $829F4E
 org $8EE649
     JSL hook_CreditsOverworldTilemapClear
 assert pc() == $8EE64D
+
+; Credits_AddEndingSequenceText, module $1A while preparing an overworld or
+; underworld vignette: derive its full BG3 fill destination from the active
+; layout instead of always targeting vanilla VRAM $6000.
+org $8EECE7
+    JSL hook_CreditsBeforeEndingTextBlankFill
+    NOP
+    NOP
+assert pc() == $8EECED
+
+; Credits_AddEndingSequenceText, while copying each text-stripe header: rebase
+; its vanilla BG3 destination only when the overworld layout is active.
+org $8EED0E
+    JSL hook_CreditsBeforeEndingTextStripeCopy
+assert pc() == $8EED12
 
 ; SetTargetOverworldWarpToPyramid, module $15 during Agahnim's mirror-warp
 ; transition: switch layouts when it loads the overworld destination without
@@ -488,12 +504,41 @@ hook_WorldMapOverworldRestore:
     JSR SynchronousLoadCurrentOverworldAssets
     RTL
 
-hook_OverworldSceneTilemapClear:
+hook_TriforceRoomBeforeSpecialOverworldLoad:
+    STZ.b $16                   ; Prevent NMI from restoring the HUD after the clear.
     JSR SelectAndClearOverworldVRAM
     RTL
 
 hook_CreditsOverworldTilemapClear:
     JSR SelectAndClearCreditsOverworldVRAM
+    RTL
+
+hook_CreditsBeforeEndingTextBlankFill:
+    LDA.w $0219
+    XBA
+    AND.w #$00FF               ; Convert $3C40/$6040 to $003C/$0060.
+    STA.w $1002                ; Run hi-jacked instruction
+    RTL
+
+hook_CreditsBeforeEndingTextStripeCopy:
+    PHA
+    LDA.w $0219
+    CMP.w #!OverworldHUD
+    BNE .default_layout
+
+    PLA
+    SEC
+    SBC.w #$0024               ; Rebase encoded $62xx/$63xx to $3Exx/$3Fxx.
+    BRA .store
+
+.default_layout
+    PLA
+
+.store
+    ; Run hi-jacked instructions:
+    STA.w $1008,X
+    INY
+
     RTL
 
 ; Select the final layout and clear only its three tilemap regions. Callers
@@ -544,8 +589,9 @@ SelectAndClearCreditsOverworldVRAM:
     PLP
     RTS
 
-; Select the final registers without clearing VRAM. The Agahnim transition
-; uses this while its destination is hidden, then fully replaces each region.
+; Select the final registers and layout-dependent NMI destinations without
+; clearing VRAM. The Agahnim transition uses this while its destination is
+; hidden, then fully replaces each region.
 SelectOverworldVRAM:
     PHP
     SEP #$20
@@ -558,6 +604,8 @@ SelectOverworldVRAM:
     STZ.w $210B                 ; BG1/BG2 characters begin at $0000.
 
     REP #$20
+    LDA.w #$1C00                ; Periodic animated BG characters.
+    STA.w $0134
     LDA.w #!OverworldHUD
     STA.w $0219
     PLP
