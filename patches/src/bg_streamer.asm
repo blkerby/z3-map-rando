@@ -43,6 +43,7 @@ lorom
 !BGMap16SourceOffset = $7EC900
 !BGVRAMBase = $7EC902
 !BGLogicalMask = $7EC904
+!Module15LayerEnable = $7EC90A
 
 ; OverworldOverlay_HandleRain
 ;
@@ -126,6 +127,24 @@ org $82EA89
 org $82B283
     JMP.w $B2CE
 
+; ReloadSubscreenOverlay sets the destination layer configuration before its
+; relocated tilemaps are ready. Defer it during the active-display Agahnim
+; transition so the saved configuration can be restored after the reload.
+org $82AF5B
+hook_ReloadSubscreenOverlaySetLayers:
+    JML SetOverworldSubscreenLayers
+assert pc() == $82AF5F
+
+org $82AF63
+return_ReloadSubscreenOverlaySetLayers:
+
+; MirrorWarp_HandleCastlePyramidSubscreen enables the pyramid subscreen after
+; the logical overlay load. Keep it hidden during the Agahnim transition.
+org $82B22B
+hook_MirrorWarpEnableSubscreenAfterOverlayLoad:
+    JSL EnableMirrorWarpSubscreenUnlessModule15
+assert pc() == $82B22F
+
 ; Module09_2E_Whirlpool
 ;
 ; The logical overlay loads remain, but the new streamer replaces the vanilla
@@ -208,7 +227,8 @@ return_MirrorWarpAfterOverlayAUpload:
 ; scrolls yet. Finalize them before replacing the vanilla $17=$0C half upload
 ; with our BG1 bulk window.
 org $80D8FF
-    JML hook_MirrorWarpBeforeBG1BulkRender
+hook_MirrorWarpBeforeBG1BulkRender:
+    JML RenderMirrorWarpBG1AndHideBackgrounds
 
 ; The now-unreachable remainder of step 8 is reused as a bank-00 trampoline
 ; for the step-10 mirror margins.
@@ -219,6 +239,13 @@ org $80D903
 ; purpose was the vanilla $17=$0D BG1 half upload, so both steps now return.
 org $80D907
     RTL
+
+; AnimateMirrorWarp_LoadSubscreen, step 11: preserve the destination subscreen
+; state without exposing BG1 before its following character upload completes.
+org $80DACD
+hook_MirrorWarpSetDestinationSubscreen:
+    JSL SetMirrorWarpDestinationSubscreen
+assert pc() == $80DAD1
 
 ; AnimateMirrorWarp vector entry 10
 ;
@@ -724,6 +751,54 @@ assert pc() <= $9BCA9F
 
 org !free_space_bank_any_start
 
+SetOverworldSubscreenLayers:
+    LDA.b $10
+    CMP.b #$15
+    BEQ .defer
+
+    ; Run hi-jacked instructions:
+    LDA.b #$16
+    STA.b $1C
+    LDA.b #$01
+    STA.b $1D
+    JML return_ReloadSubscreenOverlaySetLayers
+
+.defer
+    LDA.b #$16
+    STA.l !Module15LayerEnable
+    LDA.b #$01
+    STA.l !Module15LayerEnable+1
+    JML return_ReloadSubscreenOverlaySetLayers
+
+EnableMirrorWarpSubscreenUnlessModule15:
+    LDA.b $10
+    CMP.b #$15
+    BEQ .hidden
+
+    ; Run hi-jacked instructions:
+    LDA.b #$01
+    STA.b $1D
+    RTL
+
+.hidden
+    LDA.b #$01                 ; Run hi-jacked instruction
+    RTL
+
+SetMirrorWarpDestinationSubscreen:
+    LDA.b $10
+    CMP.b #$15
+    BNE .enable
+
+    LDA.b #$01
+    STA.l !Module15LayerEnable+1
+    RTL
+
+.enable
+    ; Run hi-jacked instructions:
+    LDA.b #$01
+    STA.b $1D
+    RTL
+
 hook_CreditsAfterScrollUpdate:
     REP #$20
 
@@ -833,8 +908,9 @@ BG1BulkRender:
 
 ; Make the mirror bulk renderer use the destination scroll which the common
 ; module tail will otherwise finalize only after this loading step returns.
-; Include shake exactly as that tail does, then tail-call the shared renderer.
-hook_MirrorWarpBeforeBG1BulkRender:
+; Include shake exactly as that tail does, render BG1 while its destination
+; enable is still live, then hide BG1/BG2 until the final restore.
+RenderMirrorWarpBG1AndHideBackgrounds:
     PHP
     REP #$20
 
@@ -849,7 +925,21 @@ hook_MirrorWarpBeforeBG1BulkRender:
     STA.w $0124
 
     PLP
-    JML BG1BulkRender
+    JSL BG1BulkRender
+
+    LDA.b $10
+    CMP.b #$15
+    BNE .return
+
+    REP #$20
+    LDA.b $1C
+    AND.w #$FCFC
+    STA.b $1C
+    SEP #$20
+
+.return
+    LDA.b #$00
+    RTL
 
 ; Select the BG1 overlay source and VRAM destination for the shared renderer.
 BG1SelectRenderer:
@@ -2011,7 +2101,26 @@ hook_MirrorWarpWavingFrameAfterAnimation:
 ; Step 10 retains its animated-tile work, then repairs both layers' margins.
 hook_MirrorWarpMarginPhase:
     JSL $80D915                 ; Run hi-jacked instruction
+
+    LDA.b $10
+    CMP.b #$15
+    BNE .build
+
+    LDA.l !Module15LayerEnable+1
+    STA.b $1D
+
+.build
     JSR BGMirrorBuildMargins
+
+    LDA.b $10
+    CMP.b #$15
+    BNE .return
+
+    LDA.b $1D
+    AND.b #$F8
+    STA.b $1D
+
+.return
     RTL
 
 ;---------------------------------------------------------------------------------------------------

@@ -29,6 +29,7 @@ lorom
 !OverworldAssetBundlePointers = $A78000
 !OverworldAssetSchedule = $7EC906
 !GeneratedAssetMarker = $7EC909
+!Module15LayerEnable = $7EC90A
 !CreditsFirstAssetKey = $A0
 !SpriteSeedAssetKey = $FE
 !CreditsCoolBackgroundAssetKey = $FF
@@ -109,8 +110,19 @@ assert pc() == $8EED12
 ; transition: switch layouts when it loads the overworld destination without
 ; passing through module $08.
 org $829D5C
-    JSR hook_Module15LoadOverworld
+hook_Module15OverworldLoad:
+    JSR LoadModule15Overworld
 assert pc() == $829D5F
+
+; MirrorWarp_LoadSpritesAndColors normally changes the pyramid transition's
+; target backdrop to black. Keep it white during Agahnim's Module $15 load.
+org $82B329
+hook_MirrorWarpSetPyramidTargetColor:
+    JML SetMirrorWarpPyramidTargetColor
+assert pc() == $82B32D
+
+org $82B334
+return_MirrorWarpSetPyramidTargetColor:
 
 ; WorldMap_RestoreGraphics, module $0E submodule $07 or $0A, internal phase
 ; $0200=$06: select and clear the overworld layout during the forced-blank
@@ -177,6 +189,13 @@ assert pc() == $80D7CF
 org $80D896
     db $00, $00, $00, $00
 assert pc() == $80D89A
+
+; AnimateMirrorWarp_LoadPyramidIfAga: on the penultimate delay step, stage the
+; relocated HUD after the old layout's final animated-tile write.
+org $80D8DC
+hook_Module15MirrorWarpBeforeLayoutSwitch:
+    JML PrepareModule15HUDBeforeLayoutSwitch
+assert pc() == $80D8E0
 
 ; AnimateMirrorWarp's NMI request table, phases $0C/$0D: generated full-load
 ; batches have already replaced the two old area-OBJ uploads.
@@ -359,6 +378,11 @@ org $808CB0
     NOP
 assert pc() == $808CB6
 
+; First unused tilemap-upload selector: fixed destination for the relocated
+; Module $15 BG3 page staged before $0219 switches to the overworld HUD.
+org $8098AB
+    db $3C
+
 ; NMI_UpdateBGChar3and4, NMI request $17=$09: rebase the first half of the
 ; overworld transition BG-character upload. It has a separate entry because
 ; it does not use the later common DMA setup.
@@ -505,9 +529,11 @@ org $82A314
     dw hook_Module09BeforeFinalizingScrollTransition
 
 org !free_space_bank_82_start
-hook_Module15LoadOverworld:
+LoadModule15Overworld:
+    JSL HideModule15Backgrounds
     JSL SelectOverworldVRAM
-    JMP.w $E207                 ; Run hi-jacked instruction
+    JSR.w $E207                 ; Run hi-jacked instruction
+    RTS
 
 hook_Module09BeforeFinalizingScrollTransition:
     JSL ProcessNextPostScrollAssetBatch
@@ -653,7 +679,7 @@ SelectAndClearOverworldVRAM:
     PHX
     PHY
 
-    JSR SelectOverworldVRAM
+    JSL SelectOverworldVRAM
 
     LDY.w #BlankBG12Tile
     LDA.w #$6000
@@ -676,7 +702,7 @@ SelectAndClearCreditsOverworldVRAM:
     PHX
     PHY
 
-    JSR SelectOverworldVRAM
+    JSL SelectOverworldVRAM
 
     LDY.w #BlankCreditsBG12Tile
     LDA.w #$6000
@@ -713,7 +739,41 @@ SelectOverworldVRAM:
     LDA.w #!OverworldHUD
     STA.w $0219
     PLP
-    RTS
+    RTL
+
+; Queue the relocated BG3 tilemap immediately before the layout switch. Start
+; with transparent tiles, then overlay the current HUD at its new $3C40
+; destination so BG3 can remain visible across the switch.
+PrepareModule15OverworldTilemaps:
+    PHP
+    REP #$30
+    PHX
+
+    LDA.w #$207F
+    LDX.w #$07FE
+.next_word
+    STA.w $1000,X
+    DEX
+    DEX
+    BPL .next_word
+
+    LDX.w #$0148
+.copy_hud
+    LDA.l $7EC700,X
+    STA.w $1080,X
+    DEX
+    DEX
+    BPL .copy_hud
+
+    SEP #$20
+    LDA.b #$23
+    STA.w $0116
+    LDA.b #$01
+    STA.b $17
+
+    PLX
+    PLP
+    RTL
 
 ; Select the shared non-overworld layout. BG3 uses the reduced 32x32 tilemap
 ; while BG1/BG2 retain their vanilla underworld and presentation arrangement.
@@ -1123,6 +1183,57 @@ assert pc() <= !free_space_bank_any_end_1
 
 org !free_space_bank_any_start_2
 
+PrepareModule15HUDBeforeLayoutSwitch:
+    LDA.w $06BA
+    CMP.b #$1F
+    BNE .return
+
+    JSL PrepareModule15OverworldTilemaps
+
+    REP #$20
+    LDA.w #$1C00
+    STA.w $0134
+    SEP #$20
+
+.return
+    STZ.w $0200                 ; Run hi-jacked instruction
+    RTL
+
+; Module $15 enters its long overworld loader during vertical blank. Hide BG1
+; and BG2 in both the mirrors and PPU before switching layouts; BG3 was staged
+; earlier and remains visible.
+HideModule15Backgrounds:
+    PHP
+    REP #$20
+
+    LDA.b $1C
+    STA.l !Module15LayerEnable
+    AND.w #$FCFC
+    STA.b $1C
+    STA.w $212C
+
+    PLP
+    RTL
+
+SetMirrorWarpPyramidTargetColor:
+    SEP #$20
+    LDA.b $10
+    CMP.b #$15
+    REP #$20
+    BNE .black
+
+    LDA.w #$7FFF
+    BRA .store
+
+.black
+    LDA.w #$0000
+
+.store
+    ; Run hi-jacked instructions:
+    STA.l $7EC500
+    STA.l $7EC540
+    JML return_MirrorWarpSetPyramidTargetColor
+
 ; ReloadPreviouslyLoadedSheets has already established DB=$80. Generated
 ; records replaced all eight static BG and four area-dependent OBJ sheets.
 hook_ReloadPreviouslyLoadedSheetsBeforeGraphics:
@@ -1264,6 +1375,17 @@ hook_MirrorBeforeObsoleteSpriteGraphicsA:
 
 hook_MirrorBeforeObsoleteSpriteGraphicsB:
     JSL $87AA8B                 ; HandleFollowersAfterMirroring
+
+    LDA.b $10
+    CMP.b #$15
+    BNE .return
+
+    REP #$20
+    LDA.l !Module15LayerEnable
+    STA.b $1C
+    SEP #$20
+
+.return
     RTL
 
 ; Mirror phases 2-4 no longer need their vanilla BG decompression bodies.
