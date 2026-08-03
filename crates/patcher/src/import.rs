@@ -667,9 +667,9 @@ impl Importer {
                 character_rows: Vec::new(),
             }]
         } else {
-            let set = self.rom.read_u8(
-                (self.constants.special_sprite_sets_addr + (parent - 0x80) as u32).into(),
-            )?;
+            let set = self
+                .rom
+                .read_u8((self.constants.special_sprite_sets_addr + (area - 0x80) as u32).into())?;
             vec![self.sprite_variant(0xff, set)?]
         };
 
