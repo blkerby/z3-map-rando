@@ -1,16 +1,12 @@
 use anyhow::{Context, Result};
 use clap::Parser;
+use engine_check::{asset_bundle, rain_tilemap::RAIN_TILEMAP};
 use patcher::{
     Patcher, PcAddr, SnesAddr,
     import::{FlatMap16, Importer, Tile16},
 };
 use sha2::{Digest, Sha256};
 use std::{fs, path::PathBuf};
-
-mod asset_bundle;
-mod rain_tilemap;
-
-use rain_tilemap::RAIN_TILEMAP;
 
 const VANILLA_ROM_SHA256: &str = "794e040b02c7591b59ad8843b51e7c619b88f87cddc6083a8e7a4027b96a2271";
 const FLAT_MAPS_START: SnesAddr = SnesAddr(0xb80000);
@@ -152,13 +148,13 @@ fn main() -> Result<()> {
 
     let mut context = patcher.context("overworld asset metadata");
     context.write(
-        SnesAddr(asset_bundle::METADATA_START).into(),
+        SnesAddr(asset_bundle.metadata_start).into(),
         asset_bundle.metadata,
     )?;
 
     let mut context = patcher.context("overworld asset payloads");
     context.write(
-        SnesAddr(asset_bundle::PAYLOAD_START).into(),
+        SnesAddr(asset_bundle.payload_start).into(),
         asset_bundle.payload,
     )?;
 

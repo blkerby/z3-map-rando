@@ -3,25 +3,41 @@ use patcher::import::{OverworldAreaAssets, OverworldSpriteVariant};
 use std::collections::BTreeMap;
 
 const BANK_SIZE: usize = 0x8000;
-pub const METADATA_START: u32 = 0xa78000;
-pub const PAYLOAD_START: u32 = 0xaa8000;
-const METADATA_BANK: u8 = (METADATA_START >> 16) as u8;
+const METADATA_START: u32 = 0xa78000;
+const PAYLOAD_START: u32 = 0xaa8000;
 const METADATA_SIZE: usize = 3 * BANK_SIZE;
 const POINTER_TABLE_SIZE: usize = 256 * 3;
 pub const CREDITS_COOL_BACKGROUND_KEY: usize = 0xff;
 pub const CREDITS_FIRST_KEY: usize = 0xa0;
 pub const SPRITE_SEED_KEY: usize = 0xfe;
-const PAYLOAD_BANK: u8 = (PAYLOAD_START >> 16) as u8;
 const PAYLOAD_SIZE: usize = 14 * BANK_SIZE;
 // One unit is one 32-byte 4bpp tile; double palette bytes for parsing overhead.
 const GRAPHICS_ROW_UNITS: usize = 16;
 const PALETTE_ROW_UNITS: usize = 2;
 const TRANSITION_BATCH_UNITS: usize = 8 * GRAPHICS_ROW_UNITS;
+type InternedSequence = (u32, Vec<u32>, Vec<(u8, u32)>);
 
 pub struct AssetBundle {
+    pub metadata_start: u32,
+    pub payload_start: u32,
     pub metadata: Vec<u8>,
     pub payload: Vec<u8>,
     pub unique_payloads: usize,
+}
+
+#[derive(Clone, Copy)]
+pub struct AssetLayout {
+    pub payload_start: u32,
+    pub payload_size: usize,
+}
+
+impl Default for AssetLayout {
+    fn default() -> Self {
+        Self {
+            payload_start: PAYLOAD_START,
+            payload_size: PAYLOAD_SIZE,
+        }
+    }
 }
 
 #[derive(Clone, Copy, clap::ValueEnum)]
@@ -80,10 +96,33 @@ pub fn build(
     sprite_seed: &OverworldSpriteVariant,
     transition_phase: TransitionAssetPhase,
 ) -> Result<AssetBundle> {
-    ensure!(areas.len() == 0xa0, "expected 160 overworld asset sets");
+    build_with_layout(
+        areas,
+        credits_overworld,
+        credits_cool_background,
+        sprite_seed,
+        transition_phase,
+        AssetLayout::default(),
+    )
+}
 
-    let mut metadata = Region::new(METADATA_BANK, METADATA_SIZE, POINTER_TABLE_SIZE);
-    let mut payload = Region::new(PAYLOAD_BANK, PAYLOAD_SIZE, 0);
+pub fn build_with_layout(
+    areas: &[OverworldAreaAssets],
+    credits_overworld: &[(u8, OverworldAreaAssets)],
+    credits_cool_background: &OverworldAreaAssets,
+    sprite_seed: &OverworldSpriteVariant,
+    transition_phase: TransitionAssetPhase,
+    layout: AssetLayout,
+) -> Result<AssetBundle> {
+    ensure!(areas.len() == 0xa0, "expected 160 overworld asset sets");
+    ensure!(layout.payload_start & 0xffff == 0x8000);
+
+    let mut metadata = Region::new(
+        (METADATA_START >> 16) as u8,
+        METADATA_SIZE,
+        POINTER_TABLE_SIZE,
+    );
+    let mut payload = Region::new((layout.payload_start >> 16) as u8, layout.payload_size, 0);
     let empty_record = metadata.intern(&[0; 18], 1)?;
     let empty_variants = intern_variant_list(&mut metadata, &[(0xff, empty_record)])?;
     let mut keys = vec![empty_variants; 256];
@@ -146,6 +185,8 @@ pub fn build(
     }
 
     let bundle = AssetBundle {
+        metadata_start: METADATA_START,
+        payload_start: layout.payload_start,
         unique_payloads: payload.offsets.len(),
         metadata: metadata.bytes,
         payload: payload.bytes,
@@ -279,7 +320,7 @@ fn intern_full_sequence(
     payload: &mut Region,
     assets: &OverworldAreaAssets,
     sprite_variant: &OverworldSpriteVariant,
-) -> Result<(u32, Vec<u32>, Vec<(u8, u32)>)> {
+) -> Result<InternedSequence> {
     ensure!(
         assets.palette_rows.len() == 6,
         "expected six BG palette rows"
@@ -397,6 +438,22 @@ fn region_offset(address: u32, base_bank: u8, limit: usize) -> Result<usize> {
     Ok(offset)
 }
 
+fn metadata_offset(bundle: &AssetBundle, address: u32) -> Result<usize> {
+    region_offset(
+        address,
+        (bundle.metadata_start >> 16) as u8,
+        bundle.metadata.len(),
+    )
+}
+
+fn payload_offset(bundle: &AssetBundle, address: u32) -> Result<usize> {
+    region_offset(
+        address,
+        (bundle.payload_start >> 16) as u8,
+        bundle.payload.len(),
+    )
+}
+
 fn read_little_endian_pointer(bytes: &[u8], offset: usize) -> Result<u32> {
     ensure!(offset + 3 <= bytes.len(), "truncated asset pointer");
     Ok(u32::from_le_bytes([
@@ -476,7 +533,7 @@ fn validate_full_record(
     let variant = select_expected_variant(expected, game_state);
     let record = resolve_record(bundle, key, game_state)?;
     let sequence = read_little_endian_pointer(&bundle.metadata, record)?;
-    let mut sequence = region_offset(sequence, METADATA_BANK, bundle.metadata.len())?;
+    let mut sequence = metadata_offset(bundle, sequence)?;
     let mut palettes = vec![[0; 32]; 6];
     let mut characters = vec![[0; 512]; 48];
     let mut palette_written = [false; 6];
@@ -549,7 +606,7 @@ fn validate_transition_for_state(
 ) -> Result<()> {
     let record = resolve_record(bundle, destination, game_state)?;
     let schedule = read_little_endian_pointer(&bundle.metadata, record + record_offset)?;
-    let mut cursor = region_offset(schedule, METADATA_BANK, bundle.metadata.len())?;
+    let mut cursor = metadata_offset(bundle, schedule)?;
     let mut palettes = areas[source].palette_rows.clone();
     let mut expected_palettes = palettes.clone();
     let mut expected_palette_written = [false; 6];
@@ -677,7 +734,7 @@ fn select_expected_variant(
 
 fn resolve_record(bundle: &AssetBundle, key: usize, game_state: u8) -> Result<usize> {
     let variants = read_little_endian_pointer(&bundle.metadata, key * 3)?;
-    let mut cursor = region_offset(variants, METADATA_BANK, bundle.metadata.len())?;
+    let mut cursor = metadata_offset(bundle, variants)?;
     let mut previous = None;
     loop {
         ensure!(
@@ -688,7 +745,7 @@ fn resolve_record(bundle: &AssetBundle, key: usize, game_state: u8) -> Result<us
         ensure!(previous.is_none_or(|value| max_state > value));
         let record = read_little_endian_pointer(&bundle.metadata, cursor + 1)?;
         if game_state <= max_state {
-            return region_offset(record, METADATA_BANK, bundle.metadata.len());
+            return metadata_offset(bundle, record);
         }
         ensure!(
             max_state != 0xff,
@@ -716,7 +773,7 @@ fn apply_expected_sprite_variant(
 fn validate_sprite_seed(bundle: &AssetBundle, expected: &OverworldSpriteVariant) -> Result<()> {
     let record = resolve_record(bundle, SPRITE_SEED_KEY, 0)?;
     let sequence = read_little_endian_pointer(&bundle.metadata, record)?;
-    let mut sequence = region_offset(sequence, METADATA_BANK, bundle.metadata.len())?;
+    let mut sequence = metadata_offset(bundle, sequence)?;
     let mut palettes = vec![[0; 32]; 6];
     let mut characters = vec![[0; 512]; 48];
     let mut palette_written = [false; 6];
@@ -752,7 +809,7 @@ fn apply_batch(
     palette_written: &mut [bool; 6],
     character_written: &mut [bool; 48],
 ) -> Result<()> {
-    let mut cursor = region_offset(batch, METADATA_BANK, bundle.metadata.len())?;
+    let mut cursor = metadata_offset(bundle, batch)?;
     let mut palette_count = 0;
     while let Some(source) = read_bank_first_pointer(&bundle.metadata, &mut cursor)? {
         palette_count += 1;
@@ -769,7 +826,7 @@ fn apply_batch(
             !palette_written[destination],
             "duplicate palette destination"
         );
-        let source = region_offset(source, PAYLOAD_BANK, bundle.payload.len())?;
+        let source = payload_offset(bundle, source)?;
         ensure!(
             source + 32 <= bundle.payload.len(),
             "truncated palette payload"
@@ -799,7 +856,7 @@ fn apply_batch(
             !character_written[destination],
             "duplicate character destination"
         );
-        let source = region_offset(source, PAYLOAD_BANK, bundle.payload.len())?;
+        let source = payload_offset(bundle, source)?;
         ensure!(
             source + 512 <= bundle.payload.len(),
             "truncated character payload"

@@ -390,7 +390,7 @@ Submilestones 9B.1-9B.4 are implemented, with gameplay validation pending.
 Generated static assets now cover forced-blank entry, scrolling, mirror and
 whirlpool effects, mosaic recovery, flute travel, world-map restoration,
 credits scenes, the Triforce room, and the four area-dependent OBJ slots.
-Submilestone 9B.5 covers animation.
+Submilestone 9B.5 covers animation and is deferred while work begins on 9C.
 
 Define the runtime ABI here: bundle descriptors contain 24-bit source
 pointers and fixed-size VRAM or palette-row destinations. Use the same
@@ -411,6 +411,44 @@ descriptor ABI, and no runtime path requires the old overworld graphics or
 palette loaders.
 
 ## Milestone 9C: compiled Desert world
+
+### First playable checkpoint
+
+Add a separate `theme_check` binary which reads the editable `Desert.json`
+area data and palette definitions directly from the checked-out
+`ALTTPRetiling` submodule. Like `engine_check`, it verifies a vanilla ROM,
+applies the current patches, and writes a test ROM. It expands this checkpoint
+ROM to 4 MiB so it can retain the milestone 9B fixed-row descriptor ABI without
+new engine ASM.
+
+Compile each 2x2 group of editor screens into one vanilla-layout flat Map16
+screen. Preserve the vanilla definitions at their existing IDs and append
+deduplicated Desert definitions and independent quadrant properties. Assign
+palette halves and character slots deterministically across screens: assets
+which coexist must have distinct slots, while non-coexisting assets may reuse
+them. Emit six complete palette rows and 32 complete character rows per screen
+through the existing generated bundle loader.
+
+Use Desert maps, palettes, graphics, priority, flips, and collision for every
+authored screen. Retain vanilla sprites and unauthored special/credits scenes.
+The compiled catalog and vanilla sanitization mapping described below remain
+later 9C work.
+
+Known gaps in this checkpoint:
+
+- Animated tiles use a static authored frame while 9B.5 is deferred.
+- Dynamic Map16 changes and vanilla BG1/event overlays can show incorrect
+  graphics because their expected vanilla characters are not resident.
+- Reused slots can show artifacts while a scrolling transition replaces the
+  source screen's fixed rows with the destination rows.
+- Authored background colors, Mode 7 map art, rain/fog effects, dungeon
+  openings, and other dynamic presentation paths are not yet theme-aware.
+
+This checkpoint is successful when the ordinary Light and Dark Worlds render
+from Desert data on the vanilla arrangement, authored collision is playable,
+the output remains usable across ordinary travel and dungeon entry/exit, and
+generation rejects any palette, character, Map16, metadata, payload, or ROM
+region overflow.
 
 ### Compiled retiling data and first asset target
 

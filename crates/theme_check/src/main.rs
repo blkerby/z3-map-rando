@@ -1,0 +1,231 @@
+use anyhow::{Context, Result, ensure};
+use clap::Parser;
+use engine_check::{
+    asset_bundle::{self, AssetLayout},
+    rain_tilemap::RAIN_TILEMAP,
+};
+use patcher::{
+    Patcher, PcAddr, SnesAddr,
+    import::{FlatMap16, Importer},
+};
+use sha2::{Digest, Sha256};
+use std::{collections::BTreeMap, fmt::Write, fs, path::PathBuf};
+
+mod theme;
+
+const VANILLA_ROM_SHA256: &str = "794e040b02c7591b59ad8843b51e7c619b88f87cddc6083a8e7a4027b96a2271";
+const VANILLA_FLAT_MAPS_START: SnesAddr = SnesAddr(0xb80000);
+const THEME_FLAT_MAPS_START: SnesAddr = SnesAddr(0xc08000);
+const FLAT_MAP_POINTERS_START: SnesAddr = SnesAddr(0xbfe000);
+const MAP16_DEFINITION_STARTS: [SnesAddr; 4] = [
+    SnesAddr(0xa18000),
+    SnesAddr(0xa28000),
+    SnesAddr(0xa38000),
+    SnesAddr(0xa48000),
+];
+const MAP16_PROPERTY_STARTS: [SnesAddr; 4] = [
+    SnesAddr(0xa58000),
+    SnesAddr(0xa5c000),
+    SnesAddr(0xa68000),
+    SnesAddr(0xa6c000),
+];
+const THEME_PAYLOAD_START: u32 = 0xd08000;
+const BANK_SIZE: usize = 0x8000;
+const RAIN_OVERLAY: usize = 0x9f;
+
+#[derive(Parser)]
+struct Args {
+    input_rom: PathBuf,
+    output_rom: PathBuf,
+    #[arg(long, value_enum, default_value = "pre-scroll")]
+    transition_asset_phase: asset_bundle::TransitionAssetPhase,
+}
+
+fn main() -> Result<()> {
+    let args = Args::parse();
+    let mut rom = read_vanilla_rom(&args.input_rom)?;
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ALTTPRetiling");
+    let patch_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../patches/ips");
+
+    let mut fastrom_base = Patcher::default();
+    fastrom_base.use_ips(&patch_dir.join("fastrom_base.ips"))?;
+    fastrom_base.apply(&mut rom)?;
+
+    let mut importer = Importer::new(rom.clone())?;
+    let mut vanilla_flat = importer.flat_map16((VANILLA_FLAT_MAPS_START.0 >> 16) as u8)?;
+    replace_rain_tilemap(&mut vanilla_flat)?;
+    let vanilla_maps = split_flat_maps(&vanilla_flat)?;
+    let tile_types = importer.tile_types()?.to_owned();
+    let vanilla_tiles = importer.tiles16()?.to_owned();
+    let area_assets = importer.overworld_area_assets()?;
+    let credits_overworld = importer.credits_overworld_assets()?;
+    let credits_cool_background = importer.credits_cool_background_assets()?;
+    let sprite_seed = importer.overworld_sprite_seed()?;
+
+    let compiled = theme::compile(&root, &vanilla_tiles, &tile_types, area_assets)?;
+    let flat = assemble_flat_maps(vanilla_maps, compiled.screen_maps)?;
+    let bundle = asset_bundle::build_with_layout(
+        &compiled.area_assets,
+        &credits_overworld,
+        &credits_cool_background,
+        &sprite_seed,
+        args.transition_asset_phase,
+        AssetLayout {
+            payload_start: THEME_PAYLOAD_START,
+            payload_size: 48 * BANK_SIZE,
+        },
+    )?;
+
+    eprintln!(
+        "Desert: {} screens, {} palettes, {} character slots, {} Map16 definitions",
+        compiled.screen_count,
+        compiled.palette_count,
+        compiled.character_count,
+        compiled.map16_count,
+    );
+    eprintln!(
+        "overworld assets: {} bytes total ({} metadata, {} payload), {} unique payloads",
+        bundle.metadata.len() + bundle.payload.len(),
+        bundle.metadata.len(),
+        bundle.payload.len(),
+        bundle.unique_payloads,
+    );
+
+    rom.resize(4 * 1024 * 1024, 0);
+    let mut patcher = Patcher::default();
+    patcher
+        .context("flat Map16 data")
+        .write(THEME_FLAT_MAPS_START.into(), flat.maps)?;
+    patcher
+        .context("flat Map16 pointers")
+        .write(FLAT_MAP_POINTERS_START.into(), flat.screen_pointers)?;
+
+    let mut context = patcher.context("expanded Map16 definitions");
+    for (start, definitions) in MAP16_DEFINITION_STARTS
+        .into_iter()
+        .zip(compiled.map16_definitions)
+    {
+        context.write(start.into(), definitions)?;
+    }
+    let mut context = patcher.context("Map16 quadrant properties");
+    for (start, properties) in MAP16_PROPERTY_STARTS
+        .into_iter()
+        .zip(compiled.map16_properties)
+    {
+        context.write(start.into(), properties)?;
+    }
+    patcher
+        .context("overworld asset metadata")
+        .write(SnesAddr(bundle.metadata_start).into(), bundle.metadata)?;
+    patcher
+        .context("overworld asset payloads")
+        .write(SnesAddr(bundle.payload_start).into(), bundle.payload)?;
+
+    for patch in [
+        "fastrom_extra.ips",
+        "expand.ips",
+        "flat_map16.ips",
+        "expand_map16.ips",
+        "independent_tile_type.ips",
+        "reduce_bg3.ips",
+        "bg_streamer.ips",
+        "nmi_optimize.ips",
+        "mirror_bg1.ips",
+        "overworld_vram.ips",
+    ] {
+        patcher.use_ips(&patch_dir.join(patch))?;
+    }
+    patcher.apply(&mut rom)?;
+    rom[0x7fd7] = 0x0c;
+
+    fs::write(&args.output_rom, rom)
+        .with_context(|| format!("failed to write {}", args.output_rom.display()))
+}
+
+fn read_vanilla_rom(path: &PathBuf) -> Result<Vec<u8>> {
+    let rom = fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
+    ensure!(
+        rom.len() == 1024 * 1024,
+        "expected a 1 MiB vanilla ROM, got {} bytes",
+        rom.len()
+    );
+    let mut digest = String::with_capacity(64);
+    for byte in Sha256::digest(&rom) {
+        write!(digest, "{byte:02x}")?;
+    }
+    ensure!(
+        digest == VANILLA_ROM_SHA256,
+        "input ROM SHA-256 mismatch: expected {VANILLA_ROM_SHA256}, got {digest}"
+    );
+    Ok(rom)
+}
+
+fn get_flat_map(flat: &FlatMap16, screen: usize) -> Result<Vec<u8>> {
+    let pointer = &flat.screen_pointers[screen * 3..screen * 3 + 3];
+    let pointer = u32::from_le_bytes([pointer[0], pointer[1], pointer[2], 0]);
+    let map_start: PcAddr = SnesAddr(pointer).into();
+    let flat_start: PcAddr = VANILLA_FLAT_MAPS_START.into();
+    let offset = usize::try_from(map_start.0 - flat_start.0)?;
+    Ok(flat.maps[offset..offset + 0x800].to_vec())
+}
+
+fn split_flat_maps(flat: &FlatMap16) -> Result<Vec<Vec<u8>>> {
+    let mut maps = Vec::with_capacity(0xa0);
+    for screen in 0..0xa0 {
+        maps.push(get_flat_map(flat, screen)?);
+    }
+    Ok(maps)
+}
+
+fn replace_rain_tilemap(flat: &mut FlatMap16) -> Result<()> {
+    let pointer = &flat.screen_pointers[RAIN_OVERLAY * 3..RAIN_OVERLAY * 3 + 3];
+    let pointer = u32::from_le_bytes([pointer[0], pointer[1], pointer[2], 0]);
+    let map_start: PcAddr = SnesAddr(pointer).into();
+    let flat_start: PcAddr = VANILLA_FLAT_MAPS_START.into();
+    let offset = usize::try_from(map_start.0 - flat_start.0)?;
+    let rain = &mut flat.maps[offset..offset + 32 * 16 * 2];
+    for (bytes, &tile) in rain.chunks_exact_mut(2).zip(RAIN_TILEMAP.iter().flatten()) {
+        bytes.copy_from_slice(&tile.to_le_bytes());
+    }
+    Ok(())
+}
+
+fn assemble_flat_maps(
+    mut maps: Vec<Vec<u8>>,
+    replacements: BTreeMap<usize, Vec<u8>>,
+) -> Result<FlatMap16> {
+    for (screen, map) in replacements {
+        ensure!(
+            screen < maps.len(),
+            "theme screen {screen:02X} is out of range"
+        );
+        maps[screen] = map;
+    }
+
+    let mut indices = BTreeMap::new();
+    let mut data = Vec::new();
+    let mut pointers = Vec::with_capacity(0xa0 * 3);
+    for map in maps {
+        ensure!(map.len() == 0x800);
+        let index = if let Some(&index) = indices.get(&map) {
+            index
+        } else {
+            let index = indices.len();
+            indices.insert(map.clone(), index);
+            data.extend_from_slice(&map);
+            index
+        };
+        let address = THEME_FLAT_MAPS_START.0
+            + u32::try_from(index / 16)? * 0x10000
+            + u32::try_from(index % 16)? * 0x0800;
+        pointers.extend_from_slice(&address.to_le_bytes()[..3]);
+    }
+    ensure!(
+        data.len() <= 10 * BANK_SIZE,
+        "flat maps exceed reserved banks C0-C9"
+    );
+    Ok(FlatMap16 {
+        maps: data,
+        screen_pointers: pointers,
+    })
+}
