@@ -1,6 +1,7 @@
 [submodule "jpdasm"]
 	path = jpdasm
-	url = https://github.com/spannerisms/jpdasm.git
+	url = https://github.com/blkerby/jpdasm.git
+	branch = ai-annotated
 [submodule "ALTTPRetiling"]
 	path = ALTTPRetiling
 	url = https://github.com/kjbranch/ALTTPRetiling.git
