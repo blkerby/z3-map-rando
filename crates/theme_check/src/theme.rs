@@ -103,7 +103,11 @@ pub fn compile(
     for (id, tile) in definitions.iter().enumerate() {
         for quadrant in 0..4 {
             let tile_type = vanilla_tile_types[usize::from(tile[quadrant] & 0x01ff)];
-            properties[quadrant][id] = flip_property(tile_type, (tile[quadrant] >> 14) as u8);
+            properties[quadrant][id] = if (0x10..0x1c).contains(&tile_type) {
+                tile_type | ((tile[quadrant] >> 14) as u8 & 1)
+            } else {
+                tile_type
+            };
         }
     }
     let mut definition_ids = BTreeMap::new();
@@ -462,7 +466,11 @@ fn build_map(
                     | u16::try_from(2 + palette_slots[&placement.palette] / 2)? << 10
                     | if tile.priority { 1 << 13 } else { 0 }
                     | u16::from(placement.flip) << 14;
-                props[quadrant] = flip_property(tile.collision, placement.flip);
+                props[quadrant] = if (0x10..0x1c).contains(&tile.collision) {
+                    tile.collision ^ placement.flip
+                } else {
+                    tile.collision
+                };
             }
             let id = if let Some(&id) = definition_ids.get(&(words, props)) {
                 id
@@ -550,14 +558,6 @@ fn build_graphic(
         }
     }
     pixels
-}
-
-fn flip_property(property: u8, flip: u8) -> u8 {
-    if (0x10..0x1c).contains(&property) {
-        property | (flip & 1)
-    } else {
-        property
-    }
 }
 
 fn encode_bgr555([red, green, blue]: [u8; 3]) -> u16 {
