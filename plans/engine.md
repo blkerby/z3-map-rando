@@ -441,8 +441,8 @@ Known gaps in this checkpoint:
   graphics because their expected vanilla characters are not resident.
 - Reused slots can show artifacts while a scrolling transition replaces the
   source screen's fixed rows with the destination rows.
-- Authored background colors, Mode 7 map art, rain/fog effects, dungeon
-  openings, and other dynamic presentation paths are not yet theme-aware.
+- Mode 7 map art, rain/fog effects, dungeon openings, and other dynamic
+  presentation paths are not yet theme-aware.
 
 This checkpoint is successful when the ordinary Light and Dark Worlds render
 from Desert data on the vanilla arrangement, authored collision is playable,

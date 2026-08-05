@@ -29,6 +29,7 @@ const MAP16_PROPERTY_STARTS: [SnesAddr; 4] = [
     SnesAddr(0xa68000),
     SnesAddr(0xa6c000),
 ];
+const THEME_BACKGROUND_COLORS_START: SnesAddr = SnesAddr(0xa09e00);
 const THEME_PAYLOAD_START: u32 = 0xd08000;
 const BANK_SIZE: usize = 0x8000;
 const RAIN_OVERLAY: usize = 0x9f;
@@ -114,6 +115,13 @@ fn main() -> Result<()> {
     {
         context.write(start.into(), properties)?;
     }
+    let mut background_colors = Vec::with_capacity(compiled.background_colors.len() * 2);
+    for color in compiled.background_colors {
+        background_colors.extend_from_slice(&color.to_le_bytes());
+    }
+    patcher
+        .context("theme background colors")
+        .write(THEME_BACKGROUND_COLORS_START.into(), background_colors)?;
     patcher
         .context("overworld asset metadata")
         .write(SnesAddr(bundle.metadata_start).into(), bundle.metadata)?;
@@ -132,6 +140,7 @@ fn main() -> Result<()> {
         "nmi_optimize.ips",
         "mirror_bg1.ips",
         "overworld_vram.ips",
+        "theme_bg_color.ips",
     ] {
         patcher.use_ips(&patch_dir.join(patch))?;
     }

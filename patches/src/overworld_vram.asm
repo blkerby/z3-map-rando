@@ -20,7 +20,7 @@ lorom
 !free_space_bank_any_start_1 = $A083A0
 !free_space_bank_any_end_1 = $A08700
 !free_space_bank_any_start_2 = $A09900
-!free_space_bank_any_end_2 = $A0B000
+!free_space_bank_any_end_2 = $A09D20
 !free_space_bank_82_start = $82F5C0
 !free_space_bank_82_end = $82F5E7
 

@@ -33,8 +33,7 @@ struct Tile {
 #[derive(Deserialize)]
 struct Area {
     vanilla_map_id: usize,
-    #[serde(rename = "bg_color")]
-    _bg_color: [u8; 3],
+    bg_color: [u8; 3],
     size: [usize; 2],
     screens: Vec<SourceScreen>,
 }
@@ -65,6 +64,7 @@ pub struct CompiledTheme {
     pub screen_maps: BTreeMap<usize, Vec<u8>>,
     pub map16_definitions: [Vec<u8>; 4],
     pub map16_properties: [Vec<u8>; 4],
+    pub background_colors: [u16; 0xa0],
     pub area_assets: Vec<OverworldAreaAssets>,
     pub screen_count: usize,
     pub palette_count: usize,
@@ -79,7 +79,7 @@ pub fn compile(
     mut area_assets: Vec<OverworldAreaAssets>,
 ) -> Result<CompiledTheme> {
     let palettes = load_palettes(root)?;
-    let screens = load_screens(root)?;
+    let (screens, background_colors) = load_screens(root)?;
     ensure!(area_assets.len() == 0xa0);
 
     let palette_slots = allocate_palettes(&screens, &palettes)?;
@@ -162,6 +162,7 @@ pub fn compile(
         screen_maps,
         map16_definitions,
         map16_properties: properties,
+        background_colors,
         area_assets,
     })
 }
@@ -181,7 +182,7 @@ fn load_palettes(root: &Path) -> Result<BTreeMap<u8, Palette>> {
     Ok(palettes)
 }
 
-fn load_screens(root: &Path) -> Result<Vec<ThemeScreen>> {
+fn load_screens(root: &Path) -> Result<(Vec<ThemeScreen>, [u16; 0xa0])> {
     let mut paths = Vec::new();
     for entry in fs::read_dir(root.join("Areas"))? {
         let Ok(entry) = entry else {
@@ -199,6 +200,7 @@ fn load_screens(root: &Path) -> Result<Vec<ThemeScreen>> {
     paths.sort();
 
     let mut result = Vec::new();
+    let mut background_colors = [0x8000; 0xa0];
     for path in paths {
         let area: Area = read_json(&path)?;
         let first_screen = result.len();
@@ -211,6 +213,7 @@ fn load_screens(root: &Path) -> Result<Vec<ThemeScreen>> {
         for group_y in 0..area.size[1] / 2 {
             for group_x in 0..area.size[0] / 2 {
                 let id = area.vanilla_map_id + group_x + group_y * 8;
+                background_colors[id] = encode_bgr555(area.bg_color);
                 let mut placements = Vec::with_capacity(64 * 64);
                 for component_y in 0..2 {
                     for y in 0..32 {
@@ -242,7 +245,7 @@ fn load_screens(root: &Path) -> Result<Vec<ThemeScreen>> {
         }
     }
     result.sort_by_key(|screen| screen.id);
-    Ok(result)
+    Ok((result, background_colors))
 }
 
 fn allocate_palettes(
