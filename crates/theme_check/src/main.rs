@@ -30,7 +30,7 @@ const MAP16_PROPERTY_STARTS: [SnesAddr; 4] = [
     SnesAddr(0xa6c000),
 ];
 const THEME_BACKGROUND_COLORS_START: SnesAddr = SnesAddr(0xa09e00);
-const THEME_PAYLOAD_START: u32 = 0xd08000;
+const THEME_ASSET_DATA_START: u32 = 0xd08000;
 const BANK_SIZE: usize = 0x8000;
 const RAIN_OVERLAY: usize = 0x9f;
 
@@ -72,8 +72,8 @@ fn main() -> Result<()> {
         &sprite_seed,
         args.transition_asset_phase,
         AssetLayout {
-            payload_start: THEME_PAYLOAD_START,
-            payload_size: 48 * BANK_SIZE,
+            data_start: THEME_ASSET_DATA_START,
+            data_size: 48 * BANK_SIZE,
         },
     )?;
 
@@ -85,11 +85,11 @@ fn main() -> Result<()> {
         compiled.map16_count,
     );
     eprintln!(
-        "overworld assets: {} bytes total ({} metadata, {} payload), {} unique payloads",
-        bundle.metadata.len() + bundle.payload.len(),
-        bundle.metadata.len(),
-        bundle.payload.len(),
-        bundle.unique_payloads,
+        "overworld assets: {} bytes total ({} pointer table, {} data), {} unique blocks",
+        bundle.pointer_table.len() + bundle.data.len(),
+        bundle.pointer_table.len(),
+        bundle.data.len(),
+        bundle.unique_blocks,
     );
 
     rom.resize(4 * 1024 * 1024, 0);
@@ -122,12 +122,13 @@ fn main() -> Result<()> {
     patcher
         .context("theme background colors")
         .write(THEME_BACKGROUND_COLORS_START.into(), background_colors)?;
+    patcher.context("overworld asset pointer table").write(
+        SnesAddr(bundle.pointer_table_start).into(),
+        bundle.pointer_table,
+    )?;
     patcher
-        .context("overworld asset metadata")
-        .write(SnesAddr(bundle.metadata_start).into(), bundle.metadata)?;
-    patcher
-        .context("overworld asset payloads")
-        .write(SnesAddr(bundle.payload_start).into(), bundle.payload)?;
+        .context("overworld asset data")
+        .write(SnesAddr(bundle.data_start).into(), bundle.data)?;
 
     for patch in [
         "fastrom_extra.ips",

@@ -123,11 +123,11 @@ fn main() -> Result<()> {
         asset_bundle::AssetLayout::default(),
     )?;
     eprintln!(
-        "overworld assets: {} bytes total ({} metadata, {} payload), {} unique payloads",
-        asset_bundle.metadata.len() + asset_bundle.payload.len(),
-        asset_bundle.metadata.len(),
-        asset_bundle.payload.len(),
-        asset_bundle.unique_payloads
+        "overworld assets: {} bytes total ({} pointer table, {} data), {} unique blocks",
+        asset_bundle.pointer_table.len() + asset_bundle.data.len(),
+        asset_bundle.pointer_table.len(),
+        asset_bundle.data.len(),
+        asset_bundle.unique_blocks
     );
     rom.resize(2 * 1024 * 1024, 0);
 
@@ -147,17 +147,14 @@ fn main() -> Result<()> {
         context.write(start.into(), properties)?;
     }
 
-    let mut context = patcher.context("overworld asset metadata");
+    let mut context = patcher.context("overworld asset pointer table");
     context.write(
-        SnesAddr(asset_bundle.metadata_start).into(),
-        asset_bundle.metadata,
+        SnesAddr(asset_bundle.pointer_table_start).into(),
+        asset_bundle.pointer_table,
     )?;
 
-    let mut context = patcher.context("overworld asset payloads");
-    context.write(
-        SnesAddr(asset_bundle.payload_start).into(),
-        asset_bundle.payload,
-    )?;
+    let mut context = patcher.context("overworld asset data");
+    context.write(SnesAddr(asset_bundle.data_start).into(), asset_bundle.data)?;
 
     let patches = [
         "fastrom_extra.ips",

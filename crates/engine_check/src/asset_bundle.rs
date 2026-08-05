@@ -3,14 +3,13 @@ use patcher::import::{OverworldAreaAssets, OverworldSpriteVariant};
 use std::collections::BTreeMap;
 
 const BANK_SIZE: usize = 0x8000;
-const METADATA_START: u32 = 0xa78000;
-const PAYLOAD_START: u32 = 0xaa8000;
-const METADATA_SIZE: usize = 3 * BANK_SIZE;
+const POINTER_TABLE_START: u32 = 0xa78000;
+const DATA_START: u32 = 0xaa8000;
 const POINTER_TABLE_SIZE: usize = 256 * 3;
 pub const CREDITS_COOL_BACKGROUND_KEY: usize = 0xff;
 pub const CREDITS_FIRST_KEY: usize = 0xa0;
 pub const SPRITE_SEED_KEY: usize = 0xfe;
-const PAYLOAD_SIZE: usize = 14 * BANK_SIZE;
+const DATA_SIZE: usize = 14 * BANK_SIZE;
 // One unit is one 32-byte 4bpp tile; double palette bytes for parsing overhead.
 const GRAPHICS_ROW_UNITS: usize = 16;
 const PALETTE_ROW_UNITS: usize = 2;
@@ -18,24 +17,24 @@ const TRANSITION_BATCH_UNITS: usize = 8 * GRAPHICS_ROW_UNITS;
 type InternedSequence = (u32, Vec<u32>, Vec<(u8, u32)>);
 
 pub struct AssetBundle {
-    pub metadata_start: u32,
-    pub payload_start: u32,
-    pub metadata: Vec<u8>,
-    pub payload: Vec<u8>,
-    pub unique_payloads: usize,
+    pub pointer_table_start: u32,
+    pub data_start: u32,
+    pub pointer_table: Vec<u8>,
+    pub data: Vec<u8>,
+    pub unique_blocks: usize,
 }
 
 #[derive(Clone, Copy)]
 pub struct AssetLayout {
-    pub payload_start: u32,
-    pub payload_size: usize,
+    pub data_start: u32,
+    pub data_size: usize,
 }
 
 impl Default for AssetLayout {
     fn default() -> Self {
         Self {
-            payload_start: PAYLOAD_START,
-            payload_size: PAYLOAD_SIZE,
+            data_start: DATA_START,
+            data_size: DATA_SIZE,
         }
     }
 }
@@ -56,12 +55,12 @@ struct Region {
 }
 
 impl Region {
-    fn new(base_bank: u8, limit: usize, reserved: usize) -> Self {
+    fn new(base_bank: u8, limit: usize) -> Self {
         Self {
             base_bank,
             limit,
-            next: reserved,
-            bytes: vec![0; reserved],
+            next: 0,
+            bytes: Vec::new(),
             offsets: BTreeMap::new(),
         }
     }
@@ -97,14 +96,9 @@ pub fn build(
     transition_phase: TransitionAssetPhase,
     layout: AssetLayout,
 ) -> Result<AssetBundle> {
-    let mut metadata = Region::new(
-        (METADATA_START >> 16) as u8,
-        METADATA_SIZE,
-        POINTER_TABLE_SIZE,
-    );
-    let mut payload = Region::new((layout.payload_start >> 16) as u8, layout.payload_size, 0);
-    let empty_record = metadata.intern(&[0; 18])?;
-    let empty_variants = intern_variant_list(&mut metadata, &[(0xff, empty_record)])?;
+    let mut data = Region::new((layout.data_start >> 16) as u8, layout.data_size);
+    let empty_record = data.intern(&[0; 18])?;
+    let empty_variants = intern_variant_list(&mut data, &[(0xff, empty_record)])?;
     let mut keys = vec![empty_variants; 256];
 
     for (area_key, area) in areas.iter().enumerate() {
@@ -112,84 +106,68 @@ pub fn build(
         for variant in &area.sprite_variants {
             variants.push((
                 variant.max_game_state,
-                intern_record(
-                    &mut metadata,
-                    &mut payload,
-                    area,
-                    variant,
-                    true,
-                    transition_phase,
-                )?,
+                intern_record(&mut data, area, variant, true, transition_phase)?,
             ));
         }
-        keys[area_key] = intern_variant_list(&mut metadata, &variants)?;
+        keys[area_key] = intern_variant_list(&mut data, &variants)?;
     }
 
     for (scene, assets) in credits_overworld {
         let variant = &assets.sprite_variants[0];
-        let record = intern_record(
-            &mut metadata,
-            &mut payload,
-            assets,
-            variant,
-            false,
-            transition_phase,
-        )?;
+        let record = intern_record(&mut data, assets, variant, false, transition_phase)?;
         keys[CREDITS_FIRST_KEY + usize::from(*scene)] =
-            intern_variant_list(&mut metadata, &[(0xff, record)])?;
+            intern_variant_list(&mut data, &[(0xff, record)])?;
     }
 
     let cool_variant = &credits_cool_background.sprite_variants[0];
     let cool_record = intern_record(
-        &mut metadata,
-        &mut payload,
+        &mut data,
         credits_cool_background,
         cool_variant,
         false,
         transition_phase,
     )?;
-    keys[CREDITS_COOL_BACKGROUND_KEY] = intern_variant_list(&mut metadata, &[(0xff, cool_record)])?;
+    keys[CREDITS_COOL_BACKGROUND_KEY] = intern_variant_list(&mut data, &[(0xff, cool_record)])?;
 
-    let seed_sequence =
-        intern_character_sequence(&mut metadata, &mut payload, &sprite_seed.character_rows)?;
+    let seed_sequence = intern_character_sequence(&mut data, &sprite_seed.character_rows)?;
     let mut seed_record = [0; 18];
     seed_record[..3].copy_from_slice(&little_endian_pointer(seed_sequence));
-    let seed_record = metadata.intern(&seed_record)?;
-    keys[SPRITE_SEED_KEY] = intern_variant_list(&mut metadata, &[(0xff, seed_record)])?;
+    let seed_record = data.intern(&seed_record)?;
+    keys[SPRITE_SEED_KEY] = intern_variant_list(&mut data, &[(0xff, seed_record)])?;
 
+    let mut pointer_table = vec![0; POINTER_TABLE_SIZE];
     for (key, variants) in keys.into_iter().enumerate() {
         let offset = key * 3;
-        metadata.bytes[offset..offset + 3].copy_from_slice(&little_endian_pointer(variants));
+        pointer_table[offset..offset + 3].copy_from_slice(&little_endian_pointer(variants));
     }
 
     Ok(AssetBundle {
-        metadata_start: METADATA_START,
-        payload_start: layout.payload_start,
-        unique_payloads: payload.offsets.len(),
-        metadata: metadata.bytes,
-        payload: payload.bytes,
+        pointer_table_start: POINTER_TABLE_START,
+        data_start: layout.data_start,
+        pointer_table,
+        unique_blocks: data.offsets.len(),
+        data: data.bytes,
     })
 }
 
-fn intern_variant_list(metadata: &mut Region, variants: &[(u8, u32)]) -> Result<u32> {
+fn intern_variant_list(data: &mut Region, variants: &[(u8, u32)]) -> Result<u32> {
     let mut bytes = Vec::with_capacity(variants.len() * 4);
     for &(max_state, record) in variants {
         bytes.push(max_state);
         bytes.extend_from_slice(&little_endian_pointer(record));
     }
-    metadata.intern(&bytes)
+    data.intern(&bytes)
 }
 
 fn intern_record(
-    metadata: &mut Region,
-    payload: &mut Region,
+    data: &mut Region,
     assets: &OverworldAreaAssets,
     sprite_variant: &OverworldSpriteVariant,
     include_transitions: bool,
     transition_phase: TransitionAssetPhase,
 ) -> Result<u32> {
     let (sequence, palette_sources, character_sources) =
-        intern_full_sequence(metadata, payload, assets, sprite_variant)?;
+        intern_full_sequence(data, assets, sprite_variant)?;
     let mut record = vec![0; 18];
     record[..3].copy_from_slice(&little_endian_pointer(sequence));
 
@@ -224,7 +202,7 @@ fn intern_record(
                 descriptor(&mut batch, source, destination);
             }
             batch.push(0);
-            transition_batches.push(metadata.intern(&batch)?);
+            transition_batches.push(data.intern(&batch)?);
             character_offset = character_count;
         }
         let rows_per_batch = TRANSITION_BATCH_UNITS / GRAPHICS_ROW_UNITS;
@@ -234,18 +212,18 @@ fn intern_record(
                 descriptor(&mut batch, source, destination);
             }
             batch.push(0);
-            transition_batches.push(metadata.intern(&batch)?);
+            transition_batches.push(data.intern(&batch)?);
         }
-        let schedule = intern_schedule(metadata, &transition_batches, transition_phase)?;
+        let schedule = intern_schedule(data, &transition_batches, transition_phase)?;
         for offset in [3, 6, 9, 12] {
             record[offset..offset + 3].copy_from_slice(&little_endian_pointer(schedule));
         }
     }
-    metadata.intern(&record)
+    data.intern(&record)
 }
 
 fn intern_schedule(
-    metadata: &mut Region,
+    data: &mut Region,
     batches: &[u32],
     transition_phase: TransitionAssetPhase,
 ) -> Result<u32> {
@@ -269,31 +247,30 @@ fn intern_schedule(
         }
     }
     schedule.push(0);
-    metadata.intern(&schedule)
+    data.intern(&schedule)
 }
 
 fn intern_full_sequence(
-    metadata: &mut Region,
-    payload: &mut Region,
+    data: &mut Region,
     assets: &OverworldAreaAssets,
     sprite_variant: &OverworldSpriteVariant,
 ) -> Result<InternedSequence> {
     let palette_sources = assets
         .palette_rows
         .iter()
-        .map(|row| payload.intern(row))
+        .map(|row| data.intern(row))
         .collect::<Result<Vec<_>>>()?;
     let mut character_sources = assets
         .character_rows
         .iter()
         .enumerate()
-        .map(|(destination, row)| Ok((u8::try_from(destination)?, payload.intern(row)?)))
+        .map(|(destination, row)| Ok((u8::try_from(destination)?, data.intern(row)?)))
         .collect::<Result<Vec<_>>>()?;
     character_sources.extend(
         sprite_variant
             .character_rows
             .iter()
-            .map(|(destination, row)| Ok((*destination, payload.intern(row)?)))
+            .map(|(destination, row)| Ok((*destination, data.intern(row)?)))
             .collect::<Result<Vec<_>>>()?,
     );
 
@@ -310,24 +287,16 @@ fn intern_full_sequence(
             descriptor(&mut batch, source, destination);
         }
         batch.push(0);
-        bank_first_pointer(&mut sequence, metadata.intern(&batch)?);
+        bank_first_pointer(&mut sequence, data.intern(&batch)?);
     }
     sequence.push(0);
-    Ok((
-        metadata.intern(&sequence)?,
-        palette_sources,
-        character_sources,
-    ))
+    Ok((data.intern(&sequence)?, palette_sources, character_sources))
 }
 
-fn intern_character_sequence(
-    metadata: &mut Region,
-    payload: &mut Region,
-    rows: &[(u8, [u8; 512])],
-) -> Result<u32> {
+fn intern_character_sequence(data: &mut Region, rows: &[(u8, [u8; 512])]) -> Result<u32> {
     let sources = rows
         .iter()
-        .map(|(destination, row)| Ok((*destination, payload.intern(row)?)))
+        .map(|(destination, row)| Ok((*destination, data.intern(row)?)))
         .collect::<Result<Vec<_>>>()?;
     let mut sequence = Vec::new();
     for rows in sources.chunks(8) {
@@ -336,10 +305,10 @@ fn intern_character_sequence(
             descriptor(&mut batch, source, destination);
         }
         batch.push(0);
-        bank_first_pointer(&mut sequence, metadata.intern(&batch)?);
+        bank_first_pointer(&mut sequence, data.intern(&batch)?);
     }
     sequence.push(0);
-    metadata.intern(&sequence)
+    data.intern(&sequence)
 }
 
 fn descriptor(output: &mut Vec<u8>, source: u32, destination: u8) {
