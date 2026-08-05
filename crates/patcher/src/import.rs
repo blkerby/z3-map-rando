@@ -358,11 +358,20 @@ pub struct OverworldSpriteVariant {
 }
 
 #[derive(Clone)]
+pub struct OverworldAnimationTrack {
+    pub destination_rows: Vec<u8>,
+    pub frames: Vec<Vec<[u8; 512]>>,
+    pub frame_hold: u8,
+    pub phase_offset: usize,
+}
+
+#[derive(Clone)]
 pub struct OverworldAreaAssets {
     pub palette_rows: Vec<[u8; 32]>,
     pub character_rows: Vec<[u8; 512]>,
     pub transition_palette_rows: Vec<bool>,
     pub transition_character_rows: Vec<bool>,
+    pub animation_tracks: Vec<OverworldAnimationTrack>,
     pub sprite_variants: Vec<OverworldSpriteVariant>,
 }
 
@@ -491,6 +500,8 @@ impl Importer {
                 self.map_gfx_transition_sheets[area],
                 &self.map_palettes[area],
             )?;
+            let track = self.build_overworld_animation_track(area);
+            area_assets.animation_tracks.push(track);
             area_assets.sprite_variants = self.overworld_sprite_variants(area)?;
             assets.push(area_assets);
         }
@@ -576,8 +587,39 @@ impl Importer {
         };
         let mut assets =
             self.encode_overworld_area_assets(&self.map_gfx[area], [false; 8], &palettes)?;
+        let track = self.build_overworld_animation_track(area);
+        assets.animation_tracks.push(track);
         assets.sprite_variants = vec![self.sprite_variant(0xff, 0x2d)?];
         Ok(assets)
+    }
+
+    fn build_overworld_animation_track(&self, area: usize) -> OverworldAnimationTrack {
+        let first_sheet = if matches!(area & 0x3f, 0x03 | 0x05 | 0x07) {
+            0x58
+        } else {
+            0x5a
+        };
+        let mut frames = Vec::with_capacity(3);
+        for frame in 0..3 {
+            let mut rows = Vec::with_capacity(2);
+            for row_index in 0..2 {
+                let mut row = [0; 512];
+                for tile_index in 0..16 {
+                    let index = frame * 32 + row_index * 16 + tile_index;
+                    let sheet = first_sheet + index / 64;
+                    let tile = &self.tiles8[sheet * 64 + index % 64];
+                    encode_4bpp_tile(tile, false, &mut row[tile_index * 32..tile_index * 32 + 32]);
+                }
+                rows.push(row);
+            }
+            frames.push(rows);
+        }
+        OverworldAnimationTrack {
+            destination_rows: vec![28, 29],
+            frames,
+            frame_hold: 9,
+            phase_offset: 0,
+        }
     }
 
     fn encode_overworld_area_assets(
@@ -652,6 +694,7 @@ impl Importer {
             character_rows,
             transition_palette_rows,
             transition_character_rows,
+            animation_tracks: Vec::new(),
             sprite_variants: Vec::new(),
         })
     }

@@ -15,12 +15,13 @@ $A08700-$A08777 flat_map16.asm (flat Map16 loaders)
 $A08778-$A088FF [FREE]
 $A08900-$A0900A bg_streamer.asm (BG1/BG2 renderers and transition helpers)
 $A0900B-$A098FF [FREE]
-$A09900-$A09D0C overworld_vram.asm (generated asset schedules, transition hooks, and ROM-source NMI queue)
-$A09D0D-$A09D1F [FREE]
-$A09D20-$A09D83 theme_bg_color.asm (generated overworld backdrop selection)
-$A09D84-$A09DFF [FREE]
+$A09900-$A09D29 overworld_vram.asm (generated asset schedules, transition hooks, and ROM-source NMI queue)
+$A09D2A-$A09DFF [FREE]
 $A09E00-$A09F3F theme_check generated overworld backdrop colors
-$A09F40-$A0FFFF [FREE]
+$A09F40-$A0A0C0 overworld_vram.asm (generated animation-track runtime)
+$A0A0C1-$A0A3FF [FREE]
+$A0A400-$A0A463 theme_bg_color.asm (generated overworld backdrop selection)
+$A0A464-$A0FFFF [FREE]
 
 Bank $A1
 $A18000-$A1FFFF top-left Map16 definition words

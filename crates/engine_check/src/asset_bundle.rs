@@ -170,6 +170,10 @@ fn intern_record(
         intern_full_sequence(data, assets, sprite_variant)?;
     let mut record = vec![0; 18];
     record[..3].copy_from_slice(&little_endian_pointer(sequence));
+    let animations = intern_animation_tracks(data, &assets.animation_tracks)?;
+    if animations != 0 {
+        record[15..18].copy_from_slice(&little_endian_pointer(animations));
+    }
 
     if include_transitions {
         let mut transition_palette_rows = Vec::new();
@@ -222,6 +226,46 @@ fn intern_record(
     data.intern(&record)
 }
 
+fn intern_animation_tracks(
+    data: &mut Region,
+    tracks: &[patcher::import::OverworldAnimationTrack],
+) -> Result<u32> {
+    if tracks.is_empty() {
+        return Ok(0);
+    }
+
+    let mut list = Vec::new();
+    for track in tracks {
+        let frame_count = u8::try_from(track.frames.len())?;
+        let (initial_frame, initial_countdown) = get_initial_animation_state(track);
+        let mut definition = vec![
+            frame_count,
+            track.frame_hold,
+            u8::try_from(initial_frame)?,
+            initial_countdown,
+        ];
+        for frame in &track.frames {
+            let mut batch = vec![0];
+            for (&destination, row) in track.destination_rows.iter().zip(frame) {
+                descriptor(&mut batch, data.intern(row)?, destination);
+            }
+            batch.push(0);
+            bank_first_pointer(&mut definition, data.intern(&batch)?);
+        }
+        bank_first_pointer(&mut list, data.intern(&definition)?);
+    }
+    list.push(0);
+    data.intern(&list)
+}
+
+fn get_initial_animation_state(track: &patcher::import::OverworldAnimationTrack) -> (usize, u8) {
+    let phase = track.phase_offset % (track.frames.len() * usize::from(track.frame_hold));
+    (
+        phase / usize::from(track.frame_hold),
+        track.frame_hold - (phase % usize::from(track.frame_hold)) as u8,
+    )
+}
+
 fn intern_schedule(
     data: &mut Region,
     batches: &[u32],
@@ -260,8 +304,14 @@ fn intern_full_sequence(
         .iter()
         .map(|row| data.intern(row))
         .collect::<Result<Vec<_>>>()?;
-    let mut character_sources = assets
-        .character_rows
+    let mut character_rows = assets.character_rows.clone();
+    for track in &assets.animation_tracks {
+        let (frame, _) = get_initial_animation_state(track);
+        for (&destination, row) in track.destination_rows.iter().zip(&track.frames[frame]) {
+            character_rows[usize::from(destination)] = *row;
+        }
+    }
+    let mut character_sources = character_rows
         .iter()
         .enumerate()
         .map(|(destination, row)| Ok((u8::try_from(destination)?, data.intern(row)?)))

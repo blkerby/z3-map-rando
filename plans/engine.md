@@ -390,7 +390,8 @@ Submilestones 9B.1-9B.4 are implemented, with gameplay validation pending.
 Generated static assets now cover forced-blank entry, scrolling, mirror and
 whirlpool effects, mosaic recovery, flute travel, world-map restoration,
 credits scenes, the Triforce room, and the four area-dependent OBJ slots.
-Submilestone 9B.5 covers animation and is deferred while work begins on 9C.
+Submilestone 9B.5 is implemented with generated ROM-backed animation tracks;
+gameplay validation remains pending.
 
 Define the runtime ABI here: bundle descriptors contain 24-bit source
 pointers and fixed-size VRAM or palette-row destinations. Use the same
@@ -436,9 +437,8 @@ later 9C work.
 
 Known gaps in this checkpoint:
 
-- Animated tiles use a static authored frame while 9B.5 is deferred.
 - Dynamic Map16 changes and vanilla BG1/event overlays can show incorrect
-  graphics because their expected vanilla characters are not resident.
+  graphics outside the authored static and animation tracks.
 - Reused slots can show artifacts while a scrolling transition replaces the
   source screen's fixed rows with the destination rows.
 - Mode 7 map art, rain/fog effects, dungeon openings, and other dynamic

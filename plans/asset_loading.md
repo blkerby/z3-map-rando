@@ -378,9 +378,8 @@ dungeon/presentation boundaries, every transition type, and NMI timing.
 
 ## Submilestone 9B.5: animated tiles
 
-The current area loader decompresses animated overworld frames into WRAM, and
-the normal per-frame NMI group uploads one selected frame from there. Replace
-that with generated ROM frames using the queue introduced in 9B.2.
+Implemented: generated ROM frames replace the old overworld WRAM animation
+cache and use the queue introduced in 9B.2.
 
 An area may activate multiple animation tracks. Each generated track defines
 one or more destination character rows, the shared row payloads for every
@@ -405,6 +404,12 @@ bundle rather than silently dropping an update.
 This checkpoint is complete when vanilla animations match, at least two test
 tracks can run with different periods or phases, and no animated overworld
 graphics depend on `DecompressAnimatedOverworldTiles` or its WRAM frame cache.
+
+An animation list contains bank-first track pointers followed by a zero bank.
+Each track stores an 8-bit frame count, hold time, initial frame, initial
+countdown, and one bank-first batch pointer per frame. Frame batches use the
+existing empty-palette-plus-character descriptor format. `phase_offset` is an
+offline game-tick offset used to derive the initial frame and countdown.
 
 Milestone 9B is complete only after every overworld load and restoration path
 uses the generated descriptors and no overworld background asset or

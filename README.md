@@ -39,8 +39,8 @@ cargo run -p theme_check -- path/to/vanilla.sfc path/to/desert.sfc
 ```
 
 `theme_check` reads the Desert JSON from the checked-out `ALTTPRetiling`
-submodule and produces a 4 MiB ROM. This first checkpoint intentionally leaves
-animated and dynamic overworld graphics incomplete.
+submodule and produces a 4 MiB ROM. Authored animation tracks are supported;
+other dynamic overworld graphics remain incomplete.
 
 If you notice any issue while testing or if you run into any trouble following these instructions, please reach out in the [Discord](https://discord.gg/Mxb5zYZeVj) to let us know. Even in this early phase of the project, playtesting is very helpful!
 

@@ -1,7 +1,7 @@
 lorom
 
-!free_space_bank_any_start = $A09D20
-!free_space_bank_any_end = $A09F40
+!free_space_bank_any_start = $A0A400
+!free_space_bank_any_end = $A0A620
 !ThemeBackgroundColors = $A09E00
 
 org $8CFF91
@@ -89,5 +89,5 @@ SetThemeOverworldFixedColorAndScrollBackdrop:
     STA.l $7EC340
     JML return_SetOverworldFixedColorAndScrollBackdrop
 
-assert pc() <= !ThemeBackgroundColors
-assert !ThemeBackgroundColors+$0140 <= !free_space_bank_any_end
+assert pc() <= !free_space_bank_any_end
+assert !ThemeBackgroundColors+$0140 <= !free_space_bank_any_start

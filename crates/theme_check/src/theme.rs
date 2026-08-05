@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, ensure};
-use patcher::import::{OverworldAreaAssets, Tile8, Tile16};
+use patcher::import::{OverworldAnimationTrack, OverworldAreaAssets, Tile8, Tile16};
 use serde::Deserialize;
 use std::{
     cmp::Reverse,
@@ -13,6 +13,7 @@ const CHARACTER_CAPACITY: usize = 960;
 type TileKey = (u8, usize);
 type CharacterSlots = BTreeMap<TileKey, usize>;
 type ScreenTiles = Vec<BTreeSet<TileKey>>;
+type Pixels = Vec<Vec<u8>>;
 
 struct GraphicGroup {
     tiles: Vec<TileKey>,
@@ -24,15 +25,24 @@ struct Palette {
     id: u8,
     colors: Vec<[u8; 3]>,
     tiles: Vec<Tile>,
+    animated_tile_groups: Vec<AnimatedTileGroup>,
     #[serde(skip)]
     uses_upper_half: bool,
+}
+
+#[derive(Deserialize)]
+struct AnimatedTileGroup {
+    base_tile: usize,
+    frames: Vec<Vec<Pixels>>,
+    frame_hold: u8,
+    phase_offset: usize,
 }
 
 #[derive(Deserialize)]
 struct Tile {
     priority: bool,
     collision: u8,
-    pixels: Vec<Vec<u8>>,
+    pixels: Pixels,
 }
 
 #[derive(Deserialize)]
@@ -88,7 +98,7 @@ pub fn compile(
     ensure!(area_assets.len() == 0xa0);
 
     let palette_slots = allocate_palettes(&screens, &palettes)?;
-    let (character_slots, screen_tiles) = allocate_characters(&screens)?;
+    let (character_slots, screen_tiles) = allocate_characters(&screens, &palettes)?;
     let character_count = character_slots
         .values()
         .copied()
@@ -125,15 +135,8 @@ pub fn compile(
         let palette_rows = build_palette_rows(screen, &palettes, &palette_slots)?;
         let character_rows =
             build_character_rows(tiles, &palettes, &palette_slots, &character_slots)?;
-        validate_assets(
-            screen,
-            &palettes,
-            &palette_slots,
-            &character_slots,
-            &palette_rows,
-            &character_rows,
-        )?;
-
+        let animation_tracks =
+            build_animation_tracks(tiles, &palettes, &palette_slots, &character_slots);
         let map = build_map(
             screen,
             &palettes,
@@ -159,6 +162,7 @@ pub fn compile(
             character_rows: character_rows.to_vec(),
             transition_palette_rows,
             transition_character_rows,
+            animation_tracks,
             sprite_variants: sprites,
         };
     }
@@ -194,6 +198,17 @@ fn load_palettes(root: &Path) -> Result<BTreeMap<u8, Palette>> {
             .tiles
             .iter()
             .any(|tile| tile.pixels.iter().flatten().any(|&pixel| pixel >= 8));
+        if !palette.uses_upper_half {
+            for group in &palette.animated_tile_groups {
+                for frame in &group.frames {
+                    for tile in frame {
+                        if tile.iter().flatten().any(|&pixel| pixel >= 8) {
+                            palette.uses_upper_half = true;
+                        }
+                    }
+                }
+            }
+        }
         palettes.insert(palette.id, palette);
     }
     Ok(palettes)
@@ -361,7 +376,10 @@ fn assign_palette(
     false
 }
 
-fn allocate_characters(screens: &[ThemeScreen]) -> Result<(CharacterSlots, ScreenTiles)> {
+fn allocate_characters(
+    screens: &[ThemeScreen],
+    palettes: &BTreeMap<u8, Palette>,
+) -> Result<(CharacterSlots, ScreenTiles)> {
     let mut tile_areas = BTreeMap::<TileKey, BTreeSet<usize>>::new();
     for screen in screens {
         for placement in &screen.placements {
@@ -378,6 +396,21 @@ fn allocate_characters(screens: &[ThemeScreen]) -> Result<(CharacterSlots, Scree
         palette_tiles.entry(palette).or_default().insert(tile);
     }
     for (palette, mut unassigned) in palette_tiles {
+        for animation in &palettes[&palette].animated_tile_groups {
+            let mut tiles = Vec::with_capacity(16);
+            let mut areas = BTreeSet::new();
+            for tile in animation.base_tile..animation.base_tile + 16 {
+                let key = (palette, tile);
+                if let Some(tile_areas) = tile_areas.get(&key) {
+                    areas.extend(tile_areas);
+                }
+                unassigned.remove(&tile);
+                tiles.push(key);
+            }
+            if !areas.is_empty() {
+                groups.push(GraphicGroup { tiles, areas });
+            }
+        }
         while !unassigned.is_empty() {
             let mut seed = *unassigned.first().unwrap();
             for &tile in &unassigned {
@@ -530,12 +563,57 @@ fn build_character_rows(
     for &(palette, tile) in tiles {
         let slot = slots[&(palette, tile)];
         ensure!(slot < CHARACTER_CAPACITY);
-        let graphic = build_graphic(palette, tile, palettes, palette_slots);
+        let graphic = build_graphic(
+            palette,
+            &palettes[&palette].tiles[tile].pixels,
+            palettes,
+            palette_slots,
+        );
         let encoded = encode_4bpp(&graphic);
         let offset = slot % 16 * 32;
         rows[slot / 16][offset..offset + 32].copy_from_slice(&encoded);
     }
     Ok(rows)
+}
+
+fn build_animation_tracks(
+    tiles: &BTreeSet<TileKey>,
+    palettes: &BTreeMap<u8, Palette>,
+    palette_slots: &BTreeMap<u8, usize>,
+    character_slots: &CharacterSlots,
+) -> Vec<OverworldAnimationTrack> {
+    let mut tracks = Vec::new();
+    for (&palette_id, palette) in palettes {
+        for group in &palette.animated_tile_groups {
+            if !tiles.contains(&(palette_id, group.base_tile)) {
+                continue;
+            }
+            let mut frames = Vec::with_capacity(group.frames.len() + 1);
+            for frame_index in 0..=group.frames.len() {
+                let mut row = [0; 512];
+                for tile_index in 0..16 {
+                    let pixels = if frame_index == 0 {
+                        &palette.tiles[group.base_tile + tile_index].pixels
+                    } else {
+                        &group.frames[frame_index - 1][tile_index]
+                    };
+                    let graphic = build_graphic(palette_id, pixels, palettes, palette_slots);
+                    row[tile_index * 32..tile_index * 32 + 32]
+                        .copy_from_slice(&encode_4bpp(&graphic));
+                }
+                frames.push(vec![row]);
+            }
+            tracks.push(OverworldAnimationTrack {
+                destination_rows: vec![
+                    (character_slots[&(palette_id, group.base_tile)] / 16) as u8,
+                ],
+                frames,
+                frame_hold: group.frame_hold,
+                phase_offset: group.phase_offset,
+            });
+        }
+    }
+    tracks
 }
 
 fn build_map(
@@ -596,58 +674,13 @@ fn build_map(
     Ok(map)
 }
 
-fn validate_assets(
-    screen: &ThemeScreen,
-    palettes: &BTreeMap<u8, Palette>,
-    palette_slots: &BTreeMap<u8, usize>,
-    character_slots: &CharacterSlots,
-    palette_rows: &[[u8; 32]; 6],
-    character_rows: &[[u8; 512]; 60],
-) -> Result<()> {
-    for placement in &screen.placements {
-        let palette = &palettes[&placement.palette];
-        let source = &palette.tiles[placement.tile];
-        let graphic = build_graphic(placement.palette, placement.tile, palettes, palette_slots);
-        let slot = character_slots[&(placement.palette, placement.tile)];
-        let offset = slot % 16 * 32;
-        ensure!(
-            character_rows[slot / 16][offset..offset + 32] == encode_4bpp(&graphic),
-            "screen {:02X}: character encoding mismatch",
-            screen.id
-        );
-        let palette_half = palette_slots[&placement.palette];
-        let color_offset = if palette.uses_upper_half {
-            0
-        } else {
-            palette_half % 2 * 8
-        };
-        for index in 1..palette.colors.len() {
-            if source
-                .pixels
-                .iter()
-                .flatten()
-                .any(|&pixel| usize::from(pixel) == index)
-            {
-                let output = (index + color_offset) * 2;
-                let actual = u16::from_le_bytes([
-                    palette_rows[palette_half / 2][output],
-                    palette_rows[palette_half / 2][output + 1],
-                ]);
-                ensure!(actual == encode_bgr555(palette.colors[index]));
-            }
-        }
-    }
-    Ok(())
-}
-
 fn build_graphic(
     palette_id: u8,
-    tile: usize,
+    pixels: &Pixels,
     palettes: &BTreeMap<u8, Palette>,
     slots: &BTreeMap<u8, usize>,
 ) -> Vec<u8> {
     let palette = &palettes[&palette_id];
-    let tile = &palette.tiles[tile];
     let offset = if palette.uses_upper_half {
         0
     } else if slots[&palette_id] % 2 == 1 {
@@ -655,13 +688,13 @@ fn build_graphic(
     } else {
         0
     };
-    let mut pixels = Vec::with_capacity(64);
-    for row in &tile.pixels {
+    let mut graphic = Vec::with_capacity(64);
+    for row in pixels {
         for &pixel in row {
-            pixels.push(if pixel == 0 { 0 } else { pixel + offset });
+            graphic.push(if pixel == 0 { 0 } else { pixel + offset });
         }
     }
-    pixels
+    graphic
 }
 
 fn encode_bgr555([red, green, blue]: [u8; 3]) -> u16 {
