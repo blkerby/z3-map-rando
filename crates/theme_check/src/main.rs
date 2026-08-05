@@ -65,7 +65,7 @@ fn main() -> Result<()> {
 
     let compiled = theme::compile(&root, &vanilla_tiles, &tile_types, area_assets)?;
     let flat = assemble_flat_maps(vanilla_maps, compiled.screen_maps)?;
-    let bundle = asset_bundle::build_with_layout(
+    let bundle = asset_bundle::build(
         &compiled.area_assets,
         &credits_overworld,
         &credits_cool_background,

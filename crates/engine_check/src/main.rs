@@ -120,6 +120,7 @@ fn main() -> Result<()> {
         &credits_cool_background,
         &sprite_seed,
         args.transition_asset_phase,
+        asset_bundle::AssetLayout::default(),
     )?;
     eprintln!(
         "overworld assets: {} bytes total ({} metadata, {} payload), {} unique payloads",

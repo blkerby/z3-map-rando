@@ -23,6 +23,8 @@
   `.into_iter().collect()` are ok.
 - Avoid creating helper functions that are only used in one place or which would
   be simpler to inline.
+- Likewise, avoid creating "wrapper" functions which do nothing other than
+  call out to one other function.
 - Avoid casts or `from`-conversions of `bool` to integer types. Use `if-else`
   instead.
 - Function names should start with a verb.
