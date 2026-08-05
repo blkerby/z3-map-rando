@@ -155,7 +155,7 @@ scan needs neither a terminator nor fallback logic. Adjacent variants with
 identical records are merged. Light World areas use maximums `$01`, `$02`, and
 `$FF` where their sprite graphics differ; fixed areas need only `$FF`.
 
-The selected record keeps the existing 18-byte format:
+The selected record uses this 24-byte format:
 
 ```text
 3 bytes: full-reload list pointer
@@ -164,12 +164,20 @@ The selected record keeps the existing 18-byte format:
 3 bytes: enter-from-north list pointer
 3 bytes: enter-from-south list pointer
 3 bytes: animation-track-list pointer, or zero
+3 bytes: ordinary overworld entrance-list pointer, or zero
+3 bytes: overworld pit entrance-list pointer, or zero
 ```
 
 The entry side names the edge of the destination area: entering from west
 means moving east through its west edge, and similarly for the other sides.
 Full-reload paths use the first pointer. A scrolling transition selects one of
 the following four pointers from the destination `$8A` and entry side.
+
+An ordinary entrance list begins with its record count. Each record contains
+a 16-bit Map16 buffer offset, an entrance ID, and a flag byte whose bit 0
+allows frog and dwarf followers. A pit list also begins with its count, then
+stores a 16-bit Map16 buffer offset and entrance ID in each record. Separate
+lists keep pit coordinates out of the ordinary per-frame scan.
 
 Normal, Dark World, and special-overworld screen IDs use the same lookup
 without runtime classification. Credits overworld scenes use keys `$A0-$AF`,

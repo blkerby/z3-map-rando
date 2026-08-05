@@ -274,7 +274,7 @@ org $84E928
     LDA.l !Map16TopLeft,X
 assert pc() <= $84E92C
 
-; UseOverworldEntrance checks fixed quadrants for entrance and door graphics.
+; UseOverworldEntrance checks fixed quadrants for animated door graphics.
 ; Keep the vanilla instruction addresses so its existing branches are unchanged.
 ; Replace two ASL instructions with NOPs, since the offset into each bank is
 ; now Map16 ID * 2 instead of Map16 ID * 8.
@@ -295,14 +295,6 @@ assert pc() <= $9BBC4A
 org $9BBC4B
     LDA.l !Map16TopLeft,X
 assert pc() <= $9BBC4F
-
-org $9BBCC1
-    LDA.l !Map16BottomLeft,X
-assert pc() <= $9BBCC5
-
-org $9BBCCA
-    LDA.l !Map16BottomRight,X
-assert pc() <= $9BBCCE
 
 ; If using this patch without independent_tile_type.asm, uncomment these blocks,
 ; so terrain actions, hammer sounds, and liftables can still derive properties

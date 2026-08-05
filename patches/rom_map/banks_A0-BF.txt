@@ -18,8 +18,8 @@ $A0900B-$A098FF [FREE]
 $A09900-$A09D29 overworld_vram.asm (generated asset schedules, transition hooks, and ROM-source NMI queue)
 $A09D2A-$A09DFF [FREE]
 $A09E00-$A09F3F theme_check generated overworld backdrop colors
-$A09F40-$A0A0C0 overworld_vram.asm (generated animation-track runtime)
-$A0A0C1-$A0A3FF [FREE]
+$A09F40-$A0A1A7 overworld_vram.asm (generated animation and area-local entrance runtime)
+$A0A1A8-$A0A3FF [FREE]
 $A0A400-$A0A463 theme_bg_color.asm (generated overworld backdrop selection)
 $A0A464-$A0FFFF [FREE]
 

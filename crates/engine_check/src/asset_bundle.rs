@@ -97,7 +97,7 @@ pub fn build(
     layout: AssetLayout,
 ) -> Result<AssetBundle> {
     let mut data = Region::new((layout.data_start >> 16) as u8, layout.data_size);
-    let empty_record = data.intern(&[0; 18])?;
+    let empty_record = data.intern(&[0; 24])?;
     let empty_variants = intern_variant_list(&mut data, &[(0xff, empty_record)])?;
     let mut keys = vec![empty_variants; 256];
 
@@ -130,7 +130,7 @@ pub fn build(
     keys[CREDITS_COOL_BACKGROUND_KEY] = intern_variant_list(&mut data, &[(0xff, cool_record)])?;
 
     let seed_sequence = intern_character_sequence(&mut data, &sprite_seed.character_rows)?;
-    let mut seed_record = [0; 18];
+    let mut seed_record = [0; 24];
     seed_record[..3].copy_from_slice(&little_endian_pointer(seed_sequence));
     let seed_record = data.intern(&seed_record)?;
     keys[SPRITE_SEED_KEY] = intern_variant_list(&mut data, &[(0xff, seed_record)])?;
@@ -168,11 +168,30 @@ fn intern_record(
 ) -> Result<u32> {
     let (sequence, palette_sources, character_sources) =
         intern_full_sequence(data, assets, sprite_variant)?;
-    let mut record = vec![0; 18];
+    let mut record = vec![0; 24];
     record[..3].copy_from_slice(&little_endian_pointer(sequence));
     let animations = intern_animation_tracks(data, &assets.animation_tracks)?;
     if animations != 0 {
         record[15..18].copy_from_slice(&little_endian_pointer(animations));
+    }
+    if !assets.entrances.is_empty() {
+        let mut entrances = Vec::with_capacity(1 + assets.entrances.len() * 4);
+        entrances.push(u8::try_from(assets.entrances.len())?);
+        for entrance in &assets.entrances {
+            entrances.extend_from_slice(&entrance.map16_offset.to_le_bytes());
+            entrances.push(entrance.entrance_id);
+            entrances.push(if entrance.allows_frog_dwarf { 1 } else { 0 });
+        }
+        record[18..21].copy_from_slice(&little_endian_pointer(data.intern(&entrances)?));
+    }
+    if !assets.pit_entrances.is_empty() {
+        let mut entrances = Vec::with_capacity(1 + assets.pit_entrances.len() * 3);
+        entrances.push(u8::try_from(assets.pit_entrances.len())?);
+        for entrance in &assets.pit_entrances {
+            entrances.extend_from_slice(&entrance.map16_offset.to_le_bytes());
+            entrances.push(entrance.entrance_id);
+        }
+        record[21..24].copy_from_slice(&little_endian_pointer(data.intern(&entrances)?));
     }
 
     if include_transitions {

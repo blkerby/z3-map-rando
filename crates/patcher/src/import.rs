@@ -373,6 +373,21 @@ pub struct OverworldAreaAssets {
     pub transition_character_rows: Vec<bool>,
     pub animation_tracks: Vec<OverworldAnimationTrack>,
     pub sprite_variants: Vec<OverworldSpriteVariant>,
+    pub entrances: Vec<OverworldEntrance>,
+    pub pit_entrances: Vec<OverworldPitEntrance>,
+}
+
+#[derive(Clone, Copy)]
+pub struct OverworldEntrance {
+    pub map16_offset: u16,
+    pub entrance_id: u8,
+    pub allows_frog_dwarf: bool,
+}
+
+#[derive(Clone, Copy)]
+pub struct OverworldPitEntrance {
+    pub map16_offset: u16,
+    pub entrance_id: u8,
 }
 
 impl Importer {
@@ -493,6 +508,7 @@ impl Importer {
             self.load_map_gfx()?;
         }
 
+        let (entrances, pit_entrances) = self.load_overworld_entrances()?;
         let mut assets = Vec::with_capacity(self.map_gfx.len());
         for area in 0..self.map_gfx.len() {
             let mut area_assets = self.encode_overworld_area_assets(
@@ -503,9 +519,49 @@ impl Importer {
             let track = self.build_overworld_animation_track(area);
             area_assets.animation_tracks.push(track);
             area_assets.sprite_variants = self.overworld_sprite_variants(area)?;
+            area_assets.entrances = entrances[area].clone();
+            area_assets.pit_entrances = pit_entrances[area].clone();
             assets.push(area_assets);
         }
         Ok(assets)
+    }
+
+    fn load_overworld_entrances(
+        &self,
+    ) -> Result<(Vec<Vec<OverworldEntrance>>, Vec<Vec<OverworldPitEntrance>>)> {
+        let mut entrances = vec![Vec::new(); 0xa0];
+        for index in (0..129).rev() {
+            let area = usize::from(
+                self.rom
+                    .read_u16((SnesAddr(0x1bb96f) + u32::try_from(index * 2)?).into())?,
+            );
+            entrances[area].push(OverworldEntrance {
+                map16_offset: self
+                    .rom
+                    .read_u16((SnesAddr(0x1bba71) + u32::try_from(index * 2)?).into())?,
+                entrance_id: self
+                    .rom
+                    .read_u8((SnesAddr(0x1bbb73) + u32::try_from(index)?).into())?,
+                allows_frog_dwarf: index >= 59,
+            });
+        }
+
+        let mut pit_entrances = vec![Vec::new(); 0xa0];
+        for index in (0..19).rev() {
+            let area = usize::from(
+                self.rom
+                    .read_u16((SnesAddr(0x1bb826) + u32::try_from(index * 2)?).into())?,
+            );
+            pit_entrances[area].push(OverworldPitEntrance {
+                map16_offset: self
+                    .rom
+                    .read_u16((SnesAddr(0x1bb800) + u32::try_from(index * 2)?).into())?,
+                entrance_id: self
+                    .rom
+                    .read_u8((SnesAddr(0x1bb84c) + u32::try_from(index)?).into())?,
+            });
+        }
+        Ok((entrances, pit_entrances))
     }
 
     pub fn credits_overworld_assets(&mut self) -> Result<Vec<(u8, OverworldAreaAssets)>> {
@@ -696,6 +752,8 @@ impl Importer {
             transition_character_rows,
             animation_tracks: Vec::new(),
             sprite_variants: Vec::new(),
+            entrances: Vec::new(),
+            pit_entrances: Vec::new(),
         })
     }
 

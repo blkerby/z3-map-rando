@@ -149,6 +149,8 @@ pub fn compile(
         screen_maps.insert(screen.id, map);
 
         let sprites = area_assets[screen.id].sprite_variants.clone();
+        let entrances = area_assets[screen.id].entrances.clone();
+        let pit_entrances = area_assets[screen.id].pit_entrances.clone();
         let mut transition_palette_rows = vec![false; 6];
         for palette in &screen.palettes {
             transition_palette_rows[palette_slots[palette] / 2] = true;
@@ -164,6 +166,8 @@ pub fn compile(
             transition_character_rows,
             animation_tracks,
             sprite_variants: sprites,
+            entrances,
+            pit_entrances,
         };
     }
 

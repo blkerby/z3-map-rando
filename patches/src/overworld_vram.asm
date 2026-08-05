@@ -38,6 +38,8 @@ lorom
 ; future theme exceeds 64 active tracks or 127 simultaneously updated rows.
 !AnimationTrackState = $7EC910
 !AnimationDescriptorList = $7ECA50
+!AreaEntrancePointerOffset = 18
+!AreaPitEntrancePointerOffset = 21
 !CreditsFirstAssetKey = $A0
 !SpriteSeedAssetKey = $FE
 !CreditsCoolBackgroundAssetKey = $FF
@@ -139,6 +141,22 @@ return_MirrorWarpSetPyramidTargetColor:
 org $8ABBF9
     JSL hook_WorldMapOverworldRestore
 assert pc() == $8ABBFD
+
+; GetPitEntranceDestination has already calculated the Map16 buffer offset in
+; $00. Replace its global screen-and-coordinate scan with the current area's
+; generated pit list.
+org $9BB88E
+hook_resolve_pit_entrance:
+    JML FindAreaPitEntrance
+assert pc() == $9BB892
+
+; Preserve the preceding graphics-based door-opening animations. Once those
+; checks decline to animate a door, identify ordinary entrances solely by the
+; current area's generated coordinate list.
+org $9BBCC1
+hook_resolve_overworld_entrance:
+    JML FindAreaEntrance
+assert pc() == $9BBCC5
 
 ; InitializeTilesets, shared graphics-loading routine with no fixed module or
 ; submodule: generated overworld records own all four area-dependent OBJ slots,
@@ -2176,5 +2194,162 @@ UploadOverworldAnimations:
 
 .skip
     JML $808B67
+
+; Load the current area's list pointer at asset-record offset Y into $03-$05.
+LoadCurrentAreaList:
+    PHY
+    LDA.b $8A
+    JSR ResolveOverworldAssetRecord
+    PLY
+    LDA.b [$00],Y
+    STA.b $03
+    INY
+    LDA.b [$00],Y
+    STA.b $04
+    INY
+    LDA.b [$00],Y
+    STA.b $05
+    RTS
+
+; Find an ordinary entrance at the Map16 buffer offset in Y. Each list is a
+; count followed by four-byte records: offset, entrance ID, follower flag.
+FindAreaEntrance:
+    PHY
+
+    SEP #$20
+    REP #$10
+    LDY.w #!AreaEntrancePointerOffset
+    JSR LoadCurrentAreaList
+
+    PLY
+    REP #$20
+    TYA
+    STA.b $08
+    SEP #$20
+
+    LDA.b $05
+    BEQ .not_found
+
+    LDY.w #$0000
+    LDA.b [$03],Y
+    STA.b $06
+    INY
+
+.next
+    REP #$20
+    LDA.b [$03],Y
+    CMP.b $08
+    SEP #$20
+    BEQ .found
+
+    INY
+    INY
+    INY
+    INY
+    DEC.b $06
+    BNE .next
+
+.not_found
+    REP #$20
+    STZ.w $04B8
+    SEP #$30
+    RTL
+
+.found
+    INY
+    INY
+    LDA.b [$03],Y
+    STA.b $07
+    INY
+    LDA.b [$03],Y
+    STA.b $06
+
+    REP #$20
+    LDA.l $7EF3D3
+    AND.w #$00FF
+    BNE .allowed
+
+    LDA.w $02DA
+    AND.w #$00FF
+    CMP.w #$0001
+    BEQ .forbidden
+
+    LDA.l $7EF3CC
+    AND.w #$00FF
+    BEQ .allowed
+    CMP.w #$0005              ; Zelda telepathy
+    BEQ .allowed
+    CMP.w #$000E              ; Telepathy
+    BEQ .allowed
+    CMP.w #$0001              ; Zelda
+    BEQ .allowed
+    CMP.w #$0007              ; Frog
+    BEQ .check_frog_dwarf
+    CMP.w #$0008              ; Dwarf
+    BNE .forbidden
+
+.check_frog_dwarf
+    SEP #$20
+    LDA.b $06
+    AND.b #$01
+    BEQ .forbidden_8_bit
+
+.allowed
+    SEP #$20
+    LDA.b $07
+    JML $9BBD63               ; Continue vanilla entrance setup with this ID.
+
+.forbidden_8_bit
+    REP #$20
+.forbidden
+    JML $9BBCF0               ; Use vanilla follower-denial handling.
+
+; Find the destination for the pit Map16 buffer offset in $00. Pit lists are
+; a count followed by three-byte records: offset and entrance ID.
+FindAreaPitEntrance:
+    LDA.b $00
+    STA.b $08
+
+    SEP #$20
+    REP #$10
+    LDY.w #!AreaPitEntrancePointerOffset
+    JSR LoadCurrentAreaList
+    BEQ .default
+
+    LDY.w #$0000
+    LDA.b [$03],Y
+    STA.b $06
+    INY
+
+.next
+    REP #$20
+    LDA.b [$03],Y
+    CMP.b $08
+    SEP #$20
+    BEQ .found
+
+    INY
+    INY
+    INY
+    DEC.b $06
+    BNE .next
+
+.default
+    LDA.b #$00
+    STA.l $7EF3CA             ; Unmatched pits lead to Houlihan in Light World.
+    LDA.b #$82
+    BRA .store
+
+.found
+    INY
+    INY
+    LDA.b [$03],Y
+
+.store
+    STA.w $010E
+    STZ.w $010F
+    SEP #$30
+    PLB
+    RTL
 
 assert pc() <= !free_space_bank_any_end_3
