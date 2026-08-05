@@ -15,6 +15,8 @@ const PAYLOAD_SIZE: usize = 14 * BANK_SIZE;
 const GRAPHICS_ROW_UNITS: usize = 16;
 const PALETTE_ROW_UNITS: usize = 2;
 const TRANSITION_BATCH_UNITS: usize = 8 * GRAPHICS_ROW_UNITS;
+const BG_CHARACTER_ROWS: usize = 60;
+const CHARACTER_ROWS: usize = BG_CHARACTER_ROWS + 16;
 type InternedSequence = (u32, Vec<u32>, Vec<(u8, u32)>);
 
 pub struct AssetBundle {
@@ -234,21 +236,18 @@ fn intern_record(
     record[..3].copy_from_slice(&little_endian_pointer(sequence));
 
     if include_transitions {
-        let transition_palette_rows = assets
-            .transition_palette_groups
-            .iter()
-            .zip([0..3, 3..6])
-            .filter(|(load, _)| **load)
-            .flat_map(|(_, rows)| rows)
-            .collect::<Vec<_>>();
-        let mut transition_characters = assets
-            .transition_sheets
-            .iter()
-            .enumerate()
-            .filter(|(_, load)| **load)
-            .flat_map(|(sheet, _)| sheet * 4..sheet * 4 + 4)
-            .map(|row| (u8::try_from(row).unwrap(), character_sources[row].1))
-            .collect::<Vec<_>>();
+        let mut transition_palette_rows = Vec::new();
+        for (row, &load) in assets.transition_palette_rows.iter().enumerate() {
+            if load {
+                transition_palette_rows.push(row);
+            }
+        }
+        let mut transition_characters = Vec::new();
+        for (row, &load) in assets.transition_character_rows.iter().enumerate() {
+            if load {
+                transition_characters.push((u8::try_from(row)?, character_sources[row].1));
+            }
+        }
         transition_characters.extend_from_slice(&character_sources[assets.character_rows.len()..]);
 
         let mut transition_batches = Vec::new();
@@ -325,10 +324,9 @@ fn intern_full_sequence(
         assets.palette_rows.len() == 6,
         "expected six BG palette rows"
     );
-    ensure!(
-        assets.character_rows.len() == 32,
-        "expected 32 BG character rows"
-    );
+    ensure!(assets.transition_palette_rows.len() == assets.palette_rows.len());
+    ensure!(assets.character_rows.len() <= BG_CHARACTER_ROWS);
+    ensure!(assets.transition_character_rows.len() == assets.character_rows.len());
     validate_sprite_rows(&sprite_variant.character_rows)?;
 
     let palette_sources = assets
@@ -535,9 +533,9 @@ fn validate_full_record(
     let sequence = read_little_endian_pointer(&bundle.metadata, record)?;
     let mut sequence = metadata_offset(bundle, sequence)?;
     let mut palettes = vec![[0; 32]; 6];
-    let mut characters = vec![[0; 512]; 48];
+    let mut characters = vec![[0; 512]; CHARACTER_ROWS];
     let mut palette_written = [false; 6];
-    let mut character_written = [false; 48];
+    let mut character_written = [false; CHARACTER_ROWS];
 
     while let Some(batch) = read_bank_first_pointer(&bundle.metadata, &mut sequence)? {
         apply_batch(
@@ -551,11 +549,15 @@ fn validate_full_record(
     }
 
     ensure!(palette_written.into_iter().all(|written| written));
-    ensure!(character_written[..32].iter().all(|written| *written));
-    let mut expected_characters = vec![[0; 512]; 48];
-    expected_characters[..32].copy_from_slice(&expected.character_rows);
-    let mut expected_written = [false; 48];
-    expected_written[..32].fill(true);
+    ensure!(
+        character_written[..expected.character_rows.len()]
+            .iter()
+            .all(|written| *written)
+    );
+    let mut expected_characters = vec![[0; 512]; CHARACTER_ROWS];
+    expected_characters[..expected.character_rows.len()].copy_from_slice(&expected.character_rows);
+    let mut expected_written = [false; CHARACTER_ROWS];
+    expected_written[..expected.character_rows.len()].fill(true);
     apply_expected_sprite_variant(
         variant,
         &mut expected_characters,
@@ -610,36 +612,37 @@ fn validate_transition_for_state(
     let mut palettes = areas[source].palette_rows.clone();
     let mut expected_palettes = palettes.clone();
     let mut expected_palette_written = [false; 6];
-    for (&load, rows) in areas[destination]
-        .transition_palette_groups
+    for (row, &load) in areas[destination]
+        .transition_palette_rows
         .iter()
-        .zip([0..3, 3..6])
+        .enumerate()
     {
         if load {
-            expected_palettes[rows.clone()]
-                .copy_from_slice(&areas[destination].palette_rows[rows.clone()]);
-            expected_palette_written[rows].fill(true);
+            expected_palettes[row] = areas[destination].palette_rows[row];
+            expected_palette_written[row] = true;
         }
     }
-    let mut characters = vec![[0; 512]; 48];
-    characters[..32].copy_from_slice(&areas[source].character_rows);
+    let mut characters = vec![[0; 512]; CHARACTER_ROWS];
+    characters[..areas[source].character_rows.len()].copy_from_slice(&areas[source].character_rows);
     apply_expected_sprite_variant(
         select_expected_variant(&areas[source], game_state),
         &mut characters,
         None,
     );
     let mut expected_characters = characters.clone();
-    for (sheet, &load) in areas[destination].transition_sheets.iter().enumerate() {
+    for (row, &load) in areas[destination]
+        .transition_character_rows
+        .iter()
+        .enumerate()
+    {
         if load {
-            let rows = sheet * 4..sheet * 4 + 4;
-            expected_characters[rows.clone()]
-                .copy_from_slice(&areas[destination].character_rows[rows]);
+            expected_characters[row] = areas[destination].character_rows[row];
         }
     }
     let destination_variant = select_expected_variant(&areas[destination], game_state);
     apply_expected_sprite_variant(destination_variant, &mut expected_characters, None);
     let mut palette_written = [false; 6];
-    let mut character_written = [false; 48];
+    let mut character_written = [false; CHARACTER_ROWS];
 
     while let Some(batch) = read_bank_first_pointer(&bundle.metadata, &mut cursor)? {
         apply_batch(
@@ -690,20 +693,20 @@ fn validate_transition_for_state(
     }
 
     ensure!(palette_written == expected_palette_written);
-    for (sheet, &load) in areas[destination].transition_sheets.iter().enumerate() {
-        ensure!(
-            character_written[sheet * 4..sheet * 4 + 4]
-                .iter()
-                .all(|&written| written == load)
-        );
+    for (row, &load) in areas[destination]
+        .transition_character_rows
+        .iter()
+        .enumerate()
+    {
+        ensure!(character_written[row] == load);
     }
-    let mut expected_sprite_written = [false; 48];
+    let mut expected_sprite_written = [false; CHARACTER_ROWS];
     apply_expected_sprite_variant(
         destination_variant,
-        &mut vec![[0; 512]; 48],
+        &mut vec![[0; 512]; CHARACTER_ROWS],
         Some(&mut expected_sprite_written),
     );
-    ensure!(character_written[32..] == expected_sprite_written[32..]);
+    ensure!(character_written[BG_CHARACTER_ROWS..] == expected_sprite_written[BG_CHARACTER_ROWS..]);
     ensure!(palettes == expected_palettes);
     ensure!(characters == expected_characters);
     Ok(())
@@ -759,10 +762,10 @@ fn resolve_record(bundle: &AssetBundle, key: usize, game_state: u8) -> Result<us
 fn apply_expected_sprite_variant(
     variant: &OverworldSpriteVariant,
     characters: &mut [[u8; 512]],
-    mut written: Option<&mut [bool; 48]>,
+    mut written: Option<&mut [bool; CHARACTER_ROWS]>,
 ) {
     for (destination, row) in &variant.character_rows {
-        let index = 32 + usize::from(*destination - 0x50);
+        let index = BG_CHARACTER_ROWS + usize::from(*destination - 0x50);
         characters[index] = *row;
         if let Some(written) = written.as_deref_mut() {
             written[index] = true;
@@ -775,9 +778,9 @@ fn validate_sprite_seed(bundle: &AssetBundle, expected: &OverworldSpriteVariant)
     let sequence = read_little_endian_pointer(&bundle.metadata, record)?;
     let mut sequence = metadata_offset(bundle, sequence)?;
     let mut palettes = vec![[0; 32]; 6];
-    let mut characters = vec![[0; 512]; 48];
+    let mut characters = vec![[0; 512]; CHARACTER_ROWS];
     let mut palette_written = [false; 6];
-    let mut character_written = [false; 48];
+    let mut character_written = [false; CHARACTER_ROWS];
     while let Some(batch) = read_bank_first_pointer(&bundle.metadata, &mut sequence)? {
         apply_batch(
             bundle,
@@ -788,8 +791,8 @@ fn validate_sprite_seed(bundle: &AssetBundle, expected: &OverworldSpriteVariant)
             &mut character_written,
         )?;
     }
-    let mut expected_characters = vec![[0; 512]; 48];
-    let mut expected_written = [false; 48];
+    let mut expected_characters = vec![[0; 512]; CHARACTER_ROWS];
+    let mut expected_written = [false; CHARACTER_ROWS];
     apply_expected_sprite_variant(
         expected,
         &mut expected_characters,
@@ -807,7 +810,7 @@ fn apply_batch(
     palettes: &mut [[u8; 32]],
     characters: &mut [[u8; 512]],
     palette_written: &mut [bool; 6],
-    character_written: &mut [bool; 48],
+    character_written: &mut [bool; CHARACTER_ROWS],
 ) -> Result<()> {
     let mut cursor = metadata_offset(bundle, batch)?;
     let mut palette_count = 0;
@@ -848,8 +851,8 @@ fn apply_batch(
         let destination = usize::from(bundle.metadata[cursor]);
         cursor += 1;
         let destination = match destination {
-            0..=31 => destination,
-            0x50..=0x5f => 32 + destination - 0x50,
+            0..=59 => destination,
+            0x50..=0x5f => BG_CHARACTER_ROWS + destination - 0x50,
             _ => anyhow::bail!("character destination outside generated regions"),
         };
         ensure!(

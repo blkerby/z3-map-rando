@@ -361,8 +361,8 @@ pub struct OverworldSpriteVariant {
 pub struct OverworldAreaAssets {
     pub palette_rows: Vec<[u8; 32]>,
     pub character_rows: Vec<[u8; 512]>,
-    pub transition_palette_groups: [bool; 2],
-    pub transition_sheets: [bool; 8],
+    pub transition_palette_rows: Vec<bool>,
+    pub transition_character_rows: Vec<bool>,
     pub sprite_variants: Vec<OverworldSpriteVariant>,
 }
 
@@ -632,11 +632,26 @@ impl Importer {
         let animated = 92 + usize::from(palettes.animated);
         encode_palette_half(&self.palettes[animated], &mut palette_rows[5][..16]);
 
+        let mut transition_character_rows = Vec::with_capacity(character_rows.len());
+        for load in transition_sheets {
+            for _ in 0..4 {
+                transition_character_rows.push(load);
+            }
+        }
+        transition_character_rows.truncate(character_rows.len());
+
+        let mut transition_palette_rows = Vec::with_capacity(6);
+        for load in palettes.transition_groups {
+            for _ in 0..3 {
+                transition_palette_rows.push(load);
+            }
+        }
+
         Ok(OverworldAreaAssets {
             palette_rows,
             character_rows,
-            transition_palette_groups: palettes.transition_groups,
-            transition_sheets,
+            transition_palette_rows,
+            transition_character_rows,
             sprite_variants: Vec::new(),
         })
     }

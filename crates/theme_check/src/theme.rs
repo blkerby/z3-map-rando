@@ -9,10 +9,15 @@ use std::{
 };
 
 const MAP16_CAPACITY: usize = 0x4000;
-const CHARACTER_CAPACITY: usize = 512;
-type Graphic = Vec<u8>;
-type CharacterSlots = BTreeMap<Graphic, usize>;
-type ScreenGraphics = Vec<BTreeSet<Graphic>>;
+const CHARACTER_CAPACITY: usize = 960;
+type TileKey = (u8, usize);
+type CharacterSlots = BTreeMap<TileKey, usize>;
+type ScreenTiles = Vec<BTreeSet<TileKey>>;
+
+struct GraphicGroup {
+    tiles: Vec<TileKey>,
+    areas: BTreeSet<usize>,
+}
 
 #[derive(Deserialize)]
 struct Palette {
@@ -83,8 +88,7 @@ pub fn compile(
     ensure!(area_assets.len() == 0xa0);
 
     let palette_slots = allocate_palettes(&screens, &palettes)?;
-    let (character_slots, screen_graphics) =
-        allocate_characters(&screens, &palettes, &palette_slots)?;
+    let (character_slots, screen_tiles) = allocate_characters(&screens)?;
     let character_count = character_slots
         .values()
         .copied()
@@ -117,9 +121,10 @@ pub fn compile(
     }
 
     let mut screen_maps = BTreeMap::new();
-    for (screen, graphics) in screens.iter().zip(&screen_graphics) {
+    for (screen, tiles) in screens.iter().zip(&screen_tiles) {
         let palette_rows = build_palette_rows(screen, &palettes, &palette_slots)?;
-        let character_rows = build_character_rows(graphics, &character_slots)?;
+        let character_rows =
+            build_character_rows(tiles, &palettes, &palette_slots, &character_slots)?;
         validate_assets(
             screen,
             &palettes,
@@ -141,11 +146,19 @@ pub fn compile(
         screen_maps.insert(screen.id, map);
 
         let sprites = area_assets[screen.id].sprite_variants.clone();
+        let mut transition_palette_rows = vec![false; 6];
+        for palette in &screen.palettes {
+            transition_palette_rows[palette_slots[palette] / 2] = true;
+        }
+        let mut transition_character_rows = vec![false; 60];
+        for tile in tiles {
+            transition_character_rows[character_slots[tile] / 16] = true;
+        }
         area_assets[screen.id] = OverworldAreaAssets {
             palette_rows: palette_rows.to_vec(),
             character_rows: character_rows.to_vec(),
-            transition_palette_groups: [true; 2],
-            transition_sheets: [true; 8],
+            transition_palette_rows,
+            transition_character_rows,
             sprite_variants: sprites,
         };
     }
@@ -271,13 +284,16 @@ fn allocate_palettes(
         conflicts.insert(id, BTreeSet::new());
     }
 
-    // Populate conflicts: two palettes that exist in the same area
-    // cannot be assigned to the same slot.
-    for screen in screens {
-        for &left in &screen.palettes {
-            for &right in &screen.palettes {
-                if right != left {
-                    conflicts.get_mut(&left).unwrap().insert(right);
+    // Palettes in the same area or a scrolling neighbor must use different slots.
+    for left_screen in screens {
+        for right_screen in screens {
+            if areas_can_coexist(left_screen, right_screen) {
+                for &left in &left_screen.palettes {
+                    for &right in &right_screen.palettes {
+                        if right != left {
+                            conflicts.get_mut(&left).unwrap().insert(right);
+                        }
+                    }
                 }
             }
         }
@@ -345,55 +361,139 @@ fn assign_palette(
     false
 }
 
-fn allocate_characters(
-    screens: &[ThemeScreen],
-    palettes: &BTreeMap<u8, Palette>,
-    palette_slots: &BTreeMap<u8, usize>,
-) -> Result<(CharacterSlots, ScreenGraphics)> {
-    let mut conflicts = BTreeMap::<Vec<u8>, BTreeSet<Vec<u8>>>::new();
-    let mut group_graphics = BTreeMap::<usize, BTreeSet<Vec<u8>>>::new();
+fn allocate_characters(screens: &[ThemeScreen]) -> Result<(CharacterSlots, ScreenTiles)> {
+    let mut tile_areas = BTreeMap::<TileKey, BTreeSet<usize>>::new();
     for screen in screens {
-        let graphics = group_graphics.entry(screen.asset_group).or_default();
         for placement in &screen.placements {
-            graphics.insert(build_graphic(placement, palettes, palette_slots));
+            tile_areas
+                .entry((placement.palette, placement.tile))
+                .or_default()
+                .insert(screen.asset_group);
         }
     }
-    for graphics in group_graphics.values() {
-        for left in graphics {
-            let entry = conflicts.entry(left.clone()).or_default();
-            for right in graphics {
-                if right != left {
-                    entry.insert(right.clone());
+
+    let mut groups = Vec::new();
+    let mut palette_tiles = BTreeMap::<u8, BTreeSet<usize>>::new();
+    for &(palette, tile) in tile_areas.keys() {
+        palette_tiles.entry(palette).or_default().insert(tile);
+    }
+    for (palette, mut unassigned) in palette_tiles {
+        while !unassigned.is_empty() {
+            let mut seed = *unassigned.first().unwrap();
+            for &tile in &unassigned {
+                if tile_areas[&(palette, tile)].len() > tile_areas[&(palette, seed)].len() {
+                    seed = tile;
                 }
             }
+            unassigned.remove(&seed);
+            let mut tiles = vec![(palette, seed)];
+            while tiles.len() < 16 && !unassigned.is_empty() {
+                let mut best = *unassigned.first().unwrap();
+                let mut best_score = 0;
+                for &candidate in &unassigned {
+                    let mut score = 0;
+                    for member in &tiles {
+                        for area in &tile_areas[&(palette, candidate)] {
+                            if tile_areas[member].contains(area) {
+                                score += 1;
+                            }
+                        }
+                    }
+                    if score > best_score || score == best_score && candidate < best {
+                        best = candidate;
+                        best_score = score;
+                    }
+                }
+                unassigned.remove(&best);
+                tiles.push((palette, best));
+            }
+            let mut areas = BTreeSet::new();
+            for tile in &tiles {
+                areas.extend(&tile_areas[tile]);
+            }
+            groups.push(GraphicGroup { tiles, areas });
         }
     }
 
-    let mut order = Vec::with_capacity(conflicts.len());
-    for graphic in conflicts.keys() {
-        order.push(graphic.clone());
-    }
-    order.sort_by_key(|graphic| (Reverse(conflicts[graphic].len()), graphic.clone()));
-    let mut slots = BTreeMap::new();
-    // Greedy assignment; replace with backtracking or other algorithm later.
-    for graphic in order {
-        let mut blocked = BTreeSet::new();
-        for other in &conflicts[&graphic] {
-            if let Some(&slot) = slots.get(other) {
-                blocked.insert(slot);
+    let mut neighboring_areas = BTreeMap::<usize, BTreeSet<usize>>::new();
+    for left in screens {
+        for right in screens {
+            if areas_can_coexist(left, right) {
+                neighboring_areas
+                    .entry(left.asset_group)
+                    .or_default()
+                    .insert(right.asset_group);
             }
         }
-        let slot = (0..CHARACTER_CAPACITY)
-            .find(|slot| !blocked.contains(slot))
-            .context("Graphics exceed the existing stable character slots")?;
-        slots.insert(graphic, slot);
+    }
+    let mut conflicts = vec![BTreeSet::new(); groups.len()];
+    for left in 0..groups.len() {
+        for right in left + 1..groups.len() {
+            let mut conflict = false;
+            for area in &groups[left].areas {
+                if neighboring_areas[area]
+                    .iter()
+                    .any(|neighbor| groups[right].areas.contains(neighbor))
+                {
+                    conflict = true;
+                    break;
+                }
+            }
+            if conflict {
+                conflicts[left].insert(right);
+                conflicts[right].insert(left);
+            }
+        }
     }
 
-    let mut screen_graphics = Vec::with_capacity(screens.len());
-    for screen in screens {
-        screen_graphics.push(group_graphics[&screen.asset_group].clone());
+    let mut order = (0..groups.len()).collect::<Vec<_>>();
+    order.sort_by_key(|&group| (Reverse(conflicts[group].len()), group));
+    let mut group_rows = BTreeMap::new();
+    for group in order {
+        let mut blocked = BTreeSet::new();
+        for other in &conflicts[group] {
+            if let Some(&row) = group_rows.get(other) {
+                blocked.insert(row);
+            }
+        }
+        let row = (0..CHARACTER_CAPACITY / 16)
+            .find(|row| !blocked.contains(row))
+            .context("Graphics exceed the existing stable character rows")?;
+        group_rows.insert(group, row);
     }
-    Ok((slots, screen_graphics))
+
+    let mut slots = BTreeMap::new();
+    for (group, group_data) in groups.iter().enumerate() {
+        for (column, &tile) in group_data.tiles.iter().enumerate() {
+            slots.insert(tile, group_rows[&group] * 16 + column);
+        }
+    }
+
+    let mut screen_tiles = Vec::with_capacity(screens.len());
+    for screen in screens {
+        let mut tiles = BTreeSet::new();
+        for group in &groups {
+            if group.areas.contains(&screen.asset_group) {
+                tiles.extend(&group.tiles);
+            }
+        }
+        screen_tiles.push(tiles);
+    }
+    Ok((slots, screen_tiles))
+}
+
+fn areas_can_coexist(left: &ThemeScreen, right: &ThemeScreen) -> bool {
+    if left.asset_group == right.asset_group {
+        return true;
+    }
+    if left.id >= 0x80 || right.id >= 0x80 || left.id / 0x40 != right.id / 0x40 {
+        return false;
+    }
+    let left = left.id % 0x40;
+    let right = right.id % 0x40;
+    let horizontal = left / 8 == right / 8 && left.abs_diff(right) == 1;
+    let vertical = left % 8 == right % 8 && left.abs_diff(right) == 8;
+    horizontal || vertical
 }
 
 fn build_palette_rows(
@@ -421,14 +521,17 @@ fn build_palette_rows(
 }
 
 fn build_character_rows(
-    graphics: &BTreeSet<Vec<u8>>,
-    slots: &BTreeMap<Vec<u8>, usize>,
-) -> Result<[[u8; 512]; 32]> {
-    let mut rows = [[0; 512]; 32];
-    for graphic in graphics {
-        let slot = slots[graphic];
+    tiles: &BTreeSet<TileKey>,
+    palettes: &BTreeMap<u8, Palette>,
+    palette_slots: &BTreeMap<u8, usize>,
+    slots: &CharacterSlots,
+) -> Result<[[u8; 512]; 60]> {
+    let mut rows = [[0; 512]; 60];
+    for &(palette, tile) in tiles {
+        let slot = slots[&(palette, tile)];
         ensure!(slot < CHARACTER_CAPACITY);
-        let encoded = encode_4bpp(graphic);
+        let graphic = build_graphic(palette, tile, palettes, palette_slots);
+        let encoded = encode_4bpp(&graphic);
         let offset = slot % 16 * 32;
         rows[slot / 16][offset..offset + 32].copy_from_slice(&encoded);
     }
@@ -439,7 +542,7 @@ fn build_map(
     screen: &ThemeScreen,
     palettes: &BTreeMap<u8, Palette>,
     palette_slots: &BTreeMap<u8, usize>,
-    character_slots: &BTreeMap<Vec<u8>, usize>,
+    character_slots: &CharacterSlots,
     definitions: &mut Vec<[u16; 4]>,
     properties: &mut [Vec<u8>; 4],
     definition_ids: &mut BTreeMap<([u16; 4], [u8; 4]), u16>,
@@ -461,11 +564,11 @@ fn build_map(
                 let placement = screen.placements[y * 64 + x];
                 let palette = &palettes[&placement.palette];
                 let tile = &palette.tiles[placement.tile];
-                let graphic = build_graphic(&placement, palettes, palette_slots);
-                words[quadrant] = u16::try_from(character_slots[&graphic])?
-                    | u16::try_from(2 + palette_slots[&placement.palette] / 2)? << 10
-                    | if tile.priority { 1 << 13 } else { 0 }
-                    | u16::from(placement.flip) << 14;
+                words[quadrant] =
+                    u16::try_from(character_slots[&(placement.palette, placement.tile)])?
+                        | u16::try_from(2 + palette_slots[&placement.palette] / 2)? << 10
+                        | if tile.priority { 1 << 13 } else { 0 }
+                        | u16::from(placement.flip) << 14;
                 props[quadrant] = if (0x10..0x1c).contains(&tile.collision) {
                     tile.collision ^ placement.flip
                 } else {
@@ -497,15 +600,15 @@ fn validate_assets(
     screen: &ThemeScreen,
     palettes: &BTreeMap<u8, Palette>,
     palette_slots: &BTreeMap<u8, usize>,
-    character_slots: &BTreeMap<Vec<u8>, usize>,
+    character_slots: &CharacterSlots,
     palette_rows: &[[u8; 32]; 6],
-    character_rows: &[[u8; 512]; 32],
+    character_rows: &[[u8; 512]; 60],
 ) -> Result<()> {
     for placement in &screen.placements {
         let palette = &palettes[&placement.palette];
         let source = &palette.tiles[placement.tile];
-        let graphic = build_graphic(placement, palettes, palette_slots);
-        let slot = character_slots[&graphic];
+        let graphic = build_graphic(placement.palette, placement.tile, palettes, palette_slots);
+        let slot = character_slots[&(placement.palette, placement.tile)];
         let offset = slot % 16 * 32;
         ensure!(
             character_rows[slot / 16][offset..offset + 32] == encode_4bpp(&graphic),
@@ -538,15 +641,16 @@ fn validate_assets(
 }
 
 fn build_graphic(
-    placement: &Placement,
+    palette_id: u8,
+    tile: usize,
     palettes: &BTreeMap<u8, Palette>,
     slots: &BTreeMap<u8, usize>,
 ) -> Vec<u8> {
-    let palette = &palettes[&placement.palette];
-    let tile = &palette.tiles[placement.tile];
+    let palette = &palettes[&palette_id];
+    let tile = &palette.tiles[tile];
     let offset = if palette.uses_upper_half {
         0
-    } else if slots[&placement.palette] % 2 == 1 {
+    } else if slots[&palette_id] % 2 == 1 {
         8
     } else {
         0
