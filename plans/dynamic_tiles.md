@@ -7,16 +7,19 @@ changes that affect only 8x8 graphics.
 
 ## Terrain interactions
 
-| Interaction | Original Map16 IDs | Normal replacement |
-| --- | --- | --- |
-| Cut grass | `$037D` | `$0DBF` |
-| Dig terrain | `$0034`, `$0035`, `$0071`, `$00DA`, `$00E1`, `$00E2`, `$00F8`, `$010D`, `$010E`, `$010F` | `$0DC3` |
-| Cut, lift, bomb, or powder a Light World bush | `$0036` | `$0DC1` |
-| Cut, lift, bomb, or powder a Dark World bush | `$0727` | `$0DC2` |
-| Hammer a peg | `$021B` | `$0DC5` |
-| Lift a small object | `$020F`, `$0239` | `$0DC4` |
-| Lift an alternate small object | `$0101` | `$0DC0` |
-| Smash or lift a 2x2 rock formation | `$0226-$0229`, `$023B-$023E`, `$036C`, `$036D`, `$0373`, `$0374` | Usually `$0DC7-$0DCA` |
+| Interaction | Original Map16 IDs | Tile property | Normal replacement |
+| --- | --- | --- | --- |
+| Cut grass | `$037D` | `$40` | `$0DBF` |
+| Dig terrain | `$0034`, `$0035`, `$0071`, `$00DA`, `$00E1`, `$00E2`, `$00F8`, `$010D`, `$010E`, `$010F` | `$48` | `$0DC3` |
+| Cut, lift, bomb, or powder a green bush | `$0036` | `$50` | `$0DC1` |
+| Cut, lift, bomb, or powder a yellow/heavy bush | `$0727` | `$51` | `$0DC2` |
+| Hammer a peg | `$021B` | `$27` (hookable) | `$0DC5` |
+| Lift a sign | `$0101` | `$54` | `$0DC0` |
+| Lift a small gray rock | `$020F` | `$52` | `$0DC4` |
+| Lift a small black rock | `$0239` | `$53` | `$0DC4` |
+| Lift a 2x2 large gray rock | `$036C`, `$036D`, `$0373`, `$0374` | `$55` | Usually `$0DC7-$0DCA` |
+| Lift a 2x2 large black rock | `$023B-$023E` | `$56` | Usually `$0DC7-$0DCA` |
+| Smash a 2x2 rock pile by dashing | `$0226-$0229` | `$57` | Usually `$0DC7-$0DCA` |
 
 A secret at the affected coordinate overrides the normal replacement. A bush,
 grass tile, or rock formation can therefore reveal one of these instead:
@@ -88,6 +91,15 @@ are collected in the `OverworldOverlay_*` routines in
 
 ## Persistence
 
-Most localized changes are written to the saved Map16-change list by
-[`MemorizeMap16Change`](../jpdasm/bank_04.asm#L4429). The temporary cut-grass
-and dirt-patch replacements `$0DBF` and `$0DC3` are deliberately excluded.
+Selected localized changes are written to a temporary WRAM list by
+[`MemorizeMap16Change`](../jpdasm/bank_04.asm#L4429). Each entry pairs an offset
+in `$7E2000` with its replacement Map16 ID. The list exists so
+[`RecoverTilesFromMirrorBonk`](../jpdasm/bank_02.asm#L21476) can restore live
+changes after a failed mirror attempt rebuilds the current overworld map.
+
+This is not persistent save data. A normal scrolling transition
+[`clears the list`](../jpdasm/bank_02.asm#L7981), so a lifted bush returns after
+leaving its area and coming back. Changes that survive area reloads instead
+use saved screen-state bits and overworld overlays. The especially temporary
+cut-grass and dirt-patch replacements `$0DBF` and `$0DC3` are not added to the
+WRAM list at all.
