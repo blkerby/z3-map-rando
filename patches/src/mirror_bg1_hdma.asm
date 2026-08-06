@@ -1,4 +1,4 @@
-; Preserve BG1's independent horizontal scroll during the mirror wave.
+; Preserve BG1's independent horizontal scroll with a dedicated mirror HDMA table.
 ;
 ; Vanilla points HDMA channels 6 and 7 at the same horizontal-scroll table.
 ; Since that table is based on BG2 scroll $E2, channel 6 abruptly replaces
@@ -16,8 +16,8 @@ lorom
 !HDMA6ADDRB = $4364
 !HDMA6ITBLB = $4367
 
-!free_space_bank_any_start = $A08080
-!free_space_bank_any_end = $A08180
+!free_space_bank_a0_start = $A08080
+!free_space_bank_a0_end = $A08180
 
 ; InitializeMirrorHDMA
 ;
@@ -56,7 +56,7 @@ org $80FFB7
 hook_MirrorWarpDewavingCommonReturn:
     JML MirrorBG1FinishDewavingFrame
 
-org !free_space_bank_any_start
+org !free_space_bank_a0_start
 
 ; Configure channel 6 to read a separate indirect table, build its initial
 ; values, then reproduce InitializeMirrorHDMA's displaced tail.
@@ -171,4 +171,4 @@ MirrorBG1HDMATable:
     db $F8 : dw (!MirrorBG1Table+$00F0)>>0
     db $00
 
-assert pc() <= !free_space_bank_any_end
+assert pc() <= !free_space_bank_a0_end

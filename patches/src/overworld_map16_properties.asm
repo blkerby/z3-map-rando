@@ -1,5 +1,6 @@
-; Make GetOverworldTileType read the selected Map16 quadrant's independent
-; property byte instead of deriving it from the quadrant's graphics word.
+; Give each Map16 quadrant an independent property byte. GetOverworldTileType
+; then reads the selected quadrant's property instead of deriving it from the
+; quadrant's graphics word.
 
 lorom
 

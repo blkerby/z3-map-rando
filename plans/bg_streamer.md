@@ -1,7 +1,7 @@
 # BG2 streamer
 
 Status: complete. All five implementation milestones are active in
-`bg_streamer.asm`.
+`overworld_bg_tilemaps.asm`.
 
 ## Scope
 

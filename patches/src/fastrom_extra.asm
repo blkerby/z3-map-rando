@@ -1,7 +1,7 @@
 ; Based on https://raw.githubusercontent.com/codemann8/z3randomizer/e40be2a148f66c7928ef64fc04608e31e2a41753/fastrom.asm
 
-!free_space_bank_any_start = $A08040
-!free_space_bank_any_end = $A08080
+!free_space_bank_a0_start = $A08040
+!free_space_bank_a0_end = $A08080
 
 ;===================================================================================================
 
@@ -23,7 +23,7 @@ org $8080C9
 org $80FFD5
     db $30
 
-org !free_space_bank_any_start
+org !free_space_bank_a0_start
 hook_InitializeMemoryAndSRAMAfterReturn:
     LDA.b #$01
     STA.l $00420D
@@ -44,7 +44,7 @@ hook_NMIEntry:
 
     JML $8080CD
 
-assert pc() <= !free_space_bank_any_end
+assert pc() <= !free_space_bank_a0_end
 
 ;===================================================================================================
 

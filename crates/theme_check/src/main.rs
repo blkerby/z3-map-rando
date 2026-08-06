@@ -132,16 +132,19 @@ fn main() -> Result<()> {
 
     for patch in [
         "fastrom_extra.ips",
-        "expand.ips",
-        "flat_map16.ips",
-        "expand_map16.ips",
-        "independent_tile_type.ips",
-        "reduce_bg3.ips",
-        "bg_streamer.ips",
+        "rom_size.ips",
+        "overworld_map_data.ips",
+        "overworld_map16_graphics.ips",
+        "overworld_map16_properties.ips",
+        "bg3_tilemap.ips",
+        "overworld_bg_tilemaps.ips",
         "nmi_optimize.ips",
-        "mirror_bg1.ips",
+        "mirror_bg1_hdma.ips",
         "overworld_vram.ips",
-        "theme_bg_color.ips",
+        "overworld_assets.ips",
+        "overworld_animations.ips",
+        "overworld_entrances.ips",
+        "overworld_bg_color.ips",
     ] {
         patcher.use_ips(&patch_dir.join(patch))?;
     }

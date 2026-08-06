@@ -1,4 +1,4 @@
-; Reduce the shared overworld/dungeon BG3 tilemap from 64x64 to 32x32.
+; Use a 32x32 shared overworld/dungeon BG3 tilemap instead of vanilla's 64x64.
 ;
 ; Vanilla keeps the HUD at VRAM $6000 and the item menu at VRAM $6800, then
 ; reveals the menu by scrolling BG3 upward. With only one VRAM screen block,
@@ -11,10 +11,10 @@
 
 lorom
 
-!free_space_bank_00_start = $808878
-!free_space_bank_00_end = $808888
-!free_space_bank_any_start = $A08180
-!free_space_bank_any_end = $A08380
+!free_space_bank_00_start = $8090EB
+!free_space_bank_00_end = $8090F0
+!free_space_bank_a0_start = $A08180
+!free_space_bank_a0_end = $A08380
 
 ; One byte of otherwise unused WRAM tells the NMI handler which source image
 ; supplies the next ring row.
@@ -74,8 +74,8 @@ org $8083AA
 org $808C8A
     dw BG3StreamNMITrampoline
 
-; independent_tile_type.asm makes these final bytes of vanilla
-; GetOverworldTileType unreachable, leaving room for the NMI trampoline.
+; Vanilla's unreachable stripe routine provides room for the same-bank NMI
+; trampoline required by the 16-bit handler table.
 org !free_space_bank_00_start
 BG3StreamNMITrampoline:
     JSL BG3StreamNMI
@@ -154,7 +154,7 @@ org $8EE90C
 org $8EE915
 +
 
-org !free_space_bank_any_start
+org !free_space_bank_a0_start
 
 ; Called with 16-bit A. Vanilla moves the BG3 scroll value in WRAM $00EA from
 ; 0 to -232 in 8-pixel steps. Queue the VRAM row at the new top of the ring,
@@ -447,4 +447,4 @@ hook_ReinitializeFileSelectGraphics:
 
     SEP #$30
     RTL
-assert pc() <= !free_space_bank_any_end
+assert pc() <= !free_space_bank_a0_end

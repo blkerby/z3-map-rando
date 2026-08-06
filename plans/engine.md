@@ -47,7 +47,7 @@ Establish the minimum build and patching path needed to make playable engine cha
 ### Implemented
 
 - Add Asar as a submodule and scripts to build it and assemble each file in `patches/src` into a corresponding file in `patches/ips`. Assembly uses a dummy ROM with reads disabled, so building the IPS files does not require a vanilla ROM.
-- Add `expand.asm`, which changes the LoROM size byte at `$80FFD7` from 1 MiB to 2 MiB. The Rust tool explicitly resizes the output buffer to 2 MiB before applying patches.
+- Add `rom_size.asm`, which changes the LoROM size byte at `$80FFD7` from 1 MiB to 2 MiB. The Rust tool explicitly resizes the output buffer to 2 MiB before applying patches.
 - Add a Cargo workspace containing the `patcher` library and the small `engine_check` CLI.
 - In `patcher`, support LoROM address conversion, contextual writes, overlap detection, IPS records including RLE records, and bounds checking when patches are applied.
 - In `engine_check`, accept input and output ROM paths, require the known 1 MiB unheadered vanilla ROM by SHA-256 digest, resize a copy, apply the IPS patches through `Patcher`, and write the result. Later milestones extend this tool with their test data and patches.
@@ -168,7 +168,7 @@ Hard-coded tile IDs such as `$0DBE`, `$0D9E`, and `$0DA0` in banks 02/04/07/1B c
 ### Implementation and validation
 
 - `engine_check` imports the 3,742 vanilla definitions and writes their four quadrants to banks `$A1-$A4` without changing IDs or words.
-- `expand_map16.asm` migrates every direct definition load, including full builds, scrolling stripes, dynamic tile changes, entrances, terrain actions, and liftable objects.
+- `overworld_map16_graphics.asm` migrates graphical definition loads, including full builds, scrolling stripes, dynamic tile changes, special triggers, and animated doors.
 - Runtime-selected quadrants use banked lookup routines; fixed-quadrant paths load their bank directly.
 - The split-definition unit test checks quadrant ordering and byte layout.
 - `engine_check` zeros the original table at `$8F8000-$8FF4EF`, so any remaining runtime dependency is visible during playtesting.
@@ -206,10 +206,9 @@ The four dense 16 KiB quadrant tables occupy `$A58000`, `$A5C000`, `$A68000`, an
 
 ### Implementation and validation
 
-- `independent_tile_type.asm` replaces `GetOverworldTileType` in place. After vanilla locates the Map16 ID, bit 3 of the Y coordinate and bit 0 of the X-divided-by-8 coordinate select one of the four property tables.
+- `overworld_map16_properties.asm` replaces `GetOverworldTileType` in place. After vanilla locates the Map16 ID, bit 3 of the Y coordinate and bit 0 of the X-divided-by-8 coordinate select one of the four property tables.
 - `ReadOverworldTileType` retains its vanilla WRAM-map lookup and tail-jumps to the same quadrant resolver. Its callers remain the guard and archer terrain probes and the hammer-splash check.
 - Terrain actions use the shared quadrant resolver. Hammer sound selection and liftable objects read top-left directly; liftable coordinates are already rounded to a 16x16 boundary.
-- The older graphics-derived implementations remain commented in `expand_map16.asm` for use when that patch is assembled without `independent_tile_type.asm`.
 - The split-property unit test covers quadrant ordering, table padding, character masking, and horizontal slope flips.
 - An audit found no remaining runtime reads of either legacy property table. After importing `OverworldTileTypes`, `engine_check` zeros it and the coarse `OverworldTileTypeTable`, making any missed dependency visible during playtesting.
 
@@ -229,7 +228,7 @@ The playable game configures BG3 as a 64x64 tilemap at `$6000`, but uses only it
 - `$6800` contains the pause menu, which is revealed by vertical scrolling.
 - No content upload targets the right-hand blocks at `$6400` or `$6C00`; only the blanket BG3 clear currently writes them.
 
-The milestone checkpoint set `BG3SC` from `$63` to `$62` and moved the pause-menu block from `$6800` to `$6400`. The milestone 6 implementation subsequently replaced `reduce_bg3.asm` with the final 32x32 version.
+The milestone checkpoint set `BG3SC` from `$63` to `$62` and moved the pause-menu block from `$6800` to `$6400`. The milestone 6 implementation subsequently replaced `bg3_tilemap.asm` with the final 32x32 version.
 
 ### Validation
 

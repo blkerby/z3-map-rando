@@ -32,11 +32,11 @@
 # ASM style guidelines
 
 - Name Asar free-space bounds `free_space_bank_<bank>_start` and
-  `free_space_bank_<bank>_end`, using `bank_any` for relocatable blocks. Number
-  multiple ranges as `start_1`/`end_1`, `start_2`/`end_2`, and so on. Prefer to
-  use fewer free-space blocks, using just one when possible. Prefer `bank_any`
-  free-space blocks over bank-specific ones; and prefer using bank `$A0` as the
-  bank in a `bank_any` block. For vanilla banks, prefer not to reuse the space
+  `free_space_bank_<bank>_end`, with an explicit lowercase hexadecimal bank
+  such as `free_space_bank_a0_start`. Number multiple ranges as
+  `start_1`/`end_1`, `start_2`/`end_2`, and so on. Prefer to use fewer
+  free-space blocks, using just one when possible. Prefer bank `$A0` for new
+  code. For vanilla banks, prefer not to reuse the space
   freed by obsoleted routines; instead, prefer doing JML to a non-vanilla bank
   (e.g. `$A0`). Short jumps/calls can be used if it helps speed up a hook in a
   performance-sensitive part of the code (such as the NMI handler).

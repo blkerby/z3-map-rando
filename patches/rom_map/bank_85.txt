@@ -1,2 +1,2 @@
-$85FAC2-$85FAC5 independent_tile_type.asm (ReadOverworldTileType quadrant lookup)
+$85FAC2-$85FAC5 overworld_map16_properties.asm (ReadOverworldTileType quadrant lookup)
 $85FAC6-$85FAC9 [FREE] (remainder of vanilla ReadOverworldTileType)

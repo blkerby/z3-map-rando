@@ -1,7 +1,8 @@
+; Select generated overworld backdrop colors for every area-loading path.
 lorom
 
-!free_space_bank_any_start = $A0A400
-!free_space_bank_any_end = $A0A620
+!free_space_bank_a0_start = $A0A400
+!free_space_bank_a0_end = $A0A620
 !ThemeBackgroundColors = $A09E00
 
 org $8CFF91
@@ -27,7 +28,7 @@ assert pc() == $8BFEB9
 org $8BFEC6
 return_SetOverworldFixedColorAndScrollBackdrop:
 
-org !free_space_bank_any_start
+org !free_space_bank_a0_start
 
 SetThemeOverworldBackgroundColor:
     ; Run hi-jacked instructions:
@@ -89,5 +90,5 @@ SetThemeOverworldFixedColorAndScrollBackdrop:
     STA.l $7EC340
     JML return_SetOverworldFixedColorAndScrollBackdrop
 
-assert pc() <= !free_space_bank_any_end
-assert !ThemeBackgroundColors+$0140 <= !free_space_bank_any_start
+assert pc() <= !free_space_bank_a0_end
+assert !ThemeBackgroundColors+$0140 <= !free_space_bank_a0_start

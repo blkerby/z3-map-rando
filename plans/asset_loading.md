@@ -137,16 +137,16 @@ by the overworld background loader.
 Banks `$A1-$A6` hold generated Map16 definitions and properties. Keep
 asset metadata and payloads in separate remaining bank ranges:
 
-- `$A78000-$A9FFFF`: pointer table, asset records, and descriptor lists.
+- `$A78000-$A9FFFF`: pointer table, area records, and descriptor lists.
 - `$AA8000-$B7FFFF`: shared palette and character payloads.
 
-Reserve `$A78000-$A782FF` for `OverworldAssetBundlePointers`, a table of 256
-little-endian 24-bit pointers. Each pointer selects a compact list of asset
+Reserve `$A78000-$A782FF` for `OverworldAreaRecordVariantPointers`, a table of
+256 little-endian 24-bit pointers. Each pointer selects a compact list of area
 record variants:
 
 ```text
 1 byte: inclusive maximum game state
-3 bytes: asset-record pointer, low byte, high byte, bank
+3 bytes: area-record pointer, low byte, high byte, bank
 ```
 
 The runtime selects the first entry whose maximum is at least `$7EF3C5`.
@@ -185,7 +185,7 @@ the initial OBJ seed uses `$FE`, and the cool credits background uses `$FF`.
 IDs which share data may point to the same list or record. Every reachable key
 must have a generated entry; unused keys point to one empty `$FF` variant.
 
-Asset records, batch sequences, transition schedules, DMA batches, and
+Area records, batch sequences, transition schedules, DMA batches, and
 animation definitions begin at `$A78300`. Keep each structure within one
 metadata bank. Store each generated graphics or palette payload once in banks
 `$AA-$B7` and let multiple batches reference it. Neither region may spill into
@@ -201,7 +201,7 @@ locations later become configurable.
 
 Both modules are forced blank before `Module08_00_LoadProperties` loads
 graphics and palettes. The first implementation indexes
-`OverworldAssetBundlePointers` by `$8A`, selects the full-reload list, and
+`OverworldAreaRecordVariantPointers` by `$8A`, selects the full-reload list, and
 processes four batches synchronously. The first batch contains all six owned
 palette rows; each batch contains eight 512-byte character rows, for at most
 4 KiB of graphics DMA per batch. Submilestone 9B.4 extends the sequence with

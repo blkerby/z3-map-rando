@@ -1,4 +1,4 @@
-; Overworld background streamer. BG2 is fully streamed in a 64x32 tilemap;
+; Stream overworld BG1/BG2 into 64x32 tilemaps. BG2 is fully streamed;
 ; BG1 uses the same renderer for bulk and gameplay edge loads. It applies to
 ; all areas, small and large. It differs from the vanilla
 ; streaming renderer (used by vanilla for BG2 in large areas) in that it draws new
@@ -26,24 +26,18 @@
 
 lorom
 
-!free_space_bank_any_start = $A08900
-!free_space_bank_any_end = $A09900
+incsrc "symbols.inc"
+
+!free_space_bank_a0_start = $A08900
+!free_space_bank_a0_end = $A09900
 !free_space_bank_82_start = $82F6FD
 !free_space_bank_82_end = $82F720
-
-!NMISkipOAM = $0702
-
-!Map16TopLeft = $A18000
-!Map16TopRight = $A28000
-!Map16BottomLeft = $A38000
-!Map16BottomRight = $A48000
 
 ; Temporary parameters for the shared BG1/BG2 renderer. This documented free
 ; WRAM is only scratch during a renderer call; no state persists between frames.
 !BGMap16SourceOffset = $7EC900
 !BGVRAMBase = $7EC902
 !BGLogicalMask = $7EC904
-!Module15LayerEnable = $7EC90A
 
 ; OverworldOverlay_HandleRain
 ;
@@ -749,7 +743,7 @@ assert pc() <= $9BCA9F
 ; Y is the byte offset into the $1100 list.
 ;---------------------------------------------------------------------------------------------------
 
-org !free_space_bank_any_start
+org !free_space_bank_a0_start
 
 SetOverworldSubscreenLayers:
     LDA.b $10
@@ -2272,4 +2266,4 @@ BG1BuildMirrorMargins:
     PLP
     RTS
 
-assert pc() <= !free_space_bank_any_end
+assert pc() <= !free_space_bank_a0_end

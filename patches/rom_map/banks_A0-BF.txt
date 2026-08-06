@@ -1,27 +1,28 @@
 Bank $A0
-$A08000-$A08027 expand_map16.asm (banked interleaved Map16 definition lookup)
-$A08028-$A0803F [FREE]
+$A08000-$A0803F [FREE]
 $A08040-$A08057 fastrom_extra.asm (FastROM startup and NMI entry)
 $A08058-$A0807F [FREE]
-$A08080-$A080FD mirror_bg1.asm (independent BG1 mirror-wave HDMA table)
+$A08080-$A080FD mirror_bg1_hdma.asm (independent BG1 mirror-wave HDMA table)
 $A080FE-$A0817F [FREE]
-$A08180-$A0830E reduce_bg3.asm (BG3 layout and row streaming)
+$A08180-$A0830E bg3_tilemap.asm (BG3 layout and row streaming)
 $A0830F-$A0837F [FREE]
 $A08380-$A08395 nmi_optimize.asm (conditional OAM upload)
-$A08396-$A0839F [FREE]
-$A083A0-$A086FE overworld_vram.asm (VRAM layout and generated asset loading)
-$A086FF-$A086FF [FREE]
-$A08700-$A08777 flat_map16.asm (flat Map16 loaders)
+$A08396-$A086FF [FREE]
+$A08700-$A08777 overworld_map_data.asm (flat Map16 loaders)
 $A08778-$A088FF [FREE]
-$A08900-$A0900A bg_streamer.asm (BG1/BG2 renderers and transition helpers)
+$A08900-$A0900A overworld_bg_tilemaps.asm (BG1/BG2 renderers and transition helpers)
 $A0900B-$A098FF [FREE]
-$A09900-$A09D29 overworld_vram.asm (generated asset schedules, transition hooks, and ROM-source NMI queue)
-$A09D2A-$A09DFF [FREE]
+$A09900-$A09DFF [FREE]
 $A09E00-$A09F3F theme_check generated overworld backdrop colors
-$A09F40-$A0A1A7 overworld_vram.asm (generated animation and area-local entrance runtime)
-$A0A1A8-$A0A3FF [FREE]
-$A0A400-$A0A463 theme_bg_color.asm (generated overworld backdrop selection)
-$A0A464-$A0FFFF [FREE]
+$A09F40-$A0A0C0 overworld_animations.asm (generated animation runtime)
+$A0A0C1-$A0A1A9 overworld_entrances.asm (area-local entrance runtime)
+$A0A1AA-$A0A3FF [FREE]
+$A0A400-$A0A463 overworld_bg_color.asm (generated overworld backdrop selection)
+$A0A464-$A0A61F [FREE]
+$A0A620-$A0AB8C overworld_assets.asm (generated overworld asset runtime)
+$A0AB8D-$A0ABFF [FREE]
+$A0AC00-$A0AE15 overworld_vram.asm (VRAM layout runtime)
+$A0AE16-$A0FFFF [FREE]
 
 Bank $A1
 $A18000-$A1FFFF top-left Map16 definition words

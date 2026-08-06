@@ -1,7 +1,7 @@
 ; Reduce the CPU work performed during NMI.
 ;
 ; The "arbitrary DMA" handler (NMI mode $18) is rewritten
-; with a more efficient inner loop. In bg_streamer.asm,
+; with a more efficient inner loop. In overworld_bg_tilemaps.asm,
 ; this mode is used during scrolling to draw newly revealed
 ; BG2 rows/columns; we also use it for bulk redraws during
 ; loading and mirror/portal transitions.
@@ -16,6 +16,8 @@
 ; than it does in vanilla.
 
 lorom
+
+incsrc "symbols.inc"
 
 ; PPU registers
 VMAIN       = $2115 ; VRAM increment mode and address remapping
@@ -43,10 +45,8 @@ DMA1ADDRB   = $4314 ; Source bank
 DMA1SIZEL   = $4315 ; Transfer size low byte
 DMA1SIZEH   = $4316 ; Transfer size high byte
 
-!NMISkipOAM = $0702
-
-!free_space_bank_any_start = $A08380
-!free_space_bank_any_end = $A083A0
+!free_space_bank_a0_start = $A08380
+!free_space_bank_a0_end = $A083A0
 
 ; NoIRQThread and SwitchThread both copy the same eight adjacent PPU queue
 ; bytes to adjacent PPU registers. Word writes preserve the byte order while
@@ -211,7 +211,7 @@ assert pc() <= $808C75
 org $808C75
 return_NMIAfterArbitraryDMA:
 
-org !free_space_bank_any_start
+org !free_space_bank_a0_start
 hook_NMIBeforeOAMUpload:
     LDA.w !NMISkipOAM
     REP #$20
@@ -226,4 +226,4 @@ hook_NMIBeforeOAMUpload:
 .upload_oam
     JML.l $808BAE               ; Resume at the displaced STZ $15.
 
-assert pc() <= !free_space_bank_any_end
+assert pc() <= !free_space_bank_a0_end

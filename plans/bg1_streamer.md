@@ -19,7 +19,7 @@ BG1 scroll coordinates it receives.
 
 ## BG1 coordinates
 
-[`LoadSubOverlayFlatMap16`](../patches/src/flat_map16.asm#L106) places one
+[`LoadSubOverlayFlatMap16`](../patches/src/overworld_map_data.asm#L106) places one
 32x32 Map16 map at `$7E4000`. Rows retain the existing 64-Map16-wide WRAM
 stride, so the populated upper-left quadrant represents a 64x64 grid of 8x8
 tiles.
