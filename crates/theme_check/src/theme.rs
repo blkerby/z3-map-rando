@@ -160,6 +160,66 @@ pub fn compile(
     let palettes = load_palettes(root)?;
     let mut dynamic_tiles: DynamicTiles = read_json(&root.join("DynamicTiles/replacements.json"))?;
     let (mut screens, background_colors) = load_screens(root)?;
+
+    let mut canonical_flips = BTreeMap::new();
+    for (&palette_id, palette) in &palettes {
+        for (tile_id, tile) in palette.tiles.iter().enumerate() {
+            let mut flips = [0, 1, 2, 3];
+            if !(0x10..0x1c).contains(&tile.collision) {
+                for flip in 1..4 {
+                    for candidate in 0..flip {
+                        let mut identical = true;
+                        for y in 0..8 {
+                            for x in 0..8 {
+                                let flip_x = if flip & 1 != 0 { 7 - x } else { x };
+                                let flip_y = if flip & 2 != 0 { 7 - y } else { y };
+                                let candidate_x = if candidate & 1 != 0 { 7 - x } else { x };
+                                let candidate_y = if candidate & 2 != 0 { 7 - y } else { y };
+                                if tile.pixels[flip_y][flip_x]
+                                    != tile.pixels[candidate_y][candidate_x]
+                                {
+                                    identical = false;
+                                    break;
+                                }
+                            }
+                            if !identical {
+                                break;
+                            }
+                        }
+                        if identical {
+                            flips[flip] = candidate as u8;
+                            break;
+                        }
+                    }
+                }
+            }
+            canonical_flips.insert((palette_id, tile_id), flips);
+        }
+    }
+    for screen in &mut screens {
+        for placement in &mut screen.placements {
+            placement.flip =
+                canonical_flips[&(placement.palette, placement.tile)][usize::from(placement.flip)];
+        }
+    }
+    for group in &mut dynamic_tiles.groups {
+        for variant in &mut group.variants {
+            for row in &mut variant.before.tiles {
+                for placement in row {
+                    placement.flip = canonical_flips[&(placement.palette, placement.tile)]
+                        [usize::from(placement.flip)];
+                }
+            }
+            for frame in &mut variant.after_frames {
+                for row in &mut frame.tiles {
+                    for placement in row {
+                        placement.flip = canonical_flips[&(placement.palette, placement.tile)]
+                            [usize::from(placement.flip)];
+                    }
+                }
+            }
+        }
+    }
     add_dynamic_dependencies(&mut screens, &mut dynamic_tiles);
     ensure!(area_assets.len() == 0xa0);
 
