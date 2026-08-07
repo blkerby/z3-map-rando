@@ -62,7 +62,7 @@ struct SourceScreen {
     flips: Vec<Vec<u8>>,
 }
 
-#[derive(Clone, Copy, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 struct Placement {
     palette: u8,
     tile: usize,
@@ -273,10 +273,6 @@ pub fn compile(
         }
     }
     let mut definition_ids = BTreeMap::new();
-    for (id, words) in definitions.iter().enumerate() {
-        let props = std::array::from_fn(|quadrant| properties[quadrant][id]);
-        definition_ids.insert((*words, props), u16::try_from(id).unwrap());
-    }
 
     let mut screen_maps = BTreeMap::new();
     for (screen, tiles) in screens.iter().zip(&screen_tiles) {
@@ -847,7 +843,7 @@ fn build_dynamic_tile_groups(
     character_slots: &CharacterSlots,
     definitions: &mut Vec<[u16; 4]>,
     properties: &mut [Vec<u8>; 4],
-    definition_ids: &mut BTreeMap<([u16; 4], [u8; 4]), u16>,
+    definition_ids: &mut BTreeMap<[Placement; 4], u16>,
 ) -> Result<Vec<Vec<DynamicTileEntry>>> {
     let mut result = Vec::with_capacity(DYNAMIC_TILE_GROUP_COUNT);
     for _ in 0..DYNAMIC_TILE_GROUP_COUNT {
@@ -937,7 +933,7 @@ fn build_tiling(
     character_slots: &CharacterSlots,
     definitions: &mut Vec<[u16; 4]>,
     properties: &mut [Vec<u8>; 4],
-    definition_ids: &mut BTreeMap<([u16; 4], [u8; 4]), u16>,
+    definition_ids: &mut BTreeMap<[Placement; 4], u16>,
 ) -> Result<Vec<u16>> {
     let mut result = Vec::new();
     for y in (0..tiling.tiles.len()).step_by(2) {
@@ -968,11 +964,11 @@ fn intern_map16(
     character_slots: &CharacterSlots,
     definitions: &mut Vec<[u16; 4]>,
     properties: &mut [Vec<u8>; 4],
-    definition_ids: &mut BTreeMap<([u16; 4], [u8; 4]), u16>,
+    definition_ids: &mut BTreeMap<[Placement; 4], u16>,
 ) -> Result<u16> {
     let mut words = [0; 4];
     let mut props = [0; 4];
-    for (quadrant, placement) in placements.into_iter().enumerate() {
+    for (quadrant, placement) in placements.iter().copied().enumerate() {
         let palette = &palettes[&placement.palette];
         let tile = &palette.tiles[placement.tile];
         words[quadrant] = u16::try_from(character_slots[&(placement.palette, placement.tile)])?
@@ -985,7 +981,7 @@ fn intern_map16(
             tile.collision
         };
     }
-    if let Some(&id) = definition_ids.get(&(words, props)) {
+    if let Some(&id) = definition_ids.get(&placements) {
         return Ok(id);
     }
 
@@ -998,7 +994,7 @@ fn intern_map16(
     for quadrant in 0..4 {
         properties[quadrant][usize::from(id)] = props[quadrant];
     }
-    definition_ids.insert((words, props), id);
+    definition_ids.insert(placements, id);
     Ok(id)
 }
 
@@ -1009,7 +1005,7 @@ fn build_map(
     character_slots: &CharacterSlots,
     definitions: &mut Vec<[u16; 4]>,
     properties: &mut [Vec<u8>; 4],
-    definition_ids: &mut BTreeMap<([u16; 4], [u8; 4]), u16>,
+    definition_ids: &mut BTreeMap<[Placement; 4], u16>,
 ) -> Result<Vec<u8>> {
     let mut map = Vec::with_capacity(0x800);
     for map_y in 0..32 {
