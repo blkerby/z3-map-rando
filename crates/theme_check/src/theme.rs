@@ -120,8 +120,8 @@ impl DynamicTileType {
         self as usize
     }
 
-    fn is_stage_one(self) -> bool {
-        self.get_index() <= Self::SmallBlackRock.get_index()
+    fn is_single_cell(self) -> bool {
+        self.get_index() <= Self::SecretPortal.get_index()
     }
 }
 
@@ -857,7 +857,7 @@ fn build_dynamic_tile_groups(
                     definition_ids,
                 )?);
             }
-            if group.kind.is_stage_one() {
+            if group.kind.is_single_cell() {
                 result[group.kind.get_index()].push(DynamicTileEntry {
                     source: before[0],
                     x_offset: 0,

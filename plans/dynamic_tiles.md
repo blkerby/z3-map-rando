@@ -138,9 +138,10 @@ for the current before tiling. This replaces hard-coded Map16 ID comparisons
 without adding table scans to unrelated terrain checks.
 
 A fixed directory at `$A78300` contains 21 little-endian 24-bit group pointers
-to table bodies in the generated-data region. Stage 1 populates its eight
-single-cell terrain groups and leaves later-stage pointers zero. A table entry
-identifies an interactable source cell and the variant containing it:
+to table bodies in the generated-data region. Eight single-cell terrain groups
+and two single-cell secret groups are populated; later-stage pointers remain
+zero. A table entry identifies an interactable source cell and the variant
+containing it:
 
 ```text
 group:
@@ -218,11 +219,9 @@ entries.
   rocks.
 
 This stage establishes the final table ABI, including arbitrary footprint and
-frame counts, but initially exercises it only with ordinary single-cell
-replacements. Vanilla secret results continue to override ordinary replacements
-until theme-specific results are added in stage 2.
+frame counts, but exercises it only with ordinary single-cell replacements.
 
-### 2. Single-cell secrets
+### 2. Single-cell secrets (implemented)
 
 - Select secret replacement groups after `RevealOverworldSecret` succeeds.
 - Add hole variants concealed by bushes.

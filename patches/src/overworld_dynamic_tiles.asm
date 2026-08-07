@@ -39,6 +39,9 @@ incsrc "symbols.inc"
 !DynamicLiftSign = 5
 !DynamicSmallGrayRock = 6
 !DynamicSmallBlackRock = 7
+!DynamicSecretHole = 11
+!DynamicSecretPortal = 12
+!SecretObjectTypes = $9BC89C
 
 !DynamicOriginalOffset = $7ECC50
 !DynamicOrigin = $7ECC52
@@ -92,6 +95,13 @@ org $9BC172
 hook_resolve_bomb_tile:
     JML DispatchDynamicBombTile
 assert pc() == $9BC176
+
+; RevealOverworldSecret has selected a tile-reveal type. Replace its vanilla
+; Map16 result with a generated single-cell secret when one matches.
+org $9BC92D
+hook_resolve_revealed_secret:
+    JSL ResolveDynamicSecret
+assert pc() == $9BC931
 
 org !free_space_bank_a0_start
 
@@ -323,6 +333,33 @@ DispatchDynamicBombTile:
     PLY
     STX.b $04
     JML $9BC1D6
+
+ResolveDynamicSecret:
+    LDA.l !SecretObjectTypes,X  ; Run hi-jacked instruction
+    CMP.w #$0DC6
+    BEQ .hole
+    CMP.w #$0212
+    BEQ .portal
+    RTL
+
+.hole
+    LDY.w #!DynamicSecretHole
+    BRA .resolve
+
+.portal
+    LDY.w #!DynamicSecretPortal
+
+.resolve
+    STA.b $0E
+    LDX.b $04
+    TYA
+    JSR ResolveDynamicTile
+    STX.b $04
+    BCS .done
+    LDA.b $0E
+
+.done
+    RTL
 
 ResolveDynamicTile:
     PHA
