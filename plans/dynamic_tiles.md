@@ -103,3 +103,149 @@ leaving its area and coming back. Changes that survive area reloads instead
 use saved screen-state bits and overworld overlays. The especially temporary
 cut-grass and dirt-patch replacements `$0DBF` and `$0DC3` are not added to the
 WRAM list at all.
+
+## Generated replacements
+
+`ALTTPRetiling/DynamicTiles/replacements.json` describes graphical variants for
+the terrain interactions, doors, graves, and secrets above. It excludes the
+scripted and persistent changes. Each variant contains a `before` tiling and
+one or more `after_frames`, expressed using ALTTPRetiling palette, tile, and
+flip values.
+
+Rust will compile these tilings into the same global Map16 definition tables as
+the ordinary area maps. The compilation order is:
+
+1. Load the area maps and dynamic replacements.
+2. Find occurrences of each `before` tiling in the source area maps.
+3. Add the palettes and graphics used by its `after_frames` to those areas'
+   asset requirements. These dependencies participate in the existing neighbor
+   conflict calculations.
+4. Allocate palette and graphics slots.
+5. Intern the `before` and `after_frames` Map16 definitions together with the
+   ordinary map definitions.
+6. Emit runtime lookup tables containing the resulting Map16 IDs.
+
+Adding the dependencies before allocation ensures that replacement graphics
+and palettes are loaded even when they do not otherwise appear in an area's
+initial map. Variants whose before tiling does not occur in the theme are not
+allocated or emitted.
+
+### Runtime lookup
+
+The ASM will retain property-based interaction dispatch. Once a property has
+identified an interaction, it will search only that interaction's small table
+for the current before tiling. This replaces hard-coded Map16 ID comparisons
+without adding table scans to unrelated terrain checks.
+
+A fixed directory at `$A78300` contains 21 little-endian 24-bit group pointers
+to table bodies in the generated-data region. Stage 1 populates its eight
+single-cell terrain groups and leaves later-stage pointers zero. A table entry
+identifies an interactable source cell and the variant containing it:
+
+```text
+group:
+    +$00  1 byte   entry count
+    +$01           entries
+
+entry:
+    +$00  2 bytes  contacted before Map16 ID
+    +$02  1 byte   signed X displacement from the contacted cell to the origin
+    +$03  1 byte   signed Y displacement from the contacted cell to the origin
+    +$04  3 bytes  variant descriptor pointer
+
+variant descriptor:
+    +$00  1 byte   width in Map16 cells
+    +$01  1 byte   height in Map16 cells
+    +$02  1 byte   frame count
+    +$03           before Map16 IDs, row-major
+    +...           after-frame Map16 IDs, row-major
+```
+
+After finding an entry, the resolver verifies the complete before footprint.
+This distinguishes variants and handles repeated Map16 definitions within a
+larger object. The same descriptor supports single-cell replacements, larger
+footprints, and the existing multi-frame door animations.
+
+### Interaction anchors
+
+Rust will emit entries only for cells through which the corresponding action
+can occur, rather than every cell in the graphical footprint. For
+property-routed interactions, a cell is an anchor when one of its quadrants has
+the group's distinctive property:
+
+| Group | Property |
+| --- | --- |
+| `cut_grass` | `$40` |
+| `dig_terrain` | `$48` |
+| `green_bush` | `$50` |
+| `heavy_bush` | `$51` |
+| `hammer_peg` | `$27` |
+| `small_gray_rock` | `$52` |
+| `small_black_rock` | `$53` |
+| `lift_sign` | `$54` |
+| `large_gray_rock` | `$55` |
+| `large_black_rock` | `$56` |
+| `rock_pile` | `$57` |
+
+The property dispatch has already selected the contacted quadrant, so the
+runtime entry does not need a quadrant mask. Limiting entries to reachable
+anchors reduces ambiguity and supports future variants containing decorative,
+non-interactable cells.
+
+Secret replacements use the property of the object concealing them. The
+current data uses `$50` for holes, `$48`/`$52`/`$53` for portals, and
+`$55`/`$57` for stairs. The same contacted cell can therefore select either
+the ordinary replacement or the secret replacement after
+`RevealOverworldSecret` determines whether a secret is present.
+
+Bombable entrances are an exception because their before tilings use ordinary
+properties. The existing secret-coordinate lookup will filter these before the
+replacement table is searched. Doors and graves also enter through
+event-specific paths; where those paths already know the structure's origin,
+they can match a descriptor at that origin without displaced interaction
+entries.
+
+## Implementation stages
+
+### 1. Single-cell terrain interactions (implemented)
+
+- Load all dynamic replacement data.
+- Add dynamic palette and graphics dependencies to the allocators.
+- Intern the Map16 definitions for dynamic variants used by the theme.
+- Emit the group directory, lookup entries, and descriptors.
+- Add the shared ASM resolver.
+- Replace the hard-coded IDs for grass, digging, bushes, pegs, signs, and small
+  rocks.
+
+This stage establishes the final table ABI, including arbitrary footprint and
+frame counts, but initially exercises it only with ordinary single-cell
+replacements. Vanilla secret results continue to override ordinary replacements
+until theme-specific results are added in stage 2.
+
+### 2. Single-cell secrets
+
+- Select secret replacement groups after `RevealOverworldSecret` succeeds.
+- Add hole variants concealed by bushes.
+- Add portal variants concealed by diggable terrain and small rocks.
+
+This isolates the secret override behavior while continuing to use single-cell
+footprints.
+
+### 3. Larger interactions and secrets
+
+- Match complete footprints and recover their origins from interaction anchors.
+- Handle large gray rocks, large black rocks, and dash-smash rock piles.
+- Handle secret stairs and bombable entrances.
+- Replace the fixed `RockSmashReplaceOffset` and replacement layouts with the
+  generated descriptors.
+
+### 4. Doors and graves
+
+- Handle ordinary wooden doors.
+- Supply the existing Sanctuary and Hyrule Castle door timing with generated
+  frames.
+- Handle grave corpse, stairs, and pit replacements.
+
+These use event-specific entry points rather than the ordinary terrain-property
+dispatch. Existing event state and animation timing remain responsible for
+when their generated frames are drawn.

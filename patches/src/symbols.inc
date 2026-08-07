@@ -7,6 +7,22 @@
 !Map16BottomLeft = $A38000
 !Map16BottomRight = $A48000
 
+; One property byte per Map16 ID and quadrant. The independent-property patch
+; populates these tables from the generated Map16 definitions.
+!Map16PropertyTopLeft = $A58000
+!Map16PropertyTopRight = $A5C000
+!Map16PropertyBottomLeft = $A68000
+!Map16PropertyBottomRight = $A6C000
+
+; Selects the property for the Map16 ID in A using the contacted quadrant from
+; $00/$02. Returns the property in A with 8-bit accumulator and index registers.
+; Defined in overworld_map16_properties.asm.
+!GetOverworldTileTypeIndependent = $80884E
+
+; Twenty-one little-endian 24-bit pointers to generated dynamic-tile groups,
+; indexed by the stable replacement-type order in theme_check.
+!DynamicTileGroupPointers = $A78300
+
 ; A nonzero value asks NMI to omit its next OAM upload. NMI clears the request
 ; after consuming it, so producers do not need to clear it themselves.
 !NMISkipOAM = $0702

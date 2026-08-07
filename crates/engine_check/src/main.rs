@@ -119,6 +119,7 @@ fn main() -> Result<()> {
         &credits_overworld,
         &credits_cool_background,
         &sprite_seed,
+        &[],
         args.transition_asset_phase,
         asset_bundle::AssetLayout::default(),
     )?;

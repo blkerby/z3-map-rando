@@ -5,7 +5,9 @@ use std::collections::BTreeMap;
 const BANK_SIZE: usize = 0x8000;
 const POINTER_TABLE_START: u32 = 0xa78000;
 const DATA_START: u32 = 0xaa8000;
-const POINTER_TABLE_SIZE: usize = 256 * 3;
+const AREA_POINTER_TABLE_SIZE: usize = 256 * 3;
+pub const DYNAMIC_TILE_GROUP_COUNT: usize = 21;
+const POINTER_TABLE_SIZE: usize = AREA_POINTER_TABLE_SIZE + DYNAMIC_TILE_GROUP_COUNT * 3;
 pub const CREDITS_COOL_BACKGROUND_KEY: usize = 0xff;
 pub const CREDITS_FIRST_KEY: usize = 0xa0;
 pub const SPRITE_SEED_KEY: usize = 0xfe;
@@ -22,6 +24,16 @@ pub struct AssetBundle {
     pub pointer_table: Vec<u8>,
     pub data: Vec<u8>,
     pub unique_blocks: usize,
+}
+
+pub struct DynamicTileEntry {
+    pub source: u16,
+    pub x_offset: i8,
+    pub y_offset: i8,
+    pub width: u8,
+    pub height: u8,
+    pub before: Vec<u16>,
+    pub after_frames: Vec<Vec<u16>>,
 }
 
 #[derive(Clone, Copy)]
@@ -93,6 +105,7 @@ pub fn build(
     credits_overworld: &[(u8, OverworldAreaAssets)],
     credits_cool_background: &OverworldAreaAssets,
     sprite_seed: &OverworldSpriteVariant,
+    dynamic_tile_groups: &[Vec<DynamicTileEntry>],
     transition_phase: TransitionAssetPhase,
     layout: AssetLayout,
 ) -> Result<AssetBundle> {
@@ -139,6 +152,35 @@ pub fn build(
     for (key, variants) in keys.into_iter().enumerate() {
         let offset = key * 3;
         pointer_table[offset..offset + 3].copy_from_slice(&little_endian_pointer(variants));
+    }
+    for (group_index, group) in dynamic_tile_groups.iter().enumerate() {
+        if group.is_empty() {
+            continue;
+        }
+        let mut bytes = Vec::with_capacity(1 + group.len() * 7);
+        bytes.push(u8::try_from(group.len())?);
+        for entry in group {
+            let mut descriptor = Vec::new();
+            descriptor.push(entry.width);
+            descriptor.push(entry.height);
+            descriptor.push(u8::try_from(entry.after_frames.len())?);
+            for &id in &entry.before {
+                descriptor.extend_from_slice(&id.to_le_bytes());
+            }
+            for frame in &entry.after_frames {
+                for &id in frame {
+                    descriptor.extend_from_slice(&id.to_le_bytes());
+                }
+            }
+
+            bytes.extend_from_slice(&entry.source.to_le_bytes());
+            bytes.push(entry.x_offset.to_le_bytes()[0]);
+            bytes.push(entry.y_offset.to_le_bytes()[0]);
+            bytes.extend_from_slice(&little_endian_pointer(data.intern(&descriptor)?));
+        }
+        let offset = AREA_POINTER_TABLE_SIZE + group_index * 3;
+        pointer_table[offset..offset + 3]
+            .copy_from_slice(&little_endian_pointer(data.intern(&bytes)?));
     }
 
     Ok(AssetBundle {

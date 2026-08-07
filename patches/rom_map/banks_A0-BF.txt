@@ -22,7 +22,9 @@ $A0A464-$A0A61F [FREE]
 $A0A620-$A0AB8C overworld_assets.asm (generated overworld asset runtime)
 $A0AB8D-$A0ABFF [FREE]
 $A0AC00-$A0AE15 overworld_vram.asm (VRAM layout runtime)
-$A0AE16-$A0FFFF [FREE]
+$A0AE16-$A0AEFF [FREE]
+$A0AF00-$A0B1FC overworld_dynamic_tiles.asm (generated terrain-replacement runtime)
+$A0B1FD-$A0FFFF [FREE]
 
 Bank $A1
 $A18000-$A1FFFF top-left Map16 definition words
@@ -46,7 +48,8 @@ $A6C000-$A6FFFF bottom-right Map16 property bytes
 
 Banks $A7-$A9
 $A78000-$A782FF generated overworld asset pointer table
-$A78300-$A9FFFF generated overworld asset metadata
+$A78300-$A7833E generated dynamic-tile group pointer directory
+$A7833F-$A9FFFF generated overworld asset metadata
 
 Banks $AA-$B7
 $AA8000-$B7FFFF generated overworld palette and character payloads

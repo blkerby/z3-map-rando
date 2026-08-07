@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, ensure};
+use engine_check::asset_bundle::{DYNAMIC_TILE_GROUP_COUNT, DynamicTileEntry};
 use patcher::import::{OverworldAnimationTrack, OverworldAreaAssets, Tile8, Tile16};
 use serde::Deserialize;
 use std::{
@@ -61,7 +62,7 @@ struct SourceScreen {
     flips: Vec<Vec<u8>>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Deserialize, PartialEq, Eq)]
 struct Placement {
     palette: u8,
     tile: usize,
@@ -73,6 +74,68 @@ struct ThemeScreen {
     asset_group: usize,
     placements: Vec<Placement>,
     palettes: BTreeSet<u8>,
+    extra_tiles: BTreeSet<TileKey>,
+}
+
+#[derive(Deserialize)]
+struct DynamicTiles {
+    groups: Vec<DynamicTileGroup>,
+}
+
+#[derive(Deserialize)]
+struct DynamicTileGroup {
+    #[serde(rename = "type")]
+    kind: DynamicTileType,
+    variants: Vec<DynamicTileVariant>,
+}
+
+#[derive(Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum DynamicTileType {
+    CutGrass,
+    DigTerrain,
+    GreenBush,
+    HeavyBush,
+    HammerPeg,
+    LiftSign,
+    SmallGrayRock,
+    SmallBlackRock,
+    LargeGrayRock,
+    LargeBlackRock,
+    RockPile,
+    SecretHole,
+    SecretPortal,
+    SecretBombableEntrance,
+    SecretStairs,
+    WoodenDoor,
+    SanctuaryDoor,
+    HyruleCastleDoor,
+    GraveCorpse,
+    GraveStairs,
+    GravePit,
+}
+
+impl DynamicTileType {
+    fn get_index(self) -> usize {
+        self as usize
+    }
+
+    fn is_stage_one(self) -> bool {
+        self.get_index() <= Self::SmallBlackRock.get_index()
+    }
+}
+
+#[derive(Deserialize)]
+struct DynamicTileVariant {
+    before: DynamicTiling,
+    after_frames: Vec<DynamicTiling>,
+    #[serde(skip)]
+    used: bool,
+}
+
+#[derive(Deserialize)]
+struct DynamicTiling {
+    tiles: Vec<Vec<Placement>>,
 }
 
 pub struct CompiledTheme {
@@ -81,6 +144,7 @@ pub struct CompiledTheme {
     pub map16_properties: [Vec<u8>; 4],
     pub background_colors: [u16; 0xa0],
     pub area_assets: Vec<OverworldAreaAssets>,
+    pub dynamic_tile_groups: Vec<Vec<DynamicTileEntry>>,
     pub screen_count: usize,
     pub palette_count: usize,
     pub character_count: usize,
@@ -94,7 +158,9 @@ pub fn compile(
     mut area_assets: Vec<OverworldAreaAssets>,
 ) -> Result<CompiledTheme> {
     let palettes = load_palettes(root)?;
-    let (screens, background_colors) = load_screens(root)?;
+    let mut dynamic_tiles: DynamicTiles = read_json(&root.join("DynamicTiles/replacements.json"))?;
+    let (mut screens, background_colors) = load_screens(root)?;
+    add_dynamic_dependencies(&mut screens, &mut dynamic_tiles);
     ensure!(area_assets.len() == 0xa0);
 
     let palette_slots = allocate_palettes(&screens, &palettes)?;
@@ -171,6 +237,16 @@ pub fn compile(
         };
     }
 
+    let dynamic_tile_groups = build_dynamic_tile_groups(
+        &dynamic_tiles,
+        &palettes,
+        &palette_slots,
+        &character_slots,
+        &mut definitions,
+        &mut properties,
+        &mut definition_ids,
+    )?;
+
     ensure!(definitions.len() <= MAP16_CAPACITY);
 
     let mut map16_definitions = std::array::from_fn(|_| Vec::new());
@@ -189,6 +265,7 @@ pub fn compile(
         map16_properties: properties,
         background_colors,
         area_assets,
+        dynamic_tile_groups,
     })
 }
 
@@ -273,6 +350,7 @@ fn load_screens(root: &Path) -> Result<(Vec<ThemeScreen>, [u16; 0xa0])> {
                     asset_group: area.vanilla_map_id,
                     placements,
                     palettes: BTreeSet::new(),
+                    extra_tiles: BTreeSet::new(),
                 });
             }
         }
@@ -282,6 +360,60 @@ fn load_screens(root: &Path) -> Result<(Vec<ThemeScreen>, [u16; 0xa0])> {
     }
     result.sort_by_key(|screen| screen.id);
     Ok((result, background_colors))
+}
+
+fn add_dynamic_dependencies(screens: &mut [ThemeScreen], dynamic_tiles: &mut DynamicTiles) {
+    let mut area_palettes = BTreeMap::<usize, BTreeSet<u8>>::new();
+    let mut area_tiles = BTreeMap::<usize, BTreeSet<TileKey>>::new();
+    for group in &mut dynamic_tiles.groups {
+        for variant in &mut group.variants {
+            let height = variant.before.tiles.len();
+            let width = variant.before.tiles[0].len();
+            let mut areas = BTreeSet::new();
+            for screen in screens.iter() {
+                for start_y in 0..=64 - height {
+                    'position: for start_x in 0..=64 - width {
+                        for y in 0..height {
+                            for x in 0..width {
+                                if screen.placements[(start_y + y) * 64 + start_x + x]
+                                    != variant.before.tiles[y][x]
+                                {
+                                    continue 'position;
+                                }
+                            }
+                        }
+                        areas.insert(screen.asset_group);
+                    }
+                }
+            }
+            for frame in &variant.after_frames {
+                for row in &frame.tiles {
+                    for placement in row {
+                        for &area in &areas {
+                            area_palettes
+                                .entry(area)
+                                .or_default()
+                                .insert(placement.palette);
+                            area_tiles
+                                .entry(area)
+                                .or_default()
+                                .insert((placement.palette, placement.tile));
+                        }
+                    }
+                }
+            }
+            variant.used = !areas.is_empty();
+        }
+    }
+
+    for screen in screens {
+        if let Some(palettes) = area_palettes.get(&screen.asset_group) {
+            screen.palettes.extend(palettes);
+        }
+        if let Some(tiles) = area_tiles.get(&screen.asset_group) {
+            screen.extra_tiles.extend(tiles);
+        }
+    }
 }
 
 fn allocate_palettes(
@@ -389,6 +521,12 @@ fn allocate_characters(
         for placement in &screen.placements {
             tile_areas
                 .entry((placement.palette, placement.tile))
+                .or_default()
+                .insert(screen.asset_group);
+        }
+        for &tile in &screen.extra_tiles {
+            tile_areas
+                .entry(tile)
                 .or_default()
                 .insert(screen.asset_group);
         }
@@ -620,6 +758,133 @@ fn build_animation_tracks(
     tracks
 }
 
+fn build_dynamic_tile_groups(
+    dynamic_tiles: &DynamicTiles,
+    palettes: &BTreeMap<u8, Palette>,
+    palette_slots: &BTreeMap<u8, usize>,
+    character_slots: &CharacterSlots,
+    definitions: &mut Vec<[u16; 4]>,
+    properties: &mut [Vec<u8>; 4],
+    definition_ids: &mut BTreeMap<([u16; 4], [u8; 4]), u16>,
+) -> Result<Vec<Vec<DynamicTileEntry>>> {
+    let mut result = Vec::with_capacity(DYNAMIC_TILE_GROUP_COUNT);
+    for _ in 0..DYNAMIC_TILE_GROUP_COUNT {
+        result.push(Vec::new());
+    }
+    for group in &dynamic_tiles.groups {
+        for variant in &group.variants {
+            if !variant.used {
+                continue;
+            }
+            let before = build_tiling(
+                &variant.before,
+                palettes,
+                palette_slots,
+                character_slots,
+                definitions,
+                properties,
+                definition_ids,
+            )?;
+            let mut after_frames = Vec::with_capacity(variant.after_frames.len());
+            for frame in &variant.after_frames {
+                after_frames.push(build_tiling(
+                    frame,
+                    palettes,
+                    palette_slots,
+                    character_slots,
+                    definitions,
+                    properties,
+                    definition_ids,
+                )?);
+            }
+            if group.kind.is_stage_one() {
+                result[group.kind.get_index()].push(DynamicTileEntry {
+                    source: before[0],
+                    x_offset: 0,
+                    y_offset: 0,
+                    width: u8::try_from(variant.before.tiles[0].len() / 2)?,
+                    height: u8::try_from(variant.before.tiles.len() / 2)?,
+                    before,
+                    after_frames,
+                });
+            }
+        }
+    }
+    Ok(result)
+}
+
+fn build_tiling(
+    tiling: &DynamicTiling,
+    palettes: &BTreeMap<u8, Palette>,
+    palette_slots: &BTreeMap<u8, usize>,
+    character_slots: &CharacterSlots,
+    definitions: &mut Vec<[u16; 4]>,
+    properties: &mut [Vec<u8>; 4],
+    definition_ids: &mut BTreeMap<([u16; 4], [u8; 4]), u16>,
+) -> Result<Vec<u16>> {
+    let mut result = Vec::new();
+    for y in (0..tiling.tiles.len()).step_by(2) {
+        for x in (0..tiling.tiles[0].len()).step_by(2) {
+            result.push(intern_map16(
+                [
+                    tiling.tiles[y][x],
+                    tiling.tiles[y][x + 1],
+                    tiling.tiles[y + 1][x],
+                    tiling.tiles[y + 1][x + 1],
+                ],
+                palettes,
+                palette_slots,
+                character_slots,
+                definitions,
+                properties,
+                definition_ids,
+            )?);
+        }
+    }
+    Ok(result)
+}
+
+fn intern_map16(
+    placements: [Placement; 4],
+    palettes: &BTreeMap<u8, Palette>,
+    palette_slots: &BTreeMap<u8, usize>,
+    character_slots: &CharacterSlots,
+    definitions: &mut Vec<[u16; 4]>,
+    properties: &mut [Vec<u8>; 4],
+    definition_ids: &mut BTreeMap<([u16; 4], [u8; 4]), u16>,
+) -> Result<u16> {
+    let mut words = [0; 4];
+    let mut props = [0; 4];
+    for (quadrant, placement) in placements.into_iter().enumerate() {
+        let palette = &palettes[&placement.palette];
+        let tile = &palette.tiles[placement.tile];
+        words[quadrant] = u16::try_from(character_slots[&(placement.palette, placement.tile)])?
+            | u16::try_from(2 + palette_slots[&placement.palette] / 2)? << 10
+            | if tile.priority { 1 << 13 } else { 0 }
+            | u16::from(placement.flip) << 14;
+        props[quadrant] = if (0x10..0x1c).contains(&tile.collision) {
+            tile.collision ^ placement.flip
+        } else {
+            tile.collision
+        };
+    }
+    if let Some(&id) = definition_ids.get(&(words, props)) {
+        return Ok(id);
+    }
+
+    ensure!(
+        definitions.len() < MAP16_CAPACITY,
+        "Desert Map16 definitions exceed {MAP16_CAPACITY}"
+    );
+    let id = u16::try_from(definitions.len())?;
+    definitions.push(words);
+    for quadrant in 0..4 {
+        properties[quadrant][usize::from(id)] = props[quadrant];
+    }
+    definition_ids.insert((words, props), id);
+    Ok(id)
+}
+
 fn build_map(
     screen: &ThemeScreen,
     palettes: &BTreeMap<u8, Palette>,
@@ -632,46 +897,22 @@ fn build_map(
     let mut map = Vec::with_capacity(0x800);
     for map_y in 0..32 {
         for map_x in 0..32 {
-            let mut words = [0; 4];
-            let mut props = [0; 4];
-            for (quadrant, (x, y)) in [
-                (map_x * 2, map_y * 2),
-                (map_x * 2 + 1, map_y * 2),
-                (map_x * 2, map_y * 2 + 1),
-                (map_x * 2 + 1, map_y * 2 + 1),
-            ]
-            .into_iter()
-            .enumerate()
-            {
-                let placement = screen.placements[y * 64 + x];
-                let palette = &palettes[&placement.palette];
-                let tile = &palette.tiles[placement.tile];
-                words[quadrant] =
-                    u16::try_from(character_slots[&(placement.palette, placement.tile)])?
-                        | u16::try_from(2 + palette_slots[&placement.palette] / 2)? << 10
-                        | if tile.priority { 1 << 13 } else { 0 }
-                        | u16::from(placement.flip) << 14;
-                props[quadrant] = if (0x10..0x1c).contains(&tile.collision) {
-                    tile.collision ^ placement.flip
-                } else {
-                    tile.collision
-                };
-            }
-            let id = if let Some(&id) = definition_ids.get(&(words, props)) {
-                id
-            } else {
-                ensure!(
-                    definitions.len() < MAP16_CAPACITY,
-                    "Desert Map16 definitions exceed {MAP16_CAPACITY}"
-                );
-                let id = u16::try_from(definitions.len())?;
-                definitions.push(words);
-                for quadrant in 0..4 {
-                    properties[quadrant][usize::from(id)] = props[quadrant];
-                }
-                definition_ids.insert((words, props), id);
-                id
-            };
+            let x = map_x * 2;
+            let y = map_y * 2;
+            let id = intern_map16(
+                [
+                    screen.placements[y * 64 + x],
+                    screen.placements[y * 64 + x + 1],
+                    screen.placements[(y + 1) * 64 + x],
+                    screen.placements[(y + 1) * 64 + x + 1],
+                ],
+                palettes,
+                palette_slots,
+                character_slots,
+                definitions,
+                properties,
+                definition_ids,
+            )?;
             map.extend_from_slice(&id.to_le_bytes());
         }
     }

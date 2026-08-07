@@ -70,6 +70,7 @@ fn main() -> Result<()> {
         &credits_overworld,
         &credits_cool_background,
         &sprite_seed,
+        &compiled.dynamic_tile_groups,
         args.transition_asset_phase,
         AssetLayout {
             data_start: THEME_ASSET_DATA_START,
@@ -145,6 +146,7 @@ fn main() -> Result<()> {
         "overworld_animations.ips",
         "overworld_entrances.ips",
         "overworld_bg_color.ips",
+        "overworld_dynamic_tiles.ips",
     ] {
         patcher.use_ips(&patch_dir.join(patch))?;
     }

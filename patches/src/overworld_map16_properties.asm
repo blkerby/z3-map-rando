@@ -4,10 +4,7 @@
 
 lorom
 
-!Map16PropertyTopLeft = $A58000
-!Map16PropertyTopRight = $A5C000
-!Map16PropertyBottomLeft = $A68000
-!Map16PropertyBottomRight = $A6C000
+incsrc "symbols.inc"
 
 ; Vanilla has already loaded the Map16 ID into A.
 ;
