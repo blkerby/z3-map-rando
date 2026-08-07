@@ -39,8 +39,13 @@ incsrc "symbols.inc"
 !DynamicLiftSign = 5
 !DynamicSmallGrayRock = 6
 !DynamicSmallBlackRock = 7
+!DynamicLargeGrayRock = 8
+!DynamicLargeBlackRock = 9
+!DynamicRockPile = 10
 !DynamicSecretHole = 11
 !DynamicSecretPortal = 12
+!DynamicSecretBombableEntrance = 13
+!DynamicSecretStairs = 14
 !SecretObjectTypes = $9BC89C
 
 !DynamicOriginalOffset = $7ECC50
@@ -51,6 +56,9 @@ incsrc "symbols.inc"
 !DynamicColumnCount = $7ECC5A
 !DynamicRowOffset = $7ECC5C
 !DynamicResult = $7ECC5E
+!DynamicInteractionOffset = $7ECC60
+!DynamicDescriptorOffset = $7ECC62
+!DynamicResolved = $7ECC64
 
 ; HandleItemTileAction_Overworld has calculated the contacted Map16 offset in
 ; X. Replace its graphics-ID classifier with property routing and group lookup.
@@ -83,11 +91,25 @@ org $9BBEBA
 return_reveal_dynamic_tile_secret:
 
 ; HandleOverworldLiftables has saved the rounded coordinates and loaded no
-; tile yet. Route only the stage-one liftable properties through generated data.
+; tile yet. Route liftable properties through generated data.
 org $9BBFA8
 hook_resolve_liftable:
     JML DispatchDynamicLiftable
 assert pc() == $9BBFAC
+
+; SmashRockPileFromHere has located the contacted Map16 cell. Replace its
+; fixed rock-pile IDs and constituent offsets with a generated footprint.
+org $9BC081
+hook_resolve_rock_pile:
+    JML DispatchDynamicRockPile
+assert pc() == $9BC085
+
+; The large-interaction path has finished secret handling. Draw the generated
+; ordinary footprint or resolve the generated stairs footprint.
+org $9BC0DD
+hook_draw_large_interaction:
+    JML FinishDynamicLargeInteraction
+assert pc() == $9BC0E1
 
 ; BombOverworldTiles has filtered the follower case and retained the contacted
 ; offset in $04. Replace the grass and bush graphics-ID comparisons.
@@ -95,6 +117,13 @@ org $9BC172
 hook_resolve_bomb_tile:
     JML DispatchDynamicBombTile
 assert pc() == $9BC176
+
+; BombOverworldTiles has confirmed a bombable-entrance secret. Replace its
+; fixed two-cell drawing with the generated footprint.
+org $9BC1E4
+hook_draw_bombable_entrance:
+    JML DrawDynamicBombableEntrance
+assert pc() == $9BC1E8
 
 ; RevealOverworldSecret has selected a tile-reveal type. Replace its vanilla
 ; Map16 result with a generated single-cell secret when one matches.
@@ -199,6 +228,8 @@ DispatchDynamicItemTileAction:
     JML $9BBDEC
 
 DispatchDynamicLiftable:
+    LDA.w #$0000
+    STA.l !DynamicResolved
     LDA.l $7E2000,X
     PHX
     TAX
@@ -218,6 +249,10 @@ DispatchDynamicLiftable:
     BEQ .black_rock
     CMP.w #$0054
     BEQ .sign
+    CMP.w #$0055
+    BEQ .large_gray_rock
+    CMP.w #$0056
+    BEQ .large_black_rock
 
     LDA.l $7E2000,X
     JML $9BBFAC
@@ -252,6 +287,31 @@ DispatchDynamicLiftable:
 .miss
     LDA.l $7E2000,X
     JML $9BC027
+
+.large_gray_rock
+    LDA.w #!DynamicLargeGrayRock
+    BRA .resolve_large
+
+.large_black_rock
+    LDA.w #!DynamicLargeBlackRock
+
+.resolve_large
+    TAY
+    LDA.l $7E2000,X
+    PHA
+    TYA
+    JSR ResolveDynamicTile
+    BCC .large_miss
+    LDA.l !DynamicOriginalOffset
+    STA.l !DynamicInteractionOffset
+    LDA.w #$0001
+    STA.l !DynamicResolved
+    STX.w $0698
+    JML $9BC0B0
+
+.large_miss
+    PLA
+    JML $9BBFAC
 
 DispatchDynamicBombTile:
     PHX
@@ -334,6 +394,69 @@ DispatchDynamicBombTile:
     STX.b $04
     JML $9BC1D6
 
+DispatchDynamicRockPile:
+    LDA.w #$0000
+    STA.l !DynamicResolved
+    LDA.l $7E2000,X
+    PHA
+    LDA.w #!DynamicRockPile
+    JSR ResolveDynamicTile
+    BCC .miss
+    LDA.l !DynamicOriginalOffset
+    STA.l !DynamicInteractionOffset
+    LDA.w #$0001
+    STA.l !DynamicResolved
+    STX.w $0698
+    JML $9BC0B0
+
+.miss
+    PLA
+    JML $9BC05D
+
+FinishDynamicLargeInteraction:
+    LDA.l !DynamicResolved
+    BEQ .vanilla
+    LDA.w #$0000
+    STA.l !DynamicResolved
+
+    LDA.b $0E
+    CMP.w #$FFFF
+    BNE .draw
+    LDA.l !DynamicInteractionOffset
+    TAX
+    LDA.w #!DynamicSecretStairs
+    JSR ResolveDynamicTile
+    BCC .draw_vanilla
+
+.draw
+    JSR DrawDynamicFootprint
+    STZ.w $0692
+    JML $9BC024
+
+.draw_vanilla
+    LDX.w $0698
+    JSL $82AC5B
+    JML $9BC024
+
+.vanilla
+    ; Run hi-jacked instructions:
+    LDX.b $0C
+    LDA.b $00
+
+    JML $9BC0E1
+
+DrawDynamicBombableEntrance:
+    LDA.w #!DynamicSecretBombableEntrance
+    JSR ResolveDynamicTile
+    BCC .vanilla
+    JSR DrawDynamicFootprint
+    JML $9BC205
+
+.vanilla
+    LDA.w #$0DAE
+    STA.l $7E2000,X            ; Run hi-jacked instruction
+    JML $9BC1E8
+
 ResolveDynamicSecret:
     LDA.l !SecretObjectTypes,X  ; Run hi-jacked instruction
     CMP.w #$0DC6
@@ -360,6 +483,66 @@ ResolveDynamicSecret:
 
 .done
     RTL
+
+DrawDynamicFootprint:
+    LDA.l !DynamicOrigin
+    STA.l !DynamicRowOffset
+    LDY.w #$0000
+    SEP #$20
+    LDA.b [$07],Y
+    REP #$20
+    AND.w #$00FF
+    STA.l !DynamicWidth
+    INY
+    SEP #$20
+    LDA.b [$07],Y
+    REP #$20
+    AND.w #$00FF
+    STA.l !DynamicHeight
+
+.next_row
+    LDA.l !DynamicWidth
+    STA.l !DynamicColumnCount
+    LDA.l !DynamicRowOffset
+    TAX
+
+.next_cell
+    LDA.l !DynamicDescriptorOffset
+    TAY
+    LDA.b [$07],Y
+    STA.l !DynamicResult
+    INY
+    INY
+    TYA
+    STA.l !DynamicDescriptorOffset
+    LDA.l !DynamicResult
+    STA.l $7E2000,X
+    JSL $84E780
+    LDA.l !DynamicResult
+    JSL $9BC980
+    INX
+    INX
+    LDA.l !DynamicColumnCount
+    DEC A
+    STA.l !DynamicColumnCount
+    BNE .next_cell
+
+    LDA.l !DynamicRowOffset
+    CLC
+    ADC.w #$0080
+    STA.l !DynamicRowOffset
+    LDA.l !DynamicHeight
+    DEC A
+    STA.l !DynamicHeight
+    BNE .next_row
+
+    SEP #$20
+    LDA.b #$01
+    STA.b $14
+    REP #$30
+    LDA.l !DynamicOrigin
+    TAX
+    RTS
 
 ResolveDynamicTile:
     PHA
@@ -511,6 +694,8 @@ ResolveDynamicTile:
     STA.l !DynamicHeight
     BNE .next_row
 
+    TYA
+    STA.l !DynamicDescriptorOffset
     LDA.b [$07],Y
     STA.l !DynamicResult
     PLA

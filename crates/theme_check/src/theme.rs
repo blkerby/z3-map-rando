@@ -121,7 +121,29 @@ impl DynamicTileType {
     }
 
     fn is_single_cell(self) -> bool {
-        self.get_index() <= Self::SecretPortal.get_index()
+        matches!(
+            self,
+            Self::CutGrass
+                | Self::DigTerrain
+                | Self::GreenBush
+                | Self::HeavyBush
+                | Self::HammerPeg
+                | Self::LiftSign
+                | Self::SmallGrayRock
+                | Self::SmallBlackRock
+                | Self::SecretHole
+                | Self::SecretPortal
+        )
+    }
+
+    fn is_anchor_property(self, property: u8) -> bool {
+        match self {
+            Self::LargeGrayRock => property == 0x55,
+            Self::LargeBlackRock => property == 0x56,
+            Self::RockPile => property == 0x57,
+            Self::SecretStairs => property == 0x55 || property == 0x57,
+            _ => false,
+        }
     }
 }
 
@@ -857,15 +879,41 @@ fn build_dynamic_tile_groups(
                     definition_ids,
                 )?);
             }
-            if group.kind.is_single_cell() {
+            let width = variant.before.tiles[0].len() / 2;
+            let height = variant.before.tiles.len() / 2;
+            if group.kind.is_single_cell()
+                || matches!(group.kind, DynamicTileType::SecretBombableEntrance)
+            {
                 result[group.kind.get_index()].push(DynamicTileEntry {
                     source: before[0],
                     x_offset: 0,
                     y_offset: 0,
-                    width: u8::try_from(variant.before.tiles[0].len() / 2)?,
-                    height: u8::try_from(variant.before.tiles.len() / 2)?,
+                    width: u8::try_from(width)?,
+                    height: u8::try_from(height)?,
                     before,
                     after_frames,
+                });
+                continue;
+            }
+            for (index, &source) in before.iter().enumerate() {
+                let mut is_anchor = false;
+                for quadrant in properties.iter() {
+                    if group.kind.is_anchor_property(quadrant[usize::from(source)]) {
+                        is_anchor = true;
+                        break;
+                    }
+                }
+                if !is_anchor {
+                    continue;
+                }
+                result[group.kind.get_index()].push(DynamicTileEntry {
+                    source,
+                    x_offset: -i8::try_from(index % width)?,
+                    y_offset: -i8::try_from(index / width)?,
+                    width: u8::try_from(width)?,
+                    height: u8::try_from(height)?,
+                    before: before.clone(),
+                    after_frames: after_frames.clone(),
                 });
             }
         }

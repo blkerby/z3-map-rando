@@ -138,10 +138,9 @@ for the current before tiling. This replaces hard-coded Map16 ID comparisons
 without adding table scans to unrelated terrain checks.
 
 A fixed directory at `$A78300` contains 21 little-endian 24-bit group pointers
-to table bodies in the generated-data region. Eight single-cell terrain groups
-and two single-cell secret groups are populated; later-stage pointers remain
-zero. A table entry identifies an interactable source cell and the variant
-containing it:
+to table bodies in the generated-data region. Groups through `secret_stairs`
+can be populated; the door and grave pointers remain zero. A table entry
+identifies an interactable source cell and the variant containing it:
 
 ```text
 group:
@@ -230,7 +229,7 @@ frame counts, but exercises it only with ordinary single-cell replacements.
 This isolates the secret override behavior while continuing to use single-cell
 footprints.
 
-### 3. Larger interactions and secrets
+### 3. Larger interactions and secrets (implemented)
 
 - Match complete footprints and recover their origins from interaction anchors.
 - Handle large gray rocks, large black rocks, and dash-smash rock piles.
