@@ -23,6 +23,11 @@
 ; indexed by the stable replacement-type order in theme_check.
 !DynamicTileGroupPointers = $A78300
 
+; Opens a generated wooden door at the contacted Map16 offset in X.
+; Carry set means a door was opened and entrance handling should stop.
+; Defined in overworld_dynamic_tiles.asm.
+!OpenDynamicWoodenDoorAtEntrance = $A0AF00
+
 ; A nonzero value asks NMI to omit its next OAM upload. NMI clears the request
 ; after consuming it, so producers do not need to clear it themselves.
 !NMISkipOAM = $0702

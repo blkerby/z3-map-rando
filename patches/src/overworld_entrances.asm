@@ -18,7 +18,7 @@ lorom
 incsrc "symbols.inc"
 
 !free_space_bank_a0_start = $A0A0C1
-!free_space_bank_a0_end = $A0A1AA
+!free_space_bank_a0_end = $A0A200
 
 !AreaEntrancePointerOffset = 18
 !AreaPitEntrancePointerOffset = 21
@@ -61,6 +61,11 @@ LoadCurrentAreaList:
 ; count followed by four-byte records: offset, entrance ID, follower flag.
 FindAreaEntrance:
     PHY
+    TYX
+    JSL !OpenDynamicWoodenDoorAtEntrance
+    BCC +
+    JMP .opened_door
+    +
 
     SEP #$20
     REP #$10
@@ -102,6 +107,8 @@ FindAreaEntrance:
     RTL
 
 .found
+    SEP #$20
+
     INY
     INY
     LDA.b [$03],Y
@@ -144,6 +151,11 @@ FindAreaEntrance:
     SEP #$20
     LDA.b $07
     JML $9BBD63               ; Continue vanilla entrance setup with this ID.
+
+.opened_door
+    PLY
+    SEP #$30
+    RTL
 
 .forbidden_8_bit
     REP #$20

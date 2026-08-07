@@ -882,7 +882,16 @@ fn build_dynamic_tile_groups(
             let width = variant.before.tiles[0].len() / 2;
             let height = variant.before.tiles.len() / 2;
             if group.kind.is_single_cell()
-                || matches!(group.kind, DynamicTileType::SecretBombableEntrance)
+                || matches!(
+                    group.kind,
+                    DynamicTileType::SecretBombableEntrance
+                        | DynamicTileType::WoodenDoor
+                        | DynamicTileType::SanctuaryDoor
+                        | DynamicTileType::HyruleCastleDoor
+                        | DynamicTileType::GraveCorpse
+                        | DynamicTileType::GraveStairs
+                        | DynamicTileType::GravePit
+                )
             {
                 result[group.kind.get_index()].push(DynamicTileEntry {
                     source: before[0],

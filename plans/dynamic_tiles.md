@@ -237,7 +237,7 @@ footprints.
 - Replace the fixed `RockSmashReplaceOffset` and replacement layouts with the
   generated descriptors.
 
-### 4. Doors and graves
+### 4. Doors and graves (implemented)
 
 - Handle ordinary wooden doors.
 - Supply the existing Sanctuary and Hyrule Castle door timing with generated

@@ -15,16 +15,16 @@ $A0900B-$A098FF [FREE]
 $A09900-$A09DFF [FREE]
 $A09E00-$A09F3F theme_check generated overworld backdrop colors
 $A09F40-$A0A0C0 overworld_animations.asm (generated animation runtime)
-$A0A0C1-$A0A1A9 overworld_entrances.asm (area-local entrance runtime)
-$A0A1AA-$A0A3FF [FREE]
+$A0A0C1-$A0A1C6 overworld_entrances.asm (area-local entrance runtime)
+$A0A1C7-$A0A3FF [FREE]
 $A0A400-$A0A463 overworld_bg_color.asm (generated overworld backdrop selection)
 $A0A464-$A0A61F [FREE]
 $A0A620-$A0AB8C overworld_assets.asm (generated overworld asset runtime)
 $A0AB8D-$A0ABFF [FREE]
 $A0AC00-$A0AE15 overworld_vram.asm (VRAM layout runtime)
 $A0AE16-$A0AEFF [FREE]
-$A0AF00-$A0B379 overworld_dynamic_tiles.asm (generated terrain-replacement runtime)
-$A0B37A-$A0FFFF [FREE]
+$A0AF00-$A0B5A4 overworld_dynamic_tiles.asm (generated dynamic-tile runtime)
+$A0B5A5-$A0FFFF [FREE]
 
 Bank $A1
 $A18000-$A1FFFF top-left Map16 definition words

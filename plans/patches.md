@@ -28,12 +28,11 @@ independent patches.
   triggers, and animated doors use them.
 - `overworld_map16_properties.asm` gives each Map16 quadrant an independent
   property used by collision, terrain, hammer, and liftable-tile behavior.
-- `overworld_dynamic_tiles.asm` resolves terrain and secret replacements from
-  generated Map16 tables after either interaction properties or the vanilla
-  secret lookup selects a small group, then draws arbitrary footprints.
+- `overworld_dynamic_tiles.asm` resolves terrain, secret, door, and grave
+  replacements from generated Map16 tables and draws arbitrary footprints.
 - `overworld_entrances.asm` resolves ordinary entrances and pits from the
   current area's generated lists while preserving vanilla follower and Houlihan
-  behavior. Door-opening animations remain separate.
+  behavior, and opens generated wooden doors at those entrances.
 
 ### Rendering and VRAM
 

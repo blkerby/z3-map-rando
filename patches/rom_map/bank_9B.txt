@@ -1,4 +1,5 @@
 $9BB1E0-$9BB7FC [FREE]
+$9BBC1D-$9BBC20 overworld_dynamic_tiles.asm (generated animated-door entrance dispatch)
 $9BBC22-$9BBC23 overworld_map16_graphics.asm (UseOverworldEntrance Map16 index)
 $9BBC2C-$9BBC2F overworld_map16_graphics.asm (UseOverworldEntrance top-right definition)
 $9BBC48-$9BBC49 overworld_map16_graphics.asm (adjacent Map16 index)
@@ -21,6 +22,7 @@ $9BC0DD-$9BC0E0 overworld_dynamic_tiles.asm (generated large-interaction footpri
 $9BC172-$9BC175 overworld_dynamic_tiles.asm (bombed-terrain property dispatch)
 $9BC1E4-$9BC1E7 overworld_dynamic_tiles.asm (generated bombable-entrance footprint)
 $9BC92D-$9BC930 overworld_dynamic_tiles.asm (generated single-cell secret replacement)
+$9BC952-$9BC956 overworld_dynamic_tiles.asm (generated wooden-door overlay)
 $9BC984-$9BC986 overworld_map16_graphics.asm (DrawMap16Anywhere Map16 index)
 $9BC9B2-$9BC9B5 overworld_map16_graphics.asm (DrawMap16Anywhere top-left definition)
 $9BC9B9-$9BC9BC overworld_map16_graphics.asm (DrawMap16Anywhere top-right definition)

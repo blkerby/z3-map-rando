@@ -171,6 +171,7 @@ fn main() -> Result<()> {
         "overworld_assets.ips",
         "overworld_animations.ips",
         "overworld_entrances.ips",
+        "overworld_dynamic_tiles.ips",
     ];
     for patch in patches {
         patcher.use_ips(&patch_dir.join(patch))?;

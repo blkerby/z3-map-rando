@@ -46,6 +46,12 @@ incsrc "symbols.inc"
 !DynamicSecretPortal = 12
 !DynamicSecretBombableEntrance = 13
 !DynamicSecretStairs = 14
+!DynamicWoodenDoor = 15
+!DynamicSanctuaryDoor = 16
+!DynamicHyruleCastleDoor = 17
+!DynamicGraveCorpse = 18
+!DynamicGraveStairs = 19
+!DynamicGravePit = 20
 !SecretObjectTypes = $9BC89C
 
 !DynamicOriginalOffset = $7ECC50
@@ -59,6 +65,13 @@ incsrc "symbols.inc"
 !DynamicInteractionOffset = $7ECC60
 !DynamicDescriptorOffset = $7ECC62
 !DynamicResolved = $7ECC64
+; ponytail: NPC door animation opens one door at a time; match generated after
+; footprints directly if simultaneous door-closing animations are introduced.
+!DynamicWoodenDoorDescriptor = $7ECC66
+!DynamicWoodenDoorOrigin = $7ECC69
+!DynamicMap32Descriptor = $7ECC6B
+!DynamicMap32Origin = $7ECC6E
+!DynamicMap32AfterOffset = $7ECC70
 
 ; HandleItemTileAction_Overworld has calculated the contacted Map16 offset in
 ; X. Replace its graphics-ID classifier with property routing and group lookup.
@@ -132,7 +145,422 @@ hook_resolve_revealed_secret:
     JSL ResolveDynamicSecret
 assert pc() == $9BC931
 
+; DrawWoodenDoor receives the generated footprint origin in X and carry set
+; when an NPC-operated door is closing.
+org $9BC952
+hook_draw_wooden_door:
+    JML DrawDynamicWoodenDoor
+    NOP
+assert pc() == $9BC957
+
+; UseOverworldEntrance has calculated the contacted Map16 offset in X and Y.
+; Recognize generated animated doors before vanilla inspects their graphics.
+org $9BBC1D
+hook_resolve_animated_door_entrance:
+    JML OpenDynamicAnimatedDoorAtEntrance
+assert pc() == $9BBC21
+
+; DoMap32Update has established bank $02 and is about to draw one of its
+; fixed 2x2 frames. Select generated door and grave frames for their states.
+org $82AC89
+hook_draw_map32_update:
+    JML DrawDynamicMap32Update
+    NOP
+    NOP
+assert pc() == $82AC8F
+
+; DrawOverworldQuadrantsAndOverlays has selected the Link's house doorway
+; location in X. Replace its fixed open-door Map16 IDs during map loading.
+org $82EC5B
+hook_draw_exit_wooden_door:
+    JML DrawDynamicExitWoodenDoor
+assert pc() == $82EC5F
+
+org $82EC8D
+return_draw_exit_wooden_door:
+
+; OverworldOverlay_DrawRevealedStairs receives the generated footprint
+; coordinate in X. Replace its fixed revealed-stairs Map16 IDs.
+org $87FC44
+hook_draw_revealed_stairs_overlay:
+    JML DrawDynamicRevealedStairsOverlay
+assert pc() == $87FC48
+
+org $87FC56
+return_draw_revealed_stairs_overlay:
+
+; ApplyOverworldOverlay has loaded the pristine Graveyard map and is about to
+; write the fixed King's Tomb Map16 IDs. Replace them with the generated frame.
+org $87FC57
+hook_draw_kings_tomb_overlay:
+    JML DrawDynamicKingsTombOverlay
+assert pc() == $87FC5B
+
+org $87FC73
+return_draw_kings_tomb_overlay:
+
 org !free_space_bank_a0_start
+
+OpenDynamicWoodenDoorAtEntrance:
+    LDA.w #!DynamicWoodenDoor
+    JSR ResolveDynamicTile
+    BCC .miss
+    JSR DrawDynamicFootprint
+
+    SEP #$20
+    LDA.b #$15
+    STA.w $012F
+    REP #$30
+    SEC
+    RTL
+
+.miss
+    CLC
+    RTL
+
+OpenDynamicAnimatedDoorAtEntrance:
+    TXA
+    PHA
+    SEC
+    SBC.w #$0080
+    TAX
+    LDA.w #!DynamicSanctuaryDoor
+    JSR ResolveDynamicTile
+    BCS .sanctuary
+    LDA.w #!DynamicHyruleCastleDoor
+    JSR ResolveDynamicTile
+    BCC .miss
+    LDA.w #$0018
+    BRA .open
+
+.sanctuary
+    LDA.w #$0000
+
+.open
+    STA.w $0692
+    PLA
+    JSR CacheDynamicMap32Descriptor
+    STX.w $0698
+
+    SEP #$20
+    LDA.b #$15
+    STA.w $012F
+    STZ.b $B0
+    STZ.w $0690
+    LDA.b #$0C
+    STA.b $11
+    SEP #$30
+    RTL
+
+.miss
+    PLA
+    TAX
+    TAY
+    LDA.l $7E2000,X           ; Run hi-jacked instruction
+    JML $9BBC21
+
+DrawDynamicWoodenDoor:
+    BCS .closed
+    REP #$30
+    SEP #$20
+    LDA.b #$00
+    STA.l !DynamicWoodenDoorDescriptor+2
+    REP #$20
+    LDA.w #!DynamicWoodenDoor
+    JSR ResolveDynamicTile
+    BCC .vanilla
+
+    LDA.b $07
+    STA.l !DynamicWoodenDoorDescriptor
+    SEP #$20
+    LDA.b $09
+    STA.l !DynamicWoodenDoorDescriptor+2
+    REP #$20
+    TXA
+    STA.l !DynamicWoodenDoorOrigin
+
+    JSR DrawDynamicFootprint
+    JML $9BC975
+
+.vanilla
+    LDA.w #$0D9E
+    JML $9BC957
+
+.closed
+    REP #$30
+    TXA
+    CMP.l !DynamicWoodenDoorOrigin
+    BNE .vanilla_closed
+    SEP #$20
+    LDA.l !DynamicWoodenDoorDescriptor+2
+    BEQ .vanilla_closed_8_bit
+    STA.b $09
+    LDA.b #$00
+    STA.l !DynamicWoodenDoorDescriptor+2
+    REP #$20
+    LDA.l !DynamicWoodenDoorDescriptor
+    STA.b $07
+    LDA.w #$0003
+    STA.l !DynamicDescriptorOffset
+    TXA
+    STA.l !DynamicOrigin
+    JSR DrawDynamicFootprint
+    JML $9BC975
+
+.vanilla_closed_8_bit
+    REP #$20
+.vanilla_closed
+    JML $9BC960
+
+DrawDynamicMap32Update:
+    LDX.w $0698
+    LDA.w $0692
+    CMP.w #$0018
+    BCC .sanctuary_door
+    CMP.w #$0028
+    BCC .hyrule_castle_door
+    CMP.w #$0030
+    BEQ .grave_corpse_bottom
+    CMP.w #$0038
+    BEQ .grave_stairs_bottom
+    CMP.w #$0040
+    BNE +
+    JMP .grave_top
+    +
+    CMP.w #$0048
+    BNE +
+    JMP .grave_top
+    +
+    CMP.w #$0058
+    BEQ .grave_pit_bottom
+    CMP.w #$0060
+    BNE .not_generated
+    JMP .grave_top
+
+.not_generated
+    JMP .vanilla
+
+.sanctuary_door
+    PHA
+    CMP.w #$0000
+    BNE .draw_door_frame
+
+.resolve_sanctuary_door
+    LDA.w #!DynamicSanctuaryDoor
+    BRA .resolve_door_frame
+
+.hyrule_castle_door
+    SEC
+    SBC.w #$0018
+    PHA
+    BNE .draw_door_frame
+    LDA.w #!DynamicHyruleCastleDoor
+
+.resolve_door_frame
+    JSR ResolveDynamicTile
+    BCC .frame_miss
+    JSR CacheDynamicMap32Descriptor
+
+.draw_door_frame
+    SEP #$20
+    LDA.l !DynamicMap32Descriptor+2
+    BEQ .frame_miss_8_bit
+    REP #$30
+    TXA
+    CMP.l !DynamicMap32Origin
+    BNE .frame_miss
+    LDA.l !DynamicMap32Descriptor
+    STA.b $07
+    SEP #$20
+    LDA.l !DynamicMap32Descriptor+2
+    STA.b $09
+    REP #$20
+    LDA.l !DynamicMap32AfterOffset
+    STA.l !DynamicDescriptorOffset
+    PLA
+    CLC
+    ADC.l !DynamicDescriptorOffset
+    STA.l !DynamicDescriptorOffset
+    JMP .draw
+
+.frame_miss_8_bit
+    REP #$30
+.frame_miss
+    PLA
+    JMP .generated_miss
+
+.grave_corpse_bottom
+    LDA.w #!DynamicGraveCorpse
+    BRA .resolve_grave_bottom
+
+.grave_stairs_bottom
+    LDA.w #!DynamicGraveStairs
+    BRA .resolve_grave_bottom
+
+.grave_pit_bottom
+    LDA.w #!DynamicGravePit
+
+.resolve_grave_bottom
+    PHA
+    TXA
+    SEC
+    SBC.w #$0080
+    TAX
+    PLA
+    JSR ResolveDynamicTile
+    BCS +
+    JMP .generated_miss
+    +
+
+    JSR CacheDynamicMap32Descriptor
+    JSR LoadDynamicFootprintDimensions
+
+    LDA.l !DynamicWidth
+    ASL A
+    CLC
+    ADC.l !DynamicDescriptorOffset
+    STA.l !DynamicDescriptorOffset
+    LDA.l !DynamicOrigin
+    CLC
+    ADC.w #$0080
+    STA.l !DynamicOrigin
+    LDA.l !DynamicHeight
+    DEC A
+    STA.l !DynamicHeight
+    JSR DrawDynamicFootprintConfigured
+    JML $82AD44
+
+.grave_top
+    SEP #$20
+    LDA.l !DynamicMap32Descriptor+2
+    BEQ .generated_miss_8_bit
+    REP #$30
+    TXA
+    CMP.l !DynamicMap32Origin
+    BNE .generated_miss
+    LDA.l !DynamicMap32Descriptor
+    STA.b $07
+    SEP #$20
+    LDA.l !DynamicMap32Descriptor+2
+    STA.b $09
+    LDA.b #$00
+    STA.l !DynamicMap32Descriptor+2
+    REP #$20
+    TXA
+    STA.l !DynamicOrigin
+    LDA.l !DynamicMap32AfterOffset
+    STA.l !DynamicDescriptorOffset
+    JSR LoadDynamicFootprintDimensions
+    LDA.l !DynamicHeight
+    DEC A
+    STA.l !DynamicHeight
+    JSR DrawDynamicFootprintConfigured
+    JML $82AD44
+
+.generated_miss_8_bit
+    REP #$30
+.generated_miss
+    SEP #$20
+    LDA.b #$00
+    STA.l !DynamicMap32Descriptor+2
+    REP #$30
+    JML $82AD44
+
+.draw
+    JSR DrawDynamicFootprint
+    JML $82AD44
+
+.vanilla
+    ; Run hi-jacked instructions:
+    LDA.w $0698
+    LDX.w $04AC
+
+    JML $82AC8F
+
+DrawDynamicKingsTombOverlay:
+    LDX.w #$0532
+    LDA.w #!DynamicGraveStairs
+    JSR ResolveDynamicTile
+    BCC .done
+
+    LDA.l !DynamicDescriptorOffset
+    TAY
+    LDA.b [$07],Y
+    STA.l $7E2000,X
+    INY
+    INY
+    LDA.b [$07],Y
+    STA.l $7E2002,X
+    INY
+    INY
+    LDA.b [$07],Y
+    STA.l $7E2080,X
+    INY
+    INY
+    LDA.b [$07],Y
+    STA.l $7E2082,X
+    INY
+    INY
+    LDA.b [$07],Y
+    STA.l $7E2100,X
+    INY
+    INY
+    LDA.b [$07],Y
+    STA.l $7E2102,X
+
+.done
+    JML return_draw_kings_tomb_overlay
+
+DrawDynamicRevealedStairsOverlay:
+    LDA.w #!DynamicSecretStairs
+    JSR ResolveDynamicTile
+    BCC .done
+
+    LDA.l !DynamicDescriptorOffset
+    TAY
+    LDA.b [$07],Y
+    STA.l $7E2000,X
+    INY
+    INY
+    LDA.b [$07],Y
+    STA.l $7E2002,X
+    INY
+    INY
+    LDA.b [$07],Y
+    STA.l $7E2080,X
+    INY
+    INY
+    LDA.b [$07],Y
+    STA.l $7E2082,X
+
+.done
+    JML return_draw_revealed_stairs_overlay
+
+DrawDynamicExitWoodenDoor:
+    LDA.w #!DynamicWoodenDoor
+    JSR ResolveDynamicTile
+    BCC .done
+
+    LDA.l !DynamicDescriptorOffset
+    TAY
+    LDA.b [$07],Y
+    STA.l $7E2000,X
+    JSL $84E780
+    LDA.l !DynamicDescriptorOffset
+    CLC
+    ADC.w #$0002
+    TAY
+    LDA.b [$07],Y
+    STA.l $7E2002,X
+    INX
+    INX
+    JSL $84E780
+    DEX
+    DEX
+
+.done
+    STZ.w $0696
+    JML return_draw_exit_wooden_door
 
 DispatchDynamicItemTileAction:
     LDA.l $7E2000,X
@@ -485,20 +913,11 @@ ResolveDynamicSecret:
     RTL
 
 DrawDynamicFootprint:
+    JSR LoadDynamicFootprintDimensions
+
+DrawDynamicFootprintConfigured:
     LDA.l !DynamicOrigin
     STA.l !DynamicRowOffset
-    LDY.w #$0000
-    SEP #$20
-    LDA.b [$07],Y
-    REP #$20
-    AND.w #$00FF
-    STA.l !DynamicWidth
-    INY
-    SEP #$20
-    LDA.b [$07],Y
-    REP #$20
-    AND.w #$00FF
-    STA.l !DynamicHeight
 
 .next_row
     LDA.l !DynamicWidth
@@ -542,6 +961,34 @@ DrawDynamicFootprint:
     REP #$30
     LDA.l !DynamicOrigin
     TAX
+    RTS
+
+LoadDynamicFootprintDimensions:
+    LDY.w #$0000
+    SEP #$20
+    LDA.b [$07],Y
+    REP #$20
+    AND.w #$00FF
+    STA.l !DynamicWidth
+    INY
+    SEP #$20
+    LDA.b [$07],Y
+    REP #$20
+    AND.w #$00FF
+    STA.l !DynamicHeight
+    RTS
+
+CacheDynamicMap32Descriptor:
+    LDA.b $07
+    STA.l !DynamicMap32Descriptor
+    SEP #$20
+    LDA.b $09
+    STA.l !DynamicMap32Descriptor+2
+    REP #$30
+    LDA.l !DynamicOrigin
+    STA.l !DynamicMap32Origin
+    LDA.l !DynamicDescriptorOffset
+    STA.l !DynamicMap32AfterOffset
     RTS
 
 ResolveDynamicTile:
