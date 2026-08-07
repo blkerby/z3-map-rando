@@ -177,7 +177,12 @@ hook_draw_exit_wooden_door:
 assert pc() == $82EC5F
 
 org $82EC8D
-return_draw_exit_wooden_door:
+hook_preserve_generated_portal_rocks:
+    BRA return_after_portal_rock_overlays
+assert pc() == $82EC8F
+
+org $82ECA4
+return_after_portal_rock_overlays:
 
 ; OverworldOverlay_DrawRevealedStairs receives the generated footprint
 ; coordinate in X. Replace its fixed revealed-stairs Map16 IDs.
@@ -560,7 +565,7 @@ DrawDynamicExitWoodenDoor:
 
 .done
     STZ.w $0696
-    JML return_draw_exit_wooden_door
+    JML hook_preserve_generated_portal_rocks
 
 DispatchDynamicItemTileAction:
     LDA.l $7E2000,X
