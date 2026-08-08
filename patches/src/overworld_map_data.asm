@@ -6,6 +6,7 @@ lorom
 !BG1FlatMap16ScreenPointers = $BFE200
 !Area80BG1FlatMap16Pointers = $BFE400
 !GeneratedBG1Enabled = $BFE406
+!LostWoodsClearBG1FlatMap16Pointers = $BFE410
 
 !free_space_bank_a0_start = $A08700
 !free_space_bank_a0_end = $A08900
@@ -107,6 +108,24 @@ Overworld_LoadOneBG1FlatMap16:
     ADC.b $00
     TAX
 
+    LDA.l $7EC213
+    AND.w #$00FF
+    BNE .ordinary
+    LDA.l $7EF300
+    AND.w #$0040
+    BEQ .ordinary
+
+    SEP #$20
+    LDA.l !LostWoodsClearBG1FlatMap16Pointers+2,X
+    BEQ .missing
+    STA.b $0D
+    REP #$20
+
+    LDA.l !LostWoodsClearBG1FlatMap16Pointers,X
+    TAX
+    BRA .copy
+
+.ordinary
     SEP #$20
     LDA.l !BG1FlatMap16ScreenPointers+2,X
     BEQ .missing
@@ -115,6 +134,8 @@ Overworld_LoadOneBG1FlatMap16:
 
     LDA.l !BG1FlatMap16ScreenPointers,X
     TAX
+
+.copy
     JSR Overworld_CopyOneFlatMap16
     SEC
     RTS

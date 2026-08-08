@@ -375,6 +375,7 @@ pub struct OverworldAreaAssets {
     pub sprite_variants: Vec<OverworldSpriteVariant>,
     pub entrances: Vec<OverworldEntrance>,
     pub pit_entrances: Vec<OverworldPitEntrance>,
+    pub special_transitions: Vec<OverworldSpecialTransition>,
     pub background: OverworldBackgroundSettings,
 }
 
@@ -408,6 +409,13 @@ pub struct OverworldEntrance {
 pub struct OverworldPitEntrance {
     pub map16_offset: u16,
     pub entrance_id: u8,
+}
+
+#[derive(Clone, Copy)]
+pub struct OverworldSpecialTransition {
+    pub map16_offset: u16,
+    pub special_area: u16,
+    pub direction: u8,
 }
 
 impl Importer {
@@ -529,6 +537,43 @@ impl Importer {
         }
 
         let (entrances, pit_entrances) = self.load_overworld_entrances()?;
+        let mut special_transitions = vec![Vec::new(); 0xa0];
+        for (area, offset, special_area, direction) in [
+            // Lost Woods to Sacred Grove.
+            (0x00, 0x0514, 0x0180, 0x08),
+            // Camper's Bridge to Under the Bridge.
+            (0x2d, 0x08aa, 0x0181, 0x02),
+            (0x2d, 0x092a, 0x0181, 0x02),
+            (0x2d, 0x09aa, 0x0181, 0x02),
+            // Waterfall of Wishing to Zora's Waterfall.
+            (0x0f, 0x0028, 0x0182, 0x08),
+            (0x0f, 0x002a, 0x0182, 0x08),
+            (0x0f, 0x002c, 0x0182, 0x08),
+            (0x0f, 0x00a8, 0x0182, 0x08),
+            (0x0f, 0x00aa, 0x0182, 0x08),
+            (0x0f, 0x00ac, 0x0182, 0x08),
+            // Sacred Grove return.
+            (0x80, 0x0f90, 0x0000, 0x04),
+            // Under the Bridge return.
+            (0x80, 0x033e, 0x0000, 0x01),
+            (0x80, 0x03be, 0x0000, 0x01),
+            (0x80, 0x043e, 0x0000, 0x01),
+            (0x80, 0x04be, 0x0000, 0x01),
+            (0x80, 0x053e, 0x0000, 0x01),
+            (0x80, 0x05be, 0x0000, 0x01),
+            (0x80, 0x063e, 0x0000, 0x01),
+            // Zora's Waterfall return.
+            (0x81, 0x1f92, 0x0000, 0x04),
+            (0x81, 0x1f94, 0x0000, 0x04),
+            (0x81, 0x1f96, 0x0000, 0x04),
+            (0x81, 0x1f98, 0x0000, 0x04),
+        ] {
+            special_transitions[area].push(OverworldSpecialTransition {
+                map16_offset: offset,
+                special_area,
+                direction,
+            });
+        }
         let mut assets = Vec::with_capacity(self.map_gfx.len());
         for area in 0..self.map_gfx.len() {
             let mut area_assets = self.encode_overworld_area_assets(
@@ -541,6 +586,7 @@ impl Importer {
             area_assets.sprite_variants = self.overworld_sprite_variants(area)?;
             area_assets.entrances = entrances[area].clone();
             area_assets.pit_entrances = pit_entrances[area].clone();
+            area_assets.special_transitions = special_transitions[area].clone();
             assets.push(area_assets);
         }
         Ok(assets)
@@ -774,6 +820,7 @@ impl Importer {
             sprite_variants: Vec::new(),
             entrances: Vec::new(),
             pit_entrances: Vec::new(),
+            special_transitions: Vec::new(),
             background: OverworldBackgroundSettings::VANILLA,
         })
     }

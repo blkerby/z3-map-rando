@@ -30,8 +30,9 @@ coordinate, including its color-zero pixels. Only the final BG1 and BG2 images
 are composited per pixel by the PPU. Future edge-variant layers will follow the
 same rule and will be resolved when a seed chooses its variants.
 
-Ordinary areas currently have at most one applicable BG1 layer. Area `$80` has
-two alternatives, `Grove Fog` and `Bridge Shadow`; they are not composited.
+Lost Woods has two BG1 alternatives: `Woods Fog` before the Master Sword event
+and `Woods Clear` afterward. Area `$80` likewise has two alternatives, `Grove
+Fog` and `Bridge Shadow`. Alternatives are not composited.
 
 ## Logical BG1 map
 

@@ -391,6 +391,7 @@ pub fn compile(
         let sprites = area_assets[screen.id].sprite_variants.clone();
         let entrances = area_assets[screen.id].entrances.clone();
         let pit_entrances = area_assets[screen.id].pit_entrances.clone();
+        let special_transitions = area_assets[screen.id].special_transitions.clone();
         let mut transition_palette_rows = vec![false; 6];
         for palette in &screen.palettes {
             transition_palette_rows[palette_slots[palette] / 2] = true;
@@ -408,6 +409,7 @@ pub fn compile(
             sprite_variants: sprites,
             entrances,
             pit_entrances,
+            special_transitions,
             background: OverworldBackgroundSettings {
                 layering: match background_settings[&screen.id].layering {
                     BackgroundLayering::None => 0,
@@ -584,7 +586,7 @@ fn load_screens(
             }
         }
 
-        if area.vanilla_map_id == 0x80 {
+        if area.vanilla_map_id == 0x00 || area.vanilla_map_id == 0x80 {
             for (name, tiles) in bg1_layers {
                 let placements: Vec<_> = tiles.into_iter().flatten().collect();
                 for placement in placements.iter().flatten() {

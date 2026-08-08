@@ -110,7 +110,7 @@ pub fn build(
     layout: AssetLayout,
 ) -> Result<AssetBundle> {
     let mut data = Region::new((layout.data_start >> 16) as u8, layout.data_size);
-    let mut empty_record = [0; 29];
+    let mut empty_record = [0; 32];
     empty_record[24] = 0xff;
     let empty_record = data.intern(&empty_record)?;
     let empty_variants = intern_variant_list(&mut data, &[(0xff, empty_record)])?;
@@ -145,7 +145,7 @@ pub fn build(
     keys[CREDITS_COOL_BACKGROUND_KEY] = intern_variant_list(&mut data, &[(0xff, cool_record)])?;
 
     let seed_sequence = intern_character_sequence(&mut data, &sprite_seed.character_rows)?;
-    let mut seed_record = [0; 29];
+    let mut seed_record = [0; 32];
     seed_record[..3].copy_from_slice(&little_endian_pointer(seed_sequence));
     seed_record[24] = 0xff;
     let seed_record = data.intern(&seed_record)?;
@@ -213,7 +213,7 @@ fn intern_record(
 ) -> Result<u32> {
     let (sequence, palette_sources, character_sources) =
         intern_full_sequence(data, assets, sprite_variant)?;
-    let mut record = vec![0; 29];
+    let mut record = vec![0; 32];
     record[..3].copy_from_slice(&little_endian_pointer(sequence));
     let animations = intern_animation_tracks(data, &assets.animation_tracks)?;
     if animations != 0 {
@@ -237,6 +237,16 @@ fn intern_record(
             entrances.push(entrance.entrance_id);
         }
         record[21..24].copy_from_slice(&little_endian_pointer(data.intern(&entrances)?));
+    }
+    if !assets.special_transitions.is_empty() {
+        let mut transitions = Vec::with_capacity(1 + assets.special_transitions.len() * 5);
+        transitions.push(u8::try_from(assets.special_transitions.len())?);
+        for transition in &assets.special_transitions {
+            transitions.extend_from_slice(&transition.map16_offset.to_le_bytes());
+            transitions.extend_from_slice(&transition.special_area.to_le_bytes());
+            transitions.push(transition.direction);
+        }
+        record[29..32].copy_from_slice(&little_endian_pointer(data.intern(&transitions)?));
     }
     record[24] = assets.background.layering;
     record[25] = assets.background.camera_follow_x.to_le_bytes()[0];

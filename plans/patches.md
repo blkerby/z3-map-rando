@@ -24,15 +24,16 @@ independent patches.
 - `overworld_map_data.asm` replaces Map32 with flat, four-quadrant Map16 screen
   and overlay maps in WRAM.
 - `overworld_map16_graphics.asm` expands Map16 graphical definitions to four
-  banks and makes map construction, stripe generation, dynamic changes, special
-  triggers, and animated doors use them.
+  banks and makes map construction, stripe generation, dynamic changes, and
+  animated doors use them.
 - `overworld_map16_properties.asm` gives each Map16 quadrant an independent
   property used by collision, terrain, hammer, and liftable-tile behavior.
 - `overworld_dynamic_tiles.asm` resolves terrain, secret, door, and grave
   replacements from generated Map16 tables and draws arbitrary footprints.
-- `overworld_entrances.asm` resolves ordinary entrances and pits from the
-  current area's generated lists while preserving vanilla follower and Houlihan
-  behavior, and opens generated wooden doors at those entrances.
+- `overworld_entrances.asm` resolves ordinary entrances, pits, and special-area
+  transitions from the current area's generated coordinate lists while
+  preserving vanilla follower and Houlihan behavior, and opens generated
+  wooden doors at those entrances.
 
 ### Rendering and VRAM
 

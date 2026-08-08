@@ -20,6 +20,7 @@ const FLAT_MAP_POINTERS_START: SnesAddr = SnesAddr(0xbfe000);
 const BG1_MAP_POINTERS_START: SnesAddr = SnesAddr(0xbfe200);
 const AREA_80_BG1_POINTERS_START: SnesAddr = SnesAddr(0xbfe400);
 const GENERATED_BG1_ENABLED: SnesAddr = SnesAddr(0xbfe406);
+const LOST_WOODS_CLEAR_BG1_POINTERS_START: SnesAddr = SnesAddr(0xbfe410);
 const MAP16_DEFINITION_STARTS: [SnesAddr; 4] = [
     SnesAddr(0xa18000),
     SnesAddr(0xa28000),
@@ -41,6 +42,7 @@ struct FlatMapTables {
     flat: FlatMap16,
     bg1_pointers: Vec<u8>,
     area_80_bg1_pointers: Vec<u8>,
+    lost_woods_clear_bg1_pointers: Vec<u8>,
 }
 
 #[derive(Parser)]
@@ -164,6 +166,12 @@ fn main() -> Result<()> {
     patcher
         .context("generated BG1 enable marker")
         .write(GENERATED_BG1_ENABLED.into(), vec![1])?;
+    patcher
+        .context("Lost Woods clear BG1 variant pointers")
+        .write(
+            LOST_WOODS_CLEAR_BG1_POINTERS_START.into(),
+            flat.lost_woods_clear_bg1_pointers,
+        )?;
 
     let mut context = patcher.context("expanded Map16 definitions");
     for (start, definitions) in MAP16_DEFINITION_STARTS
@@ -291,8 +299,10 @@ fn assemble_flat_maps(
 
     let mut bg1_pointers = vec![0; 0xa0 * 3];
     let mut area_80_pointers = [0; 2];
+    let mut lost_woods_clear_pointers = [0; 10];
     for (&area, variants) in bg1_variants {
         for variant in variants {
+            let lost_woods_clear = area == 0x00 && variant.name == "Woods Clear";
             let area_80_index = if area == 0x80 {
                 Some(match variant.name.as_str() {
                     "Grove Fog" => 0,
@@ -309,13 +319,16 @@ fn assemble_flat_maps(
                     "BG1 screen {screen:02X} has no generated BG2 map"
                 );
                 let address = intern_flat_map(map, &mut indices, &mut data)?;
-                if area != 0x80 || area_80_index == Some(0) {
+                if (area != 0x80 || area_80_index == Some(0)) && !lost_woods_clear {
                     let offset = screen * 3;
                     ensure!(
                         bg1_pointers[offset..offset + 3] == [0; 3],
                         "multiple BG1 maps target screen {screen:02X}"
                     );
                     bg1_pointers[offset..offset + 3].copy_from_slice(&address.to_le_bytes()[..3]);
+                }
+                if lost_woods_clear {
+                    lost_woods_clear_pointers[screen] = address;
                 }
                 if let Some(index) = area_80_index {
                     ensure!(
@@ -335,6 +348,10 @@ fn assemble_flat_maps(
     for pointer in area_80_pointers {
         area_80_bg1_pointers.extend_from_slice(&pointer.to_le_bytes()[..3]);
     }
+    let mut lost_woods_clear_bg1_pointers = Vec::with_capacity(30);
+    for pointer in lost_woods_clear_pointers {
+        lost_woods_clear_bg1_pointers.extend_from_slice(&pointer.to_le_bytes()[..3]);
+    }
     Ok(FlatMapTables {
         flat: FlatMap16 {
             maps: data,
@@ -342,6 +359,7 @@ fn assemble_flat_maps(
         },
         bg1_pointers,
         area_80_bg1_pointers,
+        lost_woods_clear_bg1_pointers,
     })
 }
 
