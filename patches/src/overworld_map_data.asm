@@ -288,17 +288,21 @@ LoadGeneratedBG1WhenDisabled:
     CMP.b #$15
     BEQ .generated
     CMP.b #$08
-    BCC .finish
+    BCC .vanilla
     CMP.b #$0C
-    BCS .finish
+    BCS .vanilla
 .generated
     LDA.l !GeneratedBG1Enabled
-    BEQ .finish
+    BEQ .vanilla
 
+    JSL $A08900               ; Configure generated composition and camera.
     REP #$30
     JSR LoadGeneratedBG1FlatMap16
+    PLB
+    SEP #$30
+    RTL
 
-.finish
+.vanilla
     PLB
     ; Run hi-jacked instructions:
     SEP #$30

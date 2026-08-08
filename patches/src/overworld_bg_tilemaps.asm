@@ -38,6 +38,12 @@ incsrc "symbols.inc"
 !BGMap16SourceOffset = $7EC900
 !BGVRAMBase = $7EC902
 !BGLogicalMask = $7EC904
+!GeneratedBG1Enabled = $BFE406
+!OverworldAreaRecordVariantPointers = $A78000
+!OverworldScreenSize = $82F5F1
+!BackgroundSettings = $7ECC72
+!BackgroundPositionX = $7ECC77
+!BackgroundPositionY = $7ECC79
 
 ; OverworldOverlay_HandleRain
 ;
@@ -745,7 +751,171 @@ assert pc() <= $9BCA9F
 
 org !free_space_bank_a0_start
 
+; Fixed cross-patch entry used when vanilla disables its synthetic overlay.
+ConfigureGeneratedBackground_long:
+    PHP
+    REP #$30
+    PHA
+    PHX
+    PHY
+
+    JSR ConfigureGeneratedBackground
+
+    REP #$30
+    PLY
+    PLX
+    PLA
+    PLP
+    RTL
+
+; Read the five-byte background tail from the selected generated area record,
+; initialize fixed-point BG1 camera positions, and configure the PPU caches.
+; Returns carry set when generated presentation replaces vanilla.
+ConfigureGeneratedBackground:
+    SEP #$30
+    LDA.l !GeneratedBG1Enabled
+    BNE .enabled
+    JMP .vanilla
+
+.enabled
+    LDA.b $10
+    CMP.b #$15
+    BEQ .playable
+    CMP.b #$08
+    BCS .at_least_overworld
+    JMP .presentation
+
+.at_least_overworld
+    CMP.b #$0C
+    BCC .playable
+    JMP .presentation
+
+.playable
+    LDA.b $8C
+    CMP.b #$9F
+    BNE .resolve
+    JMP .presentation
+
+.resolve
+    LDA.l $7EC213
+    STA.b $06
+    STZ.b $07
+
+    REP #$30
+    LDA.b $06
+    ASL A
+    CLC
+    ADC.b $06
+    TAX
+
+    LDA.l !OverworldAreaRecordVariantPointers,X
+    STA.b $03
+    SEP #$20
+    LDA.l !OverworldAreaRecordVariantPointers+2,X
+    STA.b $05
+
+    LDY.w #$0000
+.next_variant
+    LDA.b [$03],Y
+    CMP.l $7EF3C5
+    BCS .found
+
+    INY
+    INY
+    INY
+    INY
+    BRA .next_variant
+
+.found
+    INY
+    LDA.b [$03],Y
+    STA.b $00
+    INY
+    LDA.b [$03],Y
+    STA.b $01
+    INY
+    LDA.b [$03],Y
+    STA.b $02
+
+    LDY.w #$0018
+    LDX.w #$0000
+.copy_settings
+    LDA.b [$00],Y
+    STA.l !BackgroundSettings,X
+    INY
+    INX
+    CPX.w #$0005
+    BNE .copy_settings
+
+    REP #$30
+    JSR BG1InitializeCamera
+    SEP #$30
+
+    LDA.l !BackgroundSettings
+    BEQ .none
+    CMP.b #$01
+    BEQ .half_add
+
+    ; Backdrop: BG2 is main, BG1 is sub, and only a black backdrop receives
+    ; BG1 through color math where BG2 has a transparent pixel.
+    REP #$20
+    LDA.w #$0000
+    STA.l $7EC300
+    STA.l $7EC340
+    STA.l $7EC500
+    STA.l $7EC540
+    SEP #$20
+    INC.b $15
+
+    LDA.b #$16
+    LDX.b #$01
+    LDY.b #$20
+    BRA .store_layers
+
+.half_add
+    LDA.b #$16
+    LDX.b #$01
+    LDY.b #$72
+    BRA .store_layers
+
+.none
+    LDA.b #$16
+    LDX.b #$00
+    LDY.b #$20
+
+.store_layers
+    STY.b $9A
+
+    PHA
+    LDA.b $10
+    CMP.b #$15
+    PLA
+    BEQ .defer_layers
+
+    STA.b $1C
+    STX.b $1D
+    SEC
+    RTS
+
+.defer_layers
+    STA.l !Module15LayerEnable
+    TXA
+    STA.l !Module15LayerEnable+1
+    SEC
+    RTS
+
+.presentation
+    LDA.b #$FF
+    STA.l !BackgroundSettings
+
+.vanilla
+    CLC
+    RTS
+
 SetOverworldSubscreenLayers:
+    JSR ConfigureGeneratedBackground
+    BCS .generated
+
     LDA.b $10
     CMP.b #$15
     BEQ .defer
@@ -763,6 +933,9 @@ SetOverworldSubscreenLayers:
     LDA.b #$01
     STA.l !Module15LayerEnable+1
     JML return_ReloadSubscreenOverlaySetLayers
+
+.generated
+    JML $82AFAD
 
 EnableMirrorWarpSubscreenUnlessModule15:
     LDA.b $10
@@ -906,7 +1079,15 @@ BG1BulkRender:
 ; enable is still live, then hide BG1/BG2 until the final restore.
 RenderMirrorWarpBG1AndHideBackgrounds:
     PHP
-    REP #$20
+    REP #$30
+    PHX
+    PHY
+
+    JSR BG1UseGeneratedCamera
+    BCC .position_ready
+    JSR BG1InitializeCamera
+
+.position_ready
 
     LDA.b $E0
     CLC
@@ -918,6 +1099,8 @@ RenderMirrorWarpBG1AndHideBackgrounds:
     ADC.w $011C
     STA.w $0124
 
+    PLY
+    PLX
     PLP
     JSL BG1BulkRender
 
@@ -935,6 +1118,133 @@ RenderMirrorWarpBG1AndHideBackgrounds:
     LDA.b #$00
     RTL
 
+; Initialize BG1 positions from the camera's local coordinate in signed
+; eighth-pixel fixed point. Drift phase starts at zero on each full load.
+BG1InitializeCamera:
+    LDA.l $7EC213
+    AND.w #$0007
+    XBA
+    ASL A
+    STA.b $0C
+
+    LDA.b $E2
+    SEC
+    SBC.b $0C
+    LDX.w #$0001
+    JSR BG1MultiplyByFollow
+    STA.l !BackgroundPositionX
+    LSR A
+    LSR A
+    LSR A
+    STA.b $E0
+    STA.w $0120
+
+    LDA.l $7EC213
+    AND.w #$0038
+    ASL A
+    ASL A
+    ASL A
+    ASL A
+    ASL A
+    ASL A
+    STA.b $0C
+
+    LDA.b $E8
+    SEC
+    SBC.b $0C
+    LDX.w #$0003
+    JSR BG1MultiplyByFollow
+    STA.l !BackgroundPositionY
+    LSR A
+    LSR A
+    LSR A
+    STA.b $E6
+    STA.w $0124
+    RTS
+
+; A: signed pixel delta; X: follow setting offset. Returns eighth-pixel delta.
+BG1MultiplyByFollow:
+    STA.b $0A
+    LDA.l !BackgroundSettings,X
+    AND.w #$00FF
+    TAY
+    LDA.w #$0000
+
+.next
+    CPY.w #$0000
+    BEQ .done
+    CLC
+    ADC.b $0A
+    DEY
+    BRA .next
+
+.done
+    RTS
+
+; Sign-extend the byte in A for fixed-point camera arithmetic.
+BG1SignExtendByte:
+    AND.w #$00FF
+    CMP.w #$0080
+    BCC .done
+    ORA.w #$FF00
+
+.done
+    RTS
+
+; A: signed camera delta; X: follow setting offset (1 for X, 3 for Y).
+; Returns the new integer BG1 scroll before screen shake.
+BG1AdvanceDataPosition:
+    PHY
+    JSR BG1MultiplyByFollow
+    STA.b $0E
+
+    INX                         ; Select this axis's signed drift byte.
+    LDA.l !BackgroundSettings,X
+    JSR BG1SignExtendByte
+
+    CLC
+    ADC.b $0E
+    CPX.w #$0002
+    BNE .vertical
+
+    CLC
+    ADC.l !BackgroundPositionX
+    STA.l !BackgroundPositionX
+    BRA .integer
+
+.vertical
+    CLC
+    ADC.l !BackgroundPositionY
+    STA.l !BackgroundPositionY
+
+.integer
+    LSR A
+    LSR A
+    LSR A
+    PLY
+    RTS
+
+; Return carry set when gameplay should use generated camera behavior.
+BG1UseGeneratedCamera:
+    SEP #$20
+    LDA.l !GeneratedBG1Enabled
+    BEQ .vanilla
+    LDA.l !BackgroundSettings
+    CMP.b #$FF
+    BEQ .vanilla
+    LDA.b $8C
+    CMP.b #$9F
+    BEQ .vanilla
+
+    REP #$20
+    SEC
+    RTS
+
+.vanilla
+    REP #$20
+    CLC
+    RTS
+
 ; Select the BG1 overlay source and VRAM destination for the shared renderer.
 BG1SelectRenderer:
     LDA.w #$2000
@@ -944,7 +1254,22 @@ BG1SelectRenderer:
     STA.l !BGVRAMBase           ; BG1 tilemap begins at VRAM word $6800.
 
     LDA.w #$003F
-    STA.l !BGLogicalMask        ; BG1 logical coordinates are 0..63.
+    STA.l !BGLogicalMask
+
+    JSR BG1UseGeneratedCamera
+    BCC .done
+
+    LDA.l $7EC213
+    AND.w #$00FF
+    TAX
+    LDA.l !OverworldScreenSize,X
+    AND.w #$00FF
+    BNE .done
+
+    LDA.w #$007F
+    STA.l !BGLogicalMask        ; Large BG1 areas use coordinates 0..127.
+
+.done
     RTS
 
 ; Convert finalized BG1 scrolls directly to the logical 8x8 tile at the
@@ -955,14 +1280,14 @@ BG1CalculateLogicalWindowOrigin:
     LSR A
     LSR A
     LSR A
-    AND.w #$003F                ; Wrap within the 64-tile logical width.
+    AND.l !BGLogicalMask
     STA.b $00
 
     LDA.w $0124                 ; Final BG1 vertical scroll in pixels.
     LSR A
     LSR A
     LSR A
-    AND.w #$003F                ; Wrap within the 64-tile logical height.
+    AND.l !BGLogicalMask
     STA.b $02
     RTS
 
@@ -1189,19 +1514,35 @@ BG2StreamVertical:
 ;---------------------------------------------------------------------------------------------------
 ; Store finalized BG1 scrolls and append overlay edges to the gameplay list.
 ;
-; BG1 uses its logical 64x64 overlay directly, so these wrappers differ from
+; BG1 uses its area-sized logical map directly, so these wrappers differ from
 ; BG2 only in the scroll addresses, enable checks, and renderer selection.
 ; Rain remains on its separate static path and never reaches the emitters.
 ;---------------------------------------------------------------------------------------------------
 
 BG1StreamHorizontal:
-    STA.b $E0                   ; Run hi-jacked instruction
-
     PHP                         ; The caller has 16-bit A but 8-bit X/Y.
     REP #$30
 
     PHA                         ; Preserve registers other than the Y cursor.
     PHX
+    STA.b $0C
+
+    JSR BG1UseGeneratedCamera
+    BCC .scroll_ready
+
+    LDA.w $069F
+    JSR BG1SignExtendByte
+    LDX.w #$0001
+    JSR BG1AdvanceDataPosition
+    CLC
+    ADC.w $011A                ; Apply shake after unshaken camera movement.
+    BRA .store_scroll
+
+.scroll_ready
+    LDA.b $0C
+
+.store_scroll
+    STA.b $E0                   ; Run hi-jacked instruction
 
     LDA.w $0120
     LSR A                       ; Convert the old scroll to its 8x8 tile column.
@@ -1251,8 +1592,6 @@ BG1StreamHorizontal:
     RTL
 
 BG1StreamVertical:
-    STA.b $E6                   ; Run hi-jacked instruction
-
     PHP                         ; The caller has 16-bit A but 8-bit X/Y.
     REP #$30
 
@@ -1260,6 +1599,24 @@ BG1StreamVertical:
     PHX
 
     LDY.b $0C                   ; Restore the full cursor saved above.
+    STA.b $08
+
+    JSR BG1UseGeneratedCamera
+    BCC .scroll_ready
+
+    LDA.w $069E
+    JSR BG1SignExtendByte
+    LDX.w #$0003
+    JSR BG1AdvanceDataPosition
+    CLC
+    ADC.w $011C                ; Apply shake after unshaken camera movement.
+    BRA .store_scroll
+
+.scroll_ready
+    LDA.b $08
+
+.store_scroll
+    STA.b $E6                   ; Run hi-jacked instruction
 
     LDA.w $0124
     LSR A                       ; Convert the old scroll to its 8x8 tile row.

@@ -125,7 +125,7 @@ pixels per frame. For each axis, the active background position advances as:
 background_delta = camera_delta * follow + drift
 ```
 
-The runtime keeps fractional background positions in fixed-point and derives
+The runtime keeps background positions in eighth-pixel fixed-point and derives
 the integer BG1 scroll and streamer source coordinate from them. The current
 follow choices (`0`, `0.25`, `0.5`, `1`, and `1.5`) are shift-and-add friendly;
 drift still needs fractional precision for values such as `0.125`.
