@@ -25,14 +25,6 @@ hook_LoadSubOverlayMap:
     RTS
 assert pc() == $82F534
 
-; Vanilla can disable an overlay without reaching LoadSubOverlayMap. Still
-; initialize the generated logical BG1 map, while retaining that presentation
-; decision until the next phase.
-org $82AEBE
-hook_ReloadSubscreenOverlayDisable:
-    JSL LoadGeneratedBG1WhenDisabled
-assert pc() == $82AEC2
-
 org !free_space_bank_a0_start
 
 ; Build the 64x64 WRAM Map16 data (TMAPA) from 32x32 flat Map16 data.
@@ -322,34 +314,5 @@ LoadGeneratedBG1FlatMap16:
     LDY.w #$4000
     JSR Overworld_CopyOneFlatMap16
     RTS
-
-LoadGeneratedBG1WhenDisabled:
-    PHB
-
-    SEP #$20
-    LDA.b $10
-    CMP.b #$15
-    BEQ .generated
-    CMP.b #$08
-    BCC .vanilla
-    CMP.b #$0C
-    BCS .vanilla
-.generated
-    LDA.l !GeneratedBG1Enabled
-    BEQ .vanilla
-
-    JSL $A08900               ; Configure generated composition and camera.
-    REP #$30
-    JSR LoadGeneratedBG1FlatMap16
-    PLB
-    SEP #$30
-    RTL
-
-.vanilla
-    PLB
-    ; Run hi-jacked instructions:
-    SEP #$30
-    STZ.b $1D
-    RTL
 
 assert pc() <= !free_space_bank_a0_end

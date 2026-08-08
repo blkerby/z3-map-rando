@@ -242,7 +242,7 @@ The game still follows vanilla background selection in this phase.
 - Composition, follow, and drift come from generated area data.
 - Pyramid traverses its full camera range without a clamp or exposed garbage.
 - Areas with authored BG1 never select rain.
-- Light World and Mire rain contexts use the correct palette-indexed tiles and
+- Light World and Dark World rain contexts use the correct palette-indexed tiles and
   retain animation, thunder, and sound wherever the rain predicate selects them.
 - Area `$80` behaves like vanilla without introducing a general runtime variant
   system.

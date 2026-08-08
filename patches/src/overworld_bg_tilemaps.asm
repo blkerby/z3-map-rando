@@ -107,6 +107,18 @@ org $82A407
 org $82A423
 +
 
+; ReloadSubscreenOverlay
+;
+; Generated gameplay backgrounds replace vanilla's area-specific synthetic
+; overlay selection. Retain only rain's game-state predicate; authored BG1
+; takes precedence through the generated rain-context table. Presentation
+; modules continue through the vanilla selector.
+org $82AE77
+hook_select_generated_background:
+    JML SelectGeneratedBackground
+    NOP
+assert pc() == $82AE7C
+
 ; Overworld_SetFixedColAndScroll
 ;
 ; During an ordinary area transition, vanilla immediately moves the Castle
@@ -806,6 +818,64 @@ RunRainEffectsWhenSelected:
 .done
     RTL
 
+SelectGeneratedBackground:
+    LDA.l !GeneratedBG1Enabled
+    AND.w #$00FF
+    BEQ .vanilla
+
+    LDA.b $10
+    AND.w #$00FF
+    CMP.w #$0015
+    BEQ .playable
+    CMP.w #$0008
+    BCC .vanilla
+    CMP.w #$000C
+    BCS .vanilla
+
+.playable
+    LDA.l $7EC213
+    AND.w #$00FF
+    TAX
+
+    SEP #$20
+    LDA.l !RainContexts,X
+    REP #$20
+    AND.w #$00FF
+    BEQ .no_rain
+
+    TXA
+    CMP.w #$0070
+    BEQ .mire
+
+    LDA.l $7EF3C5
+    AND.w #$00FF
+    CMP.w #$0002
+    BCS .no_rain
+    BRA .rain
+
+.mire
+    LDA.l $7EF2F0
+    AND.w #$0020
+    BNE .no_rain
+
+.rain
+    LDX.w #$009F
+    BRA .selected
+
+.no_rain
+    LDX.w #$0000
+
+.selected
+    LDY.w #$0390
+    JML $82AF2D
+
+.vanilla
+    ; Run hi-jacked instructions:
+    LDY.w #$0390
+    LDA.b $8A
+
+    JML $82AE7C
+
 RecordCameraDeltaY:
     ; Run hi-jacked instructions:
     LDA.b $04
@@ -834,23 +904,6 @@ RecordTransitionCameraDelta:
     STA.l !BackgroundDeltaY,X
     RTL
 
-; Fixed cross-patch entry used when vanilla disables its synthetic overlay.
-ConfigureGeneratedBackground_long:
-    PHP
-    REP #$30
-    PHA
-    PHX
-    PHY
-
-    JSR ConfigureGeneratedBackground
-
-    REP #$30
-    PLY
-    PLX
-    PLA
-    PLP
-    RTL
-
 ; Read the five-byte background tail from the selected generated area record,
 ; initialize fixed-point BG1 camera positions, and configure the PPU caches.
 ; Returns carry set when generated presentation replaces vanilla.
@@ -877,20 +930,7 @@ ConfigureGeneratedBackground:
     LDA.b $8C
     CMP.b #$9F
     BNE .resolve
-    PHX
-    LDA.l $7EC213
-    TAX
-    LDA.l !RainContexts,X
-    BNE .rain
-    PLX
-    BRA .authored_background
-
-.rain
-    PLX
     JMP .presentation
-
-.authored_background
-    STZ.b $8C
 
 .resolve
     LDA.l $7EC213
