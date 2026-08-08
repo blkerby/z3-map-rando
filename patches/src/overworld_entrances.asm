@@ -35,13 +35,13 @@ hook_resolve_pit_entrance:
     JML FindAreaPitEntrance
 assert pc() == $9BB892
 
-; Preserve the preceding graphics-based door-opening animations. Once those
-; checks decline to animate a door, identify ordinary entrances solely by the
-; current area's generated coordinate list.
-org $9BBCC1
+; Generated animated-door matching has already run. Skip vanilla's checks for
+; fixed graphics characters and resolve ordinary doors and entrances from the
+; current area's generated data.
+org $9BBC25
 hook_resolve_overworld_entrance:
     JML FindAreaEntrance
-assert pc() == $9BBCC5
+assert pc() == $9BBC29
 
 ; Both vanilla special-transition checks have calculated the contacted Map16
 ; buffer offset in Y. Replace their graphics-character comparisons with the
@@ -78,12 +78,6 @@ LoadCurrentAreaList:
 ; count followed by four-byte records: offset, entrance ID, follower flag.
 FindAreaEntrance:
     PHY
-    TYX
-    JSL !OpenDynamicWoodenDoorAtEntrance
-    BCC +
-    JMP .opened_door
-    +
-
     SEP #$20
     REP #$10
     LDY.w #!AreaEntrancePointerOffset
@@ -124,8 +118,23 @@ FindAreaEntrance:
     RTL
 
 .found
+    LDA.b $2F
+    BNE .not_wooden_door
+
+    PHY
+    REP #$20
+    LDX.b $08
+    JSL !OpenDynamicWoodenDoorAtEntrance
+    BCC .not_generated_wooden_door
+    PLY
+    SEP #$30
+    RTL
+
+.not_generated_wooden_door
+    PLY
     SEP #$20
 
+.not_wooden_door
     INY
     INY
     LDA.b [$03],Y
@@ -168,11 +177,6 @@ FindAreaEntrance:
     SEP #$20
     LDA.b $07
     JML $9BBD63               ; Continue vanilla entrance setup with this ID.
-
-.opened_door
-    PLY
-    SEP #$30
-    RTL
 
 .forbidden_8_bit
     REP #$20
