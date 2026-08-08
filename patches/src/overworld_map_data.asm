@@ -7,6 +7,8 @@ lorom
 !Area80BG1FlatMap16Pointers = $BFE400
 !GeneratedBG1Enabled = $BFE406
 !LostWoodsClearBG1FlatMap16Pointers = $BFE410
+!RainContexts = $BFE430
+!RainFlatMap16Pointers = $BFE4D0
 
 !free_space_bank_a0_start = $A08700
 !free_space_bank_a0_end = $A08900
@@ -188,8 +190,8 @@ Overworld_CopyOneFlatMap16:
 
     RTS
 
-; Load authored BG1 for playable overworld modules. Presentation modules and
-; rain retain their vanilla flat overlay.
+; Load authored BG1 or generated rain for playable overworld modules.
+; Presentation modules retain their vanilla flat overlay.
 LoadSubOverlayFlatMap16:
     PHB
 
@@ -280,7 +282,7 @@ LoadGeneratedBG1FlatMap16:
 .no_authored_bg1
     LDA.b $8C
     AND.w #$00FF
-    CMP.w #$009F              ; Keep vanilla rain until its generated phase.
+    CMP.w #$009F
     BEQ .load_rain
 
     LDA.w #$0000
@@ -296,9 +298,29 @@ LoadGeneratedBG1FlatMap16:
     RTS
 
 .load_rain
-    LDA.w #$009F
+    LDA.l $7EC213
+    AND.w #$00FF
+    TAX
+    SEP #$20
+    LDA.l !RainContexts,X
+    REP #$20
+    AND.w #$00FF
+    DEC A
+    STA.b $00
+    ASL A
+    CLC
+    ADC.b $00
+    TAX
+
+    SEP #$20
+    LDA.l !RainFlatMap16Pointers+2,X
+    STA.b $0D
+    REP #$20
+
+    LDA.l !RainFlatMap16Pointers,X
+    TAX
     LDY.w #$4000
-    JSR Overworld_LoadOneFlatMap16
+    JSR Overworld_CopyOneFlatMap16
     RTS
 
 LoadGeneratedBG1WhenDisabled:

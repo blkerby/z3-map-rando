@@ -1,9 +1,6 @@
 use anyhow::{Context, Result, ensure};
 use clap::Parser;
-use engine_check::{
-    asset_bundle::{self, AssetLayout},
-    rain_tilemap::RAIN_TILEMAP,
-};
+use engine_check::asset_bundle::{self, AssetLayout};
 use patcher::{
     Patcher, PcAddr, SnesAddr,
     import::{FlatMap16, Importer},
@@ -21,6 +18,8 @@ const BG1_MAP_POINTERS_START: SnesAddr = SnesAddr(0xbfe200);
 const AREA_80_BG1_POINTERS_START: SnesAddr = SnesAddr(0xbfe400);
 const GENERATED_BG1_ENABLED: SnesAddr = SnesAddr(0xbfe406);
 const LOST_WOODS_CLEAR_BG1_POINTERS_START: SnesAddr = SnesAddr(0xbfe410);
+const RAIN_CONTEXTS_START: SnesAddr = SnesAddr(0xbfe430);
+const RAIN_MAP_POINTERS_START: SnesAddr = SnesAddr(0xbfe4d0);
 const MAP16_DEFINITION_STARTS: [SnesAddr; 4] = [
     SnesAddr(0xa18000),
     SnesAddr(0xa28000),
@@ -36,13 +35,13 @@ const MAP16_PROPERTY_STARTS: [SnesAddr; 4] = [
 const THEME_BACKGROUND_COLORS_START: SnesAddr = SnesAddr(0xa09e00);
 const THEME_ASSET_DATA_START: u32 = 0xd08000;
 const BANK_SIZE: usize = 0x8000;
-const RAIN_OVERLAY: usize = 0x9f;
 
 struct FlatMapTables {
     flat: FlatMap16,
     bg1_pointers: Vec<u8>,
     area_80_bg1_pointers: Vec<u8>,
     lost_woods_clear_bg1_pointers: Vec<u8>,
+    rain_pointers: Vec<u8>,
 }
 
 #[derive(Parser)]
@@ -66,8 +65,7 @@ fn main() -> Result<()> {
     fastrom_base.apply(&mut rom)?;
 
     let mut importer = Importer::new(rom.clone())?;
-    let mut vanilla_flat = importer.flat_map16((VANILLA_FLAT_MAPS_START.0 >> 16) as u8)?;
-    replace_rain_tilemap(&mut vanilla_flat)?;
+    let vanilla_flat = importer.flat_map16((VANILLA_FLAT_MAPS_START.0 >> 16) as u8)?;
     let vanilla_maps = split_flat_maps(&vanilla_flat)?;
     let tile_types = importer.tile_types()?.to_owned();
     let vanilla_tiles = importer.tiles16()?.to_owned();
@@ -83,7 +81,12 @@ fn main() -> Result<()> {
         area_assets,
         &args.theme,
     )?;
-    let flat = assemble_flat_maps(vanilla_maps, &compiled.screen_maps, &compiled.bg1_variants)?;
+    let flat = assemble_flat_maps(
+        vanilla_maps,
+        &compiled.screen_maps,
+        &compiled.bg1_variants,
+        &compiled.rain_maps,
+    )?;
     let bundle = asset_bundle::build(
         &compiled.area_assets,
         &credits_overworld,
@@ -172,6 +175,12 @@ fn main() -> Result<()> {
             LOST_WOODS_CLEAR_BG1_POINTERS_START.into(),
             flat.lost_woods_clear_bg1_pointers,
         )?;
+    patcher
+        .context("rain contexts")
+        .write(RAIN_CONTEXTS_START.into(), compiled.rain_contexts.to_vec())?;
+    patcher
+        .context("rain map pointers")
+        .write(RAIN_MAP_POINTERS_START.into(), flat.rain_pointers)?;
 
     let mut context = patcher.context("expanded Map16 definitions");
     for (start, definitions) in MAP16_DEFINITION_STARTS
@@ -263,23 +272,11 @@ fn split_flat_maps(flat: &FlatMap16) -> Result<Vec<Vec<u8>>> {
     Ok(maps)
 }
 
-fn replace_rain_tilemap(flat: &mut FlatMap16) -> Result<()> {
-    let pointer = &flat.screen_pointers[RAIN_OVERLAY * 3..RAIN_OVERLAY * 3 + 3];
-    let pointer = u32::from_le_bytes([pointer[0], pointer[1], pointer[2], 0]);
-    let map_start: PcAddr = SnesAddr(pointer).into();
-    let flat_start: PcAddr = VANILLA_FLAT_MAPS_START.into();
-    let offset = usize::try_from(map_start.0 - flat_start.0)?;
-    let rain = &mut flat.maps[offset..offset + 32 * 16 * 2];
-    for (bytes, &tile) in rain.chunks_exact_mut(2).zip(RAIN_TILEMAP.iter().flatten()) {
-        bytes.copy_from_slice(&tile.to_le_bytes());
-    }
-    Ok(())
-}
-
 fn assemble_flat_maps(
     mut maps: Vec<Vec<u8>>,
     replacements: &BTreeMap<usize, Vec<u8>>,
     bg1_variants: &BTreeMap<usize, Vec<theme::CompiledBg1Variant>>,
+    rain_maps: &[Vec<u8>; 2],
 ) -> Result<FlatMapTables> {
     for (screen, map) in replacements {
         ensure!(
@@ -340,6 +337,11 @@ fn assemble_flat_maps(
             }
         }
     }
+    let mut rain_pointers = Vec::with_capacity(6);
+    for map in rain_maps {
+        let address = intern_flat_map(map, &mut indices, &mut data)?;
+        rain_pointers.extend_from_slice(&address.to_le_bytes()[..3]);
+    }
     ensure!(
         data.len() <= 10 * BANK_SIZE,
         "flat maps exceed reserved banks C0-C9"
@@ -360,6 +362,7 @@ fn assemble_flat_maps(
         bg1_pointers,
         area_80_bg1_pointers,
         lost_woods_clear_bg1_pointers,
+        rain_pointers,
     })
 }
 

@@ -154,8 +154,7 @@ BG1 streamer.
 
 Rain is selected only when:
 
-1. the current area and game state satisfy the intended vanilla rain predicate,
-   including Misery Mire; and
+1. the current game state satisfies the rain predicate; and
 2. the generated background table has no authored BG1 for the area.
 
 Two sets of 8x8 rain graphics reproduce the same shapes with pixel indices
@@ -164,12 +163,12 @@ appropriate to their allocated ALTTPRetiling palettes:
 | Context | Palette | Nontransparent colors and indices |
 | --- | ---: | --- |
 | Light World | `3` (`Light World 1`) | `1=[5,5,5]`, `10=[6,9,15]`, `11=[7,12,21]`, `12=[14,22,30]` |
-| Misery Mire | `8` (`Dark World 1`) | `11=[4,6,2]`, `13=[0,10,5]`, `14=[6,17,12]` |
+| Dark World (sampled from Mire) | `8` (`Dark World 1`) | `11=[4,6,2]`, `13=[0,10,5]`, `14=[6,17,12]` |
 
 `theme_check` will construct these tiles and their Map16 definitions, add the
-applicable palette and character dependencies to rain-capable areas, and emit
-the existing optimized rain layout using the new definitions. No new rain
-palette is needed.
+applicable palette and character dependencies to every area without authored
+BG1, and emit the existing optimized rain layout using the new definitions. No
+new rain palette is needed.
 
 ## Implementation phases
 
@@ -218,11 +217,10 @@ The game still follows vanilla background selection in this phase.
 
 ### 5. Add generated rain assets
 
-- Generate Light World and Mire rain tiles with their respective palette
+- Generate Light World and Dark World rain tiles with their respective palette
   indices.
 - Rebuild the optimized rain Map16 layout with allocated definitions.
-- Add rain dependencies only to intended rain-capable areas without authored
-  BG1.
+- Add rain dependencies to every area without authored BG1.
 - Route the existing rain predicate to the static rain path and keep it outside
   ordinary BG1 streaming.
 - Test Link's House, Misery Mire, animation phases, splashes, thunder, state
@@ -244,7 +242,7 @@ The game still follows vanilla background selection in this phase.
 - Composition, follow, and drift come from generated area data.
 - Pyramid traverses its full camera range without a clamp or exposed garbage.
 - Areas with authored BG1 never select rain.
-- Intended Light World and Mire rain paths use the correct palette-indexed
-  tiles and retain animation, thunder, and sound.
+- Light World and Mire rain contexts use the correct palette-indexed tiles and
+  retain animation, thunder, and sound wherever the rain predicate selects them.
 - Area `$80` behaves like vanilla without introducing a general runtime variant
   system.

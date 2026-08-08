@@ -1,5 +1,8 @@
 use anyhow::{Context, Result, ensure};
-use engine_check::asset_bundle::{DYNAMIC_TILE_GROUP_COUNT, DynamicTileEntry};
+use engine_check::{
+    asset_bundle::{DYNAMIC_TILE_GROUP_COUNT, DynamicTileEntry},
+    rain_tilemap::RAIN_TILEMAP,
+};
 use patcher::import::{
     OverworldAnimationTrack, OverworldAreaAssets, OverworldBackgroundSettings, Tile8, Tile16,
 };
@@ -14,6 +17,12 @@ use std::{
 const MAP16_CAPACITY: usize = 0x4000;
 const CHARACTER_CAPACITY: usize = 960;
 const TRANSPARENT_CHARACTER: u16 = 0x03bf;
+const LIGHT_WORLD_RAIN_PALETTE: u8 = 3;
+const DARK_WORLD_RAIN_PALETTE: u8 = 8;
+const RAIN_CHARACTERS: [u16; 6] = [0x01ed, 0x009b, 0x01b1, 0x01fd, 0x01a1, 0x01ff];
+const RAIN_MAP16S: [u16; 8] = [
+    0x026f, 0x0c62, 0x0c63, 0x0c64, 0x0c65, 0x0c66, 0x0c67, 0x0c68,
+];
 type TileKey = (u8, usize);
 type CharacterSlots = BTreeMap<TileKey, usize>;
 type ScreenTiles = Vec<BTreeSet<TileKey>>;
@@ -219,6 +228,8 @@ pub struct CompiledTheme {
     pub map16_definitions: [Vec<u8>; 4],
     pub map16_properties: [Vec<u8>; 4],
     pub background_colors: [u16; 0xa0],
+    pub rain_contexts: [u8; 0xa0],
+    pub rain_maps: [Vec<u8>; 2],
     pub area_assets: Vec<OverworldAreaAssets>,
     pub dynamic_tile_groups: Vec<Vec<DynamicTileEntry>>,
     pub screen_count: usize,
@@ -236,10 +247,43 @@ pub fn compile(
     mut area_assets: Vec<OverworldAreaAssets>,
     theme_name: &str,
 ) -> Result<CompiledTheme> {
-    let palettes = load_palettes(root)?;
+    let mut palettes = load_palettes(root)?;
     let mut dynamic_tiles: DynamicTiles = read_json(&root.join("DynamicTiles/replacements.json"))?;
     let (mut screens, background_colors, mut bg1_variants, background_settings) =
         load_screens(root, theme_name)?;
+    let rain_tiles = [
+        add_rain_tiles(&mut palettes, &area_assets[0x2c], LIGHT_WORLD_RAIN_PALETTE),
+        add_rain_tiles(&mut palettes, &area_assets[0x70], DARK_WORLD_RAIN_PALETTE),
+    ];
+    let mut bg1_areas = BTreeSet::new();
+    for variant in &bg1_variants {
+        bg1_areas.insert(variant.area);
+    }
+    let mut rain_contexts = [0; 0xa0];
+    for screen in &mut screens {
+        if bg1_areas.contains(&screen.asset_group) {
+            continue;
+        }
+        let context = if screen.palettes.contains(&LIGHT_WORLD_RAIN_PALETTE)
+            && !screen.palettes.contains(&DARK_WORLD_RAIN_PALETTE)
+        {
+            1
+        } else if screen.palettes.contains(&DARK_WORLD_RAIN_PALETTE) || screen.asset_group >= 0x40 {
+            2
+        } else {
+            1
+        };
+        let palette = if context == 1 {
+            LIGHT_WORLD_RAIN_PALETTE
+        } else {
+            DARK_WORLD_RAIN_PALETTE
+        };
+        screen.palettes.insert(palette);
+        for &tile in &rain_tiles[context - 1] {
+            screen.extra_tiles.insert((palette, tile));
+        }
+        rain_contexts[screen.id] = context as u8;
+    }
 
     let mut canonical_flips = BTreeMap::new();
     for (&palette_id, palette) in &palettes {
@@ -462,6 +506,15 @@ pub fn compile(
             });
     }
 
+    let rain_maps = build_rain_maps(
+        vanilla_tiles,
+        &rain_tiles,
+        &palette_slots,
+        &character_slots,
+        &mut definitions,
+        &mut bg1_definition_ids,
+    )?;
+
     ensure!(definitions.len() <= MAP16_CAPACITY);
 
     let mut map16_definitions = std::array::from_fn(|_| Vec::new());
@@ -483,6 +536,8 @@ pub fn compile(
         map16_definitions,
         map16_properties: properties,
         background_colors,
+        rain_contexts,
+        rain_maps,
         area_assets,
         dynamic_tile_groups,
     })
@@ -512,6 +567,56 @@ fn load_palettes(root: &Path) -> Result<BTreeMap<u8, Palette>> {
         palettes.insert(palette.id, palette);
     }
     Ok(palettes)
+}
+
+fn add_rain_tiles(
+    palettes: &mut BTreeMap<u8, Palette>,
+    source: &OverworldAreaAssets,
+    palette_id: u8,
+) -> Vec<usize> {
+    let mut target_colors = Vec::new();
+    for &color in &palettes[&palette_id].colors {
+        target_colors.push(encode_bgr555(color));
+    }
+    let mut tiles = Vec::with_capacity(RAIN_CHARACTERS.len());
+    for &character in &RAIN_CHARACTERS {
+        let row = usize::from(character) / 16;
+        let column = usize::from(character) % 16;
+        let encoded = &source.character_rows[row][column * 32..column * 32 + 32];
+        let mut pixels = vec![vec![0; 8]; 8];
+        for (y, pixels) in pixels.iter_mut().enumerate() {
+            for (x, pixel) in pixels.iter_mut().enumerate() {
+                let mask = 0x80 >> x;
+                let mut source_pixel = 0;
+                for plane in 0..4 {
+                    let offset = plane / 2 * 16 + y * 2 + plane % 2;
+                    if encoded[offset] & mask != 0 {
+                        source_pixel |= 1 << plane;
+                    }
+                }
+                if source_pixel == 0 {
+                    continue;
+                }
+                let offset = source_pixel * 2;
+                let color = u16::from_le_bytes([
+                    source.palette_rows[5][offset],
+                    source.palette_rows[5][offset + 1],
+                ]);
+                *pixel = target_colors
+                    .iter()
+                    .position(|&target| target == color)
+                    .unwrap() as u8;
+            }
+        }
+        let palette = palettes.get_mut(&palette_id).unwrap();
+        tiles.push(palette.tiles.len());
+        palette.tiles.push(Tile {
+            priority: false,
+            collision: 0,
+            pixels,
+        });
+    }
+    tiles
 }
 
 fn load_screens(
@@ -1412,6 +1517,57 @@ fn build_bg1_maps(
                 }
             }
             maps.insert(area + area_x + area_y * 8, output);
+        }
+    }
+    Ok(maps)
+}
+
+fn build_rain_maps(
+    vanilla_tiles: &[Tile16],
+    rain_tiles: &[Vec<usize>; 2],
+    palette_slots: &BTreeMap<u8, usize>,
+    character_slots: &CharacterSlots,
+    definitions: &mut Vec<[u16; 4]>,
+    definition_ids: &mut BTreeMap<[u16; 4], u16>,
+) -> Result<[Vec<u8>; 2]> {
+    let mut maps = [Vec::with_capacity(0x800), Vec::with_capacity(0x800)];
+    for context in 0..2 {
+        let palette = if context == 0 {
+            LIGHT_WORLD_RAIN_PALETTE
+        } else {
+            DARK_WORLD_RAIN_PALETTE
+        };
+        let mut replacements = BTreeMap::new();
+        for &source_id in &RAIN_MAP16S {
+            let mut words = [0; 4];
+            for (quadrant, source) in vanilla_tiles[usize::from(source_id)].iter().enumerate() {
+                let source = source.to_vram_tilemap_word();
+                let character = source & 0x03ff;
+                let tile_index = RAIN_CHARACTERS
+                    .iter()
+                    .position(|&candidate| candidate == character)
+                    .unwrap();
+                let tile = rain_tiles[context][tile_index];
+                words[quadrant] = u16::try_from(character_slots[&(palette, tile)])?
+                    | u16::try_from(2 + palette_slots[&palette] / 2)? << 10
+                    | source & 0xe000;
+            }
+            let id = if let Some(&id) = definition_ids.get(&words) {
+                id
+            } else {
+                let id = u16::try_from(definitions.len())?;
+                definitions.push(words);
+                definition_ids.insert(words, id);
+                id
+            };
+            replacements.insert(source_id, id);
+        }
+        for _ in 0..2 {
+            for row in &RAIN_TILEMAP {
+                for source in row {
+                    maps[context].extend_from_slice(&replacements[source].to_le_bytes());
+                }
+            }
         }
     }
     Ok(maps)

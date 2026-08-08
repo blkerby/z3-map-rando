@@ -39,6 +39,7 @@ incsrc "symbols.inc"
 !BGVRAMBase = $7EC902
 !BGLogicalMask = $7EC904
 !GeneratedBG1Enabled = $BFE406
+!RainContexts = $BFE430
 !OverworldAreaRecordVariantPointers = $A78000
 !OverworldScreenSize = $82F5F1
 !BackgroundSettings = $7ECC72
@@ -83,6 +84,11 @@ hook_CreditsCameraHorizontalDelta:
 ;
 ; Every fourth game frame, the rain animation advances to another quarter of
 ; the 512x256 BG1 tilemap: 128 pixels right and 64 pixels down.
+org $82A3C4
+hook_run_rain_effects:
+    JML RunRainEffectsWhenSelected
+assert pc() == $82A3C8
+
 org $82A407
     REP #$20
 
@@ -785,6 +791,21 @@ assert pc() <= $9BCA9F
 
 org !free_space_bank_a0_start
 
+RunRainEffectsWhenSelected:
+    LDA.l !GeneratedBG1Enabled
+    BEQ .run
+    LDA.b $8C
+    CMP.b #$9F
+    BNE .done
+
+.run
+    LDA.b $8A
+    CMP.b #$70
+    JML $82A3C8
+
+.done
+    RTL
+
 RecordCameraDeltaY:
     ; Run hi-jacked instructions:
     LDA.b $04
@@ -856,7 +877,20 @@ ConfigureGeneratedBackground:
     LDA.b $8C
     CMP.b #$9F
     BNE .resolve
+    PHX
+    LDA.l $7EC213
+    TAX
+    LDA.l !RainContexts,X
+    BNE .rain
+    PLX
+    BRA .authored_background
+
+.rain
+    PLX
     JMP .presentation
+
+.authored_background
+    STZ.b $8C
 
 .resolve
     LDA.l $7EC213
@@ -1099,8 +1133,7 @@ BG2SelectRenderer:
 ; Build the visible BG1 overlay in the loading phase before BG2. The compact
 ; PPU layout was already selected at the common overworld BG1-load entry.
 ; Disabled overlays do not normally reach this routine, but checking $1D keeps
-; the ownership boundary explicit. Rain ($8C=$9F) remains on its separate
-; static path and is intentionally left blank until that milestone is installed.
+; the ownership boundary explicit. Rain ($8C=$9F) uses its separate static path.
 BG1BulkRender:
     PHP                         ; Preserve the caller's register-width flags.
 
