@@ -118,31 +118,28 @@ FindAreaEntrance:
     RTL
 
 .found
+    INY
+    INY
+    LDA.b [$03],Y
+    STA.b $00
+    INY
+    LDA.b [$03],Y
+    STA.b $02
+
     LDA.b $2F
     BNE .not_wooden_door
 
-    PHY
     REP #$20
     LDX.b $08
     JSL !OpenDynamicWoodenDoorAtEntrance
     BCC .not_generated_wooden_door
-    PLY
     SEP #$30
     RTL
 
 .not_generated_wooden_door
-    PLY
     SEP #$20
 
 .not_wooden_door
-    INY
-    INY
-    LDA.b [$03],Y
-    STA.b $07
-    INY
-    LDA.b [$03],Y
-    STA.b $06
-
     REP #$20
     LDA.l $7EF3D3
     AND.w #$00FF
@@ -169,13 +166,13 @@ FindAreaEntrance:
 
 .check_frog_dwarf
     SEP #$20
-    LDA.b $06
+    LDA.b $02
     AND.b #$01
     BEQ .forbidden_8_bit
 
 .allowed
     SEP #$20
-    LDA.b $07
+    LDA.b $00
     JML $9BBD63               ; Continue vanilla entrance setup with this ID.
 
 .forbidden_8_bit
