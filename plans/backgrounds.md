@@ -201,6 +201,7 @@ The game still follows vanilla background selection in this phase.
 - Load the area's BG1 maps using the same dimensions as BG2.
 - Clear BG1 when the table has no authored map.
 - Add the area `$80` pointer-selection exception.
+- Preserve the existing rain map path until phase 5 replaces its graphics.
 - Retain vanilla composition and scrolling temporarily to isolate map-loading
   failures.
 

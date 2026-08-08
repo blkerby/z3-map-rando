@@ -3,6 +3,9 @@ lorom
 
 !OverworldScreenSize = $82F5F1
 !FlatMap16ScreenPointers = $BFE000
+!BG1FlatMap16ScreenPointers = $BFE200
+!Area80BG1FlatMap16Pointers = $BFE400
+!GeneratedBG1Enabled = $BFE406
 
 !free_space_bank_a0_start = $A08700
 !free_space_bank_a0_end = $A08900
@@ -18,6 +21,14 @@ hook_LoadSubOverlayMap:
     JSL LoadSubOverlayFlatMap16
     RTS
 assert pc() == $82F534
+
+; Vanilla can disable an overlay without reaching LoadSubOverlayMap. Still
+; initialize the generated logical BG1 map, while retaining that presentation
+; decision until the next phase.
+org $82AEBE
+hook_ReloadSubscreenOverlayDisable:
+    JSL LoadGeneratedBG1WhenDisabled
+assert pc() == $82AEC2
 
 org !free_space_bank_a0_start
 
@@ -67,6 +78,7 @@ Overworld_LoadAllFlatMap16:
 ; Direct-page scratch:
 ;   $00: screen ID while calculating its pointer-table offset
 ;   $02-$05: executable MVN/RTS thunk
+;   $0D: source bank
 ;   $0E: source rows remaining
 Overworld_LoadOneFlatMap16:
     ; X <- A * 3
@@ -76,26 +88,66 @@ Overworld_LoadOneFlatMap16:
     ADC.b $00
     TAX
 
-    ; To perform MVN using a dynamic source bank, we write MVN + RTS
-    ; instructions to WRAM, at $02. The same instruction will be reused
-    ; for each row of Map16 tiles.
-    LDA.w #$7E54  ; MVN opcode, destination bank $7E
-    STA.b $02
-    LDA.w #$6000  ; source-bank placeholder, RTS opcode
-    STA.b $04
-
-    ; Set the source bank (in the MVN instruction)
     SEP #$20
     LDA.l !FlatMap16ScreenPointers+2,X
+    STA.b $0D
+    REP #$20
+
+    ; Each screen has a little-endian 24-bit pointer to its flat map.
+    LDA.l !FlatMap16ScreenPointers,X
+    TAX
+    BRA Overworld_CopyOneFlatMap16
+
+; A: screen ID; Y: destination address in WRAM bank $7E.
+; Returns carry set when the generated BG1 pointer exists.
+Overworld_LoadOneBG1FlatMap16:
+    STA.b $00
+    ASL A
+    CLC
+    ADC.b $00
+    TAX
+
+    SEP #$20
+    LDA.l !BG1FlatMap16ScreenPointers+2,X
+    BEQ .missing
+    STA.b $0D
+    REP #$20
+
+    LDA.l !BG1FlatMap16ScreenPointers,X
+    TAX
+    JSR Overworld_CopyOneFlatMap16
+    SEC
+    RTS
+
+.missing
+    REP #$20
+    CLC
+    RTS
+
+; X: byte offset of the area $80 variant pointer; Y: WRAM destination.
+Overworld_LoadArea80BG1FlatMap16:
+    SEP #$20
+    LDA.l !Area80BG1FlatMap16Pointers+2,X
+    STA.b $0D
+    REP #$20
+
+    LDA.l !Area80BG1FlatMap16Pointers,X
+    TAX
+
+; X: source address; Y: destination address in WRAM bank $7E; $0D: source bank.
+Overworld_CopyOneFlatMap16:
+    ; To perform MVN using a dynamic source bank, write MVN + RTS at $02.
+    LDA.w #$7E54              ; MVN opcode, destination bank $7E
+    STA.b $02
+    LDA.w #$6000              ; source-bank placeholder, RTS opcode
+    STA.b $04
+    SEP #$20
+    LDA.b $0D
     STA.b $04
     REP #$20
 
     LDA.w #$0020
     STA.b $0E
-
-    ; Each screen has a little-endian 24-bit pointer to its flat map.
-    LDA.l !FlatMap16ScreenPointers,X
-    TAX
 
 .next_row
     ; MVN copies A+1 bytes, so $003F copies one 64-byte Map16 row.
@@ -115,15 +167,142 @@ Overworld_LoadOneFlatMap16:
 
     RTS
 
-; Load the 32x32 flat Map16 overlay into the top-left of TMAPB.
+; Load authored BG1 for playable overworld modules. Presentation modules and
+; rain retain their vanilla flat overlay.
 LoadSubOverlayFlatMap16:
     PHB
 
+    SEP #$20
+    LDA.b $10
+    CMP.b #$15
+    BEQ .generated
+    CMP.b #$08
+    BCC .vanilla
+    CMP.b #$0C
+    BCS .vanilla
+.generated
+    LDA.l !GeneratedBG1Enabled
+    BEQ .vanilla
+    REP #$20
+
+    JSR LoadGeneratedBG1FlatMap16
+    BRA .done
+
+.vanilla
+    REP #$20
     LDA.b $8A
     LDY.w #$4000
     JSR Overworld_LoadOneFlatMap16
 
+.done
     PLB
+    RTL
+
+; Load the BG1 maps matching the current BG2 area dimensions. The real area ID
+; was cached before vanilla replaced $8A with its synthetic overlay ID.
+; Direct-page scratch: $06-$07 holds the real area ID.
+LoadGeneratedBG1FlatMap16:
+    LDA.l $7EC213
+    AND.w #$00FF
+    CMP.w #$0080
+    BEQ .area_80
+    STA.b $06
+
+    LDY.w #$4000
+    JSR Overworld_LoadOneBG1FlatMap16
+    BCC .no_authored_bg1
+
+    LDX.b $06
+    LDA.l !OverworldScreenSize,X
+    AND.w #$00FF
+    BNE .done
+
+    LDA.b $06
+    INC A
+    LDY.w #$4040
+    JSR Overworld_LoadOneBG1FlatMap16
+
+    LDA.b $06
+    CLC
+    ADC.w #$0008
+    LDY.w #$5000
+    JSR Overworld_LoadOneBG1FlatMap16
+
+    LDA.b $06
+    CLC
+    ADC.w #$0009
+    LDY.w #$5040
+    JSR Overworld_LoadOneBG1FlatMap16
+
+.done
+    RTS
+
+.area_80
+    LDX.w #$0000              ; Grove Fog
+    LDA.b $A0
+    CMP.w #$0181
+    BEQ .load_bridge
+
+    LDA.l $7EF300
+    AND.w #$0040
+    BNE .no_authored_bg1
+    BRA .load_area_80
+
+.load_bridge
+    LDX.w #$0003              ; Bridge Shadow
+
+.load_area_80
+    LDY.w #$4000
+    JSR Overworld_LoadArea80BG1FlatMap16
+    RTS
+
+.no_authored_bg1
+    LDA.b $8C
+    AND.w #$00FF
+    CMP.w #$009F              ; Keep vanilla rain until its generated phase.
+    BEQ .load_rain
+
+    LDA.w #$0000
+    STA.l $7E4000
+    LDX.w #$4000
+    LDY.w #$4002
+    LDA.w #$1FFD
+    MVN $7E,$7E
+
+    SEP #$20
+    STZ.b $1D
+    REP #$20
+    RTS
+
+.load_rain
+    LDA.w #$009F
+    LDY.w #$4000
+    JSR Overworld_LoadOneFlatMap16
+    RTS
+
+LoadGeneratedBG1WhenDisabled:
+    PHB
+
+    SEP #$20
+    LDA.b $10
+    CMP.b #$15
+    BEQ .generated
+    CMP.b #$08
+    BCC .finish
+    CMP.b #$0C
+    BCS .finish
+.generated
+    LDA.l !GeneratedBG1Enabled
+    BEQ .finish
+
+    REP #$30
+    JSR LoadGeneratedBG1FlatMap16
+
+.finish
+    PLB
+    ; Run hi-jacked instructions:
+    SEP #$30
+    STZ.b $1D
     RTL
 
 assert pc() <= !free_space_bank_a0_end

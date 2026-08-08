@@ -83,4 +83,5 @@ $BFE1EE-$BFE1FF [FREE]
 $BFE200-$BFE3DF screen-to-BG1-flat-map pointer table
 $BFE3E0-$BFE3FF [FREE]
 $BFE400-$BFE405 area $80 BG1 variant pointers (Grove Fog, Bridge Shadow)
-$BFE406-$BFFFFF [FREE]
+$BFE406 generated BG1 enable marker
+$BFE407-$BFFFFF [FREE]

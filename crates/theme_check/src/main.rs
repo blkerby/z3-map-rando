@@ -19,6 +19,7 @@ const THEME_FLAT_MAPS_START: SnesAddr = SnesAddr(0xc08000);
 const FLAT_MAP_POINTERS_START: SnesAddr = SnesAddr(0xbfe000);
 const BG1_MAP_POINTERS_START: SnesAddr = SnesAddr(0xbfe200);
 const AREA_80_BG1_POINTERS_START: SnesAddr = SnesAddr(0xbfe400);
+const GENERATED_BG1_ENABLED: SnesAddr = SnesAddr(0xbfe406);
 const MAP16_DEFINITION_STARTS: [SnesAddr; 4] = [
     SnesAddr(0xa18000),
     SnesAddr(0xa28000),
@@ -156,6 +157,9 @@ fn main() -> Result<()> {
     patcher
         .context("area $80 BG1 variant pointers")
         .write(AREA_80_BG1_POINTERS_START.into(), flat.area_80_bg1_pointers)?;
+    patcher
+        .context("generated BG1 enable marker")
+        .write(GENERATED_BG1_ENABLED.into(), vec![1])?;
 
     let mut context = patcher.context("expanded Map16 definitions");
     for (start, definitions) in MAP16_DEFINITION_STARTS
