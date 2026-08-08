@@ -48,6 +48,8 @@ struct Args {
     input_rom: PathBuf,
     output_rom: PathBuf,
     retiling_project: PathBuf,
+    #[arg(long, default_value = "Desert")]
+    theme: String,
     #[arg(long, value_enum, default_value = "pre-scroll")]
     transition_asset_phase: asset_bundle::TransitionAssetPhase,
 }
@@ -77,6 +79,7 @@ fn main() -> Result<()> {
         &vanilla_tiles,
         &tile_types,
         area_assets,
+        &args.theme,
     )?;
     let flat = assemble_flat_maps(vanilla_maps, &compiled.screen_maps, &compiled.bg1_variants)?;
     let bundle = asset_bundle::build(
@@ -93,7 +96,8 @@ fn main() -> Result<()> {
     )?;
 
     eprintln!(
-        "Desert: {} screens, {} palettes, {} character slots, {} Map16 definitions",
+        "{}: {} screens, {} palettes, {} character slots, {} Map16 definitions",
+        args.theme,
         compiled.screen_count,
         compiled.palette_count,
         compiled.character_count,

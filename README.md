@@ -35,12 +35,12 @@ The input must be an unheadered 1 MiB ROM (original Japanese version), having SH
 To build the milestone 9C Desert-theme checkpoint instead, use:
 
 ```sh
-cargo run -p theme_check -- path/to/vanilla.sfc path/to/desert.sfc path/to/ALTTPRetiling
+cargo run -p theme_check -- path/to/vanilla.sfc path/to/desert.sfc path/to/ALTTPRetiling [--theme Desert]
 ```
 
-`theme_check` reads the Desert JSON from the specified `ALTTPRetiling` project
-and produces a 4 MiB ROM. Authored animation tracks are supported; other
-dynamic overworld graphics remain incomplete.
+`theme_check` reads the selected theme JSON (defaulting to `Desert`) from the
+specified `ALTTPRetiling` project and produces a 4 MiB ROM. Authored animation
+tracks are supported; other dynamic overworld graphics remain incomplete.
 
 If you notice any issue while testing or if you run into any trouble following these instructions, please reach out in the [Discord](https://discord.gg/Mxb5zYZeVj) to let us know. Even in this early phase of the project, playtesting is very helpful!
 

@@ -234,11 +234,12 @@ pub fn compile(
     vanilla_tiles: &[Tile16],
     vanilla_tile_types: &[u8],
     mut area_assets: Vec<OverworldAreaAssets>,
+    theme_name: &str,
 ) -> Result<CompiledTheme> {
     let palettes = load_palettes(root)?;
     let mut dynamic_tiles: DynamicTiles = read_json(&root.join("DynamicTiles/replacements.json"))?;
     let (mut screens, background_colors, mut bg1_variants, background_settings) =
-        load_screens(root)?;
+        load_screens(root, theme_name)?;
 
     let mut canonical_flips = BTreeMap::new();
     for (&palette_id, palette) in &palettes {
@@ -308,7 +309,8 @@ pub fn compile(
     add_dynamic_dependencies(&mut screens, &mut dynamic_tiles);
     ensure!(area_assets.len() == 0xa0);
 
-    let palette_slots = allocate_palettes(&screens, &palettes)?;
+    let scrollable_transitions = build_scrollable_transition_pairs();
+    let palette_slots = allocate_palettes(&screens, &palettes, &scrollable_transitions)?;
     let mut fullest_palette = (0, 0);
     for screen in &screens {
         let mut occupied = [false; 12];
@@ -324,7 +326,8 @@ pub fn compile(
             fullest_palette = (screen.id, count);
         }
     }
-    let (character_slots, screen_tiles) = allocate_characters(&screens, &palettes)?;
+    let (character_slots, screen_tiles) =
+        allocate_characters(&screens, &palettes, &scrollable_transitions)?;
     for variant in &bg1_variants {
         let screen_index = screens
             .iter()
@@ -347,7 +350,7 @@ pub fn compile(
         .map_or(0, |slot| slot + 1);
     ensure!(
         character_count <= CHARACTER_CAPACITY,
-        "Desert needs {character_count} stable character slots, but the existing row ABI exposes {CHARACTER_CAPACITY}"
+        "{theme_name} needs {character_count} stable character slots, but the existing row ABI exposes {CHARACTER_CAPACITY}"
     );
 
     let mut definitions = Vec::with_capacity(vanilla_tiles.len());
@@ -511,6 +514,7 @@ fn load_palettes(root: &Path) -> Result<BTreeMap<u8, Palette>> {
 
 fn load_screens(
     root: &Path,
+    theme_name: &str,
 ) -> Result<(
     Vec<ThemeScreen>,
     [u16; 0xa0],
@@ -526,7 +530,7 @@ fn load_screens(
         let Some(name) = name.to_str() else {
             continue;
         };
-        let path = entry.path().join("Desert.json");
+        let path = entry.path().join(format!("{theme_name}.json"));
         if is_numbered_area(name) && path.is_file() {
             paths.push(path);
         }
@@ -728,6 +732,7 @@ fn add_dynamic_dependencies(screens: &mut [ThemeScreen], dynamic_tiles: &mut Dyn
 fn allocate_palettes(
     screens: &[ThemeScreen],
     palettes: &BTreeMap<u8, Palette>,
+    scrollable_transitions: &BTreeSet<(usize, usize)>,
 ) -> Result<BTreeMap<u8, usize>> {
     let mut used = BTreeSet::new();
     for screen in screens {
@@ -747,7 +752,11 @@ fn allocate_palettes(
     // Palettes in the same area or a scrolling neighbor must use different slots.
     for left_screen in screens {
         for right_screen in screens {
-            if areas_can_coexist(left_screen, right_screen) {
+            if areas_can_coexist(
+                left_screen.asset_group,
+                right_screen.asset_group,
+                scrollable_transitions,
+            ) {
                 for &left in &left_screen.palettes {
                     for &right in &right_screen.palettes {
                         if right != left {
@@ -774,7 +783,7 @@ fn allocate_palettes(
     // Recursively assign palettes with backtracking:
     ensure!(
         assign_palette(0, &order, &full, &conflicts, &mut assignments),
-        "Desert palettes cannot fit in six BG rows"
+        "theme palettes cannot fit in six BG rows"
     );
     Ok(assignments)
 }
@@ -824,6 +833,7 @@ fn assign_palette(
 fn allocate_characters(
     screens: &[ThemeScreen],
     palettes: &BTreeMap<u8, Palette>,
+    scrollable_transitions: &BTreeSet<(usize, usize)>,
 ) -> Result<(CharacterSlots, ScreenTiles)> {
     let mut tile_areas = BTreeMap::<TileKey, BTreeSet<usize>>::new();
     for screen in screens {
@@ -902,7 +912,7 @@ fn allocate_characters(
     let mut neighboring_areas = BTreeMap::<usize, BTreeSet<usize>>::new();
     for left in screens {
         for right in screens {
-            if areas_can_coexist(left, right) {
+            if areas_can_coexist(left.asset_group, right.asset_group, scrollable_transitions) {
                 neighboring_areas
                     .entry(left.asset_group)
                     .or_default()
@@ -966,18 +976,106 @@ fn allocate_characters(
     Ok((slots, screen_tiles))
 }
 
-fn areas_can_coexist(left: &ThemeScreen, right: &ThemeScreen) -> bool {
-    if left.asset_group == right.asset_group {
-        return true;
-    }
-    if left.id >= 0x80 || right.id >= 0x80 || left.id / 0x40 != right.id / 0x40 {
-        return false;
-    }
-    let left = left.id % 0x40;
-    let right = right.id % 0x40;
-    let horizontal = left / 8 == right / 8 && left.abs_diff(right) == 1;
-    let vertical = left % 8 == right % 8 && left.abs_diff(right) == 8;
-    horizontal || vertical
+fn build_scrollable_transition_pairs() -> BTreeSet<(usize, usize)> {
+    BTreeSet::from([
+        (0x02, 0x0a),
+        (0x03, 0x05),
+        (0x05, 0x07),
+        (0x0a, 0x12),
+        (0x0f, 0x17),
+        (0x10, 0x18),
+        (0x11, 0x12),
+        (0x11, 0x18),
+        (0x12, 0x13),
+        (0x12, 0x1a),
+        (0x13, 0x14),
+        (0x14, 0x15),
+        (0x15, 0x16),
+        (0x15, 0x1d),
+        (0x16, 0x17),
+        (0x18, 0x22),
+        (0x18, 0x29),
+        (0x1a, 0x1b),
+        (0x1b, 0x25),
+        (0x1b, 0x2b),
+        (0x1b, 0x2c),
+        (0x1d, 0x25),
+        (0x1e, 0x2e),
+        (0x1e, 0x2f),
+        (0x25, 0x2d),
+        (0x28, 0x29),
+        (0x29, 0x2a),
+        (0x2a, 0x32),
+        (0x2b, 0x2c),
+        (0x2b, 0x33),
+        (0x2c, 0x2d),
+        (0x2c, 0x34),
+        (0x2d, 0x2e),
+        (0x2d, 0x35),
+        (0x2e, 0x35),
+        (0x30, 0x3a),
+        (0x32, 0x33),
+        (0x33, 0x34),
+        (0x33, 0x3b),
+        (0x34, 0x3c),
+        (0x35, 0x3f),
+        (0x37, 0x3f),
+        (0x3a, 0x3b),
+        (0x3b, 0x3c),
+        (0x3c, 0x3f),
+        (0x42, 0x4a),
+        (0x43, 0x45),
+        (0x45, 0x47),
+        (0x4a, 0x52),
+        (0x4f, 0x57),
+        (0x50, 0x58),
+        (0x51, 0x52),
+        (0x51, 0x58),
+        (0x52, 0x53),
+        (0x52, 0x5a),
+        (0x53, 0x54),
+        (0x54, 0x55),
+        (0x55, 0x56),
+        (0x55, 0x5d),
+        (0x56, 0x57),
+        (0x58, 0x62),
+        (0x58, 0x69),
+        (0x5a, 0x5b),
+        (0x5b, 0x65),
+        (0x5b, 0x6b),
+        (0x5b, 0x6c),
+        (0x5d, 0x65),
+        (0x5e, 0x6e),
+        (0x5e, 0x6f),
+        (0x65, 0x6d),
+        (0x68, 0x69),
+        (0x69, 0x6a),
+        (0x6a, 0x72),
+        (0x6b, 0x6c),
+        (0x6b, 0x73),
+        (0x6c, 0x6d),
+        (0x6c, 0x74),
+        (0x6d, 0x6e),
+        (0x6d, 0x75),
+        (0x6e, 0x75),
+        (0x70, 0x7a),
+        (0x72, 0x73),
+        (0x73, 0x74),
+        (0x73, 0x7b),
+        (0x74, 0x7c),
+        (0x75, 0x7f),
+        (0x77, 0x7f),
+        (0x7b, 0x7c),
+        (0x7c, 0x7f),
+    ])
+}
+
+fn areas_can_coexist(
+    left: usize,
+    right: usize,
+    scrollable_transitions: &BTreeSet<(usize, usize)>,
+) -> bool {
+    left == right || scrollable_transitions.contains(&(left.min(right), left.max(right)))
 }
 
 fn build_palette_rows(
@@ -1218,7 +1316,7 @@ fn intern_map16(
 
     ensure!(
         definitions.len() < MAP16_CAPACITY,
-        "Desert Map16 definitions exceed {MAP16_CAPACITY}"
+        "theme Map16 definitions exceed {MAP16_CAPACITY}"
     );
     let id = u16::try_from(definitions.len())?;
     definitions.push(words);
