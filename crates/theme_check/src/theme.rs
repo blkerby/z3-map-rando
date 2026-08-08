@@ -11,6 +11,7 @@ use std::{
 
 const MAP16_CAPACITY: usize = 0x4000;
 const CHARACTER_CAPACITY: usize = 960;
+const TRANSPARENT_CHARACTER: u16 = 0x03bf;
 type TileKey = (u8, usize);
 type CharacterSlots = BTreeMap<TileKey, usize>;
 type ScreenTiles = Vec<BTreeSet<TileKey>>;
@@ -50,6 +51,11 @@ struct Tile {
 struct Area {
     vanilla_map_id: usize,
     bg_color: [u8; 3],
+    bg_layering: BackgroundLayering,
+    bg_camera_follow_x: f32,
+    bg_camera_drift_x: f32,
+    bg_camera_follow_y: f32,
+    bg_camera_drift_y: f32,
     size: [usize; 2],
     layers: Vec<SourceLayer>,
 }
@@ -61,8 +67,17 @@ enum Background {
     Bg2,
 }
 
+#[derive(Clone, Copy, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BackgroundLayering {
+    None,
+    HalfAdd,
+    Backdrop,
+}
+
 #[derive(Deserialize)]
 struct SourceLayer {
+    name: String,
     background: Background,
     screens: Vec<SourceScreen>,
 }
@@ -89,6 +104,27 @@ struct ThemeScreen {
     placements: Vec<Placement>,
     palettes: BTreeSet<u8>,
     extra_tiles: BTreeSet<TileKey>,
+}
+
+struct Bg1Variant {
+    name: String,
+    area: usize,
+    width: usize,
+    height: usize,
+    placements: Vec<Option<Placement>>,
+}
+
+pub struct CompiledBg1Variant {
+    pub name: String,
+    pub maps: Vec<Vec<u8>>,
+}
+
+pub struct BackgroundSettings {
+    pub layering: BackgroundLayering,
+    pub camera_follow_x: f32,
+    pub camera_drift_x: f32,
+    pub camera_follow_y: f32,
+    pub camera_drift_y: f32,
 }
 
 #[derive(Deserialize)]
@@ -176,6 +212,8 @@ struct DynamicTiling {
 
 pub struct CompiledTheme {
     pub screen_maps: BTreeMap<usize, Vec<u8>>,
+    pub bg1_variants: BTreeMap<usize, Vec<CompiledBg1Variant>>,
+    pub background_settings: BTreeMap<usize, BackgroundSettings>,
     pub map16_definitions: [Vec<u8>; 4],
     pub map16_properties: [Vec<u8>; 4],
     pub background_colors: [u16; 0xa0],
@@ -185,6 +223,8 @@ pub struct CompiledTheme {
     pub palette_count: usize,
     pub character_count: usize,
     pub map16_count: usize,
+    pub fullest_palette_screen: usize,
+    pub fullest_palette_half_slots: usize,
 }
 
 pub fn compile(
@@ -195,7 +235,8 @@ pub fn compile(
 ) -> Result<CompiledTheme> {
     let palettes = load_palettes(root)?;
     let mut dynamic_tiles: DynamicTiles = read_json(&root.join("DynamicTiles/replacements.json"))?;
-    let (mut screens, background_colors) = load_screens(root)?;
+    let (mut screens, background_colors, mut bg1_variants, background_settings) =
+        load_screens(root)?;
 
     let mut canonical_flips = BTreeMap::new();
     for (&palette_id, palette) in &palettes {
@@ -238,6 +279,12 @@ pub fn compile(
                 canonical_flips[&(placement.palette, placement.tile)][usize::from(placement.flip)];
         }
     }
+    for variant in &mut bg1_variants {
+        for placement in variant.placements.iter_mut().flatten() {
+            placement.flip =
+                canonical_flips[&(placement.palette, placement.tile)][usize::from(placement.flip)];
+        }
+    }
     for group in &mut dynamic_tiles.groups {
         for variant in &mut group.variants {
             for row in &mut variant.before.tiles {
@@ -260,6 +307,21 @@ pub fn compile(
     ensure!(area_assets.len() == 0xa0);
 
     let palette_slots = allocate_palettes(&screens, &palettes)?;
+    let mut fullest_palette = (0, 0);
+    for screen in &screens {
+        let mut occupied = [false; 12];
+        for palette in &screen.palettes {
+            let slot = palette_slots[palette];
+            occupied[slot] = true;
+            if palettes[palette].uses_upper_half {
+                occupied[slot + 1] = true;
+            }
+        }
+        let count = occupied.into_iter().filter(|occupied| *occupied).count();
+        if count > fullest_palette.1 {
+            fullest_palette = (screen.id, count);
+        }
+    }
     let (character_slots, screen_tiles) = allocate_characters(&screens, &palettes)?;
     let character_count = character_slots
         .values()
@@ -339,6 +401,33 @@ pub fn compile(
         &mut definition_ids,
     )?;
 
+    let mut bg1_definition_ids = BTreeMap::new();
+    for (id, &words) in definitions.iter().enumerate() {
+        bg1_definition_ids
+            .entry(words)
+            .or_insert(u16::try_from(id)?);
+    }
+    let mut compiled_bg1_variants = BTreeMap::<usize, Vec<CompiledBg1Variant>>::new();
+    for variant in bg1_variants {
+        let maps = build_bg1_maps(
+            &variant.placements,
+            variant.width,
+            variant.height,
+            &palettes,
+            &palette_slots,
+            &character_slots,
+            &mut definitions,
+            &mut bg1_definition_ids,
+        )?;
+        compiled_bg1_variants
+            .entry(variant.area)
+            .or_default()
+            .push(CompiledBg1Variant {
+                name: variant.name,
+                maps,
+            });
+    }
+
     ensure!(definitions.len() <= MAP16_CAPACITY);
 
     let mut map16_definitions = std::array::from_fn(|_| Vec::new());
@@ -352,7 +441,11 @@ pub fn compile(
         palette_count: palette_slots.len(),
         character_count,
         map16_count: definitions.len(),
+        fullest_palette_screen: fullest_palette.0,
+        fullest_palette_half_slots: fullest_palette.1,
         screen_maps,
+        bg1_variants: compiled_bg1_variants,
+        background_settings,
         map16_definitions,
         map16_properties: properties,
         background_colors,
@@ -387,7 +480,14 @@ fn load_palettes(root: &Path) -> Result<BTreeMap<u8, Palette>> {
     Ok(palettes)
 }
 
-fn load_screens(root: &Path) -> Result<(Vec<ThemeScreen>, [u16; 0xa0])> {
+fn load_screens(
+    root: &Path,
+) -> Result<(
+    Vec<ThemeScreen>,
+    [u16; 0xa0],
+    Vec<Bg1Variant>,
+    BTreeMap<usize, BackgroundSettings>,
+)> {
     let mut paths = Vec::new();
     for entry in fs::read_dir(root.join("Areas"))? {
         let Ok(entry) = entry else {
@@ -406,99 +506,105 @@ fn load_screens(root: &Path) -> Result<(Vec<ThemeScreen>, [u16; 0xa0])> {
 
     let mut result = Vec::new();
     let mut background_colors = [0x8000; 0xa0];
+    let mut bg1_variants = Vec::new();
+    let mut background_settings = BTreeMap::new();
     for path in paths {
         let area: Area = read_json(&path)?;
         let first_screen = result.len();
         let mut area_palettes = BTreeSet::new();
         let mut area_extra_tiles = BTreeSet::new();
+        let width = area.size[0] * 32;
+        let height = area.size[1] * 32;
+        let mut area_tiles = vec![vec![None; width]; height];
+        let mut bg1_layers = Vec::new();
         for layer in &area.layers {
-            if layer.background != Background::Bg1 {
-                continue;
-            }
+            let mut layer_tiles = vec![vec![None; width]; height];
             for screen in &layer.screens {
                 for y in 0..screen.size[1] {
                     for x in 0..screen.size[0] {
-                        match (
+                        if let (Some(palette), Some(tile), Some(flip)) = (
                             screen.palettes[y][x],
                             screen.tiles[y][x],
                             screen.flips[y][x],
                         ) {
-                            (Some(palette), Some(tile), Some(_)) => {
-                                area_palettes.insert(palette);
-                                area_extra_tiles.insert((palette, tile));
-                            }
-                            (None, None, None) => {}
-                            _ => {
-                                anyhow::bail!("mismatched transparent BG1 cell: {}", path.display())
+                            layer_tiles[screen.position[1] + y][screen.position[0] + x] =
+                                Some(Placement {
+                                    palette,
+                                    tile,
+                                    flip,
+                                });
+                        }
+                    }
+                }
+            }
+            match layer.background {
+                Background::Bg1 => bg1_layers.push((layer.name.clone(), layer_tiles)),
+                Background::Bg2 => {
+                    for y in 0..height {
+                        for x in 0..width {
+                            if layer_tiles[y][x].is_some() {
+                                area_tiles[y][x] = layer_tiles[y][x];
                             }
                         }
                     }
                 }
             }
         }
-        let layer = area
-            .layers
-            .into_iter()
-            .find(|layer| layer.background == Background::Bg2)
-            .with_context(|| format!("area has no BG2 layer: {}", path.display()))?;
-        let width = area.size[0] * 32;
-        let height = area.size[1] * 32;
-        let mut area_tiles = vec![vec![None; width]; height];
-        let mut covered = vec![vec![false; width]; height];
-        for screen in layer.screens {
-            ensure!(
-                screen.size[0] > 0
-                    && screen.size[1] > 0
-                    && screen.palettes.len() == screen.size[1]
-                    && screen.tiles.len() == screen.size[1]
-                    && screen.flips.len() == screen.size[1],
-                "invalid screen size: {}",
-                path.display()
-            );
-            ensure!(
-                screen.position[0] + screen.size[0] <= width
-                    && screen.position[1] + screen.size[1] <= height,
-                "screen outside area: {}",
-                path.display()
-            );
-            for y in 0..screen.size[1] {
-                ensure!(
-                    screen.palettes[y].len() == screen.size[0]
-                        && screen.tiles[y].len() == screen.size[0]
-                        && screen.flips[y].len() == screen.size[0],
-                    "invalid screen row size: {}",
-                    path.display()
-                );
-                for x in 0..screen.size[0] {
-                    let area_x = screen.position[0] + x;
-                    let area_y = screen.position[1] + y;
-                    ensure!(
-                        !covered[area_y][area_x],
-                        "overlapping screens: {}",
-                        path.display()
-                    );
-                    covered[area_y][area_x] = true;
-                    area_tiles[area_y][area_x] = match (
-                        screen.palettes[y][x],
-                        screen.tiles[y][x],
-                        screen.flips[y][x],
-                    ) {
-                        (Some(palette), Some(tile), Some(flip)) => Some(Placement {
-                            palette,
-                            tile,
-                            flip,
-                        }),
-                        (None, None, None) => None,
-                        _ => anyhow::bail!("mismatched transparent cell: {}", path.display()),
-                    };
+
+        if area.vanilla_map_id == 0x80 {
+            for (name, tiles) in bg1_layers {
+                let placements: Vec<_> = tiles.into_iter().flatten().collect();
+                for placement in placements.iter().flatten() {
+                    area_palettes.insert(placement.palette);
+                    area_extra_tiles.insert((placement.palette, placement.tile));
+                }
+                bg1_variants.push(Bg1Variant {
+                    name,
+                    area: area.vanilla_map_id,
+                    width,
+                    height,
+                    placements,
+                });
+            }
+        } else if !bg1_layers.is_empty() {
+            let mut tiles = vec![vec![None; width]; height];
+            for (_, layer_tiles) in bg1_layers {
+                for y in 0..height {
+                    for x in 0..width {
+                        if layer_tiles[y][x].is_some() {
+                            tiles[y][x] = layer_tiles[y][x];
+                        }
+                    }
                 }
             }
+            let placements: Vec<_> = tiles.into_iter().flatten().collect();
+            for placement in placements.iter().flatten() {
+                area_palettes.insert(placement.palette);
+                area_extra_tiles.insert((placement.palette, placement.tile));
+            }
+            bg1_variants.push(Bg1Variant {
+                name: "BG1".to_string(),
+                area: area.vanilla_map_id,
+                width,
+                height,
+                placements,
+            });
         }
 
         for group_y in 0..area.size[1] / 2 {
             for group_x in 0..area.size[0] / 2 {
                 let id = area.vanilla_map_id + group_x + group_y * 8;
                 background_colors[id] = encode_bgr555(area.bg_color);
+                background_settings.insert(
+                    id,
+                    BackgroundSettings {
+                        layering: area.bg_layering,
+                        camera_follow_x: area.bg_camera_follow_x,
+                        camera_drift_x: area.bg_camera_drift_x,
+                        camera_follow_y: area.bg_camera_follow_y,
+                        camera_drift_y: area.bg_camera_drift_y,
+                    },
+                );
                 let mut placements = Vec::with_capacity(64 * 64);
                 for component_y in 0..2 {
                     for y in 0..32 {
@@ -533,7 +639,7 @@ fn load_screens(root: &Path) -> Result<(Vec<ThemeScreen>, [u16; 0xa0])> {
         }
     }
     result.sort_by_key(|screen| screen.id);
-    Ok((result, background_colors))
+    Ok((result, background_colors, bg1_variants, background_settings))
 }
 
 fn add_dynamic_dependencies(screens: &mut [ThemeScreen], dynamic_tiles: &mut DynamicTiles) {
@@ -805,7 +911,7 @@ fn allocate_characters(
                 blocked.insert(row);
             }
         }
-        let row = (0..CHARACTER_CAPACITY / 16)
+        let row = (0..CHARACTER_CAPACITY / 16 - 1)
             .find(|row| !blocked.contains(row))
             .context("Graphics exceed the existing stable character rows")?;
         group_rows.insert(group, row);
@@ -1126,6 +1232,59 @@ fn build_map(
         }
     }
     Ok(map)
+}
+
+fn build_bg1_maps(
+    placements: &[Option<Placement>],
+    width: usize,
+    height: usize,
+    palettes: &BTreeMap<u8, Palette>,
+    palette_slots: &BTreeMap<u8, usize>,
+    character_slots: &CharacterSlots,
+    definitions: &mut Vec<[u16; 4]>,
+    definition_ids: &mut BTreeMap<[u16; 4], u16>,
+) -> Result<Vec<Vec<u8>>> {
+    let mut maps = Vec::new();
+    for area_y in 0..height / 64 {
+        for area_x in 0..width / 64 {
+            let mut output = Vec::with_capacity(0x800);
+            for map_y in 0..32 {
+                for map_x in 0..32 {
+                    let x = area_x * 64 + map_x * 2;
+                    let y = area_y * 64 + map_y * 2;
+                    let source = [
+                        placements[y * width + x],
+                        placements[y * width + x + 1],
+                        placements[(y + 1) * width + x],
+                        placements[(y + 1) * width + x + 1],
+                    ];
+                    let mut words = [TRANSPARENT_CHARACTER; 4];
+                    for (index, placement) in source.into_iter().enumerate() {
+                        let Some(placement) = placement else {
+                            continue;
+                        };
+                        let tile = &palettes[&placement.palette].tiles[placement.tile];
+                        words[index] =
+                            u16::try_from(character_slots[&(placement.palette, placement.tile)])?
+                                | u16::try_from(2 + palette_slots[&placement.palette] / 2)? << 10
+                                | if tile.priority { 1 << 13 } else { 0 }
+                                | u16::from(placement.flip) << 14;
+                    }
+                    let id = if let Some(&id) = definition_ids.get(&words) {
+                        id
+                    } else {
+                        let id = u16::try_from(definitions.len())?;
+                        definitions.push(words);
+                        definition_ids.insert(words, id);
+                        id
+                    };
+                    output.extend_from_slice(&id.to_le_bytes());
+                }
+            }
+            maps.push(output);
+        }
+    }
+    Ok(maps)
 }
 
 fn build_graphic(

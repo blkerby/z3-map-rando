@@ -35,9 +35,9 @@ two alternatives, `Grove Fog` and `Bridge Shadow`; they are not composited.
 
 ## Logical BG1 map
 
-An authored BG1 uses the same logical capacity as BG2: a 64x64 grid of Map16
-tiles in `$7E4000-$7E5FFF`. This is a 128x128 grid of 8x8 tiles, four times the
-area of vanilla's populated 32x32-Map16 overlay.
+An authored BG1 has the same dimensions as BG2 in that area. A 4x4-screen area
+uses a 64x64 grid of Map16 tiles in `$7E4000-$7E5FFF`, while a 2x2-screen area
+uses one 32x32-Map16 flat map.
 
 `theme_check` will:
 
@@ -47,15 +47,16 @@ area of vanilla's populated 32x32-Map16 overlay.
    palette slots;
 4. use a transparent 8x8 word for absent placements and zero collision
    properties for new BG1-only Map16 definitions;
-5. emit four flat 32x32-Map16 quadrants for every active BG1 variant.
+5. emit the same arrangement of flat 32x32-Map16 maps as BG2 for every active
+   BG1 variant.
 
-The quadrants use the existing flat-map format and can share its map-data
-interner. A parallel 160-entry pointer table maps screen IDs to BG1 quadrants.
-A zero pointer means that the retiling project supplies no BG1 for that screen.
+The maps use the existing flat-map format and can share its map-data interner. A
+parallel 160-entry pointer table maps screen IDs to BG1 maps. A zero pointer
+means that the retiling project supplies no BG1 for that screen.
 
-All four quadrants are initialized when BG1 is active, including areas whose
-playable BG2 region is smaller. Transparent or deliberately filled quadrants
-must not retain data from the previous area.
+Every map used by the area's BG2 dimensions is initialized when BG1 is active.
+Transparent or deliberately filled regions must not retain data from the
+previous area.
 
 ### Pyramid
 
@@ -90,7 +91,7 @@ Allocation checks must report:
 
 Each playable screen receives generated background configuration containing:
 
-- BG1 quadrant pointers, or no authored BG1;
+- BG1 map pointers, or no authored BG1;
 - composition mode;
 - X and Y camera-follow values;
 - X and Y drift values.
@@ -135,14 +136,13 @@ movement and drift, then apply screen shake to the presented BG1 scroll. Reset
 the fractional drift phase on a full load unless gameplay comparison shows a
 vanilla path that requires continuity.
 
-The full logical map uses the same 7-bit 8x8 coordinate mask as BG2. Coordinates
-wrap within the 128x128-tile source; there are no Pyramid-specific clamps.
-Authored transparent or filled regions determine what appears at every
-reachable position.
+BG1 uses the same source-coordinate mask and wrapping dimensions as BG2 in the
+area; there are no Pyramid-specific clamps. Authored transparent or filled
+regions determine what appears at every reachable position.
 
 The existing shared BG1/BG2 streamer remains responsible for the rolling PPU
-tilemap. BG1 changes from the old `$003F` source mask to `$007F`; its VRAM base
-and BG1-specific scroll hooks remain distinct from BG2.
+tilemap. BG1 uses the same source mask as BG2 for the area's dimensions; its
+VRAM base and BG1-specific scroll hooks remain distinct from BG2.
 
 ## Rain
 
@@ -176,7 +176,7 @@ palette is needed.
 
 - Parse composition and camera fields in `theme_check`.
 - Resolve layers by complete 8x8 placements within each background.
-- Build BG1 Map16 definitions and four flat quadrants per variant.
+- Build BG1 Map16 definitions and the area's flat maps per variant.
 - Include the resulting assets in existing allocations.
 - Emit allocation and map-bound diagnostics, but do not change ASM.
 
@@ -185,10 +185,10 @@ the assets that the final maps actually reference.
 
 ### 2. Emit generated background tables
 
-- Add the parallel BG1 quadrant-pointer table.
+- Add the parallel BG1 map-pointer table.
 - Encode composition, follow, and drift values in a compact per-screen record.
 - Write both tables into declared ROM ranges with overlap and bounds checks.
-- Add offline checks that every active BG1 has four initialized quadrants and
+- Add offline checks that every active BG1 initializes the same maps as BG2 and
   all referenced assets.
 
 The game still follows vanilla background selection in this phase.
@@ -196,7 +196,7 @@ The game still follows vanilla background selection in this phase.
 ### 3. Load authored BG1 maps
 
 - Make the overworld BG1 load read the generated table.
-- Load all four quadrants into `$7E4000-$7E5FFF`.
+- Load the area's BG1 maps using the same dimensions as BG2.
 - Clear BG1 when the table has no authored map.
 - Add the area `$80` pointer-selection exception.
 - Retain vanilla composition and scrolling temporarily to isolate map-loading
@@ -207,7 +207,7 @@ The game still follows vanilla background selection in this phase.
 - Configure BG1 enablement, main/subscreen selection, and color math from the
   generated composition mode.
 - Implement fixed-point follow and drift for both axes.
-- Change the BG1 streamer source mask to `$007F`.
+- Use BG2's source mask for the area's dimensions in the BG1 streamer.
 - Use the full authored Pyramid map and remove its clamp after validation.
 - Cover full loads, gameplay streaming, scrolling transitions, mirror and
   portal travel, whirlpools, world-map return, and interior return.
@@ -235,7 +235,7 @@ The game still follows vanilla background selection in this phase.
 
 ## Completion checks
 
-- Authored BG1 occupies a fully initialized 64x64 Map16 logical map.
+- Authored BG1 occupies a fully initialized logical map matching BG2's size.
 - BG1 and BG2 layers resolve by 8x8 placement before PPU composition.
 - Composition, follow, and drift come from generated area data.
 - Pyramid traverses its full camera range without a clamp or exposed garbage.

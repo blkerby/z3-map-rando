@@ -90,6 +90,42 @@ fn main() -> Result<()> {
         compiled.character_count,
         compiled.map16_count,
     );
+    let bg1_variant_count: usize = compiled.bg1_variants.values().map(Vec::len).sum();
+    let mut bg1_bytes = 0;
+    let mut bg1_names = Vec::new();
+    for variants in compiled.bg1_variants.values() {
+        for variant in variants {
+            bg1_names.push(variant.name.as_str());
+            for map in &variant.maps {
+                bg1_bytes += map.len();
+            }
+        }
+    }
+    let mut background_modes = [0; 3];
+    let mut parallax_records = 0;
+    let mut drifting_records = 0;
+    for settings in compiled.background_settings.values() {
+        match settings.layering {
+            theme::BackgroundLayering::None => background_modes[0] += 1,
+            theme::BackgroundLayering::HalfAdd => background_modes[1] += 1,
+            theme::BackgroundLayering::Backdrop => background_modes[2] += 1,
+        }
+        if settings.camera_follow_x != 1.0 || settings.camera_follow_y != 1.0 {
+            parallax_records += 1;
+        }
+        if settings.camera_drift_x != 0.0 || settings.camera_drift_y != 0.0 {
+            drifting_records += 1;
+        }
+    }
+    eprintln!(
+        "BG1: {} areas, {bg1_variant_count} variants ({bg1_bytes} bytes: {}), {} background records; modes {:?}, {parallax_records} parallax, {drifting_records} drifting; fullest palette ${:02X} uses {}/12 half-slots",
+        compiled.bg1_variants.len(),
+        bg1_names.join(", "),
+        compiled.background_settings.len(),
+        background_modes,
+        compiled.fullest_palette_screen,
+        compiled.fullest_palette_half_slots,
+    );
     eprintln!(
         "overworld assets: {} bytes total ({} pointer table, {} data), {} unique blocks",
         bundle.pointer_table.len() + bundle.data.len(),
