@@ -38,6 +38,7 @@ const RAIN_OVERLAY: usize = 0x9f;
 struct Args {
     input_rom: PathBuf,
     output_rom: PathBuf,
+    retiling_project: PathBuf,
     #[arg(long, value_enum, default_value = "pre-scroll")]
     transition_asset_phase: asset_bundle::TransitionAssetPhase,
 }
@@ -45,7 +46,6 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
     let mut rom = read_vanilla_rom(&args.input_rom)?;
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ALTTPRetiling");
     let patch_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../patches/ips");
 
     let mut fastrom_base = Patcher::default();
@@ -63,7 +63,12 @@ fn main() -> Result<()> {
     let credits_cool_background = importer.credits_cool_background_assets()?;
     let sprite_seed = importer.overworld_sprite_seed()?;
 
-    let compiled = theme::compile(&root, &vanilla_tiles, &tile_types, area_assets)?;
+    let compiled = theme::compile(
+        &args.retiling_project,
+        &vanilla_tiles,
+        &tile_types,
+        area_assets,
+    )?;
     let flat = assemble_flat_maps(vanilla_maps, compiled.screen_maps)?;
     let bundle = asset_bundle::build(
         &compiled.area_assets,

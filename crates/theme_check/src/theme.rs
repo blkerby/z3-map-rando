@@ -1,6 +1,6 @@
-use anyhow::{Context, Result, ensure};
-use engine_check::asset_bundle::{DYNAMIC_TILE_GROUP_COUNT, DynamicTileEntry};
-use patcher::import::{OverworldAnimationTrack, OverworldAreaAssets, Tile8, Tile16};
+use anyhow::{ensure, Context, Result};
+use engine_check::asset_bundle::{DynamicTileEntry, DYNAMIC_TILE_GROUP_COUNT};
+use patcher::import::{OverworldAnimationTrack, OverworldAreaAssets, Tile16, Tile8};
 use serde::Deserialize;
 use std::{
     cmp::Reverse,
@@ -51,15 +51,29 @@ struct Area {
     vanilla_map_id: usize,
     bg_color: [u8; 3],
     size: [usize; 2],
+    layers: Vec<SourceLayer>,
+}
+
+#[derive(Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+enum Background {
+    Bg1,
+    Bg2,
+}
+
+#[derive(Deserialize)]
+struct SourceLayer {
+    background: Background,
     screens: Vec<SourceScreen>,
 }
 
 #[derive(Deserialize)]
 struct SourceScreen {
     position: [usize; 2],
-    palettes: Vec<Vec<u8>>,
-    tiles: Vec<Vec<usize>>,
-    flips: Vec<Vec<u8>>,
+    size: [usize; 2],
+    palettes: Vec<Vec<Option<u8>>>,
+    tiles: Vec<Vec<Option<usize>>>,
+    flips: Vec<Vec<Option<u8>>>,
 }
 
 #[derive(Clone, Copy, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -396,9 +410,63 @@ fn load_screens(root: &Path) -> Result<(Vec<ThemeScreen>, [u16; 0xa0])> {
         let area: Area = read_json(&path)?;
         let first_screen = result.len();
         let mut area_palettes = BTreeSet::new();
-        let mut components = BTreeMap::new();
-        for screen in area.screens {
-            components.insert((screen.position[0], screen.position[1]), screen);
+        let layer = area
+            .layers
+            .into_iter()
+            .find(|layer| layer.background == Background::Bg2)
+            .with_context(|| format!("area has no BG2 layer: {}", path.display()))?;
+        let width = area.size[0] * 32;
+        let height = area.size[1] * 32;
+        let mut area_tiles = vec![vec![None; width]; height];
+        let mut covered = vec![vec![false; width]; height];
+        for screen in layer.screens {
+            ensure!(
+                screen.size[0] > 0
+                    && screen.size[1] > 0
+                    && screen.palettes.len() == screen.size[1]
+                    && screen.tiles.len() == screen.size[1]
+                    && screen.flips.len() == screen.size[1],
+                "invalid screen size: {}",
+                path.display()
+            );
+            ensure!(
+                screen.position[0] + screen.size[0] <= width
+                    && screen.position[1] + screen.size[1] <= height,
+                "screen outside area: {}",
+                path.display()
+            );
+            for y in 0..screen.size[1] {
+                ensure!(
+                    screen.palettes[y].len() == screen.size[0]
+                        && screen.tiles[y].len() == screen.size[0]
+                        && screen.flips[y].len() == screen.size[0],
+                    "invalid screen row size: {}",
+                    path.display()
+                );
+                for x in 0..screen.size[0] {
+                    let area_x = screen.position[0] + x;
+                    let area_y = screen.position[1] + y;
+                    ensure!(
+                        !covered[area_y][area_x],
+                        "overlapping screens: {}",
+                        path.display()
+                    );
+                    covered[area_y][area_x] = true;
+                    area_tiles[area_y][area_x] = match (
+                        screen.palettes[y][x],
+                        screen.tiles[y][x],
+                        screen.flips[y][x],
+                    ) {
+                        (Some(palette), Some(tile), Some(flip)) => Some(Placement {
+                            palette,
+                            tile,
+                            flip,
+                        }),
+                        (None, None, None) => None,
+                        _ => anyhow::bail!("mismatched transparent cell: {}", path.display()),
+                    };
+                }
+            }
         }
 
         for group_y in 0..area.size[1] / 2 {
@@ -409,14 +477,15 @@ fn load_screens(root: &Path) -> Result<(Vec<ThemeScreen>, [u16; 0xa0])> {
                 for component_y in 0..2 {
                     for y in 0..32 {
                         for component_x in 0..2 {
-                            let screen = &components
-                                [&(group_x * 2 + component_x, group_y * 2 + component_y)];
                             for x in 0..32 {
-                                let placement = Placement {
-                                    palette: screen.palettes[y][x],
-                                    tile: screen.tiles[y][x],
-                                    flip: screen.flips[y][x],
-                                };
+                                let area_x = group_x * 64 + component_x * 32 + x;
+                                let area_y = group_y * 64 + component_y * 32 + y;
+                                let placement = area_tiles[area_y][area_x].with_context(|| {
+                                    format!(
+                                        "transparent BG2 tile at ({area_x}, {area_y}): {}",
+                                        path.display()
+                                    )
+                                })?;
                                 area_palettes.insert(placement.palette);
                                 placements.push(placement);
                             }

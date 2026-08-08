@@ -2,9 +2,6 @@
 	path = jpdasm
 	url = https://github.com/blkerby/jpdasm.git
 	branch = ai-annotated
-[submodule "ALTTPRetiling"]
-	path = ALTTPRetiling
-	url = https://github.com/kjbranch/ALTTPRetiling.git
 [submodule "asar"]
 	path = asar
 	url = https://github.com/blkerby/asar.git
