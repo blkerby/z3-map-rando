@@ -79,4 +79,8 @@ Bank $BF
 $BF8000-$BFDFFF flat Map16 submaps 112-123
 $BFE000-$BFE1DF screen-to-flat-map pointer table
 $BFE1E0-$BFE1ED engine_check temporary compressed blank graphics sheets
-$BFE1EE-$BFFFFF [FREE]
+$BFE1EE-$BFE1FF [FREE]
+$BFE200-$BFE3DF screen-to-BG1-flat-map pointer table
+$BFE3E0-$BFE3FF [FREE]
+$BFE400-$BFE405 area $80 BG1 variant pointers (Grove Fog, Bridge Shadow)
+$BFE406-$BFFFFF [FREE]

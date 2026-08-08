@@ -89,17 +89,17 @@ Allocation checks must report:
 
 ## Area background table
 
-Each playable screen receives generated background configuration containing:
+Each playable screen receives a generated BG1 map pointer, or zero when it has
+no authored BG1. The existing generated area record contains:
 
-- BG1 map pointers, or no authored BG1;
 - composition mode;
 - X and Y camera-follow values;
 - X and Y drift values.
 
-The table is indexed by `$8A`. Runtime code reads it during the existing
-overworld background-loading phase, loads the complete logical BG1 map, and
-configures BG1, the main/subscreen selection, and color math. Screen IDs should
-not otherwise select presentation behavior in ASM.
+Both lookups use `$8A`. Runtime code reads them during the existing overworld
+background-loading phase, loads the logical BG1 map, and configures BG1, the
+main/subscreen selection, and color math. Screen IDs should not otherwise
+select presentation behavior in ASM.
 
 Edge variants do not require runtime condition records. The randomizer chooses
 them before patching, and the patcher writes the resulting direct pointers.
@@ -186,8 +186,10 @@ the assets that the final maps actually reference.
 ### 2. Emit generated background tables
 
 - Add the parallel BG1 map-pointer table.
-- Encode composition, follow, and drift values in a compact per-screen record.
-- Write both tables into declared ROM ranges with overlap and bounds checks.
+- Append composition, follow, and drift values to the existing area record,
+  encoded in signed eighths.
+- Write the pointer table into its declared ROM range with overlap and bounds
+  checks.
 - Add offline checks that every active BG1 initializes the same maps as BG2 and
   all referenced assets.
 

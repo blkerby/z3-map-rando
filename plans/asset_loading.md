@@ -155,7 +155,7 @@ scan needs neither a terminator nor fallback logic. Adjacent variants with
 identical records are merged. Light World areas use maximums `$01`, `$02`, and
 `$FF` where their sprite graphics differ; fixed areas need only `$FF`.
 
-The selected record uses this 24-byte format:
+The selected record uses this 29-byte format:
 
 ```text
 3 bytes: full-reload list pointer
@@ -166,6 +166,11 @@ The selected record uses this 24-byte format:
 3 bytes: animation-track-list pointer, or zero
 3 bytes: ordinary overworld entrance-list pointer, or zero
 3 bytes: overworld pit entrance-list pointer, or zero
+1 byte: background composition (`0=none`, `1=half-add`, `2=backdrop`, `$FF=vanilla`)
+1 byte: horizontal camera-follow multiplier in signed eighths
+1 byte: horizontal automatic drift in signed eighths of a pixel per frame
+1 byte: vertical camera-follow multiplier in signed eighths
+1 byte: vertical automatic drift in signed eighths of a pixel per frame
 ```
 
 The entry side names the edge of the destination area: entering from west

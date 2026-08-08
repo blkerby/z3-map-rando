@@ -375,6 +375,26 @@ pub struct OverworldAreaAssets {
     pub sprite_variants: Vec<OverworldSpriteVariant>,
     pub entrances: Vec<OverworldEntrance>,
     pub pit_entrances: Vec<OverworldPitEntrance>,
+    pub background: OverworldBackgroundSettings,
+}
+
+#[derive(Clone, Copy)]
+pub struct OverworldBackgroundSettings {
+    pub layering: u8,
+    pub camera_follow_x: i8,
+    pub camera_drift_x: i8,
+    pub camera_follow_y: i8,
+    pub camera_drift_y: i8,
+}
+
+impl OverworldBackgroundSettings {
+    pub const VANILLA: Self = Self {
+        layering: 0xff,
+        camera_follow_x: 0,
+        camera_drift_x: 0,
+        camera_follow_y: 0,
+        camera_drift_y: 0,
+    };
 }
 
 #[derive(Clone, Copy)]
@@ -754,6 +774,7 @@ impl Importer {
             sprite_variants: Vec::new(),
             entrances: Vec::new(),
             pit_entrances: Vec::new(),
+            background: OverworldBackgroundSettings::VANILLA,
         })
     }
 

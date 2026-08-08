@@ -17,6 +17,8 @@ const VANILLA_ROM_SHA256: &str = "794e040b02c7591b59ad8843b51e7c619b88f87cddc608
 const VANILLA_FLAT_MAPS_START: SnesAddr = SnesAddr(0xb80000);
 const THEME_FLAT_MAPS_START: SnesAddr = SnesAddr(0xc08000);
 const FLAT_MAP_POINTERS_START: SnesAddr = SnesAddr(0xbfe000);
+const BG1_MAP_POINTERS_START: SnesAddr = SnesAddr(0xbfe200);
+const AREA_80_BG1_POINTERS_START: SnesAddr = SnesAddr(0xbfe400);
 const MAP16_DEFINITION_STARTS: [SnesAddr; 4] = [
     SnesAddr(0xa18000),
     SnesAddr(0xa28000),
@@ -33,6 +35,12 @@ const THEME_BACKGROUND_COLORS_START: SnesAddr = SnesAddr(0xa09e00);
 const THEME_ASSET_DATA_START: u32 = 0xd08000;
 const BANK_SIZE: usize = 0x8000;
 const RAIN_OVERLAY: usize = 0x9f;
+
+struct FlatMapTables {
+    flat: FlatMap16,
+    bg1_pointers: Vec<u8>,
+    area_80_bg1_pointers: Vec<u8>,
+}
 
 #[derive(Parser)]
 struct Args {
@@ -69,7 +77,7 @@ fn main() -> Result<()> {
         &tile_types,
         area_assets,
     )?;
-    let flat = assemble_flat_maps(vanilla_maps, compiled.screen_maps)?;
+    let flat = assemble_flat_maps(vanilla_maps, &compiled.screen_maps, &compiled.bg1_variants)?;
     let bundle = asset_bundle::build(
         &compiled.area_assets,
         &credits_overworld,
@@ -96,7 +104,7 @@ fn main() -> Result<()> {
     for variants in compiled.bg1_variants.values() {
         for variant in variants {
             bg1_names.push(variant.name.as_str());
-            for map in &variant.maps {
+            for map in variant.maps.values() {
                 bg1_bytes += map.len();
             }
         }
@@ -138,10 +146,16 @@ fn main() -> Result<()> {
     let mut patcher = Patcher::default();
     patcher
         .context("flat Map16 data")
-        .write(THEME_FLAT_MAPS_START.into(), flat.maps)?;
+        .write(THEME_FLAT_MAPS_START.into(), flat.flat.maps)?;
     patcher
         .context("flat Map16 pointers")
-        .write(FLAT_MAP_POINTERS_START.into(), flat.screen_pointers)?;
+        .write(FLAT_MAP_POINTERS_START.into(), flat.flat.screen_pointers)?;
+    patcher
+        .context("BG1 flat Map16 pointers")
+        .write(BG1_MAP_POINTERS_START.into(), flat.bg1_pointers)?;
+    patcher
+        .context("area $80 BG1 variant pointers")
+        .write(AREA_80_BG1_POINTERS_START.into(), flat.area_80_bg1_pointers)?;
 
     let mut context = patcher.context("expanded Map16 definitions");
     for (start, definitions) in MAP16_DEFINITION_STARTS
@@ -248,40 +262,96 @@ fn replace_rain_tilemap(flat: &mut FlatMap16) -> Result<()> {
 
 fn assemble_flat_maps(
     mut maps: Vec<Vec<u8>>,
-    replacements: BTreeMap<usize, Vec<u8>>,
-) -> Result<FlatMap16> {
+    replacements: &BTreeMap<usize, Vec<u8>>,
+    bg1_variants: &BTreeMap<usize, Vec<theme::CompiledBg1Variant>>,
+) -> Result<FlatMapTables> {
     for (screen, map) in replacements {
         ensure!(
-            screen < maps.len(),
+            *screen < maps.len(),
             "theme screen {screen:02X} is out of range"
         );
-        maps[screen] = map;
+        maps[*screen] = map.clone();
     }
 
     let mut indices = BTreeMap::new();
     let mut data = Vec::new();
     let mut pointers = Vec::with_capacity(0xa0 * 3);
-    for map in maps {
-        ensure!(map.len() == 0x800);
-        let index = if let Some(&index) = indices.get(&map) {
-            index
-        } else {
-            let index = indices.len();
-            indices.insert(map.clone(), index);
-            data.extend_from_slice(&map);
-            index
-        };
-        let address = THEME_FLAT_MAPS_START.0
-            + u32::try_from(index / 16)? * 0x10000
-            + u32::try_from(index % 16)? * 0x0800;
+    for map in &maps {
+        let address = intern_flat_map(map, &mut indices, &mut data)?;
         pointers.extend_from_slice(&address.to_le_bytes()[..3]);
+    }
+
+    let mut bg1_pointers = vec![0; 0xa0 * 3];
+    let mut area_80_pointers = [0; 2];
+    for (&area, variants) in bg1_variants {
+        for variant in variants {
+            let area_80_index = if area == 0x80 {
+                Some(match variant.name.as_str() {
+                    "Grove Fog" => 0,
+                    "Bridge Shadow" => 1,
+                    name => anyhow::bail!("unknown area $80 BG1 variant {name}"),
+                })
+            } else {
+                None
+            };
+            for (&screen, map) in &variant.maps {
+                ensure!(screen < 0xa0, "BG1 screen {screen:02X} is out of range");
+                ensure!(
+                    replacements.contains_key(&screen),
+                    "BG1 screen {screen:02X} has no generated BG2 map"
+                );
+                let address = intern_flat_map(map, &mut indices, &mut data)?;
+                if area != 0x80 || area_80_index == Some(0) {
+                    let offset = screen * 3;
+                    ensure!(
+                        bg1_pointers[offset..offset + 3] == [0; 3],
+                        "multiple BG1 maps target screen {screen:02X}"
+                    );
+                    bg1_pointers[offset..offset + 3].copy_from_slice(&address.to_le_bytes()[..3]);
+                }
+                if let Some(index) = area_80_index {
+                    ensure!(
+                        screen == 0x80,
+                        "area $80 BG1 has unexpected map {screen:02X}"
+                    );
+                    area_80_pointers[index] = address;
+                }
+            }
+        }
     }
     ensure!(
         data.len() <= 10 * BANK_SIZE,
         "flat maps exceed reserved banks C0-C9"
     );
-    Ok(FlatMap16 {
-        maps: data,
-        screen_pointers: pointers,
+    let mut area_80_bg1_pointers = Vec::with_capacity(6);
+    for pointer in area_80_pointers {
+        area_80_bg1_pointers.extend_from_slice(&pointer.to_le_bytes()[..3]);
+    }
+    Ok(FlatMapTables {
+        flat: FlatMap16 {
+            maps: data,
+            screen_pointers: pointers,
+        },
+        bg1_pointers,
+        area_80_bg1_pointers,
     })
+}
+
+fn intern_flat_map(
+    map: &[u8],
+    indices: &mut BTreeMap<Vec<u8>, usize>,
+    data: &mut Vec<u8>,
+) -> Result<u32> {
+    ensure!(map.len() == 0x800);
+    let index = if let Some(&index) = indices.get(map) {
+        index
+    } else {
+        let index = indices.len();
+        indices.insert(map.to_vec(), index);
+        data.extend_from_slice(map);
+        index
+    };
+    Ok(THEME_FLAT_MAPS_START.0
+        + u32::try_from(index / 16)? * 0x10000
+        + u32::try_from(index % 16)? * 0x0800)
 }

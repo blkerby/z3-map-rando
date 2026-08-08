@@ -110,7 +110,9 @@ pub fn build(
     layout: AssetLayout,
 ) -> Result<AssetBundle> {
     let mut data = Region::new((layout.data_start >> 16) as u8, layout.data_size);
-    let empty_record = data.intern(&[0; 24])?;
+    let mut empty_record = [0; 29];
+    empty_record[24] = 0xff;
+    let empty_record = data.intern(&empty_record)?;
     let empty_variants = intern_variant_list(&mut data, &[(0xff, empty_record)])?;
     let mut keys = vec![empty_variants; 256];
 
@@ -143,8 +145,9 @@ pub fn build(
     keys[CREDITS_COOL_BACKGROUND_KEY] = intern_variant_list(&mut data, &[(0xff, cool_record)])?;
 
     let seed_sequence = intern_character_sequence(&mut data, &sprite_seed.character_rows)?;
-    let mut seed_record = [0; 24];
+    let mut seed_record = [0; 29];
     seed_record[..3].copy_from_slice(&little_endian_pointer(seed_sequence));
+    seed_record[24] = 0xff;
     let seed_record = data.intern(&seed_record)?;
     keys[SPRITE_SEED_KEY] = intern_variant_list(&mut data, &[(0xff, seed_record)])?;
 
@@ -210,7 +213,7 @@ fn intern_record(
 ) -> Result<u32> {
     let (sequence, palette_sources, character_sources) =
         intern_full_sequence(data, assets, sprite_variant)?;
-    let mut record = vec![0; 24];
+    let mut record = vec![0; 29];
     record[..3].copy_from_slice(&little_endian_pointer(sequence));
     let animations = intern_animation_tracks(data, &assets.animation_tracks)?;
     if animations != 0 {
@@ -235,6 +238,11 @@ fn intern_record(
         }
         record[21..24].copy_from_slice(&little_endian_pointer(data.intern(&entrances)?));
     }
+    record[24] = assets.background.layering;
+    record[25] = assets.background.camera_follow_x.to_le_bytes()[0];
+    record[26] = assets.background.camera_drift_x.to_le_bytes()[0];
+    record[27] = assets.background.camera_follow_y.to_le_bytes()[0];
+    record[28] = assets.background.camera_drift_y.to_le_bytes()[0];
 
     if include_transitions {
         let mut transition_palette_rows = Vec::new();

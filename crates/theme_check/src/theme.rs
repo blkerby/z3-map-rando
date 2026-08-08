@@ -1,6 +1,8 @@
 use anyhow::{Context, Result, ensure};
 use engine_check::asset_bundle::{DYNAMIC_TILE_GROUP_COUNT, DynamicTileEntry};
-use patcher::import::{OverworldAnimationTrack, OverworldAreaAssets, Tile8, Tile16};
+use patcher::import::{
+    OverworldAnimationTrack, OverworldAreaAssets, OverworldBackgroundSettings, Tile8, Tile16,
+};
 use serde::Deserialize;
 use std::{
     cmp::Reverse,
@@ -116,7 +118,7 @@ struct Bg1Variant {
 
 pub struct CompiledBg1Variant {
     pub name: String,
-    pub maps: Vec<Vec<u8>>,
+    pub maps: BTreeMap<usize, Vec<u8>>,
 }
 
 pub struct BackgroundSettings {
@@ -323,6 +325,21 @@ pub fn compile(
         }
     }
     let (character_slots, screen_tiles) = allocate_characters(&screens, &palettes)?;
+    for variant in &bg1_variants {
+        let screen_index = screens
+            .iter()
+            .position(|screen| screen.asset_group == variant.area)
+            .with_context(|| format!("BG1 area {:02X} has no BG2 asset record", variant.area))?;
+        for placement in variant.placements.iter().flatten() {
+            ensure!(
+                screens[screen_index].palettes.contains(&placement.palette)
+                    && screen_tiles[screen_index].contains(&(placement.palette, placement.tile)),
+                "BG1 variant {} references an asset absent from area {:02X}",
+                variant.name,
+                variant.area
+            );
+        }
+    }
     let character_count = character_slots
         .values()
         .copied()
@@ -388,6 +405,17 @@ pub fn compile(
             sprite_variants: sprites,
             entrances,
             pit_entrances,
+            background: OverworldBackgroundSettings {
+                layering: match background_settings[&screen.id].layering {
+                    BackgroundLayering::None => 0,
+                    BackgroundLayering::HalfAdd => 1,
+                    BackgroundLayering::Backdrop => 2,
+                },
+                camera_follow_x: encode_eighths(background_settings[&screen.id].camera_follow_x)?,
+                camera_drift_x: encode_eighths(background_settings[&screen.id].camera_drift_x)?,
+                camera_follow_y: encode_eighths(background_settings[&screen.id].camera_follow_y)?,
+                camera_drift_y: encode_eighths(background_settings[&screen.id].camera_drift_y)?,
+            },
         };
     }
 
@@ -411,6 +439,7 @@ pub fn compile(
     for variant in bg1_variants {
         let maps = build_bg1_maps(
             &variant.placements,
+            variant.area,
             variant.width,
             variant.height,
             &palettes,
@@ -1236,6 +1265,7 @@ fn build_map(
 
 fn build_bg1_maps(
     placements: &[Option<Placement>],
+    area: usize,
     width: usize,
     height: usize,
     palettes: &BTreeMap<u8, Palette>,
@@ -1243,8 +1273,8 @@ fn build_bg1_maps(
     character_slots: &CharacterSlots,
     definitions: &mut Vec<[u16; 4]>,
     definition_ids: &mut BTreeMap<[u16; 4], u16>,
-) -> Result<Vec<Vec<u8>>> {
-    let mut maps = Vec::new();
+) -> Result<BTreeMap<usize, Vec<u8>>> {
+    let mut maps = BTreeMap::new();
     for area_y in 0..height / 64 {
         for area_x in 0..width / 64 {
             let mut output = Vec::with_capacity(0x800);
@@ -1281,7 +1311,7 @@ fn build_bg1_maps(
                     output.extend_from_slice(&id.to_le_bytes());
                 }
             }
-            maps.push(output);
+            maps.insert(area + area_x + area_y * 8, output);
         }
     }
     Ok(maps)
@@ -1308,6 +1338,15 @@ fn build_graphic(
         }
     }
     graphic
+}
+
+fn encode_eighths(value: f32) -> Result<i8> {
+    let scaled = value * 8.0;
+    ensure!(
+        scaled.fract() == 0.0 && scaled >= f32::from(i8::MIN) && scaled <= f32::from(i8::MAX),
+        "background camera value {value} is not representable in signed eighths"
+    );
+    Ok(scaled as i8)
 }
 
 fn encode_bgr555([red, green, blue]: [u8; 3]) -> u16 {
