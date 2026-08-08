@@ -1,6 +1,6 @@
-use anyhow::{ensure, Context, Result};
-use engine_check::asset_bundle::{DynamicTileEntry, DYNAMIC_TILE_GROUP_COUNT};
-use patcher::import::{OverworldAnimationTrack, OverworldAreaAssets, Tile16, Tile8};
+use anyhow::{Context, Result, ensure};
+use engine_check::asset_bundle::{DYNAMIC_TILE_GROUP_COUNT, DynamicTileEntry};
+use patcher::import::{OverworldAnimationTrack, OverworldAreaAssets, Tile8, Tile16};
 use serde::Deserialize;
 use std::{
     cmp::Reverse,
@@ -410,6 +410,32 @@ fn load_screens(root: &Path) -> Result<(Vec<ThemeScreen>, [u16; 0xa0])> {
         let area: Area = read_json(&path)?;
         let first_screen = result.len();
         let mut area_palettes = BTreeSet::new();
+        let mut area_extra_tiles = BTreeSet::new();
+        for layer in &area.layers {
+            if layer.background != Background::Bg1 {
+                continue;
+            }
+            for screen in &layer.screens {
+                for y in 0..screen.size[1] {
+                    for x in 0..screen.size[0] {
+                        match (
+                            screen.palettes[y][x],
+                            screen.tiles[y][x],
+                            screen.flips[y][x],
+                        ) {
+                            (Some(palette), Some(tile), Some(_)) => {
+                                area_palettes.insert(palette);
+                                area_extra_tiles.insert((palette, tile));
+                            }
+                            (None, None, None) => {}
+                            _ => {
+                                anyhow::bail!("mismatched transparent BG1 cell: {}", path.display())
+                            }
+                        }
+                    }
+                }
+            }
+        }
         let layer = area
             .layers
             .into_iter()
@@ -503,6 +529,7 @@ fn load_screens(root: &Path) -> Result<(Vec<ThemeScreen>, [u16; 0xa0])> {
         }
         for screen in &mut result[first_screen..] {
             screen.palettes = area_palettes.clone();
+            screen.extra_tiles = area_extra_tiles.clone();
         }
     }
     result.sort_by_key(|screen| screen.id);

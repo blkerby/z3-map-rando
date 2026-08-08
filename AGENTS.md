@@ -15,9 +15,13 @@
 
 # Rust style guidelines
 
-- Unless the user specifies otherwise, any tests, asserts, and validations added
-  to the code should be treated as temporary and removed before completing the
-  task.
+- Do not add permanent tests or validation unless the user explicitly requests
+  them. This includes `assert!`, `debug_assert!`, `ensure!`, validation branches,
+  schema checks, invariant checks, and new error paths, even when similar checks
+  already exist nearby or the input comes from a file. Checks added temporarily
+  while developing must be removed before completing the task. If a permanent
+  check appears necessary for security or preventing data loss, ask the user
+  before adding it.
 - Avoid iterator chains that combine operations such as mapping, filtering, and
   collecting. Prefer loops instead. Simple one-liners like
   `.into_iter().collect()` are ok.
