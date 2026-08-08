@@ -44,6 +44,40 @@ incsrc "symbols.inc"
 !BackgroundSettings = $7ECC72
 !BackgroundPositionX = $7ECC77
 !BackgroundPositionY = $7ECC79
+!BackgroundDeltaY = $7ECC7B
+!BackgroundDeltaX = $7ECC7C
+
+; Overworld_OperateCameraScroll
+;
+; Keep independent signed-byte camera deltas for generated BG1. Vanilla's
+; 16-bit Y store at $069E overlaps the X byte at $069F.
+org $82BB34
+hook_OverworldCameraVerticalDelta:
+    JSL RecordCameraDeltaY
+    NOP
+
+org $82BBEB
+hook_OverworldCameraHorizontalDelta:
+    JSL RecordCameraDeltaX
+    NOP
+
+; OverworldScrollTransition writes one cardinal-axis delta in 8-bit mode.
+org $82BF4C
+hook_OverworldTransitionCameraDelta:
+    JSL RecordTransitionCameraDelta
+    NOP
+    NOP
+
+; Credits_HandleCameraScrollControl duplicates the ordinary camera stores.
+org $8ED906
+hook_CreditsCameraVerticalDelta:
+    JSL RecordCameraDeltaY
+    NOP
+
+org $8ED979
+hook_CreditsCameraHorizontalDelta:
+    JSL RecordCameraDeltaX
+    NOP
 
 ; OverworldOverlay_HandleRain
 ;
@@ -750,6 +784,34 @@ assert pc() <= $9BCA9F
 ;---------------------------------------------------------------------------------------------------
 
 org !free_space_bank_a0_start
+
+RecordCameraDeltaY:
+    ; Run hi-jacked instructions:
+    LDA.b $04
+    STA.w $069E
+
+    SEP #$20
+    STA.l !BackgroundDeltaY
+    REP #$20
+    RTL
+
+RecordCameraDeltaX:
+    ; Run hi-jacked instructions:
+    LDA.b $04
+    STA.w $069F
+
+    SEP #$20
+    STA.l !BackgroundDeltaX
+    REP #$20
+    RTL
+
+RecordTransitionCameraDelta:
+    ; Run hi-jacked instructions:
+    LDA.w $BDF2,Y
+    STA.w $069E,X
+
+    STA.l !BackgroundDeltaY,X
+    RTL
 
 ; Fixed cross-patch entry used when vanilla disables its synthetic overlay.
 ConfigureGeneratedBackground_long:
@@ -1530,7 +1592,7 @@ BG1StreamHorizontal:
     JSR BG1UseGeneratedCamera
     BCC .scroll_ready
 
-    LDA.w $069F
+    LDA.l !BackgroundDeltaX
     JSR BG1SignExtendByte
     LDX.w #$0001
     JSR BG1AdvanceDataPosition
@@ -1604,7 +1666,7 @@ BG1StreamVertical:
     JSR BG1UseGeneratedCamera
     BCC .scroll_ready
 
-    LDA.w $069E
+    LDA.l !BackgroundDeltaY
     JSR BG1SignExtendByte
     LDX.w #$0003
     JSR BG1AdvanceDataPosition
@@ -1662,6 +1724,9 @@ BG1StreamVertical:
     JSR BGFinishList            ; Request the combined BG2/BG1 edge list.
 
 .done
+    LDA.w #$0000
+    STA.l !BackgroundDeltaY      ; Consume both generated camera deltas.
+
     PLX
     PLA
 
