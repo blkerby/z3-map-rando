@@ -176,6 +176,14 @@ hook_draw_exit_wooden_door:
     JML DrawDynamicExitWoodenDoor
 assert pc() == $82EC5F
 
+; DrawOverworldQuadrantsAndOverlays has selected a two-cell bombable entrance
+; opening in X. Replace its fixed open-door Map16 IDs during map loading.
+org $82EC6B
+hook_draw_exit_bombable_entrance:
+    JML DrawDynamicExitBombableEntrance
+    NOP
+assert pc() == $82EC70
+
 org $82EC8D
 hook_preserve_generated_portal_rocks:
     BRA return_after_portal_rock_overlays
@@ -183,6 +191,16 @@ assert pc() == $82EC8F
 
 org $82ECA4
 return_after_portal_rock_overlays:
+
+; Overworld_HandleOverlaysAndBombDoors has selected the current area's
+; bombable-entrance location. Replace its fixed open-door Map16 IDs.
+org $82ECC8
+hook_draw_persistent_bombable_entrance:
+    JML DrawDynamicPersistentBombableEntrance
+assert pc() == $82ECCC
+
+org $82ECDD
+return_after_persistent_bombable_entrance:
 
 ; OverworldOverlay_DrawRevealedStairs receives the generated footprint
 ; coordinate in X. Replace its fixed revealed-stairs Map16 IDs.
@@ -605,6 +623,21 @@ DrawDynamicExitWoodenDoor:
     STZ.w $0696
     JML hook_preserve_generated_portal_rocks
 
+DrawDynamicExitBombableEntrance:
+    TXA
+    AND.w #$1FFF
+    TAX
+    JSR WriteGeneratedBombableEntrance
+    STZ.w $0696
+    JML hook_preserve_generated_portal_rocks
+
+DrawDynamicPersistentBombableEntrance:
+    LDA.l $82EB29,X
+    TAX
+    JSR WriteGeneratedBombableEntrance
+    SEP #$30
+    JML return_after_persistent_bombable_entrance
+
 DispatchDynamicItemTileAction:
     LDA.l $7E2000,X
     PHA
@@ -917,16 +950,33 @@ FinishDynamicLargeInteraction:
     JML $9BC0E1
 
 DrawDynamicBombableEntrance:
-    LDA.w #!DynamicSecretBombableEntrance
-    JSR ResolveDynamicTile
-    BCC .vanilla
+    JSR ResolveGeneratedBombableEntrance
+    BCC .done
     JSR DrawDynamicFootprint
+
+.done
     JML $9BC205
 
-.vanilla
-    LDA.w #$0DAE
-    STA.l $7E2000,X            ; Run hi-jacked instruction
-    JML $9BC1E8
+ResolveGeneratedBombableEntrance:
+    LDA.w #!DynamicSecretBombableEntrance
+    JSR ResolveDynamicTile
+    RTS
+
+WriteGeneratedBombableEntrance:
+    JSR ResolveGeneratedBombableEntrance
+    BCC .done
+
+    LDA.l !DynamicDescriptorOffset
+    TAY
+    LDA.b [$07],Y
+    STA.l $7E2000,X
+    INY
+    INY
+    LDA.b [$07],Y
+    STA.l $7E2002,X
+
+.done
+    RTS
 
 ResolveDynamicSecret:
     LDA.l !SecretObjectTypes,X  ; Run hi-jacked instruction

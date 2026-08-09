@@ -111,9 +111,50 @@ FindAreaEntrance:
     DEC.b $06
     BNE .next
 
+.try_wooden_door
+    LDA.b $2F
+    BNE .not_found
+
+    ; A closed ordinary wooden door occupies the Map16 row immediately below
+    ; its entrance. Derive that entrance coordinate once for the generated
+    ; door lookup; the resolver still receives the original contacted offset.
+    REP #$20
+    LDA.b $08
+    SEC
+    SBC.w #$0080
+    STA.b $0A
+    SEP #$20
+
+    LDY.w #$0000
+    LDA.b [$03],Y
+    STA.b $06
+    INY
+
+.next_wooden_door
+    REP #$20
+    LDA.b [$03],Y
+    CMP.b $0A
+    SEP #$20
+    BEQ .wooden_door
+
+    INY
+    INY
+    INY
+    INY
+    DEC.b $06
+    BNE .next_wooden_door
+
 .not_found
     REP #$20
     STZ.w $04B8
+    SEP #$30
+    RTL
+
+.wooden_door
+    REP #$20
+    LDX.b $08
+    JSL !OpenDynamicWoodenDoorAtEntrance
+    BCC .not_found
     SEP #$30
     RTL
 
@@ -122,24 +163,22 @@ FindAreaEntrance:
     INY
     LDA.b [$03],Y
     STA.b $00
+
+    ; The Tavern back door is the sole reverse-facing ordinary entrance.
+    ; Require Link to approach it from the north instead of retriggering it
+    ; while the exit walk moves him north across its coordinate.
+    CMP.b #$43
+    BNE .direction_allowed
+
+    LDA.b $2F
+    CMP.b #$02
+    BNE .not_found
+
+.direction_allowed
     INY
     LDA.b [$03],Y
     STA.b $02
 
-    LDA.b $2F
-    BNE .not_wooden_door
-
-    REP #$20
-    LDX.b $08
-    JSL !OpenDynamicWoodenDoorAtEntrance
-    BCC .not_generated_wooden_door
-    SEP #$30
-    RTL
-
-.not_generated_wooden_door
-    SEP #$20
-
-.not_wooden_door
     REP #$20
     LDA.l $7EF3D3
     AND.w #$00FF
