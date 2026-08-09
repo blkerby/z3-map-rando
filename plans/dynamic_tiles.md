@@ -107,10 +107,10 @@ WRAM list at all.
 ## Generated replacements
 
 `ALTTPRetiling/DynamicTiles/replacements.json` describes graphical variants for
-the terrain interactions, doors, graves, and secrets above. It excludes the
-scripted and persistent changes. Each variant contains a `before` tiling and
-one or more `after_frames`, expressed using ALTTPRetiling palette, tile, and
-flip values.
+the terrain interactions, doors, graves, secrets, and Hyrule Castle gate above.
+It excludes the other scripted and persistent changes. Each variant contains a
+`before` tiling and one or more `after_frames`, expressed using ALTTPRetiling
+palette, tile, and flip values.
 
 Rust will compile these tilings into the same global Map16 definition tables as
 the ordinary area maps. The compilation order is:

@@ -19,7 +19,7 @@
 ; Defined in overworld_map16_properties.asm.
 !GetOverworldTileTypeIndependent = $80884E
 
-; Twenty-one little-endian 24-bit pointers to generated dynamic-tile groups,
+; Twenty-two little-endian 24-bit pointers to generated dynamic-tile groups,
 ; indexed by the stable replacement-type order in theme_check.
 !DynamicTileGroupPointers = $A78300
 

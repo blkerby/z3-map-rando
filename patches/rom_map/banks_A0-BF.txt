@@ -23,8 +23,8 @@ $A0A620-$A0AB8C overworld_assets.asm (generated overworld asset runtime)
 $A0AB8D-$A0ABFF [FREE]
 $A0AC00-$A0AE15 overworld_vram.asm (VRAM layout runtime)
 $A0AE16-$A0AEFF [FREE]
-$A0AF00-$A0B5A4 overworld_dynamic_tiles.asm (generated dynamic-tile runtime)
-$A0B5A5-$A0FFFF [FREE]
+$A0AF00-$A0B69F overworld_dynamic_tiles.asm (generated dynamic-tile runtime)
+$A0B6A0-$A0FFFF [FREE]
 
 Bank $A1
 $A18000-$A1FFFF top-left Map16 definition words

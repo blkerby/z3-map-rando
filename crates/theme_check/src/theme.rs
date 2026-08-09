@@ -174,6 +174,7 @@ enum DynamicTileType {
     GraveCorpse,
     GraveStairs,
     GravePit,
+    HyruleCastleGate,
 }
 
 impl DynamicTileType {
@@ -1338,6 +1339,7 @@ fn build_dynamic_tile_groups(
                         | DynamicTileType::GraveCorpse
                         | DynamicTileType::GraveStairs
                         | DynamicTileType::GravePit
+                        | DynamicTileType::HyruleCastleGate
                 )
             {
                 result[group.kind.get_index()].push(DynamicTileEntry {

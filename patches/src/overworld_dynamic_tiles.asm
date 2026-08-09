@@ -52,6 +52,7 @@ incsrc "symbols.inc"
 !DynamicGraveCorpse = 18
 !DynamicGraveStairs = 19
 !DynamicGravePit = 20
+!DynamicHyruleCastleGate = 21
 !SecretObjectTypes = $9BC89C
 
 !DynamicOriginalOffset = $7ECC50
@@ -223,7 +224,7 @@ org $87FC73
 return_draw_kings_tomb_overlay:
 
 ; ApplyOverworldOverlay is about to replace the opened Hyrule Castle gate with
-; fixed vanilla Map16 IDs. Draw the final generated door frame instead.
+; fixed vanilla Map16 IDs. Draw the generated open gate instead.
 org $87FC8E
 hook_draw_castle_gate_overlay:
     JML DrawDynamicCastleGateOverlay
@@ -545,29 +546,11 @@ DrawDynamicKingsTombOverlay:
     JML return_draw_kings_tomb_overlay
 
 DrawDynamicCastleGateOverlay:
-    LDX.w #$13BE
-    LDA.w #!DynamicHyruleCastleDoor
+    LDX.w #$13BC
+    LDA.w #!DynamicHyruleCastleGate
     JSR ResolveDynamicTile
     BCC .done
-
-    LDA.l !DynamicDescriptorOffset
-    CLC
-    ADC.w #$0008
-    TAY
-    LDA.b [$07],Y
-    STA.l $7E2000,X
-    INY
-    INY
-    LDA.b [$07],Y
-    STA.l $7E2002,X
-    INY
-    INY
-    LDA.b [$07],Y
-    STA.l $7E2080,X
-    INY
-    INY
-    LDA.b [$07],Y
-    STA.l $7E2082,X
+    JSR DrawDynamicFootprint
 
 .done
     JML return_draw_castle_gate_overlay
