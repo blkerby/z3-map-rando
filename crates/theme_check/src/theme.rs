@@ -25,7 +25,7 @@ const RAIN_MAP16S: [u16; 8] = [
 ];
 type TileKey = (u8, usize);
 type CharacterSlots = BTreeMap<TileKey, usize>;
-type ScreenTiles = Vec<BTreeSet<TileKey>>;
+type AreaTiles = Vec<BTreeSet<TileKey>>;
 type Pixels = Vec<Vec<u8>>;
 
 struct GraphicGroup {
@@ -109,9 +109,10 @@ struct Placement {
     flip: u8,
 }
 
-struct ThemeScreen {
+struct ThemeArea {
     id: usize,
-    asset_group: usize,
+    width: usize,
+    height: usize,
     placements: Vec<Placement>,
     palettes: BTreeSet<u8>,
     extra_tiles: BTreeSet<TileKey>,
@@ -250,8 +251,8 @@ pub fn compile(
 ) -> Result<CompiledTheme> {
     let mut palettes = load_palettes(root)?;
     let mut dynamic_tiles: DynamicTiles = read_json(&root.join("DynamicTiles/replacements.json"))?;
-    let (mut screens, background_colors, mut bg1_variants, background_settings) =
-        load_screens(root, theme_name)?;
+    let (mut areas, background_colors, mut bg1_variants, background_settings) =
+        load_areas(root, theme_name)?;
     let rain_tiles = [
         add_rain_tiles(&mut palettes, &area_assets[0x2c], LIGHT_WORLD_RAIN_PALETTE),
         add_rain_tiles(&mut palettes, &area_assets[0x70], DARK_WORLD_RAIN_PALETTE),
@@ -261,15 +262,15 @@ pub fn compile(
         bg1_areas.insert(variant.area);
     }
     let mut rain_contexts = [0; 0xa0];
-    for screen in &mut screens {
-        if bg1_areas.contains(&screen.asset_group) {
+    for area in &mut areas {
+        if bg1_areas.contains(&area.id) {
             continue;
         }
-        let context = if screen.palettes.contains(&LIGHT_WORLD_RAIN_PALETTE)
-            && !screen.palettes.contains(&DARK_WORLD_RAIN_PALETTE)
+        let context = if area.palettes.contains(&LIGHT_WORLD_RAIN_PALETTE)
+            && !area.palettes.contains(&DARK_WORLD_RAIN_PALETTE)
         {
             1
-        } else if screen.palettes.contains(&DARK_WORLD_RAIN_PALETTE) || screen.asset_group >= 0x40 {
+        } else if area.palettes.contains(&DARK_WORLD_RAIN_PALETTE) || area.id >= 0x40 {
             2
         } else {
             1
@@ -279,11 +280,15 @@ pub fn compile(
         } else {
             DARK_WORLD_RAIN_PALETTE
         };
-        screen.palettes.insert(palette);
+        area.palettes.insert(palette);
         for &tile in &rain_tiles[context - 1] {
-            screen.extra_tiles.insert((palette, tile));
+            area.extra_tiles.insert((palette, tile));
         }
-        rain_contexts[screen.id] = context as u8;
+        for map_y in 0..area.height / 64 {
+            for map_x in 0..area.width / 64 {
+                rain_contexts[area.id + map_x + map_y * 8] = context as u8;
+            }
+        }
     }
 
     let mut canonical_flips = BTreeMap::new();
@@ -321,8 +326,8 @@ pub fn compile(
             canonical_flips.insert((palette_id, tile_id), flips);
         }
     }
-    for screen in &mut screens {
-        for placement in &mut screen.placements {
+    for area in &mut areas {
+        for placement in &mut area.placements {
             placement.flip =
                 canonical_flips[&(placement.palette, placement.tile)][usize::from(placement.flip)];
         }
@@ -351,15 +356,15 @@ pub fn compile(
             }
         }
     }
-    add_dynamic_dependencies(&mut screens, &mut dynamic_tiles);
+    add_dynamic_dependencies(&mut areas, &mut dynamic_tiles);
     ensure!(area_assets.len() == 0xa0);
 
     let scrollable_transitions = build_scrollable_transition_pairs();
-    let palette_slots = allocate_palettes(&screens, &palettes, &scrollable_transitions)?;
+    let palette_slots = allocate_palettes(&areas, &palettes, &scrollable_transitions)?;
     let mut fullest_palette = (0, 0);
-    for screen in &screens {
+    for area in &areas {
         let mut occupied = [false; 12];
-        for palette in &screen.palettes {
+        for palette in &area.palettes {
             let slot = palette_slots[palette];
             occupied[slot] = true;
             if palettes[palette].uses_upper_half {
@@ -368,20 +373,20 @@ pub fn compile(
         }
         let count = occupied.into_iter().filter(|occupied| *occupied).count();
         if count > fullest_palette.1 {
-            fullest_palette = (screen.id, count);
+            fullest_palette = (area.id, count);
         }
     }
-    let (character_slots, screen_tiles) =
-        allocate_characters(&screens, &palettes, &scrollable_transitions)?;
+    let (character_slots, area_tiles) =
+        allocate_characters(&areas, &palettes, &scrollable_transitions)?;
     for variant in &bg1_variants {
-        let screen_index = screens
+        let area_index = areas
             .iter()
-            .position(|screen| screen.asset_group == variant.area)
+            .position(|area| area.id == variant.area)
             .with_context(|| format!("BG1 area {:02X} has no BG2 asset record", variant.area))?;
         for placement in variant.placements.iter().flatten() {
             ensure!(
-                screens[screen_index].palettes.contains(&placement.palette)
-                    && screen_tiles[screen_index].contains(&(placement.palette, placement.tile)),
+                areas[area_index].palettes.contains(&placement.palette)
+                    && area_tiles[area_index].contains(&(placement.palette, placement.tile)),
                 "BG1 variant {} references an asset absent from area {:02X}",
                 variant.name,
                 variant.area
@@ -416,29 +421,35 @@ pub fn compile(
     let mut definition_ids = BTreeMap::new();
 
     let mut screen_maps = BTreeMap::new();
-    for (screen, tiles) in screens.iter().zip(&screen_tiles) {
-        let palette_rows = build_palette_rows(screen, &palettes, &palette_slots)?;
+    for (area, tiles) in areas.iter().zip(&area_tiles) {
+        let palette_rows = build_palette_rows(area, &palettes, &palette_slots)?;
         let character_rows =
             build_character_rows(tiles, &palettes, &palette_slots, &character_slots)?;
         let animation_tracks =
             build_animation_tracks(tiles, &palettes, &palette_slots, &character_slots);
-        let map = build_map(
-            screen,
-            &palettes,
-            &palette_slots,
-            &character_slots,
-            &mut definitions,
-            &mut properties,
-            &mut definition_ids,
-        )?;
-        screen_maps.insert(screen.id, map);
+        for map_y in 0..area.height / 64 {
+            for map_x in 0..area.width / 64 {
+                let map = build_map(
+                    area,
+                    map_x,
+                    map_y,
+                    &palettes,
+                    &palette_slots,
+                    &character_slots,
+                    &mut definitions,
+                    &mut properties,
+                    &mut definition_ids,
+                )?;
+                screen_maps.insert(area.id + map_x + map_y * 8, map);
+            }
+        }
 
-        let sprites = area_assets[screen.id].sprite_variants.clone();
-        let entrances = area_assets[screen.id].entrances.clone();
-        let pit_entrances = area_assets[screen.id].pit_entrances.clone();
-        let special_transitions = area_assets[screen.id].special_transitions.clone();
+        let sprites = area_assets[area.id].sprite_variants.clone();
+        let entrances = area_assets[area.id].entrances.clone();
+        let pit_entrances = area_assets[area.id].pit_entrances.clone();
+        let special_transitions = area_assets[area.id].special_transitions.clone();
         let mut transition_palette_halves = [false; 12];
-        for palette in &screen.palettes {
+        for palette in &area.palettes {
             let slot = palette_slots[palette];
             transition_palette_halves[slot] = true;
             if palettes[palette].uses_upper_half {
@@ -460,7 +471,7 @@ pub fn compile(
         for tile in tiles {
             transition_character_rows[character_slots[tile] / 16] = true;
         }
-        area_assets[screen.id] = OverworldAreaAssets {
+        area_assets[area.id] = OverworldAreaAssets {
             palette_rows: palette_rows.to_vec(),
             character_rows: character_rows.to_vec(),
             transition_palette_ranges,
@@ -471,17 +482,23 @@ pub fn compile(
             pit_entrances,
             special_transitions,
             background: OverworldBackgroundSettings {
-                layering: match background_settings[&screen.id].layering {
+                layering: match background_settings[&area.id].layering {
                     BackgroundLayering::None => 0,
                     BackgroundLayering::HalfAdd => 1,
                     BackgroundLayering::Backdrop => 2,
                 },
-                camera_follow_x: encode_eighths(background_settings[&screen.id].camera_follow_x)?,
-                camera_drift_x: encode_eighths(background_settings[&screen.id].camera_drift_x)?,
-                camera_follow_y: encode_eighths(background_settings[&screen.id].camera_follow_y)?,
-                camera_drift_y: encode_eighths(background_settings[&screen.id].camera_drift_y)?,
+                camera_follow_x: encode_eighths(background_settings[&area.id].camera_follow_x)?,
+                camera_drift_x: encode_eighths(background_settings[&area.id].camera_drift_x)?,
+                camera_follow_y: encode_eighths(background_settings[&area.id].camera_follow_y)?,
+                camera_drift_y: encode_eighths(background_settings[&area.id].camera_drift_y)?,
             },
         };
+        for map_y in 0..area.height / 64 {
+            for map_x in 0..area.width / 64 {
+                let id = area.id + map_x + map_y * 8;
+                area_assets[id] = area_assets[area.id].clone();
+            }
+        }
     }
 
     let dynamic_tile_groups = build_dynamic_tile_groups(
@@ -635,11 +652,11 @@ fn add_rain_tiles(
     tiles
 }
 
-fn load_screens(
+fn load_areas(
     root: &Path,
     theme_name: &str,
 ) -> Result<(
-    Vec<ThemeScreen>,
+    Vec<ThemeArea>,
     [u16; 0xa0],
     Vec<Bg1Variant>,
     BTreeMap<usize, BackgroundSettings>,
@@ -666,7 +683,6 @@ fn load_screens(
     let mut background_settings = BTreeMap::new();
     for path in paths {
         let area: Area = read_json(&path)?;
-        let first_screen = result.len();
         let mut area_palettes = BTreeSet::new();
         let mut area_extra_tiles = BTreeSet::new();
         let width = area.size[0] * 32;
@@ -747,9 +763,9 @@ fn load_screens(
             });
         }
 
-        for group_y in 0..area.size[1] / 2 {
-            for group_x in 0..area.size[0] / 2 {
-                let id = area.vanilla_map_id + group_x + group_y * 8;
+        for map_y in 0..height / 64 {
+            for map_x in 0..width / 64 {
+                let id = area.vanilla_map_id + map_x + map_y * 8;
                 background_colors[id] = encode_bgr555(area.bg_color);
                 background_settings.insert(
                     id,
@@ -761,71 +777,59 @@ fn load_screens(
                         camera_drift_y: area.bg_camera_drift_y,
                     },
                 );
-                let mut placements = Vec::with_capacity(64 * 64);
-                for component_y in 0..2 {
-                    for y in 0..32 {
-                        for component_x in 0..2 {
-                            for x in 0..32 {
-                                let area_x = group_x * 64 + component_x * 32 + x;
-                                let area_y = group_y * 64 + component_y * 32 + y;
-                                let placement = area_tiles[area_y][area_x].with_context(|| {
-                                    format!(
-                                        "transparent BG2 tile at ({area_x}, {area_y}): {}",
-                                        path.display()
-                                    )
-                                })?;
-                                area_palettes.insert(placement.palette);
-                                placements.push(placement);
-                            }
-                        }
-                    }
-                }
-                result.push(ThemeScreen {
-                    id,
-                    asset_group: area.vanilla_map_id,
-                    placements,
-                    palettes: BTreeSet::new(),
-                    extra_tiles: BTreeSet::new(),
-                });
             }
         }
-        for screen in &mut result[first_screen..] {
-            screen.palettes = area_palettes.clone();
-            screen.extra_tiles = area_extra_tiles.clone();
+        let mut placements = Vec::with_capacity(width * height);
+        for (y, row) in area_tiles.into_iter().enumerate() {
+            for (x, placement) in row.into_iter().enumerate() {
+                let placement = placement.with_context(|| {
+                    format!("transparent BG2 tile at ({x}, {y}): {}", path.display())
+                })?;
+                area_palettes.insert(placement.palette);
+                placements.push(placement);
+            }
         }
+        result.push(ThemeArea {
+            id: area.vanilla_map_id,
+            width,
+            height,
+            placements,
+            palettes: area_palettes,
+            extra_tiles: area_extra_tiles,
+        });
     }
-    result.sort_by_key(|screen| screen.id);
+    result.sort_by_key(|area| area.id);
     Ok((result, background_colors, bg1_variants, background_settings))
 }
 
-fn add_dynamic_dependencies(screens: &mut [ThemeScreen], dynamic_tiles: &mut DynamicTiles) {
+fn add_dynamic_dependencies(areas: &mut [ThemeArea], dynamic_tiles: &mut DynamicTiles) {
     let mut area_palettes = BTreeMap::<usize, BTreeSet<u8>>::new();
     let mut area_tiles = BTreeMap::<usize, BTreeSet<TileKey>>::new();
     for group in &mut dynamic_tiles.groups {
         for variant in &mut group.variants {
             let height = variant.before.tiles.len();
             let width = variant.before.tiles[0].len();
-            let mut areas = BTreeSet::new();
-            for screen in screens.iter() {
-                for start_y in 0..=64 - height {
-                    'position: for start_x in 0..=64 - width {
+            let mut matching_areas = BTreeSet::new();
+            for area in areas.iter() {
+                for start_y in 0..=area.height - height {
+                    'position: for start_x in 0..=area.width - width {
                         for y in 0..height {
                             for x in 0..width {
-                                if screen.placements[(start_y + y) * 64 + start_x + x]
+                                if area.placements[(start_y + y) * area.width + start_x + x]
                                     != variant.before.tiles[y][x]
                                 {
                                     continue 'position;
                                 }
                             }
                         }
-                        areas.insert(screen.asset_group);
+                        matching_areas.insert(area.id);
                     }
                 }
             }
             for frame in &variant.after_frames {
                 for row in &frame.tiles {
                     for placement in row {
-                        for &area in &areas {
+                        for &area in &matching_areas {
                             area_palettes
                                 .entry(area)
                                 .or_default()
@@ -838,28 +842,28 @@ fn add_dynamic_dependencies(screens: &mut [ThemeScreen], dynamic_tiles: &mut Dyn
                     }
                 }
             }
-            variant.used = !areas.is_empty();
+            variant.used = !matching_areas.is_empty();
         }
     }
 
-    for screen in screens {
-        if let Some(palettes) = area_palettes.get(&screen.asset_group) {
-            screen.palettes.extend(palettes);
+    for area in areas {
+        if let Some(palettes) = area_palettes.get(&area.id) {
+            area.palettes.extend(palettes);
         }
-        if let Some(tiles) = area_tiles.get(&screen.asset_group) {
-            screen.extra_tiles.extend(tiles);
+        if let Some(tiles) = area_tiles.get(&area.id) {
+            area.extra_tiles.extend(tiles);
         }
     }
 }
 
 fn allocate_palettes(
-    screens: &[ThemeScreen],
+    areas: &[ThemeArea],
     palettes: &BTreeMap<u8, Palette>,
     scrollable_transitions: &BTreeSet<(usize, usize)>,
 ) -> Result<BTreeMap<u8, usize>> {
     let mut used = BTreeSet::new();
-    for screen in screens {
-        for &palette in &screen.palettes {
+    for area in areas {
+        for &palette in &area.palettes {
             used.insert(palette);
         }
     }
@@ -873,15 +877,11 @@ fn allocate_palettes(
     }
 
     // Palettes in the same area or a scrolling neighbor must use different slots.
-    for left_screen in screens {
-        for right_screen in screens {
-            if areas_can_coexist(
-                left_screen.asset_group,
-                right_screen.asset_group,
-                scrollable_transitions,
-            ) {
-                for &left in &left_screen.palettes {
-                    for &right in &right_screen.palettes {
+    for left_area in areas {
+        for right_area in areas {
+            if areas_can_coexist(left_area.id, right_area.id, scrollable_transitions) {
+                for &left in &left_area.palettes {
+                    for &right in &right_area.palettes {
                         if right != left {
                             conflicts.get_mut(&left).unwrap().insert(right);
                         }
@@ -954,23 +954,20 @@ fn assign_palette(
 }
 
 fn allocate_characters(
-    screens: &[ThemeScreen],
+    areas: &[ThemeArea],
     palettes: &BTreeMap<u8, Palette>,
     scrollable_transitions: &BTreeSet<(usize, usize)>,
-) -> Result<(CharacterSlots, ScreenTiles)> {
+) -> Result<(CharacterSlots, AreaTiles)> {
     let mut tile_areas = BTreeMap::<TileKey, BTreeSet<usize>>::new();
-    for screen in screens {
-        for placement in &screen.placements {
+    for area in areas {
+        for placement in &area.placements {
             tile_areas
                 .entry((placement.palette, placement.tile))
                 .or_default()
-                .insert(screen.asset_group);
+                .insert(area.id);
         }
-        for &tile in &screen.extra_tiles {
-            tile_areas
-                .entry(tile)
-                .or_default()
-                .insert(screen.asset_group);
+        for &tile in &area.extra_tiles {
+            tile_areas.entry(tile).or_default().insert(area.id);
         }
     }
 
@@ -1033,13 +1030,13 @@ fn allocate_characters(
     }
 
     let mut neighboring_areas = BTreeMap::<usize, BTreeSet<usize>>::new();
-    for left in screens {
-        for right in screens {
-            if areas_can_coexist(left.asset_group, right.asset_group, scrollable_transitions) {
+    for left in areas {
+        for right in areas {
+            if areas_can_coexist(left.id, right.id, scrollable_transitions) {
                 neighboring_areas
-                    .entry(left.asset_group)
+                    .entry(left.id)
                     .or_default()
-                    .insert(right.asset_group);
+                    .insert(right.id);
             }
         }
     }
@@ -1086,17 +1083,17 @@ fn allocate_characters(
         }
     }
 
-    let mut screen_tiles = Vec::with_capacity(screens.len());
-    for screen in screens {
+    let mut area_tiles = Vec::with_capacity(areas.len());
+    for area in areas {
         let mut tiles = BTreeSet::new();
         for group in &groups {
-            if group.areas.contains(&screen.asset_group) {
+            if group.areas.contains(&area.id) {
                 tiles.extend(&group.tiles);
             }
         }
-        screen_tiles.push(tiles);
+        area_tiles.push(tiles);
     }
-    Ok((slots, screen_tiles))
+    Ok((slots, area_tiles))
 }
 
 fn build_scrollable_transition_pairs() -> BTreeSet<(usize, usize)> {
@@ -1202,12 +1199,12 @@ fn areas_can_coexist(
 }
 
 fn build_palette_rows(
-    screen: &ThemeScreen,
+    area: &ThemeArea,
     palettes: &BTreeMap<u8, Palette>,
     slots: &BTreeMap<u8, usize>,
 ) -> Result<[[u8; 32]; 6]> {
     let mut rows = [[0; 32]; 6];
-    for id in &screen.palettes {
+    for id in &area.palettes {
         let palette = &palettes[id];
         let half = slots[id];
         let row = half / 2;
@@ -1452,7 +1449,9 @@ fn intern_map16(
 }
 
 fn build_map(
-    screen: &ThemeScreen,
+    area: &ThemeArea,
+    area_map_x: usize,
+    area_map_y: usize,
     palettes: &BTreeMap<u8, Palette>,
     palette_slots: &BTreeMap<u8, usize>,
     character_slots: &CharacterSlots,
@@ -1463,14 +1462,14 @@ fn build_map(
     let mut map = Vec::with_capacity(0x800);
     for map_y in 0..32 {
         for map_x in 0..32 {
-            let x = map_x * 2;
-            let y = map_y * 2;
+            let x = area_map_x * 64 + map_x * 2;
+            let y = area_map_y * 64 + map_y * 2;
             let id = intern_map16(
                 [
-                    screen.placements[y * 64 + x],
-                    screen.placements[y * 64 + x + 1],
-                    screen.placements[(y + 1) * 64 + x],
-                    screen.placements[(y + 1) * 64 + x + 1],
+                    area.placements[y * area.width + x],
+                    area.placements[y * area.width + x + 1],
+                    area.placements[(y + 1) * area.width + x],
+                    area.placements[(y + 1) * area.width + x + 1],
                 ],
                 palettes,
                 palette_slots,
