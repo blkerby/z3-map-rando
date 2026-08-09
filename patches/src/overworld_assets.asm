@@ -553,9 +553,10 @@ ResolveOverworldAreaRecord:
     RTS
 
 ; Process one batch containing a null-terminated palette list followed by a
-; null-terminated character list. Each descriptor is:
-;   source bank, source address low, source address high, destination row
-; Palette rows are 32 bytes; character rows are 16 4bpp tiles (512 bytes).
+; null-terminated character list. Palette descriptors are:
+;   source bank, source address low, source address high, destination color,
+;   color count
+; Character descriptors are the same first four bytes, with a destination row.
 ; Input: $00-$02 = batch pointer. Clobbers A, Y, and DMA channel 1.
 SynchronousProcessAssetBatch:
     LDY.w #$0000
@@ -575,23 +576,26 @@ SynchronousProcessAssetBatch:
     LDA.b [$00],Y
     INY
 
-    ; Convert destination row n to $7EC300 + n*$20. WMDATA makes the ROM-to-
+    ; Convert destination color n to $7EC300 + n*2. WMDATA makes the ROM-to-
     ; WRAM transfer direct; vanilla code later derives $7EC500 and schedules
     ; the CGRAM upload appropriate to this module.
     REP #$20
     AND.w #$00FF
     ASL A
-    ASL A
-    ASL A
-    ASL A
-    ASL A
     CLC
     ADC.w #$C300
     STA.w $2181
+
+    SEP #$20
+    LDA.b [$00],Y
+    INY
+
+    REP #$20
+    AND.w #$00FF
+    ASL A
+    STA.w $4315              ; Two bytes per BGR555 color.
     LDA.w #$8000              ; DMA mode 0 to WMDATA.
     STA.w $4310
-    LDA.w #$0020              ; One complete 16-color palette row.
-    STA.w $4315
 
     SEP #$20
     LDA.b #$7E
@@ -1240,17 +1244,20 @@ QueueGeneratedAssetBatchCommon:
     REP #$20
     AND.w #$00FF
     ASL A
-    ASL A
-    ASL A
-    ASL A
-    ASL A
     CLC
     ADC.w #$C300
-    STA.w $2181                ; Destination row in WRAM bank $7E.
+    STA.w $2181                ; Destination color in WRAM bank $7E.
+
+    SEP #$20
+    LDA.b [$00],Y
+    INY
+
+    REP #$20
+    AND.w #$00FF
+    ASL A
+    STA.w $4315                ; Two bytes per BGR555 color.
     LDA.w #$8000              ; DMA mode 0 to WMDATA.
     STA.w $4310
-    LDA.w #$0020
-    STA.w $4315                ; One complete palette row.
 
     SEP #$20
     LDA.b #$7E
@@ -1265,8 +1272,8 @@ QueueGeneratedAssetBatchCommon:
     LDA.b $06
     BEQ .queue_vram
 
-    ; Whole-row DMA overwrites the color-0 slot skipped by vanilla's loaders.
-    ; Restore the protected backdrop copy before presenting the new palette.
+    ; Generated palette DMA may overwrite the color-0 slot skipped by vanilla's
+    ; loaders. Restore the protected backdrop copy before presenting it.
     REP #$20
     LDA.l $7EC300
     STA.l $7EC340

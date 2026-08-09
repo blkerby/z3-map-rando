@@ -436,9 +436,24 @@ pub fn compile(
         let entrances = area_assets[screen.id].entrances.clone();
         let pit_entrances = area_assets[screen.id].pit_entrances.clone();
         let special_transitions = area_assets[screen.id].special_transitions.clone();
-        let mut transition_palette_rows = vec![false; 6];
+        let mut transition_palette_halves = [false; 12];
         for palette in &screen.palettes {
-            transition_palette_rows[palette_slots[palette] / 2] = true;
+            let slot = palette_slots[palette];
+            transition_palette_halves[slot] = true;
+            if palettes[palette].uses_upper_half {
+                transition_palette_halves[slot + 1] = true;
+            }
+        }
+        let mut transition_palette_ranges = Vec::new();
+        for row in 0..6 {
+            let lower = transition_palette_halves[row * 2];
+            let upper = transition_palette_halves[row * 2 + 1];
+            if lower || upper {
+                transition_palette_ranges.push(patcher::import::OverworldPaletteRange {
+                    start_color: (2 + row) as u8 * 16 + if lower { 0 } else { 8 },
+                    color_count: if lower && upper { 16 } else { 8 },
+                });
+            }
         }
         let mut transition_character_rows = vec![false; 60];
         for tile in tiles {
@@ -447,7 +462,7 @@ pub fn compile(
         area_assets[screen.id] = OverworldAreaAssets {
             palette_rows: palette_rows.to_vec(),
             character_rows: character_rows.to_vec(),
-            transition_palette_rows,
+            transition_palette_ranges,
             transition_character_rows,
             animation_tracks,
             sprite_variants: sprites,

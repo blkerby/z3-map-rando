@@ -12,9 +12,8 @@ pub const CREDITS_COOL_BACKGROUND_KEY: usize = 0xff;
 pub const CREDITS_FIRST_KEY: usize = 0xa0;
 pub const SPRITE_SEED_KEY: usize = 0xfe;
 const DATA_SIZE: usize = 14 * BANK_SIZE;
-// One unit is one 32-byte 4bpp tile; double palette bytes for parsing overhead.
+// One unit is one 32-byte 4bpp tile; charge one unit per eight palette colors.
 const GRAPHICS_ROW_UNITS: usize = 16;
-const PALETTE_ROW_UNITS: usize = 2;
 const TRANSITION_BATCH_UNITS: usize = 8 * GRAPHICS_ROW_UNITS;
 type InternedSequence = (u32, Vec<u32>, Vec<(u8, u32)>);
 
@@ -255,10 +254,20 @@ fn intern_record(
     record[28] = assets.background.camera_drift_y.to_le_bytes()[0];
 
     if include_transitions {
-        let mut transition_palette_rows = Vec::new();
-        for (row, &load) in assets.transition_palette_rows.iter().enumerate() {
-            if load {
-                transition_palette_rows.push(row);
+        let mut transition_palettes = Vec::new();
+        for range in &assets.transition_palette_ranges {
+            let mut start = usize::from(range.start_color);
+            let end = start + usize::from(range.color_count);
+            while start < end {
+                let row = start / 16 - 2;
+                let row_offset = start % 16;
+                let color_count = (16 - row_offset).min(end - start);
+                transition_palettes.push((
+                    palette_sources[row] + u32::try_from(row_offset * 2)?,
+                    u8::try_from(start)?,
+                    u8::try_from(color_count)?,
+                ));
+                start += color_count;
             }
         }
         let mut transition_characters = Vec::new();
@@ -271,14 +280,16 @@ fn intern_record(
 
         let mut transition_batches = Vec::new();
         let mut character_offset = 0;
-        if !transition_palette_rows.is_empty() || !transition_characters.is_empty() {
-            let character_count = ((TRANSITION_BATCH_UNITS
-                - transition_palette_rows.len() * PALETTE_ROW_UNITS)
-                / GRAPHICS_ROW_UNITS)
+        if !transition_palettes.is_empty() || !transition_characters.is_empty() {
+            let mut palette_units = 0;
+            for &(_, _, color_count) in &transition_palettes {
+                palette_units += usize::from(color_count).div_ceil(8);
+            }
+            let character_count = ((TRANSITION_BATCH_UNITS - palette_units) / GRAPHICS_ROW_UNITS)
                 .min(transition_characters.len());
             let mut batch = Vec::new();
-            for &row in &transition_palette_rows {
-                descriptor(&mut batch, palette_sources[row], u8::try_from(row + 2)?);
+            for &(source, start_color, color_count) in &transition_palettes {
+                palette_descriptor(&mut batch, source, start_color, color_count);
             }
             batch.push(0);
             for &(destination, source) in &transition_characters[..character_count] {
@@ -408,7 +419,7 @@ fn intern_full_sequence(
         let mut batch = Vec::new();
         if batch_index == 0 {
             for (row, &source) in palette_sources.iter().enumerate() {
-                descriptor(&mut batch, source, u8::try_from(row + 2)?);
+                palette_descriptor(&mut batch, source, u8::try_from((row + 2) * 16)?, 16);
             }
         }
         batch.push(0);
@@ -443,6 +454,11 @@ fn intern_character_sequence(data: &mut Region, rows: &[(u8, [u8; 512])]) -> Res
 fn descriptor(output: &mut Vec<u8>, source: u32, destination: u8) {
     bank_first_pointer(output, source);
     output.push(destination);
+}
+
+fn palette_descriptor(output: &mut Vec<u8>, source: u32, start_color: u8, color_count: u8) {
+    descriptor(output, source, start_color);
+    output.push(color_count);
 }
 
 fn bank_first_pointer(output: &mut Vec<u8>, address: u32) {

@@ -369,7 +369,7 @@ pub struct OverworldAnimationTrack {
 pub struct OverworldAreaAssets {
     pub palette_rows: Vec<[u8; 32]>,
     pub character_rows: Vec<[u8; 512]>,
-    pub transition_palette_rows: Vec<bool>,
+    pub transition_palette_ranges: Vec<OverworldPaletteRange>,
     pub transition_character_rows: Vec<bool>,
     pub animation_tracks: Vec<OverworldAnimationTrack>,
     pub sprite_variants: Vec<OverworldSpriteVariant>,
@@ -377,6 +377,12 @@ pub struct OverworldAreaAssets {
     pub pit_entrances: Vec<OverworldPitEntrance>,
     pub special_transitions: Vec<OverworldSpecialTransition>,
     pub background: OverworldBackgroundSettings,
+}
+
+#[derive(Clone, Copy)]
+pub struct OverworldPaletteRange {
+    pub start_color: u8,
+    pub color_count: u8,
 }
 
 #[derive(Clone, Copy)]
@@ -804,17 +810,20 @@ impl Importer {
         }
         transition_character_rows.truncate(character_rows.len());
 
-        let mut transition_palette_rows = Vec::with_capacity(6);
-        for load in palettes.transition_groups {
-            for _ in 0..3 {
-                transition_palette_rows.push(load);
+        let mut transition_palette_ranges = Vec::new();
+        for (group, load) in palettes.transition_groups.into_iter().enumerate() {
+            if load {
+                transition_palette_ranges.push(OverworldPaletteRange {
+                    start_color: (2 + group * 3) as u8 * 16,
+                    color_count: 48,
+                });
             }
         }
 
         Ok(OverworldAreaAssets {
             palette_rows,
             character_rows,
-            transition_palette_rows,
+            transition_palette_ranges,
             transition_character_rows,
             animation_tracks: Vec::new(),
             sprite_variants: Vec::new(),

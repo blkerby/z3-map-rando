@@ -23,30 +23,36 @@ loading remain unchanged.
 the vanilla result. Keep the payload uncompressed unless its measured ROM cost
 requires reconsideration.
 
-Use two fixed payload sizes:
+Use two fixed interned payload sizes:
 
 - One palette row: 16 colors, or 32 bytes.
 - One character row: 16 sequential 4bpp tiles, or 512 bytes.
 
 Store each distinct payload once. Full-reload, scrolling-transition, and later
-animation lists all reference this shared payload data. Align tile allocation
-and VRAM destinations to 16-character rows; align palette allocation and
-`$7EC300` destinations to 16-color rows. No payload may cross a 64 KiB
-ROM-bank boundary.
+animation lists all reference this shared payload data. Palette descriptors may
+point within an interned row to transfer any contiguous color range. Align tile
+allocation and VRAM destinations to 16-character rows. No payload may cross a
+64 KiB ROM-bank boundary.
 
 ## DMA batches
 
-Every descriptor is four bytes:
+Palette descriptors are five bytes:
 
 ```text
 1 byte:  ROM payload source bank
 2 bytes: ROM payload source address, low byte then high byte
-1 byte: destination row
+1 byte: destination CGRAM color index
+1 byte: color count
 ```
 
-Palette destination row `n` means byte address `$7EC300 + n * $20`. VRAM
-destination row `n` means word address `n * $100`, because 16 4bpp characters
-occupy `$100` VRAM words.
+The corresponding source offset is included in the ROM pointer. Destination
+color `n` means byte address `$7EC300 + n * 2`; the DMA byte count is twice the
+color count. A range crossing an interned row boundary is split into separate
+descriptors.
+
+VRAM descriptors remain four bytes: the same source pointer followed by a
+destination row. VRAM destination row `n` means word address `n * $100`,
+because 16 4bpp characters occupy `$100` VRAM words.
 
 A source bank of zero terminates a descriptor list. Payloads will live only in
 FastROM banks `$AA-$B7`, so there is never ambiguity between the terminator
@@ -318,8 +324,10 @@ dynamic graphics and HUD work. The BG streamer's `$18` list remains independent.
 The generated vanilla schedule includes palette rows 2-4 unless the first
 auxiliary palette selector is `$FF`, and rows 5-7 unless the second selector is
 `$FF`. It then includes the character rows for each nonzero area-specific sheet
-override. A graphics row costs 16 batching units and a palette row costs two.
-All transition batches have a 128-unit limit. Omitted palette groups and zero
+override. Theme schedules instead transfer each allocated eight-color half-row,
+merging both halves into one 16-color descriptor when both are used. A graphics
+row costs 16 batching units and each eight palette colors cost one. All
+transition batches have a 128-unit limit. Omitted palette groups and zero
 sheet overrides preserve the assets already resident from the source area.
 Full reloads still resolve these neutral entries to defaults and load the
 complete asset set. The scroll and post-scroll sections are empty, and all four
@@ -442,7 +450,8 @@ vanilla `$15` to upload all 512 bytes of `$7EC500` even when only one or two
 background palette rows changed. Keep this simple path unless NMI measurements
 show that it is too expensive.
 
-If needed, extend the existing palette control:
+If needed, extend the existing palette control. The ROM-to-WRAM descriptor
+ranges do not change the current complete CGRAM upload:
 
 ```text
 $15 = $00: no palette upload
