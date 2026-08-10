@@ -47,6 +47,7 @@ incsrc "symbols.inc"
 !BackgroundPositionY = $7ECC79
 !BackgroundDeltaY = $7ECC7B
 !BackgroundDeltaX = $7ECC7C
+!MirrorFixedColor = $7EC90E
 
 ; Overworld_OperateCameraScroll
 ;
@@ -179,6 +180,13 @@ org $82EA89
 org $82B283
     JMP.w $B2CE
 
+; MirrorWarp_LoadSpritesAndColors has just selected the destination fixed
+; color. Cache it before the remaining sprite work can run across an NMI;
+; Module $15 keeps the PPU white until the normal fade resumes.
+org $82B2EB
+    JML CaptureMirrorWarpFixedColor
+assert pc() == $82B2EF
+
 ; ReloadSubscreenOverlay sets the destination layer configuration before its
 ; relocated tilemaps are ready. Defer it during the active-display Agahnim
 ; transition so the saved configuration can be restored after the reload.
@@ -259,9 +267,9 @@ org $80FE64
 ; Unlike the ordinary full-load paths, this calls
 ; DrawOverworldQuadrantsAndOverlays as a subroutine and returns without
 ; falling through to OverworldBuildMapAndTrigger. Replace its final
-; "INC $0710 : RTL" with the common bulk renderer, which sets $0710 itself.
+; "INC $0710 : RTL" with a mirror wrapper around the common bulk renderer.
 org $80D8F7
-    JML BG2BulkRender
+    JML RenderMirrorWarpBG2
 
 ; AnimateMirrorWarp step 5, AnimateMirrorWarp_TriggerOverlayA_2.
 ; MirrorWarp_HandleCastlePyramidSubscreen has just selected and loaded the
@@ -1023,6 +1031,9 @@ ConfigureGeneratedBackground:
     STY.b $9A
 
     PHA
+    LDA.l !Module15LayerEnable
+    BMI .defer_active
+
     LDA.b $10
     CMP.b #$15
     PLA
@@ -1033,7 +1044,11 @@ ConfigureGeneratedBackground:
     SEC
     RTS
 
+.defer_active
+    PLA
+
 .defer_layers
+    ORA.b #$80                 ; Retain the persistent Module $15 marker.
     STA.l !Module15LayerEnable
     TXA
     STA.l !Module15LayerEnable+1
@@ -1052,6 +1067,9 @@ SetOverworldSubscreenLayers:
     JSR ConfigureGeneratedBackground
     BCS .generated
 
+    LDA.l !Module15LayerEnable
+    BMI .defer
+
     LDA.b $10
     CMP.b #$15
     BEQ .defer
@@ -1064,7 +1082,7 @@ SetOverworldSubscreenLayers:
     JML return_ReloadSubscreenOverlaySetLayers
 
 .defer
-    LDA.b #$16
+    LDA.b #$96                 ; $16 plus the persistent Module $15 marker.
     STA.l !Module15LayerEnable
     LDA.b #$01
     STA.l !Module15LayerEnable+1
@@ -1074,17 +1092,8 @@ SetOverworldSubscreenLayers:
     JML $82AFAD
 
 EnableMirrorWarpSubscreenUnlessModule15:
-    LDA.b $10
-    CMP.b #$15
-    BEQ .hidden
-
-    ; Run hi-jacked instructions:
-    LDA.b #$01
-    STA.b $1D
-    RTL
-
-.hidden
-    LDA.b #$01                 ; Run hi-jacked instruction
+    ; Keep BG1 hidden until step 11, after its bulk tilemap render.
+    LDA.b #$01                 ; Run hi-jacked instruction without storing it.
     RTL
 
 SetMirrorWarpDestinationSubscreen:
@@ -1184,7 +1193,17 @@ BG1BulkRender:
 
     SEP #$20                    ; Overlay controls are byte-wide.
 
+    LDA.b $10
+    CMP.b #$15
+    BNE .read_layer_mirror
+
+    LDA.l !Module15LayerEnable+1 ; Its live mirror stays hidden during loading.
+    BRA .layer_ready
+
+.read_layer_mirror
     LDA.b $1D                   ; Zero means BG1 is disabled for this area.
+
+.layer_ready
     BEQ .skip
 
     LDA.b $8C                   ; Synthetic overlay ID selected by the loader.
@@ -1207,6 +1226,34 @@ BG1BulkRender:
 
     PLP
     RTL
+
+; Persistent destination overlays may have queued immediate $1000/$14 stripes
+; while building the logical map. The complete BG2 render below includes those
+; changes, so discard the redundant request and reset its append cursor exactly
+; as NMI would after consuming request $14=$01.
+RenderMirrorWarpBG2:
+    LDA.b $10
+    CMP.b #$15
+    BNE .render
+
+    ; BG2 is about to replace the old HUD page at $6000. Switch to the staged
+    ; $3C00 BG3 page first while only its relocated HUD is enabled.
+    PHP
+    SEP #$20
+    LDA.b #$69
+    STA.w $2107                 ; BG1: $6800, 64x32.
+    LDA.b #$61
+    STA.w $2108                 ; BG2: $6000, 64x32.
+    LDA.b #$3C
+    STA.w $2109                 ; BG3: $3C00, 32x32.
+    STZ.w $210B                 ; BG1/BG2 characters begin at $0000.
+    PLP
+
+.render
+    STZ.b $14
+    STZ.w $1000
+    STZ.w $1001
+    JML BG2BulkRender
 
 ; Make the mirror bulk renderer use the destination scroll which the common
 ; module tail will otherwise finalize only after this loading step returns.
@@ -1239,17 +1286,6 @@ RenderMirrorWarpBG1AndHideBackgrounds:
     PLP
     JSL BG1BulkRender
 
-    LDA.b $10
-    CMP.b #$15
-    BNE .return
-
-    REP #$20
-    LDA.b $1C
-    AND.w #$FCFC
-    STA.b $1C
-    SEP #$20
-
-.return
     LDA.b #$00
     RTL
 
@@ -2525,6 +2561,26 @@ hook_MirrorWarpWavingFrameAfterAnimation:
     LDA.b #$C0
     STA.b $9B                   ; Default: enable mirror channels after NMI.
 
+    LDA.w $0200
+    CMP.b #$0E
+    BCC .hdma_ready
+
+    ; The table was restarted at the destination scroll when loading began.
+    ; Consume the marker once before propagation resumes on screen.
+    LDA.b $10
+    CMP.b #$15
+    BNE .restore_fixed_color
+
+    LDA.l !Module15LayerEnable
+    BPL .restore_fixed_color
+    AND.b #$7F
+    STA.l !Module15LayerEnable ; Consume the persistent Module $15 marker.
+
+.restore_fixed_color
+    ; Destination loading is complete. Restore its cached fixed color before
+    ; the palette starts fading back from white.
+    JSR RestoreMirrorFixedColor
+
 .hdma_ready
     ; Step 1 starts replacing BG character graphics. Finish fading to white
     ; before it, then hold white through step 13 so every loading transfer and
@@ -2538,8 +2594,8 @@ hook_MirrorWarpWavingFrameAfterAnimation:
     LDA.l $7EC009
     BNE .advance_filter         ; Mode 2 has not reached full white yet.
 
-    ; The palette and wave are both paused, so their alternating frame would
-    ; otherwise do no work. Advance one loading step on every white frame.
+    ; The palette is paused, so its alternating frame would otherwise do no
+    ; work. Advance one loading step on every white frame.
     JSL $80D8A4                 ; AnimateMirrorWarp, without changing palette.
 
     LDA.b #$01
@@ -2551,10 +2607,25 @@ hook_MirrorWarpWavingFrameAfterAnimation:
     STA.l $7EC007
     SEP #$20
 
-    ; Loading is paused at the same logical palette time. Freeze the software
-    ; oscillator too, so it has vanilla-relative history when fading resumes.
+    ; Vanilla seeds the Module $15 table for destination scroll $0778 just
+    ; before loading, but the next two source-area wave updates corrupt its
+    ; leading samples. Once phase 0 installs the actual destination scroll,
+    ; restart the table there and build the wave behind the white cover.
+    LDA.w $0200
+    CMP.b #$01
+    BNE .wave_ready
+
+    PHP
+    REP #$30
+    LDX.w #$003E
+    LDA.b $E2
+    JSL $80FE3E
+    PLP
+    STZ.b $9B                   ; The loading cover still owns hardware HDMA.
+
+.wave_ready
     JSR .prepare_nmi
-    RTL                         ; Skip the vanilla wave-table update at $80FE68.
+    JML $80FE68                 ; Continue building the hidden software wave.
 
 .advance_filter
     DEC.w $06BB                 ; Preserve vanilla's one-filter-step cadence.
@@ -2569,11 +2640,46 @@ hook_MirrorWarpWavingFrameAfterAnimation:
 .run_animation
     JSL $80EEE2                 ; Run hi-jacked instruction
 
+    ; Step 0 can switch to the destination scroll inside AnimateMirrorWarp.
+    ; Route that same frame through the one-time table restart above.
+    LDA.w $0200
+    BEQ .animation_done
+    CMP.b #$0E
+    BCS .animation_done
+    LDA.l $7EC009
+    BEQ .keep_filter_white
+
 .animation_done
     JSR .prepare_nmi
     JML $80FE68                 ; Build the wave table as vanilla does.
 
 .prepare_nmi
+    LDA.l $7EC009
+    BNE .fixed_color_ready
+
+    LDA.w $0200
+    BEQ .fixed_color_ready
+    CMP.b #$0E
+    BCS .fixed_color_ready
+
+    ; The palette filter does not touch fixed color. Make its three PPU mirror
+    ; components white too, so transparent BG pixels cannot expose area color.
+    LDA.b #$3F
+    STA.b $9C                   ; Red component $1F, plus the red-select bit.
+    LDA.b #$5F
+    STA.b $9D                   ; Green component $1F, plus green-select.
+    LDA.b #$9F
+    STA.b $9E                   ; Blue component $1F, plus blue-select.
+
+    ; Preserve the terminal fade step's CGRAM request when it is the only NMI
+    ; work. Once CGRAM is white, omit later copies only on heavy loading NMIs.
+    LDA.b $17
+    ORA.b $18
+    BEQ .keep_hdma
+    STZ.b $15
+    BRA .disable_hdma
+
+.fixed_color_ready
     LDA.b $17                   ; Specialized NMI transfer queued?
     ORA.b $18                   ; Arbitrary DMA list queued?
     BEQ .keep_hdma
@@ -2585,6 +2691,98 @@ hook_MirrorWarpWavingFrameAfterAnimation:
     STZ.b $9B                   ; Keep them off through the upcoming NMI.
 
 .keep_hdma
+    RTS
+
+; Preserve the fixed color selected from destination-area data before the
+; remainder of MirrorWarp_LoadSpritesAndColors can overrun into another NMI.
+; The displaced compare resumes the vanilla Castle/Pyramid layer setup.
+CaptureMirrorWarpFixedColor:
+    JSR SaveMirrorFixedColor
+
+    LDA.b $10
+    CMP.b #$15
+    BNE .resume
+
+    LDA.b #$3F
+    STA.b $9C
+    STA.w $2132
+    LDA.b #$5F
+    STA.b $9D
+    STA.w $2132
+    LDA.b #$9F
+    STA.b $9E
+    STA.w $2132
+
+.resume
+    LDA.b $8A                   ; Run displaced instructions.
+    CMP.b #$1B
+    JML $82B2EF
+
+; Cache the destination area's three $2132 bytes as one BGR555 word. Repacking
+; them lets the persistent mirror state fit in the two free bytes at $7EC90E.
+SaveMirrorFixedColor:
+    PHP
+    REP #$20
+    LDA.b $9C                   ; Load red in the low byte, green in the high.
+    PHA
+    AND.w #$001F                ; Packed bits 0-4: red.
+    STA.l !MirrorFixedColor
+    PLA
+    AND.w #$1F00
+    LSR A
+    LSR A
+    LSR A
+    ORA.l !MirrorFixedColor     ; Packed bits 5-9: green.
+    STA.l !MirrorFixedColor
+
+    SEP #$20
+    LDA.b $9E                   ; Strip the blue-select bit from the third byte.
+    AND.b #$1F
+    REP #$20
+    AND.w #$00FF
+    XBA
+    ASL A
+    ASL A
+    ORA.l !MirrorFixedColor     ; Packed bits 10-14: blue.
+    STA.l !MirrorFixedColor
+    PLP
+    RTS
+
+; Restore the destination fixed color after the white loading cover. Recreate
+; the component-select bits required by one-byte writes to PPU register $2132.
+RestoreMirrorFixedColor:
+    PHP
+    REP #$20
+    LDA.l !MirrorFixedColor
+    PHA
+    AND.w #$001F                ; Unpack red from bits 0-4.
+    ORA.w #$0020                ; Select red for the eventual $2132 write.
+    SEP #$20
+    STA.b $9C
+
+    REP #$20
+    PLA
+    PHA
+    LSR A
+    LSR A
+    LSR A
+    LSR A
+    LSR A
+    AND.w #$001F                ; Unpack green from bits 5-9.
+    ORA.w #$0040                ; Select green for the eventual $2132 write.
+    SEP #$20
+    STA.b $9D
+
+    REP #$20
+    PLA
+    XBA
+    LSR A
+    LSR A
+    AND.w #$001F                ; Unpack blue from bits 10-14.
+    ORA.w #$0080                ; Select blue for the eventual $2132 write.
+    SEP #$20
+    STA.b $9E
+    PLP
     RTS
 
 ; Step 10 retains its animated-tile work, then repairs both layers' margins.

@@ -89,8 +89,9 @@ org $80E259
 assert pc() == $80E25E
 
 
-; AnimateMirrorWarp_LoadPyramidIfAga: on the penultimate delay step, stage the
-; relocated HUD after the old layout's final animated-tile write.
+; AnimateMirrorWarp_LoadPyramidIfAga: hold its penultimate delay step until the
+; fade reaches white, then stage the relocated HUD after the old layout's final
+; animated-tile write. The following step can safely switch VRAM layouts.
 org $80D8DC
 hook_Module15MirrorWarpBeforeLayoutSwitch:
     JML PrepareModule15HUDBeforeLayoutSwitch
@@ -178,7 +179,6 @@ org !free_space_bank_82_start
 
 LoadModule15Overworld:
     JSL HideModule15Backgrounds
-    JSL SelectOverworldVRAM
     JSR.w $E207                 ; Run hi-jacked instruction
     RTS
 
@@ -533,34 +533,66 @@ hook_RenderTextPostDeathSaveOptionsPosition:
     RTL
 
 PrepareModule15HUDBeforeLayoutSwitch:
+    LDA.b $10
+    CMP.b #$15
+    BNE .return
+
     LDA.w $06BA
     CMP.b #$1F
     BNE .return
 
+    LDA.l $7EC009
+    BEQ .prepare
+
+    DEC.w $06BA                 ; Retry this step after the next palette update.
+    BRA .return
+
+.prepare
     JSL PrepareModule15OverworldTilemaps
 
     REP #$20
     LDA.w #$1C00
     STA.w $0134
+    LDA.w #!OverworldHUD
+    STA.w $0219
     SEP #$20
 
 .return
     STZ.w $0200                 ; Run hi-jacked instruction
     RTL
 
-; Module $15 enters its long overworld loader during vertical blank. Hide BG1
-; and BG2 in both the mirrors and PPU before switching layouts; BG3 was staged
-; earlier and remains visible.
+; Keep the old BG3 HUD visible while module $15 prepares the overworld layout.
+; Commit the background mask, BG3 color-math exclusion, and white fixed color
+; immediately because heavy frames can overrun NMI and skip its normal writes.
 HideModule15Backgrounds:
     PHP
     REP #$20
 
+    LDA.w #$0080
+    STA.l !Module15LayerEnable ; Bit 7 marks the outer Module $15 load.
+
     LDA.b $1C
-    STA.l !Module15LayerEnable
-    AND.w #$FCFC
+    AND.w #$0404               ; Keep only BG3; OBJ graphics are being replaced.
     STA.b $1C
     STA.w $212C
 
+    SEP #$20
+    LDA.b $9A
+    AND.b #$FB                  ; White fixed-color addition would bleach BG3.
+    STA.b $9A
+    STA.w $2131
+
+    LDA.b #$3F
+    STA.b $9C
+    STA.w $2132
+    LDA.b #$5F
+    STA.b $9D
+    STA.w $2132
+    LDA.b #$9F
+    STA.b $9E
+    STA.w $2132
+
     PLP
     RTL
+
 assert pc() <= !free_space_bank_a0_end

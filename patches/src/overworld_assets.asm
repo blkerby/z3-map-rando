@@ -816,6 +816,7 @@ hook_MirrorBeforeObsoleteSpriteGraphicsB:
 
     REP #$20
     LDA.l !Module15LayerEnable
+    AND.w #$1F1F               ; Discard the persistent Module $15 marker.
     STA.b $1C
     SEP #$20
 
