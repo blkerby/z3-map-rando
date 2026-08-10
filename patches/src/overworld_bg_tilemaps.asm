@@ -2543,13 +2543,12 @@ hook_MirrorWarpWavingFrameAfterAnimation:
     ; Several loading steps take most of a frame; setting $9B afterward lets
     ; NMI observe the temporary enabled value in the middle of that work.
     LDA.w $0200
-    BEQ .enable_hdma
     CMP.b #$0E
     BCS .enable_hdma
 
-    ; $0200 reaches step 1 before the fade-to-white has finished. Keep the
-    ; wave active until filter mode 2 reaches zero; loading work does not
-    ; advance while that filter is still active.
+    ; Keep the wave active until filter mode 2 reaches zero. Once the palette
+    ; is white, hold both hardware and software HDMA at vanilla's flat table
+    ; until every loading step is complete.
     LDA.l $7EC009
     BNE .enable_hdma
 
@@ -2565,8 +2564,7 @@ hook_MirrorWarpWavingFrameAfterAnimation:
     CMP.b #$0E
     BCC .hdma_ready
 
-    ; The table was restarted at the destination scroll when loading began.
-    ; Consume the marker once before propagation resumes on screen.
+    ; Consume the Module $15 marker once propagation resumes on screen.
     LDA.b $10
     CMP.b #$15
     BNE .restore_fixed_color
@@ -2600,6 +2598,9 @@ hook_MirrorWarpWavingFrameAfterAnimation:
 
     LDA.b #$01
     STA.w $06BB                 ; Resume with a palette step after loading.
+    LDA.w $0200
+    CMP.b #$0E
+    BCS .animation_done         ; Build the first wave on the last white frame.
 
 .keep_filter_white
     REP #$20
@@ -2607,25 +2608,8 @@ hook_MirrorWarpWavingFrameAfterAnimation:
     STA.l $7EC007
     SEP #$20
 
-    ; Vanilla seeds the Module $15 table for destination scroll $0778 just
-    ; before loading, but the next two source-area wave updates corrupt its
-    ; leading samples. Once phase 0 installs the actual destination scroll,
-    ; restart the table there and build the wave behind the white cover.
-    LDA.w $0200
-    CMP.b #$01
-    BNE .wave_ready
-
-    PHP
-    REP #$30
-    LDX.w #$003E
-    LDA.b $E2
-    JSL $80FE3E
-    PLP
-    STZ.b $9B                   ; The loading cover still owns hardware HDMA.
-
-.wave_ready
     JSR .prepare_nmi
-    JML $80FE68                 ; Continue building the hidden software wave.
+    RTL                          ; Freeze vanilla's wave oscillator and table.
 
 .advance_filter
     DEC.w $06BB                 ; Preserve vanilla's one-filter-step cadence.
@@ -2635,23 +2619,25 @@ hook_MirrorWarpWavingFrameAfterAnimation:
     STA.w $06BB
     JSL $80EEEC                 ; PaletteFilter_BlindingWhite
     INC.b $15                   ; Its terminal $1F branch omits this request.
+    LDA.l $7EC009
+    BEQ .keep_filter_white      ; Do not advance the freshly flattened table.
     BRA .animation_done
 
 .run_animation
     JSL $80EEE2                 ; Run hi-jacked instruction
 
-    ; Step 0 can switch to the destination scroll inside AnimateMirrorWarp.
-    ; Route that same frame through the one-time table restart above.
+    ; Freeze the wave on every full-white loading frame, including step 0's
+    ; delay and the frame on which it installs the destination scroll.
+    LDA.l $7EC009
+    BNE .animation_done
     LDA.w $0200
-    BEQ .animation_done
     CMP.b #$0E
     BCS .animation_done
-    LDA.l $7EC009
-    BEQ .keep_filter_white
+    BRA .keep_filter_white
 
 .animation_done
     JSR .prepare_nmi
-    JML $80FE68                 ; Build the wave table as vanilla does.
+    JML $80FE68
 
 .prepare_nmi
     LDA.l $7EC009
