@@ -232,7 +232,7 @@ The game still follows vanilla background selection in this phase.
   drift, and Pyramid clamp paths now covered by generated data.
 - Retain only the area `$80` exception and presentation paths outside playable
   overworld gameplay, such as dungeons and credits.
-- Run allocation checks, patch assembly, `engine_check`, and representative
+- Run allocation checks, patch assembly, `theme_check`, and representative
   emulator tests for every composition and camera mode.
 
 ## Completion checks

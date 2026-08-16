@@ -19,7 +19,7 @@ loading remain unchanged.
 
 ## Payloads
 
-`engine_check` generates flat 4bpp graphics and BGR555 palette data matching
+`theme_check` generates flat 4bpp graphics and BGR555 palette data matching
 the vanilla result. Keep the payload uncompressed unless its measured ROM cost
 requires reconsideration.
 
@@ -95,7 +95,7 @@ the variable-length bodies before it.
 Forced-blank loading processes all batches synchronously. For active-display
 full reloads such as mirror and whirlpool, the main loop processes one batch's
 palette list per frame and submits its VRAM list to NMI when nonempty.
-`engine_check` chooses how many payloads to place in each batch. Batch
+`theme_check` chooses how many payloads to place in each batch. Batch
 boundaries affect scheduling only; they do not duplicate payload data.
 
 ## Scrolling-transition schedules
@@ -130,7 +130,7 @@ sequence begins immediately after the terminator.
 
 This representation lets the runtime consume every section sequentially with
 one cursor. It does not need batch counts, offsets, or a scan over descriptor
-bodies. `engine_check` chooses the batch boundaries and frame assignments.
+bodies. `theme_check` chooses the batch boundaries and frame assignments.
 
 The generated data must reject overlapping or out-of-range destinations and
 verify that every descriptor is contained within its payload. Graphics may
@@ -206,11 +206,11 @@ Area records, batch sequences, transition schedules, DMA batches, and
 animation definitions begin at `$A78300`. Keep each structure within one
 metadata bank. Store each generated graphics or palette payload once in banks
 `$AA-$B7` and let multiple batches reference it. Neither region may spill into
-the other. `engine_check` reports their independent usage and fails if either
+the other. `theme_check` reports their independent usage and fails if either
 range overflows.
 
 Submilestone 9B.1 uses this fixed ABI directly: the table starts at `$A78000`,
-metadata starts at `$A78300`, and payloads start at `$AA8000`. `engine_check`
+metadata starts at `$A78300`, and payloads start at `$AA8000`. `theme_check`
 writes the vanilla bundle. A generated manifest is unnecessary unless these
 locations later become configurable.
 
@@ -243,7 +243,7 @@ residency state in milestone 9B.
 
 ## Generated checks
 
-For every module `$08` or `$0A` destination, `engine_check` should:
+For every module `$08` or `$0A` destination, `theme_check` should:
 
 1. Reproduce the final vanilla BG character data and overworld-owned palette
    ranges.
@@ -262,7 +262,7 @@ generated payloads directly from ROM.
 
 ## Submilestone 9B.1: forced-blank playable checkpoint
 
-Implemented: `engine_check` uses the importer's resolved map graphics and
+Implemented: `theme_check` uses the importer's resolved map graphics and
 palette sets to generate deduplicated payloads, records, four-batch full-load
 sequences, and the 256-entry `$8A` lookup table. The shared module `$08`/`$0A`
 path loads those assets directly from ROM while retaining vanilla sprite, HUD,
@@ -307,7 +307,7 @@ descriptor formats as full reloads but contain only the payload rows required
 for that transition. They reference the same shared payload catalog as the
 full-reload lists.
 
-For the vanilla arrangement, `engine_check` derives the expected source area
+For the vanilla arrangement, `theme_check` derives the expected source area
 from the destination and entry side. Applying the transition list to the
 source area's complete asset state must produce the destination state required
 at the end of the transition. Empty lists are valid where no asset row changes.
@@ -337,7 +337,7 @@ Implemented: ordinary scrolling transitions now use generated ROM-source
 payloads and the new mode `$03` NMI list. Gameplay validation must still confirm
 all four directions, Light and Dark World boundaries, Castle/Pyramid parallax,
 sprite and animated-tile continuity, and the absence of NMI overruns.
-The `engine_check --transition-asset-phase` option can place the generated
+The `theme_check --transition-asset-phase` option can place the generated
 batches in the pre-scroll, consecutive scroll-frame, or post-scroll section to
 exercise each runtime path.
 
@@ -387,7 +387,7 @@ World and fixed special areas use one `$FF` variant; Triforce uses asset key
 sets. File initialization writes sheet `$46` to all four slots through key
 `$FE`, matching vanilla's initial resident state.
 
-Put sprite and background rows in the same batches so `engine_check` schedules
+Put sprite and background rows in the same batches so `theme_check` schedules
 their combined NMI cost and enforces the phase-specific weighted limits above.
 Converted overworld paths no longer stage these four slots in WRAM or run the
 vanilla `$19` upload. Common/effect sprites at `$4400-$47FF`, Link graphics,
@@ -398,7 +398,7 @@ the vanilla `$0AA3` cache behavior.
 Implemented: the shared runtime resolver selects records by game state for
 synchronous, full-sequence, and directional loads. Full loads and every
 converted overworld transition use generated OBJ rows, while zero overrides
-retain the current slots. `engine_check` validates variant coverage, full
+retain the current slots. `theme_check` validates variant coverage, full
 loads, ordinary adjacencies, credits keys, the initial seed, destinations, and
 batch limits. Gameplay validation must still cover game-state changes,
 dungeon/presentation boundaries, every transition type, and NMI timing.

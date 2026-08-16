@@ -27,20 +27,13 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 Build a test ROM:
 
 ```sh
-cargo run -p engine_check -- path/to/vanilla.sfc path/to/output.sfc
+cargo run -p theme_check -- path/to/vanilla.sfc path/to/output.sfc path/to/ALTTPRetiling --theme Base
 ```
 
-The input must be an unheadered 1 MiB ROM (original Japanese version), having SHA-256 digest `794e040b02c7591b59ad8843b51e7c619b88f87cddc6083a8e7a4027b96a2271`. The `engine_check` tool verifies the input, expands a copy to 2 MiB, applies the current engine patches, and writes the output ROM. Open the output ROM in an emulator or SNES-compatible platform to test the changes. If successful, currently it should behave just like the vanilla game, except with somewhat reduced overworld loading/transition times. 
-
-To build the milestone 9C Desert-theme checkpoint instead, use:
-
-```sh
-cargo run -p theme_check -- path/to/vanilla.sfc path/to/desert.sfc path/to/ALTTPRetiling [--theme Desert]
-```
-
-`theme_check` reads the selected theme JSON (defaulting to `Desert`) from the
-specified `ALTTPRetiling` project and produces a 4 MiB ROM. Authored animation
-tracks are supported; other dynamic overworld graphics remain incomplete.
+The input must be the unheadered 1 MiB Japanese 1.0 ROM with SHA-256 digest
+`794e040b02c7591b59ad8843b51e7c619b88f87cddc6083a8e7a4027b96a2271`.
+`theme_check` reads the selected theme from the specified `ALTTPRetiling`
+project and produces a 4 MiB ROM.
 
 If you notice any issue while testing or if you run into any trouble following these instructions, please reach out in the [Discord](https://discord.gg/Mxb5zYZeVj) to let us know. Even in this early phase of the project, playtesting is very helpful!
 

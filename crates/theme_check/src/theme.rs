@@ -1,8 +1,8 @@
-use anyhow::{Context, Result, ensure};
-use engine_check::{
-    asset_bundle::{DYNAMIC_TILE_GROUP_COUNT, DynamicTileEntry},
+use crate::{
+    asset_bundle::{CompiledCutscene, DYNAMIC_TILE_GROUP_COUNT, DynamicTileEntry},
     rain_tilemap::RAIN_TILEMAP,
 };
+use anyhow::{Context, Result, ensure};
 use patcher::import::{
     OverworldAnimationTrack, OverworldAreaAssets, OverworldBackgroundSettings, Tile8, Tile16,
 };
@@ -102,6 +102,30 @@ struct SourceScreen {
     flips: Vec<Vec<Option<u8>>>,
 }
 
+#[derive(Deserialize)]
+struct CutsceneFile {
+    cutscenes: Vec<SourceCutscene>,
+}
+
+#[derive(Deserialize)]
+struct SourceCutscene {
+    event: String,
+    actions: Vec<CutsceneAction>,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "action", rename_all = "snake_case")]
+enum CutsceneAction {
+    Wait { frames: u8 },
+    PlaySound { channel: u8, sound: u8 },
+    PlayMusic { song: u8 },
+    Draw { layer: String },
+    SetComplete,
+    StartShake,
+    StopShake,
+    End,
+}
+
 #[derive(Clone, Copy, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 struct Placement {
     palette: u8,
@@ -124,6 +148,18 @@ struct Bg1Variant {
     width: usize,
     height: usize,
     placements: Vec<Option<Placement>>,
+}
+
+#[derive(Clone)]
+struct CutsceneLayer {
+    placements: Vec<Option<Placement>>,
+}
+
+struct ThemeCutscene {
+    trigger: u8,
+    area: usize,
+    actions: Vec<CutsceneAction>,
+    layers: BTreeMap<String, CutsceneLayer>,
 }
 
 pub struct CompiledBg1Variant {
@@ -234,6 +270,7 @@ pub struct CompiledTheme {
     pub rain_maps: [Vec<u8>; 2],
     pub area_assets: Vec<OverworldAreaAssets>,
     pub dynamic_tile_groups: Vec<Vec<DynamicTileEntry>>,
+    pub cutscenes: Vec<CompiledCutscene>,
     pub screen_count: usize,
     pub palette_count: usize,
     pub character_count: usize,
@@ -251,7 +288,7 @@ pub fn compile(
 ) -> Result<CompiledTheme> {
     let mut palettes = load_palettes(root)?;
     let mut dynamic_tiles: DynamicTiles = read_json(&root.join("DynamicTiles/replacements.json"))?;
-    let (mut areas, background_colors, mut bg1_variants, background_settings) =
+    let (mut areas, background_colors, mut bg1_variants, background_settings, mut cutscenes) =
         load_areas(root, theme_name)?;
     let rain_tiles = [
         add_rain_tiles(&mut palettes, &area_assets[0x2c], LIGHT_WORLD_RAIN_PALETTE),
@@ -336,6 +373,14 @@ pub fn compile(
         for placement in variant.placements.iter_mut().flatten() {
             placement.flip =
                 canonical_flips[&(placement.palette, placement.tile)][usize::from(placement.flip)];
+        }
+    }
+    for cutscene in &mut cutscenes {
+        for layer in cutscene.layers.values_mut() {
+            for placement in layer.placements.iter_mut().flatten() {
+                placement.flip = canonical_flips[&(placement.palette, placement.tile)]
+                    [usize::from(placement.flip)];
+            }
         }
     }
     for group in &mut dynamic_tiles.groups {
@@ -511,6 +556,17 @@ pub fn compile(
         &mut definition_ids,
     )?;
 
+    let cutscenes = build_cutscenes(
+        &areas,
+        &cutscenes,
+        &palettes,
+        &palette_slots,
+        &character_slots,
+        &mut definitions,
+        &mut properties,
+        &mut definition_ids,
+    )?;
+
     let mut bg1_definition_ids = BTreeMap::new();
     for (id, &words) in definitions.iter().enumerate() {
         bg1_definition_ids
@@ -573,6 +629,7 @@ pub fn compile(
         rain_maps,
         area_assets,
         dynamic_tile_groups,
+        cutscenes,
     })
 }
 
@@ -660,6 +717,7 @@ fn load_areas(
     [u16; 0xa0],
     Vec<Bg1Variant>,
     BTreeMap<usize, BackgroundSettings>,
+    Vec<ThemeCutscene>,
 )> {
     let mut paths = Vec::new();
     for entry in fs::read_dir(root.join("Areas"))? {
@@ -681,14 +739,65 @@ fn load_areas(
     let mut background_colors = [0x8000; 0xa0];
     let mut bg1_variants = Vec::new();
     let mut background_settings = BTreeMap::new();
+    let mut cutscenes = Vec::new();
+    let mut found_cutscenes = [false; 5];
     for path in paths {
         let area: Area = read_json(&path)?;
+        let cutscene_path = path
+            .parent()
+            .unwrap()
+            .join(theme_name)
+            .join("cutscenes.json");
+        let source_cutscenes = if cutscene_path.is_file() {
+            read_json::<CutsceneFile>(&cutscene_path)?.cutscenes
+        } else {
+            Vec::new()
+        };
+        let mut source_scripts = Vec::new();
+        let mut cutscene_layer_names = BTreeSet::new();
+        for source in source_cutscenes {
+            let (trigger, expected_area) = match source.event.as_str() {
+                "palace_of_darkness_entrance_opened" => (1, 0x5e),
+                "skull_woods_entrance_opened" => (2, 0x40),
+                "misery_mire_entrance_opened" => (3, 0x70),
+                "turtle_rock_entrance_opened" => (4, 0x47),
+                "ganons_tower_entrance_opened" => (5, 0x43),
+                event => anyhow::bail!(
+                    "unsupported cutscene event {event}: {}",
+                    cutscene_path.display()
+                ),
+            };
+            ensure!(
+                area.vanilla_map_id == expected_area,
+                "cutscene event {} belongs to area ${expected_area:02X}, not ${:02X}",
+                source.event,
+                area.vanilla_map_id,
+            );
+            ensure!(
+                !found_cutscenes[trigger - 1],
+                "duplicate cutscene event {}",
+                source.event,
+            );
+            ensure!(
+                matches!(source.actions.last(), Some(CutsceneAction::End)),
+                "cutscene event {} must end with an end action",
+                source.event,
+            );
+            found_cutscenes[trigger - 1] = true;
+            for action in &source.actions {
+                if let CutsceneAction::Draw { layer } = action {
+                    cutscene_layer_names.insert(layer.clone());
+                }
+            }
+            source_scripts.push((trigger as u8, source.actions));
+        }
         let mut area_palettes = BTreeSet::new();
         let mut area_extra_tiles = BTreeSet::new();
         let width = area.size[0] * 32;
         let height = area.size[1] * 32;
         let mut area_tiles = vec![vec![None; width]; height];
         let mut bg1_layers = Vec::new();
+        let mut cutscene_layers = BTreeMap::new();
         for layer in &area.layers {
             let mut layer_tiles = vec![vec![None; width]; height];
             for screen in &layer.screens {
@@ -709,9 +818,29 @@ fn load_areas(
                     }
                 }
             }
+            if cutscene_layer_names.contains(&layer.name) {
+                ensure!(
+                    layer.background == Background::Bg2,
+                    "cutscene layer {} must use BG2: {}",
+                    layer.name,
+                    path.display(),
+                );
+                let mut placements = Vec::with_capacity(width * height);
+                for row in &layer_tiles {
+                    for &placement in row {
+                        placements.push(placement);
+                    }
+                }
+                for placement in placements.iter().flatten() {
+                    area_palettes.insert(placement.palette);
+                    area_extra_tiles.insert((placement.palette, placement.tile));
+                }
+                cutscene_layers.insert(layer.name.clone(), CutsceneLayer { placements });
+                continue;
+            }
             match layer.background {
                 Background::Bg1 => bg1_layers.push((layer.name.clone(), layer_tiles)),
-                Background::Bg2 => {
+                Background::Bg2 if layer.name == "Main" => {
                     for y in 0..height {
                         for x in 0..width {
                             if layer_tiles[y][x].is_some() {
@@ -720,7 +849,23 @@ fn load_areas(
                         }
                     }
                 }
+                Background::Bg2 => {}
             }
+        }
+        for layer in &cutscene_layer_names {
+            ensure!(
+                cutscene_layers.contains_key(layer),
+                "cutscene references missing layer {layer}: {}",
+                path.display(),
+            );
+        }
+        for (trigger, actions) in source_scripts {
+            cutscenes.push(ThemeCutscene {
+                trigger,
+                area: area.vanilla_map_id,
+                actions,
+                layers: cutscene_layers.clone(),
+            });
         }
 
         if area.vanilla_map_id == 0x00 || area.vanilla_map_id == 0x80 {
@@ -798,8 +943,20 @@ fn load_areas(
             extra_tiles: area_extra_tiles,
         });
     }
+    for found in found_cutscenes {
+        ensure!(
+            found,
+            "theme {theme_name} must define all five dungeon entrance cutscenes",
+        );
+    }
     result.sort_by_key(|area| area.id);
-    Ok((result, background_colors, bg1_variants, background_settings))
+    Ok((
+        result,
+        background_colors,
+        bg1_variants,
+        background_settings,
+        cutscenes,
+    ))
 }
 
 fn add_dynamic_dependencies(areas: &mut [ThemeArea], dynamic_tiles: &mut DynamicTiles) {
@@ -1283,6 +1440,98 @@ fn build_animation_tracks(
         }
     }
     tracks
+}
+
+fn build_cutscenes(
+    areas: &[ThemeArea],
+    cutscenes: &[ThemeCutscene],
+    palettes: &BTreeMap<u8, Palette>,
+    palette_slots: &BTreeMap<u8, usize>,
+    character_slots: &CharacterSlots,
+    definitions: &mut Vec<[u16; 4]>,
+    properties: &mut [Vec<u8>; 4],
+    definition_ids: &mut BTreeMap<[Placement; 4], u16>,
+) -> Result<Vec<CompiledCutscene>> {
+    let mut result = Vec::new();
+    for cutscene in cutscenes {
+        let area = areas.iter().find(|area| area.id == cutscene.area).unwrap();
+        let mut state = area.placements.clone();
+        let mut persistent = BTreeMap::new();
+        let mut script = Vec::new();
+        for action in &cutscene.actions {
+            match action {
+                CutsceneAction::Wait { frames } => {
+                    script.push(1);
+                    script.push(*frames);
+                }
+                CutsceneAction::PlaySound { channel, sound } => {
+                    script.push(2);
+                    script.push(*channel);
+                    script.push(*sound);
+                }
+                CutsceneAction::PlayMusic { song } => {
+                    script.push(3);
+                    script.push(*song);
+                }
+                CutsceneAction::Draw { layer } => {
+                    let layer = &cutscene.layers[layer];
+                    let mut cells = BTreeSet::new();
+                    for (index, &placement) in layer.placements.iter().enumerate() {
+                        let Some(placement) = placement else {
+                            continue;
+                        };
+                        state[index] = placement;
+                        cells.insert((index % area.width / 2, index / area.width / 2));
+                    }
+                    script.push(4);
+                    script.push(u8::try_from(cells.len())?);
+                    for (x, y) in cells {
+                        let top_left = y * 2 * area.width + x * 2;
+                        let id = intern_map16(
+                            [
+                                state[top_left],
+                                state[top_left + 1],
+                                state[top_left + area.width],
+                                state[top_left + area.width + 1],
+                            ],
+                            palettes,
+                            palette_slots,
+                            character_slots,
+                            definitions,
+                            properties,
+                            definition_ids,
+                        )?;
+                        let offset = u16::try_from(y * 0x80 + x * 2)?;
+                        script.extend_from_slice(&offset.to_le_bytes());
+                        script.extend_from_slice(&id.to_le_bytes());
+                        persistent.insert(offset, id);
+                    }
+                }
+                CutsceneAction::SetComplete => script.push(5),
+                CutsceneAction::StartShake => script.push(6),
+                CutsceneAction::StopShake => script.push(7),
+                CutsceneAction::End => script.push(0),
+            }
+        }
+        let mut persistent_writes = Vec::with_capacity(persistent.len());
+        for write in persistent {
+            persistent_writes.push(write);
+        }
+        let mut cutscene_areas = Vec::new();
+        for map_y in 0..area.height / 64 {
+            for map_x in 0..area.width / 64 {
+                cutscene_areas.push(u8::try_from(area.id + map_x + map_y * 8)?);
+            }
+        }
+        result.push(CompiledCutscene {
+            trigger: cutscene.trigger,
+            areas: cutscene_areas,
+            script,
+            persistent: persistent_writes,
+        });
+    }
+    result.sort_by_key(|cutscene| cutscene.trigger);
+    Ok(result)
 }
 
 fn build_dynamic_tile_groups(

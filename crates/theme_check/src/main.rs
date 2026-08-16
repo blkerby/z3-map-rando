@@ -1,6 +1,5 @@
 use anyhow::{Context, Result, ensure};
 use clap::Parser;
-use engine_check::asset_bundle::{self, AssetLayout};
 use patcher::{
     Patcher, PcAddr, SnesAddr,
     import::{FlatMap16, Importer},
@@ -8,7 +7,11 @@ use patcher::{
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, fmt::Write, fs, path::PathBuf};
 
+mod asset_bundle;
+mod rain_tilemap;
 mod theme;
+
+use asset_bundle::AssetLayout;
 
 const VANILLA_ROM_SHA256: &str = "794e040b02c7591b59ad8843b51e7c619b88f87cddc6083a8e7a4027b96a2271";
 const VANILLA_FLAT_MAPS_START: SnesAddr = SnesAddr(0xb80000);
@@ -49,7 +52,7 @@ struct Args {
     input_rom: PathBuf,
     output_rom: PathBuf,
     retiling_project: PathBuf,
-    #[arg(long, default_value = "Desert")]
+    #[arg(long, default_value = "Base")]
     theme: String,
     #[arg(long, value_enum, default_value = "pre-scroll")]
     transition_asset_phase: asset_bundle::TransitionAssetPhase,
@@ -93,6 +96,7 @@ fn main() -> Result<()> {
         &credits_cool_background,
         &sprite_seed,
         &compiled.dynamic_tile_groups,
+        &compiled.cutscenes,
         args.transition_asset_phase,
         AssetLayout {
             data_start: THEME_ASSET_DATA_START,
@@ -227,6 +231,7 @@ fn main() -> Result<()> {
         "overworld_entrances.ips",
         "overworld_bg_color.ips",
         "overworld_dynamic_tiles.ips",
+        "overworld_cutscenes.ips",
     ] {
         patcher.use_ips(&patch_dir.join(patch))?;
     }

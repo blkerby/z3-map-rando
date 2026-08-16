@@ -122,7 +122,7 @@ milestone.
 
 Before continuing:
 
-1. Build all patches and run `engine_check`.
+1. Build all patches and run `theme_check`.
 2. Confirm that representative bulk and edge `$1100` lists are byte-for-byte
    unchanged.
 3. Retest ordinary and diagonal movement, all four area transitions, dynamic

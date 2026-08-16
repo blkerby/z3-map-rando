@@ -29,7 +29,7 @@ lorom
 incsrc "symbols.inc"
 
 !free_space_bank_a0_start = $A0AF00
-!free_space_bank_a0_end = $A10000
+!free_space_bank_a0_end = $A0B6A0
 
 !DynamicCutGrass = 0
 !DynamicDigTerrain = 1

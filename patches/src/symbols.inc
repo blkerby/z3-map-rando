@@ -23,6 +23,14 @@
 ; indexed by the stable replacement-type order in theme_check.
 !DynamicTileGroupPointers = $A78300
 
+; Five little-endian 24-bit pointers to generated dungeon-entrance cutscene
+; scripts, indexed by the vanilla trigger value minus one.
+!CutscenePointers = $A78342
+
+; One little-endian 24-bit persistent cutscene-overlay pointer per overworld
+; area. A zero pointer means the area has no cutscene overlay.
+!CutsceneOverlayPointers = $A78351
+
 ; Opens a generated wooden door at the contacted Map16 offset in X.
 ; Carry set means a door was opened and entrance handling should stop.
 ; Defined in overworld_dynamic_tiles.asm.

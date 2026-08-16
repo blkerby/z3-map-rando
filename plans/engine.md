@@ -48,14 +48,14 @@ Establish the minimum build and patching path needed to make playable engine cha
 
 - Add Asar as a submodule and scripts to build it and assemble each file in `patches/src` into a corresponding file in `patches/ips`. Assembly uses a dummy ROM with reads disabled, so building the IPS files does not require a vanilla ROM.
 - Add `rom_size.asm`, which changes the LoROM size byte at `$80FFD7` from 1 MiB to 2 MiB. The Rust tool explicitly resizes the output buffer to 2 MiB before applying patches.
-- Add a Cargo workspace containing the `patcher` library and the small `engine_check` CLI.
+- Add a Cargo workspace containing the `patcher` library and the theme compiler CLI.
 - In `patcher`, support LoROM address conversion, contextual writes, overlap detection, IPS records including RLE records, and bounds checking when patches are applied.
-- In `engine_check`, accept input and output ROM paths, require the known 1 MiB unheadered vanilla ROM by SHA-256 digest, resize a copy, apply the IPS patches through `Patcher`, and write the result. Later milestones extend this tool with their test data and patches.
+- In the compiler CLI, accept input and output ROM paths, require the known 1 MiB unheadered vanilla ROM by SHA-256 digest, resize a copy, apply the IPS patches through `Patcher`, and write the result. Later milestones extend this tool with their test data and patches.
 
 ### Validation
 
 - The patcher tests cover address conversion, ordinary and RLE IPS records, adjacent writes, and conflicting writes.
-- `engine_check` rejects inputs with the wrong size or digest.
+- The compiler rejects inputs with the wrong size or digest.
 - The generated ROM is kept as a local test artifact; the source ROM is not required to build the IPS files.
 
 Milestone 1 deliberately does not provide a general-purpose randomizer CLI, manifests or versioned ABIs, checksum repair, seed JSON handling, WebAssembly or TypeScript integration, browser tests, or a release-artifact pipeline. Those should be added only when a later milestone needs them.
@@ -167,11 +167,11 @@ Hard-coded tile IDs such as `$0DBE`, `$0D9E`, and `$0DA0` in banks 02/04/07/1B c
 
 ### Implementation and validation
 
-- `engine_check` imports the 3,742 vanilla definitions and writes their four quadrants to banks `$A1-$A4` without changing IDs or words.
+- The compiler imports the 3,742 vanilla definitions and writes their four quadrants to banks `$A1-$A4` without changing IDs or words.
 - `overworld_map16_graphics.asm` migrates graphical definition loads, including full builds, scrolling stripes, dynamic tile changes, special triggers, and animated doors.
 - Runtime-selected quadrants use banked lookup routines; fixed-quadrant paths load their bank directly.
 - The split-definition unit test checks quadrant ordering and byte layout.
-- `engine_check` zeros the original table at `$8F8000-$8FF4EF`, so any remaining runtime dependency is visible during playtesting.
+- The compiler zeros the original table at `$8F8000-$8FF4EF`, so any remaining runtime dependency is visible during playtesting.
 
 Milestone 3 is complete. The banked representation supports IDs `$0000-$3FFF` while retaining vanilla collision, palettes, tilesets, and 64x64 PPU tilemaps.
 
@@ -200,7 +200,7 @@ graphics:    top-left word, top-right word, bottom-left word, bottom-right word
 properties:  top-left byte, top-right byte, bottom-left byte, bottom-right byte
 ```
 
-`engine_check` derives the vanilla records from the four 8x8 tiles in each Map16 and the vanilla `OverworldTileTypes` table. It also folds the graphics word's horizontal-flip bit into directional slope properties `$10-$1B`, matching the vanilla runtime calculation. Milestone 9C will generate the same records directly from properties authored in `ALTTPRetiling`.
+The compiler derives the vanilla records from the four 8x8 tiles in each Map16 and the vanilla `OverworldTileTypes` table. It also folds the graphics word's horizontal-flip bit into directional slope properties `$10-$1B`, matching the vanilla runtime calculation. Milestone 9C will generate the same records directly from properties authored in `ALTTPRetiling`.
 
 The four dense 16 KiB quadrant tables occupy `$A58000`, `$A5C000`, `$A68000`, and `$A6C000`. They are indexed directly by Map16 ID and cover the full `$0000-$3FFF` namespace in 64 KiB.
 
@@ -210,7 +210,7 @@ The four dense 16 KiB quadrant tables occupy `$A58000`, `$A5C000`, `$A68000`, an
 - `ReadOverworldTileType` retains its vanilla WRAM-map lookup and tail-jumps to the same quadrant resolver. Its callers remain the guard and archer terrain probes and the hammer-splash check.
 - Terrain actions use the shared quadrant resolver. Hammer sound selection and liftable objects read top-left directly; liftable coordinates are already rounded to a 16x16 boundary.
 - The split-property unit test covers quadrant ordering, table padding, character masking, and horizontal slope flips.
-- An audit found no remaining runtime reads of either legacy property table. After importing `OverworldTileTypes`, `engine_check` zeros it and the coarse `OverworldTileTypeTable`, making any missed dependency visible during playtesting.
+- An audit found no remaining runtime reads of either legacy property table. After importing `OverworldTileTypes`, the compiler zeros it and the coarse `OverworldTileTypeTable`, making any missed dependency visible during playtesting.
 
 Mixed-property Map16 tiles now intentionally use the property of the contacted quadrant. The legacy `$02`/`$5C` discrepancies are harmless to the two former coarse-property consumers: both values allow guard probes through and neither creates a hammer splash.
 
@@ -377,7 +377,7 @@ transitions restore the correct registers, tilemaps, and graphics.
 
 ## Milestone 9B: generated 4bpp bundle with vanilla appearance
 
-Have `engine_check` convert the existing vanilla overworld graphics and
+Have the compiler convert the existing vanilla overworld graphics and
 palettes into one flat 4bpp bundle. Load it through generated descriptors into
 the milestone 9A layout while retaining the existing maps, Map16 definitions,
 collision records, and visual appearance.
@@ -416,7 +416,7 @@ palette loaders.
 
 Add a separate `theme_check` binary which reads the editable `Desert.json`
 area data and palette definitions directly from the checked-out
-`ALTTPRetiling` submodule. Like `engine_check`, it verifies a vanilla ROM,
+`ALTTPRetiling` submodule. It verifies a vanilla ROM,
 applies the current patches, and writes a test ROM. It expands this checkpoint
 ROM to 4 MiB so it can retain the milestone 9B fixed-row descriptor ABI without
 new engine ASM.

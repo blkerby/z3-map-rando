@@ -24,7 +24,8 @@ $A0AB98-$A0ABFF [FREE]
 $A0AC00-$A0AE46 overworld_vram.asm (VRAM layout runtime)
 $A0AE47-$A0AEFF [FREE]
 $A0AF00-$A0B69F overworld_dynamic_tiles.asm (generated dynamic-tile runtime)
-$A0B6A0-$A0FFFF [FREE]
+$A0B6A0-$A0B869 overworld_cutscenes.asm (generated entrance-cutscene runtime)
+$A0B86A-$A0FFFF [FREE]
 
 Bank $A1
 $A18000-$A1FFFF top-left Map16 definition words
@@ -48,8 +49,10 @@ $A6C000-$A6FFFF bottom-right Map16 property bytes
 
 Banks $A7-$A9
 $A78000-$A782FF generated overworld asset pointer table
-$A78300-$A7833E generated dynamic-tile group pointer directory
-$A7833F-$A9FFFF generated overworld asset metadata
+$A78300-$A78341 generated dynamic-tile group pointer directory
+$A78342-$A78350 generated cutscene script pointer directory
+$A78351-$A784D0 generated cutscene overlay pointer directory
+$A784D1-$A9FFFF generated overworld asset metadata
 
 Banks $AA-$B7
 $AA8000-$B7FFFF generated overworld palette and character payloads
@@ -78,8 +81,7 @@ $BE8000-$BEFFFF flat Map16 submaps 96-111
 Bank $BF
 $BF8000-$BFDFFF flat Map16 submaps 112-123
 $BFE000-$BFE1DF screen-to-flat-map pointer table
-$BFE1E0-$BFE1ED engine_check temporary compressed blank graphics sheets
-$BFE1EE-$BFE1FF [FREE]
+$BFE1E0-$BFE1FF [FREE]
 $BFE200-$BFE3DF screen-to-BG1-flat-map pointer table
 $BFE3E0-$BFE3FF [FREE]
 $BFE400-$BFE405 area $80 BG1 variant pointers (Grove Fog, Bridge Shadow)
