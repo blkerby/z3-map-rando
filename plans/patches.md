@@ -52,6 +52,8 @@ independent patches.
   rebasing, interior restoration, and credits and Triforce tilemap setup.
 - `overworld_bg_color.asm` selects generated overworld backdrop colors during
   normal loading, cached restoration, and scrolling transitions.
+- `overworld_lightning.asm` disables vanilla Dark Mountain lightning, including
+  its thunder and Ganon's Tower and Turtle Rock palette effects.
 
 ### Generated overworld assets
 

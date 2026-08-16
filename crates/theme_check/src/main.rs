@@ -232,6 +232,7 @@ fn main() -> Result<()> {
         "overworld_bg_color.ips",
         "overworld_dynamic_tiles.ips",
         "overworld_cutscenes.ips",
+        "overworld_lightning.ips",
     ] {
         patcher.use_ips(&patch_dir.join(patch))?;
     }

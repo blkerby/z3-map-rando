@@ -5,6 +5,3 @@
 [submodule "asar"]
 	path = asar
 	url = https://github.com/blkerby/asar.git
-[submodule "usdasm"]
-	path = usdasm
-	url = https://github.com/spannerisms/usdasm.git
