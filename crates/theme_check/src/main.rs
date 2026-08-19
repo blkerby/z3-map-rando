@@ -97,6 +97,7 @@ fn main() -> Result<()> {
         &sprite_seed,
         &compiled.dynamic_tile_groups,
         &compiled.cutscenes,
+        &compiled.overworld_overlays,
         args.transition_asset_phase,
         AssetLayout {
             data_start: THEME_ASSET_DATA_START,

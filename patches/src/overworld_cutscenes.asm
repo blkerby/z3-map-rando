@@ -1,5 +1,5 @@
-; Execute generated dungeon-entrance cutscene scripts and apply their final
-; terrain state when an opened area is loaded.
+; Execute generated dungeon-entrance cutscene scripts and apply persistent
+; event terrain when an affected area is loaded.
 
 lorom
 
@@ -21,7 +21,7 @@ assert pc() == $82A497
 ; the final generated state for the selected theme.
 org $82ECB4
 hook_apply_overworld_overlay:
-    JSL ApplyGeneratedCutsceneOverlay
+    JSL ApplyGeneratedOverworldOverlay
 assert pc() == $82ECB8
 
 org !free_space_bank_a0_start
@@ -224,7 +224,7 @@ RunGeneratedEntranceCutscene:
 .done
     RTL
 
-ApplyGeneratedCutsceneOverlay:
+ApplyGeneratedOverworldOverlay:
     JSL $87FAE2
 
     REP #$30
@@ -235,10 +235,10 @@ ApplyGeneratedCutsceneOverlay:
     CLC
     ADC.b $00
     TAX
-    LDA.l !CutsceneOverlayPointers,X
+    LDA.l !OverworldOverlayPointers,X
     STA.b $07
     SEP #$20
-    LDA.l !CutsceneOverlayPointers+2,X
+    LDA.l !OverworldOverlayPointers+2,X
     BEQ .no_generated_overlay
     STA.b $09
 

@@ -11,9 +11,9 @@ const DYNAMIC_TILE_POINTER_TABLE_SIZE: usize = DYNAMIC_TILE_GROUP_COUNT * 3;
 const CUTSCENE_COUNT: usize = 5;
 const CUTSCENE_POINTER_TABLE_START: usize =
     AREA_POINTER_TABLE_SIZE + DYNAMIC_TILE_POINTER_TABLE_SIZE;
-const CUTSCENE_OVERLAY_POINTER_TABLE_START: usize =
+const OVERWORLD_OVERLAY_POINTER_TABLE_START: usize =
     CUTSCENE_POINTER_TABLE_START + CUTSCENE_COUNT * 3;
-const POINTER_TABLE_SIZE: usize = CUTSCENE_OVERLAY_POINTER_TABLE_START + 0x80 * 3;
+const POINTER_TABLE_SIZE: usize = OVERWORLD_OVERLAY_POINTER_TABLE_START + 0x80 * 3;
 pub const CREDITS_COOL_BACKGROUND_KEY: usize = 0xff;
 pub const CREDITS_FIRST_KEY: usize = 0xa0;
 pub const SPRITE_SEED_KEY: usize = 0xfe;
@@ -43,9 +43,12 @@ pub struct DynamicTileEntry {
 
 pub struct CompiledCutscene {
     pub trigger: u8,
-    pub areas: Vec<u8>,
     pub script: Vec<u8>,
-    pub persistent: Vec<(u16, u16)>,
+}
+
+pub struct CompiledOverworldOverlay {
+    pub areas: Vec<u8>,
+    pub writes: Vec<(u16, u16)>,
 }
 
 #[derive(Clone, Copy)]
@@ -119,6 +122,7 @@ pub fn build(
     sprite_seed: &OverworldSpriteVariant,
     dynamic_tile_groups: &[Vec<DynamicTileEntry>],
     cutscenes: &[CompiledCutscene],
+    overworld_overlays: &[CompiledOverworldOverlay],
     transition_phase: TransitionAssetPhase,
     layout: AssetLayout,
 ) -> Result<AssetBundle> {
@@ -202,16 +206,18 @@ pub fn build(
         let script = data.intern(&cutscene.script)?;
         let offset = CUTSCENE_POINTER_TABLE_START + (usize::from(cutscene.trigger) - 1) * 3;
         pointer_table[offset..offset + 3].copy_from_slice(&little_endian_pointer(script));
+    }
 
-        let mut persistent = Vec::with_capacity(1 + cutscene.persistent.len() * 4);
-        persistent.push(u8::try_from(cutscene.persistent.len())?);
-        for &(map16_offset, map16_id) in &cutscene.persistent {
+    for overlay in overworld_overlays {
+        let mut persistent = Vec::with_capacity(1 + overlay.writes.len() * 4);
+        persistent.push(u8::try_from(overlay.writes.len())?);
+        for &(map16_offset, map16_id) in &overlay.writes {
             persistent.extend_from_slice(&map16_offset.to_le_bytes());
             persistent.extend_from_slice(&map16_id.to_le_bytes());
         }
         let persistent = data.intern(&persistent)?;
-        for &area in &cutscene.areas {
-            let offset = CUTSCENE_OVERLAY_POINTER_TABLE_START + usize::from(area) * 3;
+        for &area in &overlay.areas {
+            let offset = OVERWORLD_OVERLAY_POINTER_TABLE_START + usize::from(area) * 3;
             pointer_table[offset..offset + 3].copy_from_slice(&little_endian_pointer(persistent));
         }
     }

@@ -1,5 +1,7 @@
 use crate::{
-    asset_bundle::{CompiledCutscene, DYNAMIC_TILE_GROUP_COUNT, DynamicTileEntry},
+    asset_bundle::{
+        CompiledCutscene, CompiledOverworldOverlay, DYNAMIC_TILE_GROUP_COUNT, DynamicTileEntry,
+    },
     rain_tilemap::RAIN_TILEMAP,
 };
 use anyhow::{Context, Result, ensure};
@@ -140,6 +142,7 @@ struct ThemeArea {
     placements: Vec<Placement>,
     palettes: BTreeSet<u8>,
     extra_tiles: BTreeSet<TileKey>,
+    overworld_overlay: Option<StateLayer>,
 }
 
 struct Bg1Variant {
@@ -151,7 +154,7 @@ struct Bg1Variant {
 }
 
 #[derive(Clone)]
-struct CutsceneLayer {
+struct StateLayer {
     placements: Vec<Option<Placement>>,
 }
 
@@ -159,7 +162,7 @@ struct ThemeCutscene {
     trigger: u8,
     area: usize,
     actions: Vec<CutsceneAction>,
-    layers: BTreeMap<String, CutsceneLayer>,
+    layers: BTreeMap<String, StateLayer>,
 }
 
 pub struct CompiledBg1Variant {
@@ -271,6 +274,7 @@ pub struct CompiledTheme {
     pub area_assets: Vec<OverworldAreaAssets>,
     pub dynamic_tile_groups: Vec<Vec<DynamicTileEntry>>,
     pub cutscenes: Vec<CompiledCutscene>,
+    pub overworld_overlays: Vec<CompiledOverworldOverlay>,
     pub screen_count: usize,
     pub palette_count: usize,
     pub character_count: usize,
@@ -367,6 +371,12 @@ pub fn compile(
         for placement in &mut area.placements {
             placement.flip =
                 canonical_flips[&(placement.palette, placement.tile)][usize::from(placement.flip)];
+        }
+        if let Some(layer) = &mut area.overworld_overlay {
+            for placement in layer.placements.iter_mut().flatten() {
+                placement.flip = canonical_flips[&(placement.palette, placement.tile)]
+                    [usize::from(placement.flip)];
+            }
         }
     }
     for variant in &mut bg1_variants {
@@ -556,7 +566,7 @@ pub fn compile(
         &mut definition_ids,
     )?;
 
-    let cutscenes = build_cutscenes(
+    let (cutscenes, mut overworld_overlays) = build_cutscenes(
         &areas,
         &cutscenes,
         &palettes,
@@ -566,6 +576,15 @@ pub fn compile(
         &mut properties,
         &mut definition_ids,
     )?;
+    overworld_overlays.extend(build_overworld_overlays(
+        &areas,
+        &palettes,
+        &palette_slots,
+        &character_slots,
+        &mut definitions,
+        &mut properties,
+        &mut definition_ids,
+    )?);
 
     let mut bg1_definition_ids = BTreeMap::new();
     for (id, &words) in definitions.iter().enumerate() {
@@ -630,6 +649,7 @@ pub fn compile(
         area_assets,
         dynamic_tile_groups,
         cutscenes,
+        overworld_overlays,
     })
 }
 
@@ -798,6 +818,7 @@ fn load_areas(
         let mut area_tiles = vec![vec![None; width]; height];
         let mut bg1_layers = Vec::new();
         let mut cutscene_layers = BTreeMap::new();
+        let mut overworld_overlay = None;
         for layer in &area.layers {
             let mut layer_tiles = vec![vec![None; width]; height];
             for screen in &layer.screens {
@@ -818,7 +839,11 @@ fn load_areas(
                     }
                 }
             }
-            if cutscene_layer_names.contains(&layer.name) {
+            let is_overworld_overlay = matches!(
+                (area.vanilla_map_id, layer.name.as_str()),
+                (0x02, "Lumberjack") | (0x3b | 0x7b, "Drained")
+            ) && layer.background == Background::Bg2;
+            if cutscene_layer_names.contains(&layer.name) || is_overworld_overlay {
                 ensure!(
                     layer.background == Background::Bg2,
                     "cutscene layer {} must use BG2: {}",
@@ -835,7 +860,13 @@ fn load_areas(
                     area_palettes.insert(placement.palette);
                     area_extra_tiles.insert((placement.palette, placement.tile));
                 }
-                cutscene_layers.insert(layer.name.clone(), CutsceneLayer { placements });
+                let state_layer = StateLayer { placements };
+                if is_overworld_overlay {
+                    overworld_overlay = Some(state_layer.clone());
+                }
+                if cutscene_layer_names.contains(&layer.name) {
+                    cutscene_layers.insert(layer.name.clone(), state_layer);
+                }
                 continue;
             }
             match layer.background {
@@ -941,6 +972,7 @@ fn load_areas(
             placements,
             palettes: area_palettes,
             extra_tiles: area_extra_tiles,
+            overworld_overlay,
         });
     }
     for found in found_cutscenes {
@@ -1451,8 +1483,9 @@ fn build_cutscenes(
     definitions: &mut Vec<[u16; 4]>,
     properties: &mut [Vec<u8>; 4],
     definition_ids: &mut BTreeMap<[Placement; 4], u16>,
-) -> Result<Vec<CompiledCutscene>> {
+) -> Result<(Vec<CompiledCutscene>, Vec<CompiledOverworldOverlay>)> {
     let mut result = Vec::new();
+    let mut overlays = Vec::new();
     for cutscene in cutscenes {
         let area = areas.iter().find(|area| area.id == cutscene.area).unwrap();
         let mut state = area.placements.clone();
@@ -1475,33 +1508,20 @@ fn build_cutscenes(
                 }
                 CutsceneAction::Draw { layer } => {
                     let layer = &cutscene.layers[layer];
-                    let mut cells = BTreeSet::new();
-                    for (index, &placement) in layer.placements.iter().enumerate() {
-                        let Some(placement) = placement else {
-                            continue;
-                        };
-                        state[index] = placement;
-                        cells.insert((index % area.width / 2, index / area.width / 2));
-                    }
+                    let writes = build_layer_writes(
+                        area,
+                        &mut state,
+                        layer,
+                        palettes,
+                        palette_slots,
+                        character_slots,
+                        definitions,
+                        properties,
+                        definition_ids,
+                    )?;
                     script.push(4);
-                    script.push(u8::try_from(cells.len())?);
-                    for (x, y) in cells {
-                        let top_left = y * 2 * area.width + x * 2;
-                        let id = intern_map16(
-                            [
-                                state[top_left],
-                                state[top_left + 1],
-                                state[top_left + area.width],
-                                state[top_left + area.width + 1],
-                            ],
-                            palettes,
-                            palette_slots,
-                            character_slots,
-                            definitions,
-                            properties,
-                            definition_ids,
-                        )?;
-                        let offset = u16::try_from(y * 0x80 + x * 2)?;
+                    script.push(u8::try_from(writes.len())?);
+                    for (offset, id) in writes {
                         script.extend_from_slice(&offset.to_le_bytes());
                         script.extend_from_slice(&id.to_le_bytes());
                         persistent.insert(offset, id);
@@ -1525,13 +1545,97 @@ fn build_cutscenes(
         }
         result.push(CompiledCutscene {
             trigger: cutscene.trigger,
-            areas: cutscene_areas,
             script,
-            persistent: persistent_writes,
+        });
+        overlays.push(CompiledOverworldOverlay {
+            areas: cutscene_areas,
+            writes: persistent_writes,
         });
     }
     result.sort_by_key(|cutscene| cutscene.trigger);
-    Ok(result)
+    Ok((result, overlays))
+}
+
+fn build_overworld_overlays(
+    areas: &[ThemeArea],
+    palettes: &BTreeMap<u8, Palette>,
+    palette_slots: &BTreeMap<u8, usize>,
+    character_slots: &CharacterSlots,
+    definitions: &mut Vec<[u16; 4]>,
+    properties: &mut [Vec<u8>; 4],
+    definition_ids: &mut BTreeMap<[Placement; 4], u16>,
+) -> Result<Vec<CompiledOverworldOverlay>> {
+    let mut overlays = Vec::new();
+    for area in areas {
+        let Some(layer) = &area.overworld_overlay else {
+            continue;
+        };
+        let mut state = area.placements.clone();
+        let writes = build_layer_writes(
+            area,
+            &mut state,
+            layer,
+            palettes,
+            palette_slots,
+            character_slots,
+            definitions,
+            properties,
+            definition_ids,
+        )?;
+        let mut overlay_areas = Vec::new();
+        for map_y in 0..area.height / 64 {
+            for map_x in 0..area.width / 64 {
+                overlay_areas.push(u8::try_from(area.id + map_x + map_y * 8)?);
+            }
+        }
+        overlays.push(CompiledOverworldOverlay {
+            areas: overlay_areas,
+            writes,
+        });
+    }
+    Ok(overlays)
+}
+
+fn build_layer_writes(
+    area: &ThemeArea,
+    state: &mut [Placement],
+    layer: &StateLayer,
+    palettes: &BTreeMap<u8, Palette>,
+    palette_slots: &BTreeMap<u8, usize>,
+    character_slots: &CharacterSlots,
+    definitions: &mut Vec<[u16; 4]>,
+    properties: &mut [Vec<u8>; 4],
+    definition_ids: &mut BTreeMap<[Placement; 4], u16>,
+) -> Result<Vec<(u16, u16)>> {
+    let mut cells = BTreeSet::new();
+    for (index, &placement) in layer.placements.iter().enumerate() {
+        let Some(placement) = placement else {
+            continue;
+        };
+        state[index] = placement;
+        cells.insert((index % area.width / 2, index / area.width / 2));
+    }
+    let mut writes = Vec::with_capacity(cells.len());
+    for (x, y) in cells {
+        let top_left = y * 2 * area.width + x * 2;
+        let id = intern_map16(
+            [
+                state[top_left],
+                state[top_left + 1],
+                state[top_left + area.width],
+                state[top_left + area.width + 1],
+            ],
+            palettes,
+            palette_slots,
+            character_slots,
+            definitions,
+            properties,
+            definition_ids,
+        )?;
+        let offset = u16::try_from(y * 0x80 + x * 2)?;
+        writes.push((offset, id));
+    }
+    Ok(writes)
 }
 
 fn build_dynamic_tile_groups(

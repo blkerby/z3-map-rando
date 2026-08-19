@@ -27,9 +27,9 @@
 ; scripts, indexed by the vanilla trigger value minus one.
 !CutscenePointers = $A78342
 
-; One little-endian 24-bit persistent cutscene-overlay pointer per overworld
-; area. A zero pointer means the area has no cutscene overlay.
-!CutsceneOverlayPointers = $A78351
+; One little-endian 24-bit persistent event-overlay pointer per overworld area.
+; A zero pointer means the area has no generated overlay.
+!OverworldOverlayPointers = $A78351
 
 ; Opens a generated wooden door at the contacted Map16 offset in X.
 ; Carry set means a door was opened and entrance handling should stop.
