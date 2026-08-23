@@ -17,8 +17,8 @@ $A09E00-$A09F3F theme_check generated overworld backdrop colors
 $A09F40-$A0A0C0 overworld_animations.asm (generated animation runtime)
 $A0A0C1-$A0A1C6 overworld_entrances.asm (area-local entrance runtime)
 $A0A1C7-$A0A3FF [FREE]
-$A0A400-$A0A463 overworld_bg_color.asm (generated overworld backdrop selection)
-$A0A464-$A0A61F [FREE]
+$A0A400-$A0A54A overworld_bg_color.asm (generated overworld backdrop selection)
+$A0A54B-$A0A61F [FREE]
 $A0A620-$A0ABB0 overworld_assets.asm (generated overworld asset runtime)
 $A0ABB1-$A0ABFF [FREE]
 $A0AC00-$A0AE46 overworld_vram.asm (VRAM layout runtime)
