@@ -25,6 +25,31 @@ const RAIN_CHARACTERS: [u16; 6] = [0x01ed, 0x009b, 0x01b1, 0x01fd, 0x01a1, 0x01f
 const RAIN_MAP16S: [u16; 8] = [
     0x026f, 0x0c62, 0x0c63, 0x0c64, 0x0c65, 0x0c66, 0x0c67, 0x0c68,
 ];
+const VANILLA_OVERWORLD_OVERLAYS: [(u8, &str); 23] = [
+    (0x02, "Lumberjack tree"),
+    (0x07, "Turtle Rock portal"),
+    (0x13, "Sanctuary stairs"),
+    (0x14, "King's Tomb"),
+    (0x18, "Bird Statue"),
+    (0x1b, "Hyrule Castle gate"),
+    (0x2b, "Bonk Fairies stairs"),
+    (0x30, "Checkerboard Cave stairs"),
+    (0x37, "Ice Rod Cave stairs"),
+    (0x3a, "Desert thief stairs"),
+    (0x3b, "drained dam"),
+    (0x40, "Skull Woods entrance"),
+    (0x43, "Ganon's Tower entrance"),
+    (0x45, "Hookshot Cave stairs"),
+    (0x47, "Turtle Rock entrance"),
+    (0x58, "Thieves' Town entrance"),
+    (0x5b, "Pyramid hole"),
+    (0x5e, "Palace of Darkness entrance"),
+    (0x62, "peg-puzzle stairs"),
+    (0x6b, "Dark Bonk Fairies stairs"),
+    (0x70, "Misery Mire entrance"),
+    (0x77, "Shopping Mall stairs"),
+    (0x7b, "drained dam"),
+];
 type TileKey = (u8, usize);
 type CharacterSlots = BTreeMap<TileKey, usize>;
 type AreaTiles = Vec<BTreeSet<TileKey>>;
@@ -592,6 +617,20 @@ pub fn compile(
         &mut properties,
         &mut definition_ids,
     )?);
+    for &(area_id, name) in &VANILLA_OVERWORLD_OVERLAYS {
+        let mut found = false;
+        for overlay in &overworld_overlays {
+            if !overlay.writes.is_empty() && overlay.areas.contains(&area_id) {
+                found = true;
+                break;
+            }
+        }
+        if !found {
+            eprintln!(
+                "warning: {theme_name} has no generated {name} overlay for area ${area_id:02X}"
+            );
+        }
+    }
 
     let mut bg1_definition_ids = BTreeMap::new();
     for (id, &words) in definitions.iter().enumerate() {
