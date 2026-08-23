@@ -56,6 +56,27 @@ hook_open_thieves_town:
     JSL OpenGeneratedThievesTown
 assert pc() == $85E2CA
 
+; Replace the vanilla Pyramid-hole Map16 writes with the generated layer.
+org $9BC2A9
+hook_create_pyramid_hole:
+    JSL DrawGeneratedOverworldOverlay
+    REP #$30
+    JML return_create_pyramid_hole
+assert pc() == $9BC2B3
+
+org $9BC2DD
+return_create_pyramid_hole:
+
+; Replace the vanilla Turtle Rock portal Map16 write with the generated layer.
+org $9BCAA1
+hook_create_turtle_rock_portal:
+    JSL DrawGeneratedOverworldOverlay
+    BRA return_create_turtle_rock_portal
+assert pc() == $9BCAA7
+
+org $9BCAB3
+return_create_turtle_rock_portal:
+
 ; Replace the peg puzzle's vanilla Map32 update with the generated layer.
 org $84E834
 hook_draw_hidden_stairs:

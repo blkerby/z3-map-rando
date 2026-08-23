@@ -849,9 +849,11 @@ fn load_areas(
             let is_overworld_overlay = matches!(
                 (area.vanilla_map_id, layer.name.as_str()),
                 (0x02, "Lumberjack")
+                    | (0x07, "Turtle Rock Portal")
                     | (0x18, "Bird Statue")
                     | (0x3b | 0x7b, "Drained")
                     | (0x58, "Thieves' Town")
+                    | (0x5b, "Pyramid Hole")
                     | (0x62, "Hidden Stairs")
             ) && layer.background == Background::Bg2;
             if cutscene_layer_names.contains(&layer.name) || is_overworld_overlay {
