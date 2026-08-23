@@ -50,6 +50,12 @@ hook_break_bird_statue:
     JSL BreakGeneratedBirdStatue
 assert pc() == $88D0B9
 
+; Replace the vanilla Thieves' Town Map16 writes with the generated layer.
+org $85E2C6
+hook_open_thieves_town:
+    JSL OpenGeneratedThievesTown
+assert pc() == $85E2CA
+
 ; Keep all generated cutscene and overlay code in one free-space block.
 org !free_space_bank_a0_start
 
@@ -356,6 +362,23 @@ BreakGeneratedBirdStatue:
     LDA.l $7EF280,X
     ORA.b #$20                 ; Persist the completed overworld event.
     STA.l $7EF280,X
+    LDA.b #$01
+    STA.b $14                  ; Ask NMI to upload the queued VRAM stripes.
+    RTL
+
+; Finish the live Thieves' Town opening event. The generic draw entry point
+; replaces vanilla's hard-coded entrance Map16 IDs with this theme's generated
+; overlay, then the original persistence, sound, and NMI signals are reproduced.
+OpenGeneratedThievesTown:
+    JSL DrawGeneratedOverworldOverlay ; Draw the generated entrance cells.
+
+    SEP #$30                   ; Area IDs and event flags are bytes.
+    LDX.b $8A                  ; Index the current area's event-state byte.
+    LDA.l $7EF280,X
+    ORA.b #$20                 ; Persist the completed overworld event.
+    STA.l $7EF280,X
+    LDA.b #$1B
+    STA.w $012F                ; Play the vanilla opening sound on channel 3.
     LDA.b #$01
     STA.b $14                  ; Ask NMI to upload the queued VRAM stripes.
     RTL
