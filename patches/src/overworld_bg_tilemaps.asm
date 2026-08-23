@@ -991,6 +991,22 @@ ConfigureGeneratedBackground:
     CPX.w #$0005
     BNE .copy_settings
 
+    REP #$20
+    LDA.l $7EC213
+    CMP.w #$0080
+    BNE .initialize_camera
+
+    LDA.b $A0
+    CMP.w #$0181
+    BNE .initialize_camera
+
+    ; Area $80 shares one settings record with its fog variant. Keep Bridge
+    ; Shadow in lockstep with BG2 and disable the fog drift.
+    LDA.w #$0008
+    STA.l !BackgroundSettings+1
+    STA.l !BackgroundSettings+3
+
+.initialize_camera
     REP #$30
     JSR BG1InitializeCamera
     SEP #$30
@@ -1320,9 +1336,20 @@ BG1InitializeCamera:
     ASL A
     STA.b $0C
 
+    LDA.b $A0
+    CMP.w #$0181
+    BNE .use_local_y
+
+    LDA.b $E8
+    ORA.w #$0100              ; Match vanilla's Bridge Shadow vertical offset.
+    BRA .multiply_y
+
+.use_local_y
     LDA.b $E8
     SEC
     SBC.b $0C
+
+.multiply_y
     LDX.w #$0003
     JSR BG1MultiplyByFollow
     STA.l !BackgroundPositionY

@@ -747,7 +747,13 @@ hook_Module09BeforeSpecialSpriteReload:
     CMP.b #$18
     BNE .check_exit
 
-    LDA.b $A0                   ; Special entry uses the destination special-map ID.
+    LDA.b $A0                   ; Special entry normally uses its special-map asset key.
+    CMP.b #$81
+    BNE .load_special_assets
+
+    LDA.b #$80                  ; Bridge Shadow shares area $80's background assets.
+
+.load_special_assets
     JSR SynchronousLoadOverworldAssets
     BRA .reload_sprites
 

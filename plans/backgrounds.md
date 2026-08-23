@@ -114,8 +114,10 @@ Area `$80` keeps one narrow exception matching vanilla:
   the Master Sword grove overlay;
 - one BG2 map continues to contain both functional halves of the area.
 
-The exception should only select between generated pointers or no BG1. The
-ordinary loader, renderer, allocation, and camera code remain shared.
+The exception selects between generated pointers or no BG1. `Bridge Shadow`
+also scrolls in lockstep with BG2, including vanilla's `$0100` vertical
+offset, and has no drift. The ordinary loader, renderer, allocation, and
+camera code remain shared.
 
 ## Camera behavior
 
