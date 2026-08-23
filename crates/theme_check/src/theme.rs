@@ -551,7 +551,9 @@ pub fn compile(
         for map_y in 0..area.height / 64 {
             for map_x in 0..area.width / 64 {
                 let id = area.id + map_x + map_y * 8;
+                let sprites = area_assets[id].sprite_variants.clone();
                 area_assets[id] = area_assets[area.id].clone();
+                area_assets[id].sprite_variants = sprites;
             }
         }
     }
