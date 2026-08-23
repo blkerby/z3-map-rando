@@ -24,6 +24,12 @@ hook_apply_overworld_overlay:
     JSL ApplyGeneratedOverworldOverlay
 assert pc() == $82ECB8
 
+; Replace the vanilla weather-vane Map16 writes with the generated layer.
+org $88D0B5
+hook_break_bird_statue:
+    JSL BreakGeneratedBirdStatue
+assert pc() == $88D0B9
+
 org !free_space_bank_a0_start
 
 RunGeneratedEntranceCutscene:
@@ -264,6 +270,52 @@ ApplyGeneratedOverworldOverlay:
 
 .no_generated_overlay
     SEP #$30
+    RTL
+
+BreakGeneratedBirdStatue:
+    REP #$30
+    LDA.b $8A
+    AND.w #$00FF
+    STA.b $00
+    ASL A
+    CLC
+    ADC.b $00
+    TAX
+    LDA.l !OverworldOverlayPointers,X
+    STA.b $07
+    SEP #$20
+    LDA.l !OverworldOverlayPointers+2,X
+    STA.b $09
+
+    REP #$10
+    LDY.w #$0000
+    LDA.b [$07],Y
+    STA.b $0E
+    STZ.b $0F
+    INY
+    REP #$20
+
+.next_write
+    LDA.b [$07],Y
+    TAX
+    INY
+    INY
+    LDA.b [$07],Y
+    INY
+    INY
+    PHY
+    JSL $9BC97C
+    PLY
+    DEC.b $0E
+    BNE .next_write
+
+    SEP #$30
+    LDX.b $8A
+    LDA.l $7EF280,X
+    ORA.b #$20
+    STA.l $7EF280,X
+    LDA.b #$01
+    STA.b $14
     RTL
 
 assert pc() <= !free_space_bank_a0_end
