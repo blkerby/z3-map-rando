@@ -37,8 +37,8 @@ hook_run_entrance_cutscene:
     JSL RunGeneratedEntranceCutscene
 assert pc() == $82A497
 
-; Preserve every unrelated vanilla overlay, then replace cutscene terrain with
-; the final generated state for the selected theme.
+; Replace vanilla completed-event overlays with generated state for the
+; selected theme.
 org $82ECB4
 hook_apply_overworld_overlay:
     JSL ApplyGeneratedOverworldOverlay
@@ -283,12 +283,10 @@ RunGeneratedEntranceCutscene:
     RTL
 
 ; Apply an area's completed-event overlay while its Map16 buffer is loading.
-; Vanilla first produces the normal result for the current area. The shared
-; processor then overwrites affected cells when this theme has replacement
-; data, without queuing redundant VRAM stripes during the load.
+; Apply only generated data, without queuing redundant VRAM stripes during
+; the load. Missing generated records remain no-ops until coverage validation
+; is added after the overlay audit.
 ApplyGeneratedOverworldOverlay:
-    JSL $87FAE2                ; ApplyOverworldOverlay
-
     REP #$20                   ; Store the processor's 16-bit mode flag.
     STZ.b $0A                  ; Zero selects Map16-buffer-only writes.
     BRA ProcessGeneratedOverworldOverlay

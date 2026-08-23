@@ -578,6 +578,11 @@ pub fn compile(
         &mut properties,
         &mut definition_ids,
     )?;
+    overworld_overlays.extend(build_dynamic_overworld_overlays(
+        &areas,
+        &screen_maps,
+        &dynamic_tile_groups,
+    )?);
     overworld_overlays.extend(build_overworld_overlays(
         &areas,
         &palettes,
@@ -1560,6 +1565,75 @@ fn build_cutscenes(
     }
     result.sort_by_key(|cutscene| cutscene.trigger);
     Ok((result, overlays))
+}
+
+fn build_dynamic_overworld_overlays(
+    areas: &[ThemeArea],
+    screen_maps: &BTreeMap<usize, Vec<u8>>,
+    dynamic_tile_groups: &[Vec<DynamicTileEntry>],
+) -> Result<Vec<CompiledOverworldOverlay>> {
+    // These fixed locations are the persistent event-bit overlays selected by
+    // vanilla. Ordinary dynamic-tile interactions remain location-independent.
+    let specs = [
+        (0x13, 0x0506, DynamicTileType::SecretStairs),
+        (0x14, 0x0532, DynamicTileType::GraveStairs),
+        (0x1b, 0x13bc, DynamicTileType::HyruleCastleGate),
+        (0x2b, 0x0330, DynamicTileType::SecretStairs),
+        (0x30, 0x0358, DynamicTileType::SecretStairs),
+        (0x37, 0x040c, DynamicTileType::SecretStairs),
+        (0x3a, 0x0a1e, DynamicTileType::SecretStairs),
+        (0x45, 0x0868, DynamicTileType::SecretStairs),
+        (0x6b, 0x0330, DynamicTileType::SecretStairs),
+        (0x77, 0x040c, DynamicTileType::SecretStairs),
+    ];
+    let mut overlays = Vec::new();
+    for (area_id, offset, kind) in specs {
+        let Some(area) = areas.iter().find(|area| area.id == area_id) else {
+            continue;
+        };
+        let x = offset % 0x80 / 2;
+        let y = offset / 0x80;
+        let screen_id = area.id + x / 32 + y / 32 * 8;
+        let Some(map) = screen_maps.get(&screen_id) else {
+            continue;
+        };
+        let map_index = ((y % 32) * 32 + x % 32) * 2;
+        let source = u16::from_le_bytes([map[map_index], map[map_index + 1]]);
+        let Some(entry) = dynamic_tile_groups[kind.get_index()]
+            .iter()
+            .find(|entry| entry.source == source)
+        else {
+            continue;
+        };
+        let Some(after) = entry.after_frames.first() else {
+            continue;
+        };
+        let origin_x = isize::try_from(x)? + isize::from(entry.x_offset);
+        let origin_y = isize::try_from(y)? + isize::from(entry.y_offset);
+        let width = usize::from(entry.width);
+        let mut writes = Vec::with_capacity(after.len());
+        for row in 0..entry.height {
+            for column in 0..entry.width {
+                let write_offset =
+                    (origin_y + isize::from(row)) * 0x80 + (origin_x + isize::from(column)) * 2;
+                writes.push((
+                    u16::try_from(write_offset)?,
+                    after[usize::from(row) * width + usize::from(column)],
+                ));
+            }
+        }
+        let mut overlay_areas = Vec::new();
+        for map_y in 0..area.height / 64 {
+            for map_x in 0..area.width / 64 {
+                overlay_areas.push(u8::try_from(area.id + map_x + map_y * 8)?);
+            }
+        }
+        overlays.push(CompiledOverworldOverlay {
+            areas: overlay_areas,
+            writes,
+        });
+    }
+    Ok(overlays)
 }
 
 fn build_overworld_overlays(

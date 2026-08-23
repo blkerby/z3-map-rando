@@ -203,36 +203,6 @@ assert pc() == $82ECCC
 org $82ECDD
 return_after_persistent_bombable_entrance:
 
-; OverworldOverlay_DrawRevealedStairs receives the generated footprint
-; coordinate in X. Replace its fixed revealed-stairs Map16 IDs.
-org $87FC44
-hook_draw_revealed_stairs_overlay:
-    JML DrawDynamicRevealedStairsOverlay
-assert pc() == $87FC48
-
-org $87FC56
-return_draw_revealed_stairs_overlay:
-
-; ApplyOverworldOverlay has loaded the pristine Graveyard map and is about to
-; write the fixed King's Tomb Map16 IDs. Replace them with the generated frame.
-org $87FC57
-hook_draw_kings_tomb_overlay:
-    JML DrawDynamicKingsTombOverlay
-assert pc() == $87FC5B
-
-org $87FC73
-return_draw_kings_tomb_overlay:
-
-; ApplyOverworldOverlay is about to replace the opened Hyrule Castle gate with
-; fixed vanilla Map16 IDs. Draw the generated open gate instead.
-org $87FC8E
-hook_draw_castle_gate_overlay:
-    JML DrawDynamicCastleGateOverlay
-assert pc() == $87FC92
-
-org $87FCB6
-return_draw_castle_gate_overlay:
-
 org !free_space_bank_a0_start
 
 OpenDynamicWoodenDoorAtEntrance:
@@ -510,75 +480,6 @@ DrawDynamicMap32Update:
     LDX.w $04AC
 
     JML $82AC8F
-
-DrawDynamicKingsTombOverlay:
-    LDX.w #$0532
-    LDA.w #!DynamicGraveStairs
-    JSR ResolveDynamicTile
-    BCC .done
-
-    LDA.l !DynamicDescriptorOffset
-    TAY
-    LDA.b [$07],Y
-    STA.l $7E2000,X
-    INY
-    INY
-    LDA.b [$07],Y
-    STA.l $7E2002,X
-    INY
-    INY
-    LDA.b [$07],Y
-    STA.l $7E2080,X
-    INY
-    INY
-    LDA.b [$07],Y
-    STA.l $7E2082,X
-    INY
-    INY
-    LDA.b [$07],Y
-    STA.l $7E2100,X
-    INY
-    INY
-    LDA.b [$07],Y
-    STA.l $7E2102,X
-
-.done
-    JML return_draw_kings_tomb_overlay
-
-DrawDynamicCastleGateOverlay:
-    LDX.w #$13BC
-    LDA.w #!DynamicHyruleCastleGate
-    JSR ResolveDynamicTile
-    BCC .done
-    JSR DrawDynamicFootprint
-
-.done
-    JML return_draw_castle_gate_overlay
-
-DrawDynamicRevealedStairsOverlay:
-    LDA.w #!DynamicSecretStairs
-    JSR ResolveDynamicTile
-    BCC .done
-
-    LDA.l !DynamicDescriptorOffset
-    TAY
-    LDA.b [$07],Y
-    STA.l $7E2000,X
-    INY
-    INY
-    LDA.b [$07],Y
-    STA.l $7E2002,X
-    INY
-    INY
-    LDA.b [$07],Y
-    STA.l $7E2080,X
-    INY
-    INY
-    LDA.b [$07],Y
-    STA.l $7E2082,X
-
-.done
-    JML return_draw_revealed_stairs_overlay
 
 DrawDynamicExitWoodenDoor:
     LDA.w #!DynamicWoodenDoor
