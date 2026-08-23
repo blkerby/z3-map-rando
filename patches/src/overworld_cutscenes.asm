@@ -233,6 +233,16 @@ RunGeneratedEntranceCutscene:
 ApplyGeneratedOverworldOverlay:
     JSL $87FAE2
 
+    REP #$20
+    STZ.b $0A
+    BRA ProcessGeneratedOverworldOverlay
+
+DrawGeneratedOverworldOverlay:
+    REP #$20
+    LDA.w #$0001
+    STA.b $0A
+
+ProcessGeneratedOverworldOverlay:
     REP #$30
     LDA.b $8A
     AND.w #$00FF
@@ -263,6 +273,19 @@ ApplyGeneratedOverworldOverlay:
     INY
     LDA.b [$07],Y
     STA.l $7E2000,X
+    PHA
+    LDA.b $0A
+    BEQ .skip_draw
+    PLA
+    PHY
+    JSL $9BC980
+    PLY
+    BRA .write_done
+
+.skip_draw
+    PLA
+
+.write_done
     INY
     INY
     DEC.b $0E
@@ -273,41 +296,7 @@ ApplyGeneratedOverworldOverlay:
     RTL
 
 BreakGeneratedBirdStatue:
-    REP #$30
-    LDA.b $8A
-    AND.w #$00FF
-    STA.b $00
-    ASL A
-    CLC
-    ADC.b $00
-    TAX
-    LDA.l !OverworldOverlayPointers,X
-    STA.b $07
-    SEP #$20
-    LDA.l !OverworldOverlayPointers+2,X
-    STA.b $09
-
-    REP #$10
-    LDY.w #$0000
-    LDA.b [$07],Y
-    STA.b $0E
-    STZ.b $0F
-    INY
-    REP #$20
-
-.next_write
-    LDA.b [$07],Y
-    TAX
-    INY
-    INY
-    LDA.b [$07],Y
-    INY
-    INY
-    PHY
-    JSL $9BC97C
-    PLY
-    DEC.b $0E
-    BNE .next_write
+    JSL DrawGeneratedOverworldOverlay
 
     SEP #$30
     LDX.b $8A
