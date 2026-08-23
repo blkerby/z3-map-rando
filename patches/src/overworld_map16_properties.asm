@@ -90,3 +90,7 @@ org $9BC027
     LDA.b $06
     RTL
 assert pc() <= $9BC03D
+
+; Let ordinary sprites walk through shallow water while preserving its water behavior.
+org $9DF6D8
+    db $00
