@@ -740,7 +740,9 @@ hook_TriforceAfterPaletteSelection:
     RTL
 
 hook_MosaicDestinationPaletteSelection:
-    JML LoadGeneratedOverworldSpritePalettes
+    JSL LoadGeneratedOverworldSpritePalettes
+    JSL $8CFFC3                 ; Select the destination backdrop source color.
+    RTL
 
 hook_Module09BeforeSpecialSpriteReload:
     LDA.b $11

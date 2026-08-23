@@ -19,8 +19,8 @@ $A0A0C1-$A0A1C6 overworld_entrances.asm (area-local entrance runtime)
 $A0A1C7-$A0A3FF [FREE]
 $A0A400-$A0A463 overworld_bg_color.asm (generated overworld backdrop selection)
 $A0A464-$A0A61F [FREE]
-$A0A620-$A0ABAB overworld_assets.asm (generated overworld asset runtime)
-$A0ABAC-$A0ABFF [FREE]
+$A0A620-$A0ABB0 overworld_assets.asm (generated overworld asset runtime)
+$A0ABB1-$A0ABFF [FREE]
 $A0AC00-$A0AE46 overworld_vram.asm (VRAM layout runtime)
 $A0AE47-$A0AEFF [FREE]
 $A0AF00-$A0B69F overworld_dynamic_tiles.asm (generated dynamic-tile runtime)
