@@ -737,6 +737,19 @@ org $82A3A1
     JSL BG1StreamVertical
     NOP
 
+; Module0E_Interface
+;
+; Interface modules finalize BG1 directly from vanilla's live $E0/$E6
+; positions. Generated backgrounds keep their position separately, so retain
+; that position while an item menu or another interface is active.
+org $80F861
+hook_Module0EFinalizeBG1Scroll:
+    JML FinalizeInterfaceBG1Scroll
+assert pc() == $80F865
+
+org $80F873
+return_Module0EFinalizeBG1Scroll:
+
 ; DrawMap16Anywhere and AlterMap16Hardcore append immediate Map16 changes to
 ; the existing $1000/$14 stripe list. Keep those producers, but replace their
 ; duplicated vanilla 64x64 destination calculation with the 64x32 BG2 ring.
@@ -1442,6 +1455,44 @@ BG1UseGeneratedCamera:
     REP #$20
     CLC
     RTS
+
+; Finalize generated BG1 from its fixed-point position during interface
+; modules. Preserve vanilla's live-position behavior for every other BG1.
+FinalizeInterfaceBG1Scroll:
+    JSR BG1UseGeneratedCamera
+    BCC .vanilla
+
+    LDA.l !BackgroundPositionX
+    LSR A
+    LSR A
+    LSR A
+    CLC
+    ADC.w $011A
+    STA.w $0120
+
+    LDA.l !BackgroundPositionY
+    LSR A
+    LSR A
+    LSR A
+    CLC
+    ADC.w $011C
+    STA.w $0124
+
+    JML return_Module0EFinalizeBG1Scroll
+
+.vanilla
+    ; Run hi-jacked instructions:
+    LDA.b $E0
+    CLC
+    ADC.w $011A
+    STA.w $0120
+
+    LDA.b $E6
+    CLC
+    ADC.w $011C
+    STA.w $0124
+
+    JML return_Module0EFinalizeBG1Scroll
 
 ; Select the BG1 overlay source and VRAM destination for the shared renderer.
 BG1SelectRenderer:
