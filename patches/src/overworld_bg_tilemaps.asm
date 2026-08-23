@@ -739,9 +739,9 @@ org $82A3A1
 
 ; Module0E_Interface
 ;
-; Interface modules finalize BG1 directly from vanilla's live $E0/$E6
-; positions. Generated backgrounds keep their position separately, so retain
-; that position while an item menu or another interface is active.
+; The item menu scrolls only BG3, and the world-map fade initially leaves the
+; overworld visible. Leave generated BG1's finalized position untouched in
+; those phases; actual Mode 7 phases retain vanilla's $E0/$E6 finalization.
 org $80F861
 hook_Module0EFinalizeBG1Scroll:
     JML FinalizeInterfaceBG1Scroll
@@ -1456,29 +1456,39 @@ BG1UseGeneratedCamera:
     CLC
     RTS
 
-; Finalize generated BG1 from its fixed-point position during interface
-; modules. Preserve vanilla's live-position behavior for every other BG1.
+; Leave generated BG1 unchanged during the item menu and the initial fade into
+; either world map. Also retain it when an interface has handed control back
+; to another module during the current frame. Every other interface phase
+; retains vanilla behavior.
 FinalizeInterfaceBG1Scroll:
+    SEP #$20
+    LDA.b $1B
+    BNE .vanilla_8bit
+
+    LDA.b $10
+    CMP.b #$0E
+    BNE .check_generated
+
+    LDA.b $11
+    CMP.b #$01
+    BEQ .check_generated
+    CMP.b #$07
+    BEQ .world_map
+    CMP.b #$0A
+    BNE .vanilla_8bit
+
+.world_map
+    LDA.w $0200
+    BNE .vanilla_8bit
+
+.check_generated
+    REP #$20
     JSR BG1UseGeneratedCamera
-    BCC .vanilla
+    BCS .done
+    BRA .vanilla
 
-    LDA.l !BackgroundPositionX
-    LSR A
-    LSR A
-    LSR A
-    CLC
-    ADC.w $011A
-    STA.w $0120
-
-    LDA.l !BackgroundPositionY
-    LSR A
-    LSR A
-    LSR A
-    CLC
-    ADC.w $011C
-    STA.w $0124
-
-    JML return_Module0EFinalizeBG1Scroll
+.vanilla_8bit
+    REP #$20
 
 .vanilla
     ; Run hi-jacked instructions:
@@ -1492,6 +1502,7 @@ FinalizeInterfaceBG1Scroll:
     ADC.w $011C
     STA.w $0124
 
+.done
     JML return_Module0EFinalizeBG1Scroll
 
 ; Select the BG1 overlay source and VRAM destination for the shared renderer.
