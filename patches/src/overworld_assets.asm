@@ -798,9 +798,19 @@ hook_FluteInitializeTilesets:
 hook_WorldMapInitializeTilesets:
     JML InitializeGeneratedOverworldCommonSprites
 
-; Mirror phase 1 has resolved the BG sheet IDs. Skip the obsolete OBJ-cache
-; lookup, balance its saved X and DB, then submit the first generated batch.
+; Mirror phase 1 has resolved the BG sheet IDs. Hide the castle/pyramid BG1
+; before its characters are replaced, skip the obsolete OBJ-cache lookup,
+; balance its saved X and DB, then submit the first generated batch.
 hook_MirrorBeforeSpriteSheetResolution:
+    SEP #$20
+    LDA.b $8A
+    AND.b #$3F
+    CMP.b #$1B
+    BNE .background_hidden
+    STZ.b $1D
+
+.background_hidden
+    REP #$20
     SEP #$10
     PLX
 

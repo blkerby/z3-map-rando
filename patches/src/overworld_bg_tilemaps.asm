@@ -1122,6 +1122,7 @@ SetOverworldSubscreenLayers:
 
 EnableMirrorWarpSubscreenUnlessModule15:
     ; Keep BG1 hidden until step 11, after its bulk tilemap render.
+    STZ.b $1D
     LDA.b #$01                 ; Run hi-jacked instruction without storing it.
     RTL
 
@@ -1287,7 +1288,7 @@ RenderMirrorWarpBG2:
 ; Make the mirror bulk renderer use the destination scroll which the common
 ; module tail will otherwise finalize only after this loading step returns.
 ; Include shake exactly as that tail does, render BG1 while its destination
-; enable is still live, then hide BG1/BG2 until the final restore.
+; enable is still live, then hide BG1 until the final restore.
 RenderMirrorWarpBG1AndHideBackgrounds:
     PHP
     REP #$30
@@ -1315,6 +1316,7 @@ RenderMirrorWarpBG1AndHideBackgrounds:
     PLP
     JSL BG1BulkRender
 
+    STZ.b $1D                   ; Keep BG1 hidden until mirror step 11.
     LDA.b #$00
     RTL
 
