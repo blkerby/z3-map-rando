@@ -847,6 +847,7 @@ fn load_areas(
                     | (0x18, "Bird Statue")
                     | (0x3b | 0x7b, "Drained")
                     | (0x58, "Thieves' Town")
+                    | (0x62, "Hidden Stairs")
             ) && layer.background == Background::Bg2;
             if cutscene_layer_names.contains(&layer.name) || is_overworld_overlay {
                 ensure!(

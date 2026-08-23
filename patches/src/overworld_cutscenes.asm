@@ -56,6 +56,12 @@ hook_open_thieves_town:
     JSL OpenGeneratedThievesTown
 assert pc() == $85E2CA
 
+; Replace the peg puzzle's vanilla Map32 update with the generated layer.
+org $84E834
+hook_draw_hidden_stairs:
+    JSL DrawGeneratedHiddenStairs
+assert pc() == $84E838
+
 ; Keep all generated cutscene and overlay code in one free-space block.
 org !free_space_bank_a0_start
 
@@ -297,9 +303,12 @@ DrawGeneratedOverworldOverlay:
 
 ; Read and apply the generated overlay record for the current area in $8A.
 ; Entry: $0A word is zero for buffer-only or nonzero for immediate drawing.
-; Exit: A, X, and Y are 8-bit. A missing pointer is a successful no-op.
+; Exit: A, X, and Y are 8-bit; $0E-$0F are preserved. A missing pointer is a
+; successful no-op.
 ProcessGeneratedOverworldOverlay:
     REP #$30                   ; Use words for pointers, offsets, IDs, and Y.
+    LDA.b $0E
+    PHA                        ; Preserve caller scratch used as our counter.
     LDA.b $8A                  ; Load the current overworld area ID.
     AND.w #$00FF
     STA.b $00                  ; Preserve it for multiplication by three.
@@ -348,6 +357,9 @@ ProcessGeneratedOverworldOverlay:
     BNE .next_overlay_write
 
 .no_generated_overlay
+    REP #$20
+    PLA
+    STA.b $0E                  ; Restore the caller's scratch word.
     SEP #$30                   ; Restore the caller's expected register widths.
     RTL
 
@@ -379,6 +391,19 @@ OpenGeneratedThievesTown:
     STA.l $7EF280,X
     LDA.b #$1B
     STA.w $012F                ; Play the vanilla opening sound on channel 3.
+    LDA.b #$01
+    STA.b $14                  ; Ask NMI to upload the queued VRAM stripes.
+    RTL
+
+; Draw the live peg-puzzle entrance with generated Map16. The caller has
+; already persisted the event and queued its sound before reaching this hook.
+DrawGeneratedHiddenStairs:
+    JSL DrawGeneratedOverworldOverlay ; Draw the generated stair cells.
+
+    REP #$20                   ; Restore the word-sized Map32 update state.
+    INC.w $0690                ; Match DoMap32Update's state advance.
+    STZ.w $0692                ; Match DoMap32Update_long's cleanup.
+    SEP #$20                   ; Restore the caller's 8-bit accumulator.
     LDA.b #$01
     STA.b $14                  ; Ask NMI to upload the queued VRAM stripes.
     RTL

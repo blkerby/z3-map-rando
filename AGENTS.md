@@ -33,7 +33,14 @@
   instead.
 - Function names should start with a verb.
 
-# ASM style guidelines
+# ASM guidelines
+
+- In hooked code, always check all used registers and scratch RAM to see if they
+  are free or if they need to be saved/restored.
+- Be careful with stack-affecting operations such as PHA/PLA, JSR/RTS, JSL/RTL:
+  make sure they are properly balanced under all possible control flow paths.
+
+## Style
 
 - Name Asar free-space bounds `free_space_bank_<bank>_start` and
   `free_space_bank_<bank>_end`, with an explicit lowercase hexadecimal bank
