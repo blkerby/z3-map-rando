@@ -198,6 +198,8 @@ LoadSubOverlayFlatMap16:
     BRA .vanilla
 
 .not_flute
+    CMP.b #$18
+    BEQ .generated
     CMP.b #$15
     BEQ .generated
     CMP.b #$08

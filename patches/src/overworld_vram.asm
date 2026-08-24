@@ -38,6 +38,13 @@ org $829F4A
     JSL hook_TriforceRoomBeforeSpecialOverworldLoad
 assert pc() == $829F4E
 
+; Module18_02, after the post-Agahnim transition enables force blank: select
+; and clear the overworld layout before rebuilding the HUD and loading Pyramid.
+org $829E5D
+hook_Module18EnableForceBlank:
+    JSL PrepareModule18OverworldVRAM
+assert pc() == $829E61
+
 ; Credits_InitializeTheActualCredits, module $1A submodule $20: replace its
 ; EraseTilemaps_bg3 call with the relocated-layout clear, retaining the
 ; distinct blank tiles used by the scrolling credits background.
@@ -217,6 +224,11 @@ hook_Module08LoadProperties:
 
 hook_TriforceRoomBeforeSpecialOverworldLoad:
     STZ.b $16                   ; Prevent NMI from restoring the HUD after the clear.
+    JSR SelectAndClearOverworldVRAM
+    RTL
+
+PrepareModule18OverworldVRAM:
+    JSL $80893D                 ; Run hi-jacked instruction
     JSR SelectAndClearOverworldVRAM
     RTL
 

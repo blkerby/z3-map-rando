@@ -856,6 +856,8 @@ SelectGeneratedBackground:
     BRA .vanilla
 
 .not_flute
+    CMP.w #$0018
+    BEQ .playable
     CMP.w #$0015
     BEQ .playable
     CMP.w #$0008
@@ -955,6 +957,8 @@ ConfigureGeneratedBackground:
     JMP .presentation
 
 .not_flute
+    CMP.b #$18
+    BEQ .playable
     CMP.b #$15
     BEQ .playable
     CMP.b #$08

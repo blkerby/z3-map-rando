@@ -8,10 +8,10 @@ $A08180-$A0830E bg3_tilemap.asm (BG3 layout and row streaming)
 $A0830F-$A0837F [FREE]
 $A08380-$A08395 nmi_optimize.asm (conditional OAM upload)
 $A08396-$A086FF [FREE]
-$A08700-$A088B8 overworld_map_data.asm (flat Map16 loaders)
-$A088B9-$A088FF [FREE]
-$A08900-$A09458 overworld_bg_tilemaps.asm (BG1/BG2 renderers and transition helpers)
-$A09459-$A098FF [FREE]
+$A08700-$A088BC overworld_map_data.asm (flat Map16 loaders)
+$A088BD-$A088FF [FREE]
+$A08900-$A09461 overworld_bg_tilemaps.asm (BG1/BG2 renderers and transition helpers)
+$A09462-$A098FF [FREE]
 $A09900-$A09DFF [FREE]
 $A09E00-$A09F3F theme_check generated overworld backdrop colors
 $A09F40-$A0A0C0 overworld_animations.asm (generated animation runtime)
@@ -21,8 +21,8 @@ $A0A400-$A0A54A overworld_bg_color.asm (generated overworld backdrop selection)
 $A0A54B-$A0A61F [FREE]
 $A0A620-$A0ABB0 overworld_assets.asm (generated overworld asset runtime)
 $A0ABB1-$A0ABFF [FREE]
-$A0AC00-$A0AE46 overworld_vram.asm (VRAM layout runtime)
-$A0AE47-$A0AEFF [FREE]
+$A0AC00-$A0AE57 overworld_vram.asm (VRAM layout runtime)
+$A0AE58-$A0AEFF [FREE]
 $A0AF00-$A0B69F overworld_dynamic_tiles.asm (generated dynamic-tile runtime)
 $A0B6A0-$A0B869 overworld_cutscenes.asm (generated entrance-cutscene runtime)
 $A0B86A-$A0FFFF [FREE]
