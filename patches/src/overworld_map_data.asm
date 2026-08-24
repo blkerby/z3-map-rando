@@ -189,6 +189,15 @@ LoadSubOverlayFlatMap16:
 
     SEP #$20
     LDA.b $10
+    ; Module $0E:$0A is the playable Flute destination restoration.
+    CMP.b #$0E
+    BNE .not_flute
+    LDA.b $11
+    CMP.b #$0A
+    BEQ .generated
+    BRA .vanilla
+
+.not_flute
     CMP.b #$15
     BEQ .generated
     CMP.b #$08

@@ -846,6 +846,16 @@ SelectGeneratedBackground:
 
     LDA.b $10
     AND.w #$00FF
+    ; Module $0E:$0A is the playable Flute destination restoration.
+    CMP.w #$000E
+    BNE .not_flute
+    LDA.b $11
+    AND.w #$00FF
+    CMP.w #$000A
+    BEQ .playable
+    BRA .vanilla
+
+.not_flute
     CMP.w #$0015
     BEQ .playable
     CMP.w #$0008
@@ -936,6 +946,15 @@ ConfigureGeneratedBackground:
 
 .enabled
     LDA.b $10
+    ; Module $0E:$0A is the playable Flute destination restoration.
+    CMP.b #$0E
+    BNE .not_flute
+    LDA.b $11
+    CMP.b #$0A
+    BEQ .playable
+    JMP .presentation
+
+.not_flute
     CMP.b #$15
     BEQ .playable
     CMP.b #$08
