@@ -73,7 +73,6 @@ fn main() -> Result<()> {
     let tile_types = importer.tile_types()?.to_owned();
     let vanilla_tiles = importer.tiles16()?.to_owned();
     let area_assets = importer.overworld_area_assets()?;
-    let credits_overworld = importer.credits_overworld_assets()?;
     let credits_cool_background = importer.credits_cool_background_assets()?;
     let sprite_seed = importer.overworld_sprite_seed()?;
 
@@ -84,6 +83,7 @@ fn main() -> Result<()> {
         area_assets,
         &args.theme,
     )?;
+    let credits_overworld = importer.credits_overworld_assets(&compiled.area_assets)?;
     let flat = assemble_flat_maps(
         vanilla_maps,
         &compiled.screen_maps,

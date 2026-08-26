@@ -636,8 +636,10 @@ impl Importer {
         Ok((entrances, pit_entrances))
     }
 
-    pub fn credits_overworld_assets(&mut self) -> Result<Vec<(u8, OverworldAreaAssets)>> {
-        let areas = self.overworld_area_assets()?;
+    pub fn credits_overworld_assets(
+        &mut self,
+        areas: &[OverworldAreaAssets],
+    ) -> Result<Vec<(u8, OverworldAreaAssets)>> {
         // Final $8A for each scripted credits scene; None marks a dungeon.
         let area_keys = [
             Some(0x1b),
