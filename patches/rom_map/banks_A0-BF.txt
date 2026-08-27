@@ -10,8 +10,8 @@ $A08380-$A08395 nmi_optimize.asm (conditional OAM upload)
 $A08396-$A086FF [FREE]
 $A08700-$A088BC overworld_map_data.asm (flat Map16 loaders)
 $A088BD-$A088FF [FREE]
-$A08900-$A09461 overworld_bg_tilemaps.asm (BG1/BG2 renderers and transition helpers)
-$A09462-$A098FF [FREE]
+$A08900-$A09580 overworld_bg_tilemaps.asm (rain palette handling, BG1/BG2 renderers, and transition helpers)
+$A09581-$A098FF [FREE]
 $A09900-$A09DFF [FREE]
 $A09E00-$A09F3F theme_check generated overworld backdrop colors
 $A09F40-$A0A0C0 overworld_animations.asm (generated animation runtime)

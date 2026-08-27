@@ -90,6 +90,16 @@ hook_run_rain_effects:
     JML RunRainEffectsWhenSelected
 assert pc() == $82A3C8
 
+; OverworldOverlay_HandleRain changes between half color math and full-bright
+; lightning. OBJ palettes 0-3 need the same transition in software.
+org $82A3FF
+hook_set_rain_color_math:
+    JML SetRainColorMath
+assert pc() == $82A403
+
+org $82A403
+return_rain_color_math:
+
 org $82A407
     REP #$20
 
@@ -119,6 +129,13 @@ hook_select_generated_background:
     JML SelectGeneratedBackground
     NOP
 assert pc() == $82AE7C
+
+; Overworld_CopyPalettesToCache has just copied the unfiltered source palette
+; to the displayed palette. Apply rain before requesting the CGRAM upload.
+org $82C517
+hook_present_overworld_palettes:
+    JML PresentOverworldPalettes
+assert pc() == $82C51B
 
 ; Overworld_SetFixedColAndScroll
 ;
@@ -824,9 +841,180 @@ assert pc() <= $9BCA9F
 
 org !free_space_bank_a0_start
 
+RebuildRainSpritePalettes:
+    PHP
+    SEP #$20
+    LDA.b #$FF
+    STA.l !RainSpritePaletteState
+    PLP
+
+UpdateRainSpritePalettes:
+    PHP
+    REP #$30
+    PHA
+    PHX
+    PHY
+
+    LDY.w #$0000              ; Full-bright palettes.
+
+    SEP #$20
+    LDA.l !GeneratedBG1Enabled
+    BEQ .mode_ready
+
+    REP #$20
+    LDA.w $040A
+    AND.w #$00FF
+    TAX
+
+    SEP #$20
+    LDA.l !RainContexts,X
+    BEQ .mode_ready
+
+    CPX.w #$0070
+    BEQ .mire
+
+    LDA.l $7EF3C5
+    CMP.b #$02
+    BCS .mode_ready
+    BRA .rain
+
+.mire
+    LDA.l $7EF2F0
+    AND.b #$20
+    BNE .mode_ready
+
+.rain
+    LDA.l !RainContexts,X
+    CMP.b #$02
+    BEQ .dark_rain
+    LDY.w #$0001              ; Light rain on all four palettes.
+    BRA .rain_mode_ready
+
+.dark_rain
+    LDY.w #$0002              ; Dark rain on all four palettes.
+
+.rain_mode_ready
+
+    ; Only an active gameplay rain overlay can be in a lightning flash. During
+    ; loads, $8C/$9A may still describe the preceding scene.
+    LDA.b $10
+    CMP.b #$09
+    BNE .castle
+    LDA.b $11
+    BNE .castle
+    LDA.b $8C
+    CMP.b #$9F
+    BNE .castle
+    LDA.b $9A
+    AND.b #$40
+    BNE .castle
+
+    LDY.w #$0000              ; Full-bright lightning frame.
+    BRA .mode_ready
+
+.castle
+    CPX.w #$001B
+    BNE .mode_ready
+    INY
+    INY                        ; Keep palette 1 colors 0-7 bright.
+
+.mode_ready
+    TYA
+    CMP.l !RainSpritePaletteState
+    BEQ .done
+    STA.l !RainSpritePaletteState
+
+    REP #$30
+    TYA
+    DEC A
+    AND.w #$0001
+    ASL A
+    TAX
+    LDA.l RainRepresentativeColors,X
+    PHA
+
+    LDX.w #$0100              ; OBJ palette 0 in the palette mirrors.
+
+.next_color
+    LDA.l $7EC300,X
+
+    CPY.w #$0000
+    BEQ .store
+    CPY.w #$0003
+    BCC .darken
+    CPX.w #$0120
+    BCC .darken
+    CPX.w #$0130
+    BCC .store
+
+.darken
+    EOR.b $01,S               ; Average with the active rain palette's ground.
+    AND.w #$7BDE              ; Clear component low bits before dividing by two.
+    LSR A
+    PHA
+
+    LDA.l $7EC300,X
+    AND.b $03,S
+    CLC
+    ADC.b $01,S
+    STA.l $7EC500,X
+    PLA
+    BRA .advance
+
+.store
+    STA.l $7EC500,X
+
+.advance
+    INX
+    INX
+    CPX.w #$0180
+    BNE .next_color
+
+    PLA
+    SEP #$20
+    INC.b $15                 ; Upload the changed displayed palette.
+
+.done
+    REP #$30
+    PLY
+    PLX
+    PLA
+    PLP
+    RTL
+
+RainRepresentativeColors:
+    dw $14A5                  ; Light World 1, color 1.
+    dw $0C63                  ; Dark World 1, color 1.
+
+SetRainColorMath:
+    STA.b $9A                 ; Run hi-jacked instruction
+
+    JSL !UpdateRainSpritePalettes
+
+    LDA.b $1A                 ; Run hi-jacked instruction
+    JML return_rain_color_math
+
+PresentOverworldPalettes:
+    SEP #$20                  ; Run hi-jacked instruction
+    JSL !RebuildRainSpritePalettes
+    JML $82C51B
+
 RunRainEffectsWhenSelected:
     LDA.l !GeneratedBG1Enabled
     BEQ .run
+
+    ; Transition palette effects own $7EC500 until submodule 0 resumes. Keep
+    ; the cached mode invalid so the first playable frame rebuilds it.
+    LDA.b $11
+    BEQ .update_palette
+    LDA.b #$FF
+    STA.l !RainSpritePaletteState
+    BRA .check_overlay
+
+.update_palette
+    JSL !UpdateRainSpritePalettes
+
+.check_overlay
     LDA.b $8C
     CMP.b #$9F
     BNE .done

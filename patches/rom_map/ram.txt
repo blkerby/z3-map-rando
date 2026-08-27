@@ -19,3 +19,4 @@ $7ECC72-$7ECC76 overworld_bg_tilemaps.asm (active background composition, follow
 $7ECC77-$7ECC7A overworld_bg_tilemaps.asm (BG1 X/Y positions in eighth-pixel fixed point)
 $7ECC7B-$7ECC7C overworld_bg_tilemaps.asm (independent signed-byte BG1 Y/X camera deltas)
 $7ECC7D-$7ECC81 overworld_cutscenes.asm (script cursor, wait counter, and shake state)
+$7ECC82-$7ECC82 overworld_bg_tilemaps.asm (displayed OBJ palettes 0-3 rain mode)

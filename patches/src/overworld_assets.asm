@@ -1311,8 +1311,7 @@ QueueGeneratedAssetBatchCommon:
     CPX.w #$0200
     BNE .copy_palette
 
-    SEP #$20
-    INC.b $15                  ; Upload the complete synchronized palette.
+    JSL !RebuildRainSpritePalettes
 
 .queue_vram
     REP #$20

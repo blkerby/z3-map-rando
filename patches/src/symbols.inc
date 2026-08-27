@@ -66,3 +66,12 @@
 ; Selects the overworld VRAM layout and clears its tilemaps during forced blank.
 ; Defined in overworld_vram.asm.
 !SelectAndClearOverworldVRAM = $A0AC4B
+
+; Rebuilds displayed OBJ palettes 0-3 for the current rain/lightning state.
+; Defined in overworld_bg_tilemaps.asm.
+!RebuildRainSpritePalettes = $A08900
+!UpdateRainSpritePalettes = $A0890A
+
+; Cached rain treatment for displayed OBJ palettes 0-3: 0 is bright; 1 and 2
+; use light and dark rain; 3 and 4 also keep palette 1's lower half bright.
+!RainSpritePaletteState = $7ECC82
