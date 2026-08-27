@@ -856,6 +856,15 @@ SelectGeneratedBackground:
     BRA .vanilla
 
 .not_flute
+    CMP.w #$001A
+    BNE .not_credits
+    LDA.b $11
+    AND.w #$00FF
+    CMP.w #$0020
+    BCC .no_rain
+    BRA .vanilla
+
+.not_credits
     CMP.w #$0018
     BEQ .playable
     CMP.w #$0015
@@ -957,6 +966,14 @@ ConfigureGeneratedBackground:
     JMP .presentation
 
 .not_flute
+    CMP.b #$1A
+    BNE .not_credits
+    LDA.b $11
+    CMP.b #$20
+    BCC .playable
+    JMP .presentation
+
+.not_credits
     CMP.b #$18
     BEQ .playable
     CMP.b #$15

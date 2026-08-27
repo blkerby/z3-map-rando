@@ -182,8 +182,9 @@ Overworld_CopyOneFlatMap16:
 
     RTS
 
-; Load authored BG1 or generated rain for playable overworld modules.
-; Presentation modules retain their vanilla flat overlay.
+; Load authored BG1 or generated rain for playable overworld modules and
+; overworld credits scenes. Other presentation modules retain their vanilla
+; flat overlay.
 LoadSubOverlayFlatMap16:
     PHB
 
@@ -198,6 +199,14 @@ LoadSubOverlayFlatMap16:
     BRA .vanilla
 
 .not_flute
+    CMP.b #$1A
+    BNE .not_credits
+    LDA.b $11
+    CMP.b #$20
+    BCC .generated
+    BRA .vanilla
+
+.not_credits
     CMP.b #$18
     BEQ .generated
     CMP.b #$15
