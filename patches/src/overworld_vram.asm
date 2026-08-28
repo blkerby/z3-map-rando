@@ -266,7 +266,10 @@ hook_CreditsBeforeEndingTextStripeCopy:
 
 ; Select the final layout and clear only its three tilemap regions. Callers
 ; are forced blank; no active-display path may call this routine.
+assert pc() <= !SelectAndClearOverworldVRAM
+org !SelectAndClearOverworldVRAM
 SelectAndClearOverworldVRAM:
+assert SelectAndClearOverworldVRAM == !SelectAndClearOverworldVRAM
     PHP
     REP #$30
     PHX

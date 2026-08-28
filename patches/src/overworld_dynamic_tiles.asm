@@ -206,6 +206,7 @@ return_after_persistent_bombable_entrance:
 org !free_space_bank_a0_start
 
 OpenDynamicWoodenDoorAtEntrance:
+assert OpenDynamicWoodenDoorAtEntrance == !OpenDynamicWoodenDoorAtEntrance
     LDA.w #!DynamicWoodenDoor
     JSR ResolveDynamicTile
     BCC .miss

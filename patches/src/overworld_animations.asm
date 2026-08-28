@@ -30,7 +30,7 @@ lorom
 
 incsrc "symbols.inc"
 
-!free_space_bank_a0_start = !ActivateOverworldAnimationTracks
+!free_space_bank_a0_start = $A09F40
 !free_space_bank_a0_end = $A0A0C1
 
 !AnimationTrackCount = $7EC90C
@@ -67,6 +67,7 @@ org !free_space_bank_a0_start
 ; Each state entry is definition pointer low/high/bank, frame, countdown.
 ; Input: $00-$02 = selected area-record pointer.
 ActivateOverworldAnimationTracks:
+assert ActivateOverworldAnimationTracks == !ActivateOverworldAnimationTracks
     PHP
     SEP #$20
     REP #$10

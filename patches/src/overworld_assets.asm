@@ -511,7 +511,10 @@ SynchronousLoadOverworldAssetsStart:
 ;   maximum state, record address low, record address high, record bank
 ; A final maximum of $FF is mandatory, so the scan needs no fallback branch.
 ; Input: 8-bit A asset key; 16-bit X/Y. Output: $00-$02 record pointer.
+assert pc() <= !ResolveOverworldAreaRecord
+org !ResolveOverworldAreaRecord
 ResolveOverworldAreaRecord:
+assert ResolveOverworldAreaRecord == !ResolveOverworldAreaRecord
     STA.b $06
     STZ.b $07                   ; Zero-extend the key for 16-bit arithmetic.
 

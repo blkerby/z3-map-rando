@@ -51,6 +51,16 @@
   freed by obsoleted routines; instead, prefer doing JML to a non-vanilla bank
   (e.g. `$A0`). Short jumps/calls can be used if it helps speed up a hook in a
   performance-sensitive part of the code (such as the NMI handler).
+- Anchor every code address exported through `symbols.inc` in its defining
+  patch, and assert that the defining label equals the exported symbol. If the
+  export starts a free-space block, keep the block's start address independent,
+  use `org !free_space_bank_<bank>_start`, and then assert the label equality.
+  Before an export within a block, use `assert pc() <= !ExportedRoutine`
+  followed by `org !ExportedRoutine`; use `==` instead of `<=` when fallthrough
+  requires no gap. Retain the final free-space end assertion so the anchors
+  form a monotonic chain from the independently declared start through every
+  exported entry to the end. A direct replacement in vanilla space may use
+  `org !ExportedRoutine` directly.
 - Where a control transfer is injected into vanilla code, use a label of the
   form `hook_<point>` after the Asar `org`, where `<point>` describes the
   process being interrupted, not the displaced instructions specifically. Keep

@@ -15,8 +15,9 @@ incsrc "symbols.inc"
 ;   16-bit accumulator and index registers
 ;
 ; Returns the selected property in A with 8-bit accumulator and index registers.
-org $80884E
+org !GetOverworldTileTypeIndependent
 GetOverworldTileType_Independent:
+assert GetOverworldTileType_Independent == !GetOverworldTileTypeIndependent
     TAX
 
     LDA.b $02

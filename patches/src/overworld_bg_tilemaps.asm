@@ -842,13 +842,17 @@ assert pc() <= $9BCA9F
 org !free_space_bank_a0_start
 
 RebuildRainSpritePalettes:
+assert RebuildRainSpritePalettes == !RebuildRainSpritePalettes
     PHP
     SEP #$20
     LDA.b #$FF
     STA.l !RainSpritePaletteState
     PLP
 
+assert pc() == !UpdateRainSpritePalettes
+org !UpdateRainSpritePalettes
 UpdateRainSpritePalettes:
+assert UpdateRainSpritePalettes == !UpdateRainSpritePalettes
     PHP
     REP #$30
     PHA
@@ -860,6 +864,9 @@ UpdateRainSpritePalettes:
     SEP #$20
     LDA.l !GeneratedBG1Enabled
     BEQ .mode_ready
+
+    LDA.b $1B
+    BNE .mode_ready
 
     REP #$20
     LDA.w $040A
