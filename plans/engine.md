@@ -451,12 +451,14 @@ region overflow.
 
 ### Compiled retiling data and first asset target
 
-- Implement the offline retiling-data builder described in the overall workflow. Parse the `ALTTPRetiling` JSON and referenced palette/tile definitions into versioned Rust source types, then emit one deterministic compact blob; the randomizer and patcher must not load the editable JSON tree directly.
-- Use a verified vanilla reference ROM during this build to perform RGB-resolved 8x8 matching and replace every match with a vanilla tile reference, `$0-$7` to `$0-$F` color-index map, and flip flags. Reconstruct and pixel-validate all such references and emit the sanitization audit manifest alongside the blob.
+- Implement the offline retiling-data builder described in the [overall workflow](README.md#retiling-catalog). Parse the `ALTTPRetiling` JSON and referenced palette/tile definitions into versioned Rust source types, then emit one deterministic compact blob without a ROM input; the randomizer and patcher must not load the editable JSON tree directly.
+- Add a separate developer tool to generate the checked-in vanilla fingerprint index from a verified ROM, using the shared canonicalization routine described in the overall workflow. Index canonical tile hashes by stable graphics sheet and tile offset without storing tile pixels or palette colors.
+- Match authored static tiles and animation frames against that index. Replace matches, including recolored vanilla shapes, with vanilla references containing the canonical-to-authored color-index mapping and flip flags. Preserve unmatched tiles as custom graphics and emit the sanitization audit manifest alongside the blob. During development with a verified ROM, reconstruct references and compare exact authored color indexes, including transparency and distinct indexes with identical RGB colors.
 - Validate area dimensions, component-screen positions, array sizes, palette/tile references, flips, priority, collision metadata, envelope/payload lengths, compiled indexes, stable IDs, the root `type_hash`, and source/content hashes.
 - Treat the imported 8x8 placements and properties as the canonical source. Generate deduplicated Map16 graphics definitions, independent four-byte quadrant-property records, and flat logical maps from each 2x2 group without requiring artists to author Map16 or Map32 tiles.
 - Preserve the vanilla physical layout and area footprints. Generate Light World/Dark World members consistently, but defer rearranged placement and edge metadata to milestone 10.
-- Read the blob through the production reader, render every imported `Desert` area in software, and compare it to the checked-in `Desert.png` reference before patching a ROM.
+- Refactor `theme_check` to read the catalog through the production reader and use shared asset compilation and patching code. Keep variant selection, palette/character allocation, and runtime asset generation in that shared path; resolve vanilla references, rain graphics, sprites, and fallback maps and scenes from the ROM during patching.
+- Resolve vanilla references from a verified ROM, render every imported `Desert` area in software from the catalog, and compare it to the checked-in `Desert.png` reference before writing the patched ROM.
 
 ### Asset compilation
 

@@ -37,12 +37,49 @@ A reader checks the envelope first and rejects a mismatch before attempting `bin
 
 The retiling catalog includes all the data from `ALTTPRetiling` needed by the randomizer and patcher. It includes custom palettes, tilesets, 8x8 graphics, and area screen data for themes and edge variants.
 
-The retiling-data build uses a verified vanilla ROM as a private reference to avoid copying vanilla graphics into the distributable catalog file. For every retiled 8x8 graphic definition:
+The retiling builder requires no ROM input. It recognizes vanilla graphics,
+including recolored tiles, through a checked-in fingerprint index. A separate
+developer tool generates that index from a verified vanilla ROM. Each entry
+contains a hash of a tile's canonical form and its stable graphics sheet and
+tile offset; the index contains no tile pixels or palette colors.
 
-1. It resolves its 4bpp pixel indices through its retiled palette to canonical SNES RGB color values.
-2. It decodes candidate vanilla 3bpp 8x8 tiles from the reference ROM and compares their resolved RGB pixels under all four horizontal/vertical flip combinations. Matching is based on the final RGB values, not equality of palette indexes or bitplane bytes.
-3. When a match exists, it emits a vanilla-reference record instead of custom pixel data. The record contains the stable vanilla tile identity, a mapping from each vanilla color index `$0-$7` to a retiled color index `$0-$F`, and horizontal- and vertical-flip booleans describing how to reproduce the retiled orientation.
-4. When multiple vanilla candidates reproduce the same resolved tile, it selects one by a documented deterministic ordering so rebuilding produces identical bytes.
+Canonicalize an 8x8 tile as follows:
+
+1. Consider the unflipped, horizontally flipped, vertically flipped, and both
+   flipped orientations, in that order.
+2. For each orientation, scan pixels from left to right, top to bottom. Assign
+   consecutive canonical color indexes starting at zero as each distinct
+   source color index first appears. Record the mapping from canonical indexes
+   to source indexes for that orientation.
+3. Choose the lexicographically smallest normalized 64-index array. Break ties
+   using the orientation order above. Its mapping and flip flags belong to the
+   chosen canonical form.
+
+For every authored static tile and animation frame, the builder hashes this
+canonical form and looks it up in the fingerprint index. A match becomes a
+vanilla reference containing the graphics sheet and tile offset, the mapping
+from canonical indexes to authored palette indexes `$0-$F`, and the flips from
+the canonical orientation to the authored orientation. Choose the lowest
+graphics sheet, then tile offset, when several vanilla tiles match. Unmatched
+tiles retain custom pixel data.
+
+The patcher decodes the referenced tile from the player's verified ROM,
+canonicalizes it, applies the stored color-index mapping, and flips it back to
+the authored orientation. The index generator, builder, and patcher share the
+canonicalization routine. Reconstruction preserves every authored color
+index, even when distinct indexes have the same RGB color. Canonical index zero
+means the first encountered color; transparency depends on the final mapped
+palette index zero. Matching initially requires the same partition of pixels
+into distinct color indexes, so recolorings that merge vanilla colors remain
+custom graphics.
+
+The catalog stores normalized authored content and vanilla references. Shared
+asset compilation code consumes catalog records to select variants, allocate
+palette and character slots, and generate Map16 and runtime assets. Vanilla
+references, rain graphics, sprites, and fallback maps and scenes are resolved
+from the ROM during patching. Refactor `theme_check` to load the catalog and use
+this shared compilation and patching path instead of reading editable JSON or
+duplicating the builder's work.
 
 ### Logic catalog
 
