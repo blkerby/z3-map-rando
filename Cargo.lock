@@ -68,6 +68,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "build_tile_fingerprints"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "patcher",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -197,6 +208,8 @@ name = "patcher"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "serde",
+ "sha2",
 ]
 
 [[package]]
@@ -297,7 +310,6 @@ dependencies = [
  "patcher",
  "serde",
  "serde_json",
- "sha2",
 ]
 
 [[package]]

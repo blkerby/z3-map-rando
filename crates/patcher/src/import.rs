@@ -1,6 +1,7 @@
 // Based on https://github.com/blkerby/Z3OverworldEditor/blob/main/src/import.rs
 #![allow(dead_code)]
 
+use crate::graphics::decode_3bpp_tiles;
 use anyhow::{Result, bail, ensure};
 use std::{
     collections::HashMap,
@@ -974,36 +975,40 @@ impl Importer {
         Ok(())
     }
 
-    fn load_graphics(&mut self) -> Result<()> {
+    pub fn read_background_graphics_sheet(&self, sheet: u8) -> Result<Vec<[[u8; 8]; 8]>> {
         let gfx_bank = self.rom.read_u16(self.constants.gfx_bank_addr.into())?;
         let gfx_high = self.rom.read_u16(self.constants.gfx_high_addr.into())?;
         let gfx_low = self.rom.read_u16(self.constants.gfx_low_addr.into())?;
 
+        let bank = self
+            .rom
+            .read_u8(SnesAddr::from_bank_offset(0, gfx_bank + u16::from(sheet)).into())?;
+        let high = self
+            .rom
+            .read_u8(SnesAddr::from_bank_offset(0, gfx_high + u16::from(sheet)).into())?;
+        let low = self
+            .rom
+            .read_u8(SnesAddr::from_bank_offset(0, gfx_low + u16::from(sheet)).into())?;
+        let data = decompress(
+            &self.rom,
+            SnesAddr::from_bytes(bank, high, low).into(),
+            false,
+        )?;
+        let expected_len = if sheet <= 0x70 { 0x600 } else { 0x800 };
+        ensure!(
+            data.len() == expected_len,
+            "unexpected graphics sheet {sheet:02X} length: {}",
+            data.len()
+        );
+        Ok(decode_3bpp_tiles(&data))
+    }
+
+    fn load_graphics(&mut self) -> Result<()> {
         // Map graphics select sheets through $72. The last two deliberately
         // pass 4bpp sprite data through vanilla's background conversion.
-        for i in 0..=0x72 {
-            let bank = self
-                .rom
-                .read_u8(SnesAddr::from_bank_offset(0, gfx_bank + i).into())?;
-            let high = self
-                .rom
-                .read_u8(SnesAddr::from_bank_offset(0, gfx_high + i).into())?;
-            let low = self
-                .rom
-                .read_u8(SnesAddr::from_bank_offset(0, gfx_low + i).into())?;
-            let data = decompress(
-                &self.rom,
-                SnesAddr::from_bytes(bank, high, low).into(),
-                false,
-            )?;
-            let expected_len = if i <= 0x70 { 0x600 } else { 0x800 };
-            ensure!(
-                data.len() == expected_len,
-                "unexpected graphics sheet {i:02X} length: {}",
-                data.len()
-            );
-
-            self.tiles8.extend(decode_3bpp_tiles(&data));
+        for sheet in 0..=0x72 {
+            let tiles = self.read_background_graphics_sheet(sheet)?;
+            self.tiles8.extend(tiles);
         }
         Ok(())
     }
@@ -1221,23 +1226,6 @@ fn encode_palette_half(palette: &[ColorRgb; 16], output: &mut [u8]) {
             &(u16::from(red) | u16::from(green) << 5 | u16::from(blue) << 10).to_le_bytes(),
         );
     }
-}
-
-fn decode_3bpp_tiles(data: &[u8]) -> Vec<[[u8; 8]; 8]> {
-    (0..64)
-        .map(|tile_index| {
-            let mut tile = [[0; 8]; 8];
-            for (y, row) in tile.iter_mut().enumerate() {
-                for (x, pixel) in row.iter_mut().enumerate() {
-                    let c0 = (data[tile_index * 24 + y * 2] >> (7 - x)) & 1;
-                    let c1 = (data[tile_index * 24 + y * 2 + 1] >> (7 - x)) & 1;
-                    let c2 = (data[tile_index * 24 + y + 16] >> (7 - x)) & 1;
-                    *pixel = c0 | c1 << 1 | c2 << 2;
-                }
-            }
-            tile
-        })
-        .collect()
 }
 
 fn encode_4bpp_tile(tile: &[[u8; 8]; 8], right_palette: bool, output: &mut [u8]) {

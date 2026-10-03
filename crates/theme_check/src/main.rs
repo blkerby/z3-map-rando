@@ -3,9 +3,9 @@ use clap::Parser;
 use patcher::{
     Patcher, PcAddr, SnesAddr,
     import::{FlatMap16, Importer},
+    verify_vanilla_rom,
 };
-use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, fmt::Write, fs, path::PathBuf};
+use std::{collections::BTreeMap, fs, path::PathBuf};
 
 mod asset_bundle;
 mod rain_tilemap;
@@ -13,7 +13,6 @@ mod theme;
 
 use asset_bundle::AssetLayout;
 
-const VANILLA_ROM_SHA256: &str = "794e040b02c7591b59ad8843b51e7c619b88f87cddc6083a8e7a4027b96a2271";
 const VANILLA_FLAT_MAPS_START: SnesAddr = SnesAddr(0xb80000);
 const THEME_FLAT_MAPS_START: SnesAddr = SnesAddr(0xc08000);
 const FLAT_MAP_POINTERS_START: SnesAddr = SnesAddr(0xbfe000);
@@ -246,19 +245,7 @@ fn main() -> Result<()> {
 
 fn read_vanilla_rom(path: &PathBuf) -> Result<Vec<u8>> {
     let rom = fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
-    ensure!(
-        rom.len() == 1024 * 1024,
-        "expected a 1 MiB vanilla ROM, got {} bytes",
-        rom.len()
-    );
-    let mut digest = String::with_capacity(64);
-    for byte in Sha256::digest(&rom) {
-        write!(digest, "{byte:02x}")?;
-    }
-    ensure!(
-        digest == VANILLA_ROM_SHA256,
-        "input ROM SHA-256 mismatch: expected {VANILLA_ROM_SHA256}, got {digest}"
-    );
+    verify_vanilla_rom(&rom)?;
     Ok(rom)
 }
 

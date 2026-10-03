@@ -5,3 +5,5 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.104"
+serde = { version = "1", features = ["derive"] }
+sha2 = { version = "0.11", default-features = false }

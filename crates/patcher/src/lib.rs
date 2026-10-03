@@ -1,7 +1,30 @@
-use anyhow::{Context, Result};
-use std::{collections::BTreeMap, io::Read, path::Path};
+use anyhow::{Context, Result, ensure};
+use sha2::{Digest, Sha256};
+use std::{collections::BTreeMap, fmt::Write, io::Read, path::Path};
 
+pub mod graphics;
 pub mod import;
+
+pub const VANILLA_ROM_SHA256: &str =
+    "794e040b02c7591b59ad8843b51e7c619b88f87cddc6083a8e7a4027b96a2271";
+
+pub fn verify_vanilla_rom(rom: &[u8]) -> Result<[u8; 32]> {
+    ensure!(
+        rom.len() == 1024 * 1024,
+        "expected a 1 MiB vanilla ROM, got {} bytes",
+        rom.len()
+    );
+    let hash = Sha256::digest(rom);
+    let mut digest = String::with_capacity(64);
+    for byte in &hash {
+        write!(digest, "{byte:02x}")?;
+    }
+    ensure!(
+        digest == VANILLA_ROM_SHA256,
+        "input ROM SHA-256 mismatch: expected {VANILLA_ROM_SHA256}, got {digest}"
+    );
+    Ok(hash.into())
+}
 
 #[derive(PartialEq, PartialOrd, Eq, Ord, Copy, Clone)]
 pub struct PcAddr(pub u32);

@@ -38,10 +38,15 @@ A reader checks the envelope first and rejects a mismatch before attempting `bin
 The retiling catalog includes all the data from `ALTTPRetiling` needed by the randomizer and patcher. It includes custom palettes, tilesets, 8x8 graphics, and area screen data for themes and edge variants.
 
 The retiling builder requires no ROM input. It recognizes vanilla graphics,
-including recolored tiles, through a checked-in fingerprint index. A separate
+including recolored tiles, through a checked-in JSON fingerprint index. A separate
 developer tool generates that index from a verified vanilla ROM. Each entry
-contains a hash of a tile's canonical form and its stable graphics sheet and
-tile offset; the index contains no tile pixels or palette colors.
+contains a SHA-256 hash of a tile's canonical form and its stable graphics
+sheet and tile offset; the index contains no tile pixels or palette colors.
+Include every tile in background sheets `$00–$60`, regardless of retiling
+project usage. Sheets `$61–$70` contain only blank tiles and are omitted.
+Exclude sprite sheets, the UI aliases `$71/$72`, and standalone
+graphics. The tool and index format are documented in the
+[build instructions](../README.md#how-to-build-the-tile-fingerprint-index).
 
 Canonicalize an 8x8 tile as follows:
 
@@ -55,8 +60,9 @@ Canonicalize an 8x8 tile as follows:
    using the orientation order above. Its mapping and flip flags belong to the
    chosen canonical form.
 
-For every authored static tile and animation frame, the builder hashes this
-canonical form and looks it up in the fingerprint index. A match becomes a
+For every authored static tile and animation frame, the builder hashes the 64
+canonical color-index bytes with SHA-256 and looks up the full 256-bit digest
+in the fingerprint index. A match becomes a
 vanilla reference containing the graphics sheet and tile offset, the mapping
 from canonical indexes to authored palette indexes `$0-$F`, and the flips from
 the canonical orientation to the authored orientation. Choose the lowest
