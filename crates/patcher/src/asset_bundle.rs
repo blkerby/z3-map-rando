@@ -1,5 +1,5 @@
+use crate::import::{OverworldAreaAssets, OverworldSpriteVariant};
 use anyhow::{Result, ensure};
-use patcher::import::{OverworldAreaAssets, OverworldSpriteVariant};
 use std::collections::BTreeMap;
 
 const BANK_SIZE: usize = 0x8000;
@@ -66,7 +66,7 @@ impl Default for AssetLayout {
     }
 }
 
-#[derive(Clone, Copy, clap::ValueEnum)]
+#[derive(Clone, Copy)]
 pub enum TransitionAssetPhase {
     PreScroll,
     Scroll,
@@ -355,7 +355,7 @@ fn intern_record(
 
 fn intern_animation_tracks(
     data: &mut Region,
-    tracks: &[patcher::import::OverworldAnimationTrack],
+    tracks: &[crate::import::OverworldAnimationTrack],
 ) -> Result<u32> {
     if tracks.is_empty() {
         return Ok(0);
@@ -385,7 +385,7 @@ fn intern_animation_tracks(
     data.intern(&list)
 }
 
-fn get_initial_animation_state(track: &patcher::import::OverworldAnimationTrack) -> (usize, u8) {
+fn get_initial_animation_state(track: &crate::import::OverworldAnimationTrack) -> (usize, u8) {
     let phase = track.phase_offset % (track.frames.len() * usize::from(track.frame_hold));
     (
         phase / usize::from(track.frame_hold),

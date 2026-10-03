@@ -1,9 +1,40 @@
 //! A compact catalog of the ALTTPRetiling data, sanitized to reference
 //! vanilla tile graphics rather than contain a copy of them.
 
+use anyhow::{Result, ensure};
 use bincode_next::{Decode, Encode};
-use std::collections::BTreeMap;
+use serde::Deserialize;
+use std::{collections::BTreeMap, io::Read};
 use type_hash::TypeHash;
+
+const CATALOG_MAGIC: [u8; 8] = *b"Z3RETILE";
+const CATALOG_CONFIG: bincode_next::config::Configuration = bincode_next::config::standard();
+
+/// Encode the magic bytes, little-endian root type hash, and bincode payload.
+pub fn encode_catalog(catalog: &RetilingCatalog) -> Result<Vec<u8>> {
+    let mut bytes = CATALOG_MAGIC.to_vec();
+    bytes.extend_from_slice(&RetilingCatalog::type_hash().to_le_bytes());
+    bytes.extend(bincode_next::encode_to_vec(catalog, CATALOG_CONFIG)?);
+    Ok(bytes)
+}
+
+/// Check the envelope before decoding the catalog payload.
+pub fn decode_catalog(mut bytes: &[u8]) -> Result<RetilingCatalog> {
+    let mut magic = [0; 8];
+    bytes.read_exact(&mut magic)?;
+    ensure!(
+        magic == CATALOG_MAGIC,
+        "invalid retiling catalog magic bytes"
+    );
+    let mut hash = [0; 8];
+    bytes.read_exact(&mut hash)?;
+    ensure!(
+        u64::from_le_bytes(hash) == RetilingCatalog::type_hash(),
+        "retiling catalog type hash mismatch; rebuild the catalog with this version"
+    );
+    let (catalog, _) = bincode_next::decode_from_slice(bytes, CATALOG_CONFIG)?;
+    Ok(catalog)
+}
 
 /// External palette ID assigned by the editor (not a SNES palette slot).
 pub type PaletteId = u16;
@@ -125,9 +156,11 @@ pub struct BackgroundSettings {
     pub camera_drift: [f32; 2],
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode, TypeHash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Encode, Decode, TypeHash)]
+#[serde(rename_all = "snake_case")]
 #[repr(u8)]
 pub enum BackgroundLayering {
+    #[default]
     None = 0,
     HalfAdd = 1,
     Backdrop = 2,
@@ -141,7 +174,8 @@ pub struct Layer {
     pub grid: TileGrid,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode, TypeHash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Encode, Decode, TypeHash)]
+#[serde(rename_all = "snake_case")]
 #[repr(u8)]
 pub enum Background {
     Bg1 = 0,
@@ -163,7 +197,8 @@ pub struct DynamicTileGroup {
     pub variants: Vec<DynamicTileVariant>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode, TypeHash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Encode, Decode, TypeHash)]
+#[serde(rename_all = "snake_case")]
 #[repr(u8)]
 pub enum DynamicTileType {
     CutGrass = 0,
@@ -202,7 +237,8 @@ pub struct Cutscene {
     pub actions: Vec<CutsceneAction>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Encode, Decode, TypeHash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Encode, Decode, TypeHash)]
+#[serde(rename_all = "snake_case")]
 #[repr(u8)]
 pub enum CutsceneEvent {
     PalaceOfDarknessEntranceOpened = 1,
@@ -212,7 +248,8 @@ pub enum CutsceneEvent {
     GanonsTowerEntranceOpened = 5,
 }
 
-#[derive(Clone, Debug, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Deserialize, Encode, Decode, TypeHash)]
+#[serde(tag = "action", rename_all = "snake_case")]
 #[repr(u8)]
 pub enum CutsceneAction {
     Wait {

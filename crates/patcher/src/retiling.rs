@@ -1,26 +1,28 @@
+use crate::import::{
+    OverworldAnimationTrack, OverworldAreaAssets, OverworldBackgroundSettings, Tile8, Tile16,
+};
 use crate::{
     asset_bundle::{
         CompiledCutscene, CompiledOverworldOverlay, DYNAMIC_TILE_GROUP_COUNT, DynamicTileEntry,
     },
     rain_tilemap::RAIN_TILEMAP,
 };
+use crate::{graphics::TileGraphicResolver, import::Importer};
 use anyhow::{Context, Result, ensure};
-use patcher::import::{
-    OverworldAnimationTrack, OverworldAreaAssets, OverworldBackgroundSettings, Tile8, Tile16,
+pub use retiling_catalog::BackgroundLayering;
+use retiling_catalog::{
+    Background, CutsceneAction, CutsceneEvent, DynamicTileType, PaletteId, RetilingCatalog,
 };
-use serde::Deserialize;
 use std::{
     cmp::Reverse,
     collections::{BTreeMap, BTreeSet},
-    fs,
-    path::{Path, PathBuf},
 };
 
 const MAP16_CAPACITY: usize = 0x4000;
 const CHARACTER_CAPACITY: usize = 960;
 const TRANSPARENT_CHARACTER: u16 = 0x03bf;
-const LIGHT_WORLD_RAIN_PALETTE: u8 = 3;
-const DARK_WORLD_RAIN_PALETTE: u8 = 8;
+const LIGHT_WORLD_RAIN_PALETTE: PaletteId = 3;
+const DARK_WORLD_RAIN_PALETTE: PaletteId = 8;
 const RAIN_CHARACTERS: [u16; 6] = [0x01ed, 0x009b, 0x01b1, 0x01fd, 0x01a1, 0x01ff];
 const RAIN_MAP16S: [u16; 8] = [
     0x026f, 0x0c62, 0x0c63, 0x0c64, 0x0c65, 0x0c66, 0x0c67, 0x0c68,
@@ -50,7 +52,7 @@ const VANILLA_OVERWORLD_OVERLAYS: [(u8, &str); 23] = [
     (0x77, "Shopping Mall stairs"),
     (0x7b, "drained dam"),
 ];
-type TileKey = (u8, usize);
+type TileKey = (PaletteId, usize);
 type CharacterSlots = BTreeMap<TileKey, usize>;
 type AreaTiles = Vec<BTreeSet<TileKey>>;
 type Pixels = Vec<Vec<u8>>;
@@ -60,17 +62,13 @@ struct GraphicGroup {
     areas: BTreeSet<usize>,
 }
 
-#[derive(Deserialize)]
 struct Palette {
-    id: u8,
     colors: Vec<[u8; 3]>,
     tiles: Vec<Tile>,
     animated_tile_groups: Vec<AnimatedTileGroup>,
-    #[serde(skip)]
     uses_upper_half: bool,
 }
 
-#[derive(Deserialize)]
 struct AnimatedTileGroup {
     base_tile: usize,
     frames: Vec<Vec<Pixels>>,
@@ -78,84 +76,15 @@ struct AnimatedTileGroup {
     phase_offset: usize,
 }
 
-#[derive(Deserialize)]
 struct Tile {
     priority: bool,
     collision: u8,
     pixels: Pixels,
 }
 
-#[derive(Deserialize)]
-struct Area {
-    vanilla_map_id: usize,
-    bg_color: [u8; 3],
-    bg_layering: BackgroundLayering,
-    bg_camera_follow_x: f32,
-    bg_camera_drift_x: f32,
-    bg_camera_follow_y: f32,
-    bg_camera_drift_y: f32,
-    size: [usize; 2],
-    layers: Vec<SourceLayer>,
-}
-
-#[derive(Clone, Copy, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-enum Background {
-    Bg1,
-    Bg2,
-}
-
-#[derive(Clone, Copy, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum BackgroundLayering {
-    None,
-    HalfAdd,
-    Backdrop,
-}
-
-#[derive(Deserialize)]
-struct SourceLayer {
-    name: String,
-    background: Background,
-    screens: Vec<SourceScreen>,
-}
-
-#[derive(Deserialize)]
-struct SourceScreen {
-    position: [usize; 2],
-    size: [usize; 2],
-    palettes: Vec<Vec<Option<u8>>>,
-    tiles: Vec<Vec<Option<usize>>>,
-    flips: Vec<Vec<Option<u8>>>,
-}
-
-#[derive(Deserialize)]
-struct CutsceneFile {
-    cutscenes: Vec<SourceCutscene>,
-}
-
-#[derive(Deserialize)]
-struct SourceCutscene {
-    event: String,
-    actions: Vec<CutsceneAction>,
-}
-
-#[derive(Deserialize)]
-#[serde(tag = "action", rename_all = "snake_case")]
-enum CutsceneAction {
-    Wait { frames: u8 },
-    PlaySound { channel: u8, sound: u8 },
-    PlayMusic { song: u8 },
-    Draw { layer: String },
-    SetComplete,
-    StartShake,
-    StopShake,
-    End,
-}
-
-#[derive(Clone, Copy, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Placement {
-    palette: u8,
+    palette: PaletteId,
     tile: usize,
     flip: u8,
 }
@@ -165,7 +94,7 @@ struct ThemeArea {
     width: usize,
     height: usize,
     placements: Vec<Placement>,
-    palettes: BTreeSet<u8>,
+    palettes: BTreeSet<PaletteId>,
     extra_tiles: BTreeSet<TileKey>,
     overworld_overlay: Option<StateLayer>,
 }
@@ -203,86 +132,21 @@ pub struct BackgroundSettings {
     pub camera_drift_y: f32,
 }
 
-#[derive(Deserialize)]
 struct DynamicTiles {
     groups: Vec<DynamicTileGroup>,
 }
 
-#[derive(Deserialize)]
 struct DynamicTileGroup {
-    #[serde(rename = "type")]
     kind: DynamicTileType,
     variants: Vec<DynamicTileVariant>,
 }
 
-#[derive(Clone, Copy, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum DynamicTileType {
-    CutGrass,
-    DigTerrain,
-    GreenBush,
-    HeavyBush,
-    HammerPeg,
-    LiftSign,
-    SmallGrayRock,
-    SmallBlackRock,
-    LargeGrayRock,
-    LargeBlackRock,
-    RockPile,
-    SecretHole,
-    SecretPortal,
-    SecretBombableEntrance,
-    SecretStairs,
-    WoodenDoor,
-    SanctuaryDoor,
-    HyruleCastleDoor,
-    GraveCorpse,
-    GraveStairs,
-    GravePit,
-    HyruleCastleGate,
-}
-
-impl DynamicTileType {
-    fn get_index(self) -> usize {
-        self as usize
-    }
-
-    fn is_single_cell(self) -> bool {
-        matches!(
-            self,
-            Self::CutGrass
-                | Self::DigTerrain
-                | Self::GreenBush
-                | Self::HeavyBush
-                | Self::HammerPeg
-                | Self::LiftSign
-                | Self::SmallGrayRock
-                | Self::SmallBlackRock
-                | Self::SecretHole
-                | Self::SecretPortal
-        )
-    }
-
-    fn is_anchor_property(self, property: u8) -> bool {
-        match self {
-            Self::LargeGrayRock => property == 0x55,
-            Self::LargeBlackRock => property == 0x56,
-            Self::RockPile => property == 0x57,
-            Self::SecretStairs => property == 0x55 || property == 0x57,
-            _ => false,
-        }
-    }
-}
-
-#[derive(Deserialize)]
 struct DynamicTileVariant {
     before: DynamicTiling,
     after_frames: Vec<DynamicTiling>,
-    #[serde(skip)]
     used: bool,
 }
 
-#[derive(Deserialize)]
 struct DynamicTiling {
     tiles: Vec<Vec<Placement>>,
 }
@@ -309,16 +173,36 @@ pub struct CompiledTheme {
 }
 
 pub fn compile(
-    root: &Path,
+    catalog: &RetilingCatalog,
+    importer: &Importer,
     vanilla_tiles: &[Tile16],
     vanilla_tile_types: &[u8],
     mut area_assets: Vec<OverworldAreaAssets>,
     theme_name: &str,
 ) -> Result<CompiledTheme> {
-    let mut palettes = load_palettes(root)?;
-    let mut dynamic_tiles: DynamicTiles = read_json(&root.join("DynamicTiles/replacements.json"))?;
+    let mut graphics = TileGraphicResolver::create(importer);
+    let mut palettes = resolve_palettes(catalog, &mut graphics)?;
+    let mut dynamic_tiles = DynamicTiles { groups: Vec::new() };
+    for group in &catalog.dynamic_tile_groups {
+        let mut variants = Vec::new();
+        for variant in &group.variants {
+            let mut after_frames = Vec::new();
+            for frame in &variant.after_frames {
+                after_frames.push(expand_dynamic_grid(frame));
+            }
+            variants.push(DynamicTileVariant {
+                before: expand_dynamic_grid(&variant.before),
+                after_frames,
+                used: false,
+            });
+        }
+        dynamic_tiles.groups.push(DynamicTileGroup {
+            kind: group.kind,
+            variants,
+        });
+    }
     let (mut areas, background_colors, mut bg1_variants, background_settings, mut cutscenes) =
-        load_areas(root, theme_name)?;
+        select_areas(catalog, theme_name)?;
     let rain_tiles = [
         add_rain_tiles(&mut palettes, &area_assets[0x2c], LIGHT_WORLD_RAIN_PALETTE),
         add_rain_tiles(&mut palettes, &area_assets[0x70], DARK_WORLD_RAIN_PALETTE),
@@ -541,7 +425,7 @@ pub fn compile(
             let lower = transition_palette_halves[row * 2];
             let upper = transition_palette_halves[row * 2 + 1];
             if lower || upper {
-                transition_palette_ranges.push(patcher::import::OverworldPaletteRange {
+                transition_palette_ranges.push(crate::import::OverworldPaletteRange {
                     start_color: (2 + row) as u8 * 16 + if lower { 0 } else { 8 },
                     color_count: if lower && upper { 16 } else { 8 },
                 });
@@ -699,12 +583,51 @@ pub fn compile(
     })
 }
 
-fn load_palettes(root: &Path) -> Result<BTreeMap<u8, Palette>> {
-    let mut paths = find_json_paths(&root.join("Palettes"))?;
-    paths.sort();
+fn resolve_palettes(
+    catalog: &RetilingCatalog,
+    graphics: &mut TileGraphicResolver<'_>,
+) -> Result<BTreeMap<PaletteId, Palette>> {
     let mut palettes = BTreeMap::new();
-    for path in paths {
-        let mut palette: Palette = read_json(&path)?;
+    for (&id, source) in &catalog.palettes {
+        let mut palette = Palette {
+            colors: source.colors.to_vec(),
+            tiles: Vec::new(),
+            animated_tile_groups: Vec::new(),
+            uses_upper_half: false,
+        };
+        for tile in &source.tiles {
+            let pixels = graphics.resolve(&tile.graphic)?;
+            let mut rows = Vec::new();
+            for row in pixels {
+                rows.push(row.to_vec());
+            }
+            palette.tiles.push(Tile {
+                priority: tile.priority,
+                collision: tile.collision,
+                pixels: rows,
+            });
+        }
+        for group in &source.animated_tile_groups {
+            let mut frames = Vec::new();
+            for frame in &group.frames {
+                let mut tiles = Vec::new();
+                for graphic in frame {
+                    let pixels = graphics.resolve(graphic)?;
+                    let mut rows = Vec::new();
+                    for row in pixels {
+                        rows.push(row.to_vec());
+                    }
+                    tiles.push(rows);
+                }
+                frames.push(tiles);
+            }
+            palette.animated_tile_groups.push(AnimatedTileGroup {
+                base_tile: usize::from(group.base_tile),
+                frames,
+                frame_hold: u8::try_from(group.frame_hold)?,
+                phase_offset: usize::from(group.phase_offset),
+            });
+        }
         palette.uses_upper_half = palette
             .tiles
             .iter()
@@ -720,15 +643,39 @@ fn load_palettes(root: &Path) -> Result<BTreeMap<u8, Palette>> {
                 }
             }
         }
-        palettes.insert(palette.id, palette);
+        palettes.insert(id, palette);
     }
     Ok(palettes)
 }
 
+fn expand_dynamic_grid(grid: &retiling_catalog::TileGrid) -> DynamicTiling {
+    let width = usize::from(grid.width);
+    let height = usize::from(grid.height);
+    let mut tiles = vec![
+        vec![
+            Placement {
+                palette: 0,
+                tile: 0,
+                flip: 0
+            };
+            width
+        ];
+        height
+    ];
+    for placement in &grid.tiles {
+        tiles[usize::from(placement.y)][usize::from(placement.x)] = Placement {
+            palette: placement.palette,
+            tile: usize::from(placement.tile),
+            flip: placement.flip as u8,
+        };
+    }
+    DynamicTiling { tiles }
+}
+
 fn add_rain_tiles(
-    palettes: &mut BTreeMap<u8, Palette>,
+    palettes: &mut BTreeMap<PaletteId, Palette>,
     source: &OverworldAreaAssets,
-    palette_id: u8,
+    palette_id: PaletteId,
 ) -> Vec<usize> {
     let mut target_colors = Vec::new();
     for &color in &palettes[&palette_id].colors {
@@ -775,8 +722,8 @@ fn add_rain_tiles(
     tiles
 }
 
-fn load_areas(
-    root: &Path,
+fn select_areas(
+    catalog: &RetilingCatalog,
     theme_name: &str,
 ) -> Result<(
     Vec<ThemeArea>,
@@ -785,68 +732,44 @@ fn load_areas(
     BTreeMap<usize, BackgroundSettings>,
     Vec<ThemeCutscene>,
 )> {
-    let mut paths = Vec::new();
-    for entry in fs::read_dir(root.join("Areas"))? {
-        let Ok(entry) = entry else {
-            continue;
-        };
-        let name = entry.file_name();
-        let Some(name) = name.to_str() else {
-            continue;
-        };
-        let path = entry.path().join(format!("{theme_name}.json"));
-        if is_numbered_area(name) && path.is_file() {
-            paths.push(path);
-        }
-    }
-    paths.sort();
-
     let mut result = Vec::new();
     let mut background_colors = [0x8000; 0xa0];
     let mut bg1_variants = Vec::new();
     let mut background_settings = BTreeMap::new();
     let mut cutscenes = Vec::new();
     let mut found_cutscenes = [false; 5];
-    for path in paths {
-        let area: Area = read_json(&path)?;
-        let cutscene_path = path
-            .parent()
-            .unwrap()
-            .join(theme_name)
-            .join("cutscenes.json");
-        let source_cutscenes = if cutscene_path.is_file() {
-            read_json::<CutsceneFile>(&cutscene_path)?.cutscenes
-        } else {
-            Vec::new()
+    for (name, source) in &catalog.areas {
+        let Some(area_id) = source.vanilla_map_id else {
+            continue;
         };
+        let Some(area) = source.themes.get(theme_name) else {
+            continue;
+        };
+        let area_id = usize::from(area_id);
         let mut source_scripts = Vec::new();
         let mut cutscene_layer_names = BTreeSet::new();
-        for source in source_cutscenes {
-            let (trigger, expected_area) = match source.event.as_str() {
-                "palace_of_darkness_entrance_opened" => (1, 0x5e),
-                "skull_woods_entrance_opened" => (2, 0x40),
-                "misery_mire_entrance_opened" => (3, 0x70),
-                "turtle_rock_entrance_opened" => (4, 0x47),
-                "ganons_tower_entrance_opened" => (5, 0x43),
-                event => anyhow::bail!(
-                    "unsupported cutscene event {event}: {}",
-                    cutscene_path.display()
-                ),
+        for source in &area.cutscenes {
+            let (trigger, expected_area) = match source.event {
+                CutsceneEvent::PalaceOfDarknessEntranceOpened => (1, 0x5e),
+                CutsceneEvent::SkullWoodsEntranceOpened => (2, 0x40),
+                CutsceneEvent::MiseryMireEntranceOpened => (3, 0x70),
+                CutsceneEvent::TurtleRockEntranceOpened => (4, 0x47),
+                CutsceneEvent::GanonsTowerEntranceOpened => (5, 0x43),
             };
             ensure!(
-                area.vanilla_map_id == expected_area,
-                "cutscene event {} belongs to area ${expected_area:02X}, not ${:02X}",
+                area_id == expected_area,
+                "cutscene event {:?} belongs to area ${expected_area:02X}, not ${:02X}",
                 source.event,
-                area.vanilla_map_id,
+                area_id,
             );
             ensure!(
                 !found_cutscenes[trigger - 1],
-                "duplicate cutscene event {}",
+                "duplicate cutscene event {:?}",
                 source.event,
             );
             ensure!(
                 matches!(source.actions.last(), Some(CutsceneAction::End)),
-                "cutscene event {} must end with an end action",
+                "cutscene event {:?} must end with an end action",
                 source.event,
             );
             found_cutscenes[trigger - 1] = true;
@@ -855,38 +778,27 @@ fn load_areas(
                     cutscene_layer_names.insert(layer.clone());
                 }
             }
-            source_scripts.push((trigger as u8, source.actions));
+            source_scripts.push((trigger as u8, source.actions.clone()));
         }
         let mut area_palettes = BTreeSet::new();
         let mut area_extra_tiles = BTreeSet::new();
-        let width = area.size[0] * 32;
-        let height = area.size[1] * 32;
+        let width = usize::from(area.layers[0].grid.width);
+        let height = usize::from(area.layers[0].grid.height);
         let mut area_tiles = vec![vec![None; width]; height];
         let mut bg1_layers = Vec::new();
         let mut cutscene_layers = BTreeMap::new();
         let mut overworld_overlay = None;
         for layer in &area.layers {
             let mut layer_tiles = vec![vec![None; width]; height];
-            for screen in &layer.screens {
-                for y in 0..screen.size[1] {
-                    for x in 0..screen.size[0] {
-                        if let (Some(palette), Some(tile), Some(flip)) = (
-                            screen.palettes[y][x],
-                            screen.tiles[y][x],
-                            screen.flips[y][x],
-                        ) {
-                            layer_tiles[screen.position[1] + y][screen.position[0] + x] =
-                                Some(Placement {
-                                    palette,
-                                    tile,
-                                    flip,
-                                });
-                        }
-                    }
-                }
+            for placement in &layer.grid.tiles {
+                layer_tiles[usize::from(placement.y)][usize::from(placement.x)] = Some(Placement {
+                    palette: placement.palette,
+                    tile: usize::from(placement.tile),
+                    flip: placement.flip as u8,
+                });
             }
             let is_overworld_overlay = matches!(
-                (area.vanilla_map_id, layer.name.as_str()),
+                (area_id, layer.name.as_str()),
                 (0x02, "Lumberjack")
                     | (0x07, "Turtle Rock Portal")
                     | (0x18, "Bird Statue")
@@ -900,7 +812,7 @@ fn load_areas(
                     layer.background == Background::Bg2,
                     "cutscene layer {} must use BG2: {}",
                     layer.name,
-                    path.display(),
+                    name,
                 );
                 let mut placements = Vec::with_capacity(width * height);
                 for row in &layer_tiles {
@@ -939,19 +851,19 @@ fn load_areas(
             ensure!(
                 cutscene_layers.contains_key(layer),
                 "cutscene references missing layer {layer}: {}",
-                path.display(),
+                name,
             );
         }
         for (trigger, actions) in source_scripts {
             cutscenes.push(ThemeCutscene {
                 trigger,
-                area: area.vanilla_map_id,
+                area: area_id,
                 actions,
                 layers: cutscene_layers.clone(),
             });
         }
 
-        if area.vanilla_map_id == 0x00 || area.vanilla_map_id == 0x80 {
+        if area_id == 0x00 || area_id == 0x80 {
             for (name, tiles) in bg1_layers {
                 let placements: Vec<_> = tiles.into_iter().flatten().collect();
                 for placement in placements.iter().flatten() {
@@ -960,7 +872,7 @@ fn load_areas(
                 }
                 bg1_variants.push(Bg1Variant {
                     name,
-                    area: area.vanilla_map_id,
+                    area: area_id,
                     width,
                     height,
                     placements,
@@ -984,7 +896,7 @@ fn load_areas(
             }
             bg1_variants.push(Bg1Variant {
                 name: "BG1".to_string(),
-                area: area.vanilla_map_id,
+                area: area_id,
                 width,
                 height,
                 placements,
@@ -993,16 +905,16 @@ fn load_areas(
 
         for map_y in 0..height / 64 {
             for map_x in 0..width / 64 {
-                let id = area.vanilla_map_id + map_x + map_y * 8;
-                background_colors[id] = encode_bgr555(area.bg_color);
+                let id = area_id + map_x + map_y * 8;
+                background_colors[id] = encode_bgr555(area.background.color);
                 background_settings.insert(
                     id,
                     BackgroundSettings {
-                        layering: area.bg_layering,
-                        camera_follow_x: area.bg_camera_follow_x,
-                        camera_drift_x: area.bg_camera_drift_x,
-                        camera_follow_y: area.bg_camera_follow_y,
-                        camera_drift_y: area.bg_camera_drift_y,
+                        layering: area.background.layering,
+                        camera_follow_x: area.background.camera_follow[0],
+                        camera_drift_x: area.background.camera_drift[0],
+                        camera_follow_y: area.background.camera_follow[1],
+                        camera_drift_y: area.background.camera_drift[1],
                     },
                 );
             }
@@ -1010,15 +922,14 @@ fn load_areas(
         let mut placements = Vec::with_capacity(width * height);
         for (y, row) in area_tiles.into_iter().enumerate() {
             for (x, placement) in row.into_iter().enumerate() {
-                let placement = placement.with_context(|| {
-                    format!("transparent BG2 tile at ({x}, {y}): {}", path.display())
-                })?;
+                let placement = placement
+                    .with_context(|| format!("transparent BG2 tile at ({x}, {y}): {}", name))?;
                 area_palettes.insert(placement.palette);
                 placements.push(placement);
             }
         }
         result.push(ThemeArea {
-            id: area.vanilla_map_id,
+            id: area_id,
             width,
             height,
             placements,
@@ -1044,7 +955,7 @@ fn load_areas(
 }
 
 fn add_dynamic_dependencies(areas: &mut [ThemeArea], dynamic_tiles: &mut DynamicTiles) {
-    let mut area_palettes = BTreeMap::<usize, BTreeSet<u8>>::new();
+    let mut area_palettes = BTreeMap::<usize, BTreeSet<PaletteId>>::new();
     let mut area_tiles = BTreeMap::<usize, BTreeSet<TileKey>>::new();
     for group in &mut dynamic_tiles.groups {
         for variant in &mut group.variants {
@@ -1099,9 +1010,9 @@ fn add_dynamic_dependencies(areas: &mut [ThemeArea], dynamic_tiles: &mut Dynamic
 
 fn allocate_palettes(
     areas: &[ThemeArea],
-    palettes: &BTreeMap<u8, Palette>,
+    palettes: &BTreeMap<PaletteId, Palette>,
     scrollable_transitions: &BTreeSet<(usize, usize)>,
-) -> Result<BTreeMap<u8, usize>> {
+) -> Result<BTreeMap<PaletteId, usize>> {
     let mut used = BTreeSet::new();
     for area in areas {
         for &palette in &area.palettes {
@@ -1154,10 +1065,10 @@ fn allocate_palettes(
 
 fn assign_palette(
     index: usize,
-    order: &[u8],
-    full: &BTreeSet<u8>,
-    conflicts: &BTreeMap<u8, BTreeSet<u8>>,
-    assignments: &mut BTreeMap<u8, usize>,
+    order: &[PaletteId],
+    full: &BTreeSet<PaletteId>,
+    conflicts: &BTreeMap<PaletteId, BTreeSet<PaletteId>>,
+    assignments: &mut BTreeMap<PaletteId, usize>,
 ) -> bool {
     let Some(&id) = order.get(index) else {
         return true;
@@ -1196,7 +1107,7 @@ fn assign_palette(
 
 fn allocate_characters(
     areas: &[ThemeArea],
-    palettes: &BTreeMap<u8, Palette>,
+    palettes: &BTreeMap<PaletteId, Palette>,
     scrollable_transitions: &BTreeSet<(usize, usize)>,
 ) -> Result<(CharacterSlots, AreaTiles)> {
     let mut tile_areas = BTreeMap::<TileKey, BTreeSet<usize>>::new();
@@ -1213,7 +1124,7 @@ fn allocate_characters(
     }
 
     let mut groups = Vec::new();
-    let mut palette_tiles = BTreeMap::<u8, BTreeSet<usize>>::new();
+    let mut palette_tiles = BTreeMap::<PaletteId, BTreeSet<usize>>::new();
     for &(palette, tile) in tile_areas.keys() {
         palette_tiles.entry(palette).or_default().insert(tile);
     }
@@ -1441,8 +1352,8 @@ fn areas_can_coexist(
 
 fn build_palette_rows(
     area: &ThemeArea,
-    palettes: &BTreeMap<u8, Palette>,
-    slots: &BTreeMap<u8, usize>,
+    palettes: &BTreeMap<PaletteId, Palette>,
+    slots: &BTreeMap<PaletteId, usize>,
 ) -> Result<[[u8; 32]; 6]> {
     let mut rows = [[0; 32]; 6];
     for id in &area.palettes {
@@ -1465,8 +1376,8 @@ fn build_palette_rows(
 
 fn build_character_rows(
     tiles: &BTreeSet<TileKey>,
-    palettes: &BTreeMap<u8, Palette>,
-    palette_slots: &BTreeMap<u8, usize>,
+    palettes: &BTreeMap<PaletteId, Palette>,
+    palette_slots: &BTreeMap<PaletteId, usize>,
     slots: &CharacterSlots,
 ) -> Result<[[u8; 512]; 60]> {
     let mut rows = [[0; 512]; 60];
@@ -1488,8 +1399,8 @@ fn build_character_rows(
 
 fn build_animation_tracks(
     tiles: &BTreeSet<TileKey>,
-    palettes: &BTreeMap<u8, Palette>,
-    palette_slots: &BTreeMap<u8, usize>,
+    palettes: &BTreeMap<PaletteId, Palette>,
+    palette_slots: &BTreeMap<PaletteId, usize>,
     character_slots: &CharacterSlots,
 ) -> Vec<OverworldAnimationTrack> {
     let mut tracks = Vec::new();
@@ -1529,8 +1440,8 @@ fn build_animation_tracks(
 fn build_cutscenes(
     areas: &[ThemeArea],
     cutscenes: &[ThemeCutscene],
-    palettes: &BTreeMap<u8, Palette>,
-    palette_slots: &BTreeMap<u8, usize>,
+    palettes: &BTreeMap<PaletteId, Palette>,
+    palette_slots: &BTreeMap<PaletteId, usize>,
     character_slots: &CharacterSlots,
     definitions: &mut Vec<[u16; 4]>,
     properties: &mut [Vec<u8>; 4],
@@ -1640,7 +1551,7 @@ fn build_dynamic_overworld_overlays(
         };
         let map_index = ((y % 32) * 32 + x % 32) * 2;
         let source = u16::from_le_bytes([map[map_index], map[map_index + 1]]);
-        let Some(entry) = dynamic_tile_groups[kind.get_index()]
+        let Some(entry) = dynamic_tile_groups[kind as usize]
             .iter()
             .find(|entry| entry.source == source)
         else {
@@ -1679,8 +1590,8 @@ fn build_dynamic_overworld_overlays(
 
 fn build_overworld_overlays(
     areas: &[ThemeArea],
-    palettes: &BTreeMap<u8, Palette>,
-    palette_slots: &BTreeMap<u8, usize>,
+    palettes: &BTreeMap<PaletteId, Palette>,
+    palette_slots: &BTreeMap<PaletteId, usize>,
     character_slots: &CharacterSlots,
     definitions: &mut Vec<[u16; 4]>,
     properties: &mut [Vec<u8>; 4],
@@ -1721,8 +1632,8 @@ fn build_layer_writes(
     area: &ThemeArea,
     state: &mut [Placement],
     layer: &StateLayer,
-    palettes: &BTreeMap<u8, Palette>,
-    palette_slots: &BTreeMap<u8, usize>,
+    palettes: &BTreeMap<PaletteId, Palette>,
+    palette_slots: &BTreeMap<PaletteId, usize>,
     character_slots: &CharacterSlots,
     definitions: &mut Vec<[u16; 4]>,
     properties: &mut [Vec<u8>; 4],
@@ -1761,8 +1672,8 @@ fn build_layer_writes(
 
 fn build_dynamic_tile_groups(
     dynamic_tiles: &DynamicTiles,
-    palettes: &BTreeMap<u8, Palette>,
-    palette_slots: &BTreeMap<u8, usize>,
+    palettes: &BTreeMap<PaletteId, Palette>,
+    palette_slots: &BTreeMap<PaletteId, usize>,
     character_slots: &CharacterSlots,
     definitions: &mut Vec<[u16; 4]>,
     properties: &mut [Vec<u8>; 4],
@@ -1800,20 +1711,30 @@ fn build_dynamic_tile_groups(
             }
             let width = variant.before.tiles[0].len() / 2;
             let height = variant.before.tiles.len() / 2;
-            if group.kind.is_single_cell()
-                || matches!(
-                    group.kind,
-                    DynamicTileType::SecretBombableEntrance
-                        | DynamicTileType::WoodenDoor
-                        | DynamicTileType::SanctuaryDoor
-                        | DynamicTileType::HyruleCastleDoor
-                        | DynamicTileType::GraveCorpse
-                        | DynamicTileType::GraveStairs
-                        | DynamicTileType::GravePit
-                        | DynamicTileType::HyruleCastleGate
-                )
-            {
-                result[group.kind.get_index()].push(DynamicTileEntry {
+            if matches!(
+                group.kind,
+                DynamicTileType::CutGrass
+                    | DynamicTileType::DigTerrain
+                    | DynamicTileType::GreenBush
+                    | DynamicTileType::HeavyBush
+                    | DynamicTileType::HammerPeg
+                    | DynamicTileType::LiftSign
+                    | DynamicTileType::SmallGrayRock
+                    | DynamicTileType::SmallBlackRock
+                    | DynamicTileType::SecretHole
+                    | DynamicTileType::SecretPortal
+            ) || matches!(
+                group.kind,
+                DynamicTileType::SecretBombableEntrance
+                    | DynamicTileType::WoodenDoor
+                    | DynamicTileType::SanctuaryDoor
+                    | DynamicTileType::HyruleCastleDoor
+                    | DynamicTileType::GraveCorpse
+                    | DynamicTileType::GraveStairs
+                    | DynamicTileType::GravePit
+                    | DynamicTileType::HyruleCastleGate
+            ) {
+                result[group.kind as usize].push(DynamicTileEntry {
                     source: before[0],
                     x_offset: 0,
                     y_offset: 0,
@@ -1827,7 +1748,15 @@ fn build_dynamic_tile_groups(
             for (index, &source) in before.iter().enumerate() {
                 let mut is_anchor = false;
                 for quadrant in properties.iter() {
-                    if group.kind.is_anchor_property(quadrant[usize::from(source)]) {
+                    let property = quadrant[usize::from(source)];
+                    let matches_anchor = match group.kind {
+                        DynamicTileType::LargeGrayRock => property == 0x55,
+                        DynamicTileType::LargeBlackRock => property == 0x56,
+                        DynamicTileType::RockPile => property == 0x57,
+                        DynamicTileType::SecretStairs => property == 0x55 || property == 0x57,
+                        _ => false,
+                    };
+                    if matches_anchor {
                         is_anchor = true;
                         break;
                     }
@@ -1835,7 +1764,7 @@ fn build_dynamic_tile_groups(
                 if !is_anchor {
                     continue;
                 }
-                result[group.kind.get_index()].push(DynamicTileEntry {
+                result[group.kind as usize].push(DynamicTileEntry {
                     source,
                     x_offset: -i8::try_from(index % width)?,
                     y_offset: -i8::try_from(index / width)?,
@@ -1852,8 +1781,8 @@ fn build_dynamic_tile_groups(
 
 fn build_tiling(
     tiling: &DynamicTiling,
-    palettes: &BTreeMap<u8, Palette>,
-    palette_slots: &BTreeMap<u8, usize>,
+    palettes: &BTreeMap<PaletteId, Palette>,
+    palette_slots: &BTreeMap<PaletteId, usize>,
     character_slots: &CharacterSlots,
     definitions: &mut Vec<[u16; 4]>,
     properties: &mut [Vec<u8>; 4],
@@ -1883,8 +1812,8 @@ fn build_tiling(
 
 fn intern_map16(
     placements: [Placement; 4],
-    palettes: &BTreeMap<u8, Palette>,
-    palette_slots: &BTreeMap<u8, usize>,
+    palettes: &BTreeMap<PaletteId, Palette>,
+    palette_slots: &BTreeMap<PaletteId, usize>,
     character_slots: &CharacterSlots,
     definitions: &mut Vec<[u16; 4]>,
     properties: &mut [Vec<u8>; 4],
@@ -1926,8 +1855,8 @@ fn build_map(
     area: &ThemeArea,
     area_map_x: usize,
     area_map_y: usize,
-    palettes: &BTreeMap<u8, Palette>,
-    palette_slots: &BTreeMap<u8, usize>,
+    palettes: &BTreeMap<PaletteId, Palette>,
+    palette_slots: &BTreeMap<PaletteId, usize>,
     character_slots: &CharacterSlots,
     definitions: &mut Vec<[u16; 4]>,
     properties: &mut [Vec<u8>; 4],
@@ -1963,8 +1892,8 @@ fn build_bg1_maps(
     area: usize,
     width: usize,
     height: usize,
-    palettes: &BTreeMap<u8, Palette>,
-    palette_slots: &BTreeMap<u8, usize>,
+    palettes: &BTreeMap<PaletteId, Palette>,
+    palette_slots: &BTreeMap<PaletteId, usize>,
     character_slots: &CharacterSlots,
     definitions: &mut Vec<[u16; 4]>,
     definition_ids: &mut BTreeMap<[u16; 4], u16>,
@@ -2015,7 +1944,7 @@ fn build_bg1_maps(
 fn build_rain_maps(
     vanilla_tiles: &[Tile16],
     rain_tiles: &[Vec<usize>; 2],
-    palette_slots: &BTreeMap<u8, usize>,
+    palette_slots: &BTreeMap<PaletteId, usize>,
     character_slots: &CharacterSlots,
     definitions: &mut Vec<[u16; 4]>,
     definition_ids: &mut BTreeMap<[u16; 4], u16>,
@@ -2064,10 +1993,10 @@ fn build_rain_maps(
 }
 
 fn build_graphic(
-    palette_id: u8,
+    palette_id: PaletteId,
     pixels: &Pixels,
-    palettes: &BTreeMap<u8, Palette>,
-    slots: &BTreeMap<u8, usize>,
+    palettes: &BTreeMap<PaletteId, Palette>,
+    slots: &BTreeMap<PaletteId, usize>,
 ) -> Vec<u8> {
     let palette = &palettes[&palette_id];
     let offset = if palette.uses_upper_half {
@@ -2120,35 +2049,4 @@ fn encode_4bpp(pixels: &[u8]) -> [u8; 32] {
         }
     }
     output
-}
-
-fn find_json_paths(directory: &Path) -> Result<Vec<PathBuf>> {
-    let entries = fs::read_dir(directory)
-        .with_context(|| format!("failed to read {}", directory.display()))?;
-    let mut paths = Vec::new();
-    for entry in entries {
-        let path = entry?.path();
-        if path
-            .extension()
-            .is_some_and(|extension| extension == "json")
-        {
-            paths.push(path);
-        }
-    }
-    Ok(paths)
-}
-
-fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T> {
-    serde_json::from_slice(
-        &fs::read(path).with_context(|| format!("failed to read {}", path.display()))?,
-    )
-    .with_context(|| format!("failed to parse {}", path.display()))
-}
-
-fn is_numbered_area(name: &str) -> bool {
-    let bytes = name.as_bytes();
-    bytes.len() > 2
-        && bytes[0].is_ascii_hexdigit()
-        && bytes[1].is_ascii_hexdigit()
-        && bytes[2] == b' '
 }

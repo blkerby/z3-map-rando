@@ -90,6 +90,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "build_retiling_catalog"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "patcher",
+ "retiling_catalog",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "build_tile_fingerprints"
 version = "0.1.0"
 dependencies = [
@@ -248,6 +261,7 @@ name = "patcher"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "retiling_catalog",
  "serde",
  "sha2",
 ]
@@ -283,7 +297,9 @@ dependencies = [
 name = "retiling_catalog"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "bincode-next",
+ "serde",
  "type_hash",
 ]
 
@@ -382,8 +398,7 @@ dependencies = [
  "anyhow",
  "clap",
  "patcher",
- "serde",
- "serde_json",
+ "retiling_catalog",
 ]
 
 [[package]]

@@ -1,4 +1,55 @@
+use crate::import::Importer;
+use anyhow::Result;
+use retiling_catalog::{Flip, TileGraphic};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+
+/// Resolve catalog graphics while decoding each referenced ROM sheet only once.
+pub struct TileGraphicResolver<'a> {
+    importer: &'a Importer,
+    sheets: BTreeMap<u8, Vec<[[u8; 8]; 8]>>,
+}
+
+impl<'a> TileGraphicResolver<'a> {
+    pub fn create(importer: &'a Importer) -> Self {
+        Self {
+            importer,
+            sheets: BTreeMap::new(),
+        }
+    }
+
+    pub fn resolve(&mut self, graphic: &TileGraphic) -> Result<[[u8; 8]; 8]> {
+        let reference = match graphic {
+            TileGraphic::Custom { pixels } => return Ok(*pixels),
+            TileGraphic::Vanilla(reference) => reference,
+        };
+        if !self.sheets.contains_key(&reference.sheet) {
+            self.sheets.insert(
+                reference.sheet,
+                self.importer
+                    .read_background_graphics_sheet(reference.sheet)?,
+            );
+        }
+        let canonical =
+            canonicalize_tile(&self.sheets[&reference.sheet][usize::from(reference.tile)]);
+        let mut pixels = [[0; 8]; 8];
+        for (y, row) in pixels.iter_mut().enumerate() {
+            let source_y = match reference.flip {
+                Flip::Vertical | Flip::Both => 7 - y,
+                _ => y,
+            };
+            for (x, pixel) in row.iter_mut().enumerate() {
+                let source_x = match reference.flip {
+                    Flip::Horizontal | Flip::Both => 7 - x,
+                    _ => x,
+                };
+                let index = canonical.pixels[source_y * 8 + source_x];
+                *pixel = reference.color_indexes[usize::from(index)];
+            }
+        }
+        Ok(pixels)
+    }
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct TileFingerprintIndex {

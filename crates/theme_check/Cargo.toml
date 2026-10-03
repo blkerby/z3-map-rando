@@ -7,5 +7,4 @@ edition = "2024"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 patcher = { path = "../patcher" }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+retiling_catalog = { path = "../retiling_catalog" }

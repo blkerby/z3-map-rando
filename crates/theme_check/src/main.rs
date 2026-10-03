@@ -2,16 +2,11 @@ use anyhow::{Context, Result, ensure};
 use clap::Parser;
 use patcher::{
     Patcher, PcAddr, SnesAddr,
+    asset_bundle::{self, AssetLayout},
     import::{FlatMap16, Importer},
-    verify_vanilla_rom,
+    retiling as theme, verify_vanilla_rom,
 };
 use std::{collections::BTreeMap, fs, path::PathBuf};
-
-mod asset_bundle;
-mod rain_tilemap;
-mod theme;
-
-use asset_bundle::AssetLayout;
 
 const VANILLA_FLAT_MAPS_START: SnesAddr = SnesAddr(0xb80000);
 const THEME_FLAT_MAPS_START: SnesAddr = SnesAddr(0xc08000);
@@ -50,15 +45,26 @@ struct FlatMapTables {
 struct Args {
     input_rom: PathBuf,
     output_rom: PathBuf,
-    retiling_project: PathBuf,
+    retiling_catalog: PathBuf,
     #[arg(long, default_value = "Base")]
     theme: String,
     #[arg(long, value_enum, default_value = "pre-scroll")]
-    transition_asset_phase: asset_bundle::TransitionAssetPhase,
+    transition_asset_phase: TransitionAssetPhase,
+}
+
+#[derive(Clone, Copy, clap::ValueEnum)]
+enum TransitionAssetPhase {
+    PreScroll,
+    Scroll,
+    PostScroll,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    let catalog = retiling_catalog::decode_catalog(
+        &fs::read(&args.retiling_catalog)
+            .with_context(|| format!("failed to read {}", args.retiling_catalog.display()))?,
+    )?;
     let mut rom = read_vanilla_rom(&args.input_rom)?;
     let patch_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../patches/ips");
 
@@ -76,7 +82,8 @@ fn main() -> Result<()> {
     let sprite_seed = importer.overworld_sprite_seed()?;
 
     let compiled = theme::compile(
-        &args.retiling_project,
+        &catalog,
+        &importer,
         &vanilla_tiles,
         &tile_types,
         area_assets,
@@ -97,7 +104,11 @@ fn main() -> Result<()> {
         &compiled.dynamic_tile_groups,
         &compiled.cutscenes,
         &compiled.overworld_overlays,
-        args.transition_asset_phase,
+        match args.transition_asset_phase {
+            TransitionAssetPhase::PreScroll => asset_bundle::TransitionAssetPhase::PreScroll,
+            TransitionAssetPhase::Scroll => asset_bundle::TransitionAssetPhase::Scroll,
+            TransitionAssetPhase::PostScroll => asset_bundle::TransitionAssetPhase::PostScroll,
+        },
         AssetLayout {
             data_start: THEME_ASSET_DATA_START,
             data_size: 48 * BANK_SIZE,

@@ -2,8 +2,11 @@ use anyhow::{Context, Result, ensure};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, fmt::Write, io::Read, path::Path};
 
+pub mod asset_bundle;
 pub mod graphics;
 pub mod import;
+mod rain_tilemap;
+pub mod retiling;
 
 pub const VANILLA_ROM_SHA256: &str =
     "794e040b02c7591b59ad8843b51e7c619b88f87cddc6083a8e7a4027b96a2271";

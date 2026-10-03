@@ -37,6 +37,11 @@ A reader checks the envelope first and rejects a mismatch before attempting `bin
 
 The retiling catalog includes all the data from `ALTTPRetiling` needed by the randomizer and patcher. It includes custom palettes, tilesets, 8x8 graphics, and area screen data for themes and edge variants.
 
+Implemented: `build_retiling_catalog` emits the catalog without a ROM input.
+`theme_check` consumes that catalog through
+the shared reader, compiler, and asset writer. See the
+[build instructions](../README.md#how-to-build-the-retiling-catalog).
+
 The Rust types are defined in [`retiling_catalog`](../crates/retiling_catalog/src/lib.rs).
 `RetilingCatalog` contains palettes keyed by their authored IDs, areas keyed by
 their source names, and dynamic tile replacement groups. Graphics remain inline
@@ -95,9 +100,8 @@ The catalog stores normalized authored content and vanilla references. Shared
 asset compilation code consumes catalog records to select variants, allocate
 palette and character slots, and generate Map16 and runtime assets. Vanilla
 references, rain graphics, sprites, and fallback maps and scenes are resolved
-from the ROM during patching. Refactor `theme_check` to load the catalog and use
-this shared compilation and patching path instead of reading editable JSON or
-duplicating the builder's work.
+from the ROM during patching. `theme_check` loads the catalog and uses shared
+compilation in `patcher::retiling` and asset writing in `patcher::asset_bundle`.
 
 ### Logic catalog
 
