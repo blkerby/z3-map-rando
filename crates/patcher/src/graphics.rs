@@ -1,10 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-pub const TILE_CANONICALIZATION_REVISION: u32 = 1;
-
 #[derive(Serialize, Deserialize)]
 pub struct TileFingerprintIndex {
-    pub canonicalization_revision: u32,
     pub rom_sha256: String,
     pub notes: Vec<String>,
     pub sheets: Vec<TileFingerprintSheet>,

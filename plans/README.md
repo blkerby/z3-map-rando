@@ -37,6 +37,18 @@ A reader checks the envelope first and rejects a mismatch before attempting `bin
 
 The retiling catalog includes all the data from `ALTTPRetiling` needed by the randomizer and patcher. It includes custom palettes, tilesets, 8x8 graphics, and area screen data for themes and edge variants.
 
+The Rust types are defined in [`retiling_catalog`](../crates/retiling_catalog/src/lib.rs).
+`RetilingCatalog` contains palettes keyed by their authored IDs, areas keyed by
+their source names, and dynamic tile replacement groups. Graphics remain inline
+in palette-local tile definitions and animation frames. Each area contains its
+named themes, which retain background settings, cutscenes, and ordered named
+BG1/BG2 layers. The builder combines each layer's editor screens into one
+sparse list of 8x8 tile placements with `u8` X/Y coordinates, retaining the full
+grid dimensions and omitting empty positions. Compositing and event interpretation remain
+in shared asset compilation. Areas without vanilla map IDs retain their template
+content. Structured edge-connection metadata is deferred until its source format
+is defined.
+
 The retiling builder requires no ROM input. It recognizes vanilla graphics,
 including recolored tiles, through a checked-in JSON fingerprint index. A separate
 developer tool generates that index from a verified vanilla ROM. Each entry
