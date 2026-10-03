@@ -124,3 +124,35 @@ pub fn decode_3bpp_tiles(data: &[u8]) -> Vec<[[u8; 8]; 8]> {
     }
     tiles
 }
+
+pub(crate) fn encode_bgr555([red, green, blue]: [u8; 3]) -> u16 {
+    u16::from(red) | u16::from(green) << 5 | u16::from(blue) << 10
+}
+
+pub(crate) fn encode_4bpp_tile(pixels: &[[u8; 8]; 8], upper_half: bool) -> [u8; 32] {
+    let mut output = [0; 32];
+    for y in 0..8 {
+        for x in 0..8 {
+            let pixel = pixels[y][x];
+            let pixel = if upper_half && pixel != 0 {
+                pixel + 8
+            } else {
+                pixel
+            };
+            let mask = 0x80 >> x;
+            if pixel & 1 != 0 {
+                output[y * 2] |= mask;
+            }
+            if pixel & 2 != 0 {
+                output[y * 2 + 1] |= mask;
+            }
+            if pixel & 4 != 0 {
+                output[16 + y * 2] |= mask;
+            }
+            if pixel & 8 != 0 {
+                output[16 + y * 2 + 1] |= mask;
+            }
+        }
+    }
+    output
+}

@@ -1,7 +1,7 @@
 // Based on https://github.com/blkerby/Z3OverworldEditor/blob/main/src/import.rs
 #![allow(dead_code)]
 
-use crate::graphics::decode_3bpp_tiles;
+use crate::graphics::{decode_3bpp_tiles, encode_4bpp_tile, encode_bgr555};
 use anyhow::{Result, bail, ensure};
 use std::{
     collections::HashMap,
@@ -739,7 +739,8 @@ impl Importer {
                     let index = frame * 32 + row_index * 16 + tile_index;
                     let sheet = first_sheet + index / 64;
                     let tile = &self.tiles8[sheet * 64 + index % 64];
-                    encode_4bpp_tile(tile, false, &mut row[tile_index * 32..tile_index * 32 + 32]);
+                    row[tile_index * 32..tile_index * 32 + 32]
+                        .copy_from_slice(&encode_4bpp_tile(tile, false));
                 }
                 rows.push(row);
             }
@@ -771,7 +772,7 @@ impl Importer {
             for tiles in tiles.chunks_exact(16) {
                 let mut row = [0; 512];
                 for (tile, output) in tiles.iter().zip(row.chunks_exact_mut(32)) {
-                    encode_4bpp_tile(tile, right_palette, output);
+                    output.copy_from_slice(&encode_4bpp_tile(tile, right_palette));
                 }
                 character_rows.push(row);
             }
@@ -934,7 +935,7 @@ impl Importer {
             for tiles in tiles.chunks_exact(16) {
                 let mut row = [0; 512];
                 for (tile, output) in tiles.iter().zip(row.chunks_exact_mut(32)) {
-                    encode_4bpp_tile(tile, right_palette, output);
+                    output.copy_from_slice(&encode_4bpp_tile(tile, right_palette));
                 }
                 rows.push(row);
             }
@@ -1221,23 +1222,8 @@ impl Importer {
 }
 
 fn encode_palette_half(palette: &[ColorRgb; 16], output: &mut [u8]) {
-    for (&[red, green, blue], output) in palette[1..8].iter().zip(output[2..].chunks_exact_mut(2)) {
-        output.copy_from_slice(
-            &(u16::from(red) | u16::from(green) << 5 | u16::from(blue) << 10).to_le_bytes(),
-        );
-    }
-}
-
-fn encode_4bpp_tile(tile: &[[u8; 8]; 8], right_palette: bool, output: &mut [u8]) {
-    for (y, pixels) in tile.iter().enumerate() {
-        for (x, &pixel) in pixels.iter().enumerate() {
-            let pixel = pixel | u8::from(right_palette && pixel != 0) << 3;
-            let mask = 0x80 >> x;
-            output[y * 2] |= (pixel & 1 != 0) as u8 * mask;
-            output[y * 2 + 1] |= (pixel & 2 != 0) as u8 * mask;
-            output[16 + y * 2] |= (pixel & 4 != 0) as u8 * mask;
-            output[16 + y * 2 + 1] |= (pixel & 8 != 0) as u8 * mask;
-        }
+    for (&color, output) in palette[1..8].iter().zip(output[2..].chunks_exact_mut(2)) {
+        output.copy_from_slice(&encode_bgr555(color).to_le_bytes());
     }
 }
 
