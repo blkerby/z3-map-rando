@@ -1,0 +1,129 @@
+{
+  "$schema": null,
+  "dungeonName": "Hyrule Castle Sewers",
+  "dungeonID": 57,
+  "note": "This is the only dungeon with two separate maps.",
+  "floors": [0, 2],
+  "rooms": [
+    {
+      "floor": 0,
+      "mapTiles": [
+        {
+          "coords": [2, 1],
+          "reveal": [[1, 2], [1, 2]],
+          "properties": {"items": {"position": "west", "ids": [9, 10, 11]}},
+          "quadrantProperties": [
+            {"coords": [0, 0], "doors": ["east"], "open": ["south"]},
+            {"coords": [1, 0], "doors": ["west"], "open": ["south"], "staircases": [{"position": "north", "direction": "up"}]},
+            {"coords": [0, 1], "doors": ["east"], "open": ["north"]},
+            {"coords": [1, 1], "doors": ["south", "west"], "open": ["north"]}
+          ]
+        },
+        {
+          "coords": [2, 2],
+          "reveal": [[1, 1], [2, 2]],
+          "properties": {"doors": ["central-vertical"]},
+          "quadrantProperties": [
+            {"coords": [0, 0], "open": ["east"]},
+            {"coords": [1, 0], "doors": ["north"], "open": ["west"]},
+            {"coords": [0, 1], "open": ["east"]},
+            {"coords": [1, 1], "doors": ["east"], "open": ["west"]}
+          ]
+        },
+        {
+          "coords": [3, 2],
+          "reveal": [[0, 0], [1, 1]],
+          "properties": {"doors": ["south"]},
+          "quadrantProperties": [
+            {"coords": [0, 1], "doors": ["west"], "open": ["east"]},
+            {"coords": [1, 1], "open": ["west"], "reduceWallExtra": ["east"]}
+          ]
+        },
+        {
+          "coords": [3, 3],
+          "reveal": [[1, 1], [1, 1]],
+          "properties": {
+            "doors": ["north"],
+            "staircases": [{"position": "south", "direction": "up"}],
+            "items": {"position": "east", "ids": [7]},
+            "hallwayNarrow": ["north", "south"],
+            "hallwayWide": ["east", "west"] 
+          }
+        }
+      ]
+    },
+    {
+      "floor": 1,
+      "mapTiles": [
+        {
+          "coords": [2, 1],
+          "reveal": [[1, 1], [2, 2]],
+          "properties": {"doors": ["central-vertical"], "doorsHidden": ["south"]},
+          "quadrantProperties": [
+            {"coords": [0, 0], "open": ["east"]},
+            {"coords": [1, 0], "open": ["west"], "staircases": [{"position": "north", "direction": "down"}]},
+            {"coords": [0, 1], "open": ["east"]},
+            {"coords": [1, 1], "open": ["west"]}
+          ]
+        },
+        {
+          "coords": [2, 2],
+          "reveal": [[1, 1], [1, 1]],
+          "properties": {
+            "entrance": ["south"],
+            "items": {"position": "north", "ids": [12]},
+            "doorsHidden": ["north"],
+            "hallwayWide": ["north", "south"]
+          }
+        },
+        {
+          "coords": [3, 4],
+          "reveal": [[1, 1], [0, 0]],
+          "properties": {"staircases": [{"position": "north", "direction": "down"}]},
+          "quadrantProperties": [
+            {"coords": [0, 0], "open": ["east"], "reduceWallExtra": ["west"]},
+            {"coords": [1, 0], "open": ["west"], "staircases": [{"position": "north", "direction": "up"}]}
+          ]
+        }
+      ]
+    },
+    {
+      "floor": 2,
+      "mapTiles": [
+        {
+          "coords": [3, 4],
+          "reveal": [[1, 1], [0, 0]],
+          "properties": {
+            "entrance": "south",
+            "hallwayWide": ["north", "south"]
+          },
+          "quadrantProperties": [
+            {
+              "coords": [1, 0], 
+              "staircases": [{"position": "north", "direction": "down"}],
+              "specialMap": [
+                [0, 0, 1, 1, 0, 0],
+                [0, 0, 1, 1, 0, 0],
+                [0, 0, 1, 1, 0, 0],
+                [0, 0, 1, 1, 0, 0],
+                [1, 1, 1, 1, 0, 0],
+                [1, 1, 1, 1, 0, 0]
+              ]
+            },
+            {
+              "coords": [0, 1], 
+              "specialMap": [
+                [0, 0, 0, 0, 0, 0],
+                [0, 1, 1, 1, 1, 1],
+                [0, 1, 1, 1, 1, 1],
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0]
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
