@@ -90,6 +90,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "build_logic_catalog"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "logic_catalog",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "build_retiling_catalog"
 version = "0.1.0"
 dependencies = [

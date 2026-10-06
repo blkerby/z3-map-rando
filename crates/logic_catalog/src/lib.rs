@@ -5,6 +5,19 @@ use serde::{Deserialize, Serialize};
 use serde_reflection::{Tracer, TracerConfig};
 use sha2::{Digest, Sha256};
 
+const CATALOG_MAGIC: [u8; 8] = *b"Z3LOGIC\0";
+
+/// Encode the magic bytes, little-endian schema hash, and Serde bincode payload.
+pub fn encode_catalog(catalog: &LogicCatalog) -> Result<Vec<u8>> {
+    let mut bytes = CATALOG_MAGIC.to_vec();
+    bytes.extend_from_slice(&compute_schema_hash()?.to_le_bytes());
+    bytes.extend(bincode_next::serde::encode_to_vec(
+        catalog,
+        bincode_next::config::standard(),
+    )?);
+    Ok(bytes)
+}
+
 /// Index into `LogicCatalog::vertices` and `LogicCatalog::vertex_metadata`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct VertexIndex(pub u32);
@@ -348,12 +361,12 @@ pub enum Requirement {
         kind: Ammo,
         count: u32,
     },
-    /// Includes the equipment needed to perform the action. Medallions also
-    /// require a sword. Preserve individual uses and opportunities to drink.
+    /// Apply each use separately, allowing potions between uses.
+    /// Item and equipment requirements are compiled separately.
     UseMagic {
-        kind: MagicAction,
-        /// Number of uses, except Cape/BlueCane which specify total magic cost.
-        amount: u32,
+        /// Base normalized magic points before magic-upgrade scaling.
+        cost_per_use: u32,
+        num_uses: u32,
     },
     /// Apply each hit separately, including any intervening Fairy revival.
     Damage {
@@ -401,21 +414,6 @@ pub enum Ammo {
     Arrow,
     SilverArrow,
     Bomb,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum MagicAction {
-    Powder,
-    FireRod,
-    IceRod,
-    EitherRod,
-    Bombos,
-    Ether,
-    Quake,
-    Lamp,
-    RedCane,
-    BlueCane,
-    Cape,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -540,7 +538,6 @@ pub fn compute_schema_hash() -> Result<u64> {
         tracer.trace_simple_type::<Equipment>()?;
         tracer.trace_simple_type::<PrizeKind>()?;
         tracer.trace_simple_type::<Ammo>()?;
-        tracer.trace_simple_type::<MagicAction>()?;
         tracer.trace_simple_type::<Resource>()?;
         tracer.trace_simple_type::<BottleContent>()?;
         tracer.trace_simple_type::<Follower>()?;

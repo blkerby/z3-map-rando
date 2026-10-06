@@ -5,8 +5,15 @@ It does not place items or implement traversal. Use the catalog envelope describ
 in [the architecture plan](README.md#catalog-format): magic bytes, root schema hash,
 and a `bincode-next` payload encoded and decoded through its Serde API.
 Shared types derive `Serialize` and `Deserialize` in
-[`logic_catalog`](../crates/logic_catalog/src/lib.rs); the offline executable will
-be `build_logic_catalog`. File I/O and the builder are not implemented yet.
+[`logic_catalog`](../crates/logic_catalog/src/lib.rs). Build the catalog with:
+
+```sh
+cargo run -p build_logic_catalog -- ../z3-json-data /tmp/logic_catalog.bin
+```
+
+The builder reads source room, item, helper, tech, and enemy definitions. It writes
+`Z3LOGIC\0`, the little-endian schema hash, and the Serde bincode payload. Room
+indices follow source namespace and ID order; definitions retain source order.
 
 `compute_schema_hash` traces the root and each enum with `serde-reflection`, then
 hashes the ordered schema registry. Recursive requirements use named references;
@@ -100,6 +107,12 @@ Resource actions are stateful, not Boolean predicates. Apply magic uses and dama
 hits individually so potions and Fairy revival can intervene between them. Apply
 strat-level effects after the requirement succeeds.
 
+Magic requirements compile to item/equipment checks followed by
+`UseMagic { cost_per_use, num_uses }`. Either-rod use accepts either rod; medallions
+also require a sword. Blue Cane pays one 20-point startup use, followed by 4-point
+drain uses. Cape has no startup cost and drains one point per use. Costs remain
+in base normalized magic points.
+
 Keep a recursive `Requirement` on each edge, without additional expression or
 effect vertices. Door-specific keys remove the main need for permanent effects
 within a requirement. Any future support for such effects must preserve their
@@ -119,6 +132,9 @@ definitions rather than generation-time configuration.
 - Follower requirements name a specific follower. Source `"None"` becomes
   `LoseFollowers` with all followers: Zelda, Old Man, Blind, Dwarf, Purple Chest,
   and Super Bomb. The randomizer will allow discarding any follower when needed.
+- Bomb use first applies `LoseFollowers([SuperBomb])`, since the Super Bomb can
+  be discarded before using ordinary bombs. Source follower completion becomes
+  `SetFollower(None)`.
 - The catalog targets a patched game where the Golden Sword damages Mothula.
   Treat `h_MothulaVulnerableToGoldSword` as `Free` before helper expansion.
 - Shared inventory slots will be split to retain independent use of Shovel/Flute,
@@ -153,16 +169,12 @@ of cost metrics, bounding the stored frontier by the number of metrics. Dropping
 logical routes sacrifices completeness; every accepted route must remain a valid
 witness. Metric choice and tie handling are traversal decisions, not catalog data.
 
-## Decisions before implementation
+## Deferred work
 
-- Review the shared types before implementing the builder. Catalog references
-  use flat-list indices; authored room/node IDs and endpoint metadata are retained.
 - Generation assigns unique key pickups to logical doors; the catalog retains
   door identities and lock types, not generated key assignments. Big-key scope
   and logical-door-to-ROM-door associations still need definition.
-- Resolve the source's conflicting descriptions of using bombs with a Super Bomb
-  follower: losing the follower versus disallowing the action.
 
 The traverser, metric implementation, item filler, ROM key patches, and generation
-connections are later work. The first builder should preserve the data they need
-without fixing unresolved behavior implicitly.
+connections are later work. The builder preserves the data they need without
+fixing unresolved behavior implicitly.

@@ -117,7 +117,9 @@ compilation in `patcher::retiling` and asset writing in `patcher::asset_bundle`.
 The [logic catalog](logic.md) compiles room nodes, strats, and item locations from
 `z3-json-data`, with separate Light/Dark World vertices. Recursive requirements
 retain ordered resource use and alternative local states. Shared types are defined
-in [`logic_catalog`](../crates/logic_catalog/src/lib.rs); the builder is deferred.
+in [`logic_catalog`](../crates/logic_catalog/src/lib.rs);
+[`build_logic_catalog`](../crates/build_logic_catalog/src/main.rs) builds the binary
+catalog from the source definitions.
 The catalog leaves rooms disconnected; generation adds game-specific connections.
 [Door-specific keys](keys.md) are persistent progression items, so key logic does
 not require alternative spending histories.
