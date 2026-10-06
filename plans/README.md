@@ -22,16 +22,25 @@ The IPS patches may be included in a release or otherwise stored so ordinary use
 The catalog builders are small Rust executables which run offline; they bundle and preprocess the relevant content of two source projects:
 
 1. **Retiling builder:** This consumes the [ALTTPRetiling](https://github.com/kjbranch/ALTTPRetiling) JSON data which contains tile graphics and area layouts, including rethemed areas and edge variants of areas. It emits a binary file (the "retiling catalog") collecting this data in a compact, internal format.
-2. **Logic builder:** This consumes the future logic project's JSON and emits a compact binary file (the "logic catalog").
+2. **Logic builder:** This consumes `z3-json-data` and emits a compact binary file (the "logic catalog"). See [the logic catalog plan](logic.md).
 
 ### Catalog format
 
-The retiling and logic catalogs are encoded in a compact, internal binary format using `bincode-next`, using `type_hash` to identify the format revision. Each file has a small stable envelope followed by a `bincode-next` payload. The envelope includes:
+The retiling and logic catalogs use `bincode-next` with a small envelope followed
+by the payload. The envelope includes:
 
 - Magic bytes to identify the format.
-- The `type_hash` value for the payload's root Rust type (`RetilingCatalog` or `LogicCatalog`).
+- A 64-bit schema identifier for the payload's root Rust type.
 
-A reader checks the envelope first and rejects a mismatch before attempting `bincode-next` deserialization. Any Rust type change that alters the root type hash creates a new binary format revision automatically. Backward compatibility is not required, as it is intended that the same version of the project be used to both build the catalog and consume it.
+The retiling catalog currently uses `type_hash`. The logic catalog uses
+`serde-reflection` to describe its complete schema, including recursive types and
+enum names, tags, and payloads. Its identifier is the first eight SHA-256 bytes
+of that registry encoded with the standard bincode configuration, interpreted as
+a little-endian `u64`.
+
+A reader checks the envelope before decoding the payload. Schema changes that
+alter the identifier create a new format revision. Backward compatibility is not
+required; building and consuming a catalog use the same project version.
 
 ### Retiling catalog
 
@@ -105,7 +114,13 @@ compilation in `patcher::retiling` and asset writing in `patcher::asset_bundle`.
 
 ### Logic catalog
 
-The logic catalog includes all the necessary data from a separate logic project to allow the randomizer to generate beatable seeds of appropriate difficulty based on the user's selected settings. The source logic project contains JSON defining nodes and strats within overworld areas and dungeons. Nodes may represent entrances/exits, traversal regions, item locations, or other logically meaningful positions. A **strat** is a directed way to move from one node to another and carries an ID, description, and a condition over acquired items and enabled tech. Tech represent player skills, fine-grained difficulty settings which may be individually toggled on or off for seed generation.
+The [logic catalog](logic.md) compiles room nodes, strats, and item locations from
+`z3-json-data`, with separate Light/Dark World vertices. Recursive requirements
+retain ordered resource use and alternative local states. Shared types are defined
+in [`logic_catalog`](../crates/logic_catalog/src/lib.rs); the builder is deferred.
+The catalog leaves rooms disconnected; generation adds game-specific connections.
+[Door-specific keys](keys.md) are persistent progression items, so key logic does
+not require alternative spending histories.
 
 ## Rearranger
 
@@ -128,6 +143,10 @@ The rearranger will likely be written as a Python application with a Rust subcom
 ## Generator
 
 The generator is a Rust library for creating a randomized game ("seed"). It invokes the rearranger to obtain a rearranged overworld, then places items in a way that provides logical progression, so that the game is beatable at the selected level of difficulty. If it fails, it can retry with a fresh rearrangement.
+
+[Door-specific keys](keys.md) can share a progression-placement process with other
+items, subject to dungeon placement restrictions. A separate key-placement phase
+is optional.
 
 Successful seed generation results in a seed JSON object representing the following core data: area placement coordinates, selected theme and edge variants, entrance connections, and item placements. The seed JSON also records the randomizer version, the source commit that it was built with, and the RNG seed used.
 
