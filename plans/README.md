@@ -120,7 +120,9 @@ retain ordered resource use and alternative local states. Shared types are defin
 in [`logic_catalog`](../crates/logic_catalog/src/lib.rs);
 [`build_logic_catalog`](../crates/build_logic_catalog/src/main.rs) builds the binary
 catalog from the source definitions.
-The catalog leaves rooms disconnected; generation adds game-specific connections.
+The catalog stores vanilla entrance, teleport, whirlpool, and adjacent overworld
+pairings separately from room edges. Generation expands these pairings or their
+randomized replacements into graph connections.
 [Door-specific keys](keys.md) are persistent progression items, so key logic does
 not require alternative spending histories.
 

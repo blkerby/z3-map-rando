@@ -1,3 +1,4 @@
+mod connections;
 mod requirements;
 mod source;
 
@@ -23,6 +24,8 @@ struct Args {
 struct RoomIndices {
     vertices: BTreeMap<(u32, Option<World>), VertexIndex>,
     entrances: BTreeMap<(u32, World), EntranceIndex>,
+    teleports: BTreeMap<(u32, World), TeleportIndex>,
+    whirlpools: BTreeMap<(u32, World), WhirlpoolIndex>,
     items: BTreeMap<u32, Effect>,
     doors: BTreeMap<u32, DoorIndex>,
     obstacles: BTreeMap<String, ObstacleIndex>,
@@ -118,6 +121,7 @@ fn main() -> Result<()> {
         teleports: Vec::new(),
         whirlpools: Vec::new(),
         flute_spots: Vec::new(),
+        vanilla_connections: Vec::new(),
         event_entries: Vec::new(),
         event_exits: Vec::new(),
     };
@@ -207,6 +211,7 @@ fn main() -> Result<()> {
     let mut event_indices = BTreeMap::new();
     let mut entry_vertices = BTreeMap::new();
     let mut exit_vertices = BTreeMap::new();
+    let mut room_indices = BTreeMap::new();
     for source_room in source_rooms {
         let room_idx = RoomIndex(catalog.rooms.len() as u32);
         let overworld = source_room.room_type == RoomKind::Overworld;
@@ -288,6 +293,10 @@ fn main() -> Result<()> {
                 }
                 for teleport in &node.teleports {
                     if Some(teleport.world.get_world()) == world {
+                        indices.teleports.insert(
+                            (teleport.id, world.unwrap()),
+                            TeleportIndex(catalog.teleports.len() as u32),
+                        );
                         catalog.teleports.push(Teleport {
                             vertex_idx,
                             teleport_id: teleport.id,
@@ -297,6 +306,10 @@ fn main() -> Result<()> {
                 }
                 for whirlpool in &node.whirlpools {
                     if Some(whirlpool.world.get_world()) == world {
+                        indices.whirlpools.insert(
+                            (whirlpool.id, world.unwrap()),
+                            WhirlpoolIndex(catalog.whirlpools.len() as u32),
+                        );
                         catalog.whirlpools.push(Whirlpool {
                             vertex_idx,
                             whirlpool_id: whirlpool.id,
@@ -485,17 +498,20 @@ fn main() -> Result<()> {
                 });
             }
         }
+        room_indices.insert(room.room_id, indices);
         catalog.rooms.push(room);
     }
+    connections::build_connections(&args.source_directory, &room_indices, &mut catalog)?;
     let bytes = encode_catalog(&catalog)?;
     fs::write(&args.output_catalog, &bytes)
         .with_context(|| format!("failed to write {}", args.output_catalog.display()))?;
     println!(
-        "Wrote {} rooms, {} vertices, {} edges, and {} item locations ({} bytes) to {}",
+        "Wrote {} rooms, {} vertices, {} edges, {} item locations, and {} vanilla connections ({} bytes) to {}",
         catalog.rooms.len(),
         catalog.vertices.len(),
         catalog.edges.len(),
         catalog.item_locations.len(),
+        catalog.vanilla_connections.len(),
         bytes.len(),
         args.output_catalog.display()
     );

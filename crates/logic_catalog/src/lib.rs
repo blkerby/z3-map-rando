@@ -66,6 +66,18 @@ pub struct ObstacleIndex(pub u32);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct EntranceIndex(pub u32);
 
+/// Index into `LogicCatalog::screen_boundaries`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct ScreenBoundaryIndex(pub u32);
+
+/// Index into `LogicCatalog::teleports`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct TeleportIndex(pub u32);
+
+/// Index into `LogicCatalog::whirlpools`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct WhirlpoolIndex(pub u32);
+
 /// Index into `LogicCatalog::events`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct EventIndex(pub u32);
@@ -93,6 +105,7 @@ pub struct LogicCatalog {
     pub teleports: Vec<Teleport>,
     pub whirlpools: Vec<Whirlpool>,
     pub flute_spots: Vec<FluteSpot>,
+    pub vanilla_connections: Vec<Connection>,
     /// Extra vertices reached only by incoming connections carrying the event.
     pub event_entries: Vec<EventEndpoint>,
     /// Extra vertices whose outgoing edges are only matching room connections.
@@ -260,6 +273,37 @@ pub struct Entrance {
     pub vertex_idx: VertexIndex,
     pub entrance_id: u32,
     pub name: String,
+}
+
+/// Default endpoint pairings. Generation expands the selected connections into edges.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum Connection {
+    Entrance {
+        kind: EntranceKind,
+        entrance_idx: EntranceIndex,
+        interior_vertex_idx: VertexIndex,
+    },
+    Teleport {
+        /// One-way departure from an interior; the destination determines the world.
+        from_vertex_idx: VertexIndex,
+        teleport_idx: TeleportIndex,
+    },
+    Whirlpool {
+        /// Traversable in both directions.
+        endpoints: [WhirlpoolIndex; 2],
+    },
+    ScreenBoundary {
+        /// Traversable in both directions.
+        endpoints: [ScreenBoundaryIndex; 2],
+    },
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub enum EntranceKind {
+    /// Traversable in both directions.
+    Door,
+    /// Traversable only from the overworld to the interior.
+    Drop,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -533,6 +577,8 @@ pub fn compute_schema_hash() -> Result<u64> {
         tracer.trace_simple_type::<VertexOrigin>()?;
         tracer.trace_simple_type::<NodeType>()?;
         tracer.trace_simple_type::<Direction>()?;
+        tracer.trace_simple_type::<Connection>()?;
+        tracer.trace_simple_type::<EntranceKind>()?;
         tracer.trace_simple_type::<EdgeOrigin>()?;
         tracer.trace_simple_type::<Requirement>()?;
         tracer.trace_simple_type::<Equipment>()?;

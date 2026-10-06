@@ -11,7 +11,7 @@ Shared types derive `Serialize` and `Deserialize` in
 cargo run -p build_logic_catalog -- ../z3-json-data /tmp/logic_catalog.bin
 ```
 
-The builder reads source room, item, helper, tech, and enemy definitions. It writes
+The builder reads source room, item, helper, tech, enemy, and connection definitions. It writes
 `Z3LOGIC\0`, the little-endian schema hash, and the Serde bincode payload. Room
 indices follow source namespace and ID order; definitions retain source order.
 
@@ -37,11 +37,30 @@ The initial catalog has three main flat lists:
   reaching the associated vertex does not automatically collect its item.
   Fixed events such as flute activation are not randomized item locations.
 
-Room graphs share one vertex space but remain disconnected from each other.
-Generation supplies connections for the selected game. Separate catalog lists
+Room graphs share one vertex space; inter-room connections are stored separately
+from their edges in `vanilla_connections`. Generation uses these pairings for the
+vanilla layout or supplies replacements for a randomized layout. Separate catalog lists
 retain entrances, screen boundaries, teleports, whirlpools, and flute spots, each
 referencing a vertex. Traversal starts at Light World Link's House; other spawn
 points are deferred.
+
+Connection records resolve source references to catalog endpoint indices:
+
+- Entrances pair an `EntranceIndex` with an interior `VertexIndex`. Doors are
+  bidirectional; drops lead only into the interior.
+- Teleports lead from an interior vertex to a `TeleportIndex`. The destination
+  determines the world; source `fromWorld` is ignored. Interiors have no world state.
+- Whirlpools pair two `WhirlpoolIndex` endpoints for bidirectional traversal.
+- Screen boundaries pair two `ScreenBoundaryIndex` endpoints for bidirectional
+  traversal between adjacent overworld areas.
+
+The builder matches overworld boundaries by opposite directions, the same world,
+and exactly equal spans in global tile coordinates. Area grid positions use
+32 tiles per cell, while room sizes use 16 tiles per screen. Every boundary must
+have exactly one neighboring match; missing or ambiguous matches fail the build
+with room, node, world, direction, and span diagnostics. Each pair is stored once.
+Generation expands the chosen connections into edges, including follower handling
+and matching event endpoints. Flute travel remains separate.
 
 Catalog indices use distinct newtypes, and fields holding them end in `_idx`.
 Each room stores node metadata in a vector indexed by `NodeIndex`, with authored

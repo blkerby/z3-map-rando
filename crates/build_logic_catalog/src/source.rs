@@ -2,6 +2,68 @@ use logic_catalog::{Direction, NodeType, ProficiencyTier, RoomKind, World};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
+pub struct Connections {
+    pub connections: Vec<Connection>,
+}
+
+#[derive(Deserialize)]
+#[serde(
+    tag = "type",
+    rename_all = "lowercase",
+    rename_all_fields = "camelCase"
+)]
+pub enum Connection {
+    Door {
+        world: SourceWorld,
+        overworld: EntranceEndpoint,
+        underworld: InteriorEndpoint,
+    },
+    Drop {
+        world: SourceWorld,
+        overworld: EntranceEndpoint,
+        underworld: InteriorEndpoint,
+    },
+    Teleport {
+        to_world: SourceWorld,
+        underworld: InteriorEndpoint,
+        overworld: TeleportEndpoint,
+    },
+    Whirlpool {
+        world: SourceWorld,
+        overworld: WhirlpoolEndpoint,
+        overworld2: WhirlpoolEndpoint,
+    },
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InteriorEndpoint {
+    pub room_id: u32,
+    pub node_id: u32,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EntranceEndpoint {
+    pub room_id: u32,
+    pub entrance_id: u32,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TeleportEndpoint {
+    pub room_id: u32,
+    pub teleport_id: u32,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhirlpoolEndpoint {
+    pub room_id: u32,
+    pub whirlpool_id: u32,
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Room {
     pub id: u32,
