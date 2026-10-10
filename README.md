@@ -75,24 +75,27 @@ See the [catalog plan](plans/README.md#retiling-catalog) for implementation deta
 
 # How to build the patches from source
 
-The instructions above use the IPS patches already checked into the repo. If you want to build them scratch, do the following:
+The instructions above use the IPS patches already checked into the repo. To build cached patches locally, install a C++ compiler and CMake; for example, on Ubuntu:
 
-Install a C++ compiler and CMake; for example, on Ubuntu:
 
 ```sh
 sudo apt install build-essential cmake
 ```
 
-From the repository root, build the Asar assembler:
+From the repository root:
 
 ```sh
-python3 scripts/build_asar.py
+cargo run -p catalog_builder -- asm
 ```
 
-Build the ASM sources into IPS patches:
+This automatically builds the repository's patched Asar submodule in Release mode under `build/asar/`, using CMake's incremental compilation, and writes IPS files and their fingerprints under `build/patches/`. Initialize the submodule when cloning, as shown above. Only the standalone assembler target is compiled. Each patch is reused when its source files, transitive includes, assembler contents, and assembly options are unchanged. Builder implementation changes also invalidate the fingerprints. Updates hold `build/cache.lock`; temporary ROMs and outputs are local to each invocation, and failed assembly leaves the previous completed patch available.
+
+Use `--repository` and `--output-directory` to override the current-directory and `build/` defaults. An explicit `--asar` path skips the automatic assembler build:
 
 ```sh
-python3 scripts/build_patches.py
+cargo run -p catalog_builder -- asm --asar path/to/patched/asar
 ```
 
-Note that we are using a custom version of `asar` that is modified to produce an IPS patch rather than modify a ROM in place; so it must be built as described here rather than using some other version of it.
+We use a patched version of Asar with IPS output support; an upstream Asar executable will not work. The new command leaves tracked `patches/ips/` files unchanged. Existing ROM-building tools still use those tracked patches until the later patch-catalog integration; the old Python scripts remain available for that workflow.
+
+Dependency tracking supports only standalone, single-line `incsrc "literal/path"` directives. Paths are relative to the including file and followed recursively, including conditional branches. The scanner does not evaluate defines or macros, resolve include search paths, or track `incbin` or other file-reading directives. Extend it before adding any of these forms, or cached outputs could become stale.

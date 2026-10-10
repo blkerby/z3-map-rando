@@ -1,5 +1,5 @@
 use anyhow::Result;
-use catalog_builder::{logic, retiling};
+use catalog_builder::{logic, patches, retiling};
 use clap::{Parser, Subcommand};
 use std::{fs, path::PathBuf};
 
@@ -15,6 +15,16 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Build cached IPS patches with the repository's patched Asar.
+    Asm {
+        #[arg(long, default_value = ".")]
+        repository: PathBuf,
+        #[arg(long, default_value = "build")]
+        output_directory: PathBuf,
+        /// Override with a patched Asar executable supporting IPS output.
+        #[arg(long)]
+        asar: Option<PathBuf>,
+    },
     /// Build the logic catalog from z3-json-data.
     Logic {
         source_directory: PathBuf,
@@ -43,6 +53,13 @@ enum Command {
 fn main() -> Result<()> {
     let args = Args::parse();
     match args.command {
+        Command::Asm {
+            repository,
+            output_directory,
+            asar,
+        } => {
+            patches::build_patches(&repository, &output_directory, asar.as_deref())?;
+        }
         Command::Logic {
             source_directory,
             output_catalog,

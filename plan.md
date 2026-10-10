@@ -31,13 +31,17 @@ Shared configuration and caching in step 5 will incorporate the compression opti
 
 Implemented: logic and retiling catalogs have streaming writer/reader APIs and Zstd-compressed payloads. The builder supports a global `--compression-level` option before or after any subcommand, defaulting to `3`. `theme_check` reads the compressed catalog directly from a file stream. No legacy format reader is retained.
 
-## 3. Add cached ASM assembly
+## 3. Add cached ASM assembly (implemented)
 
 Add a patch-building module that automatically builds the repository's patched Asar submodule with CMake under `build/asar/`, using Release mode and only the standalone assembler target. Let CMake manage incremental C++ compilation. An explicit Asar executable override skips this build and must also support the patched IPS output mode; an upstream Asar executable will not work. Discover patch roots under `patches/src/` and recursively resolve literal `incsrc` paths relative to the including file. Support only this dependency syntax for now.
 
 Cache each IPS independently. Its fingerprint covers source and included file paths and contents, the assembler contents, and assembly arguments and defines. Missing outputs or changed fingerprints trigger assembly; record success only after completed output is available. Use invocation-local temporary ROM paths instead of the shared `/tmp/dummy.smc`.
 
 Result: editing one patch rebuilds only that patch; editing `symbols.inc` rebuilds its consumers. Unchanged patches, including `fastrom_base`, are reused.
+
+Implemented: `catalog_builder asm` invokes the shared patch-building module, builds the standalone patched Asar with CMake in Release mode, and updates `build/patches/*.ips` with per-patch fingerprint files. `--asar` skips the CMake build; `--repository` and `--output-directory` override working-directory-relative defaults. A shared `cache.lock` protects updates, and temporary files keep failed assembly from publishing incomplete outputs. Existing tracked IPS consumers and Python scripts remain until step 13.
+
+Dependency tracking supports only standalone, single-line `incsrc "literal/path"` directives, resolved relative to the including file. Includes are followed recursively, including those in conditional branches. It does not evaluate Asar defines or macros, resolve include search paths, or track `incbin` or other file-reading directives. Extend the scanner before introducing those dependency forms; otherwise cached patches could become stale.
 
 ## 4. Build the patch catalog
 
