@@ -27,8 +27,9 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 Build the retiling catalog, then a test ROM:
 
 ```sh
-cargo run -p build_retiling_catalog -- path/to/ALTTPRetiling retiling_catalog.bin
-cargo run -p theme_check -- path/to/vanilla.sfc path/to/output.sfc retiling_catalog.bin --theme Base
+mkdir -p build
+cargo run -p build_retiling_catalog -- path/to/ALTTPRetiling build/retiling_catalog.bin
+cargo run -p theme_check -- path/to/vanilla.sfc path/to/output.sfc build/retiling_catalog.bin --theme Base
 ```
 
 The input must be the unheadered 1 MiB Japanese 1.0 ROM with SHA-256 digest
@@ -46,7 +47,8 @@ the catalog whenever you update your copy of `ALTTPRetiling`.
 From the repository root:
 
 ```sh
-cargo run -p build_retiling_catalog -- path/to/ALTTPRetiling retiling_catalog.bin
+mkdir -p build
+cargo run -p build_retiling_catalog -- path/to/ALTTPRetiling build/retiling_catalog.bin
 ```
 
 # How to build the tile fingerprint index

@@ -16,6 +16,8 @@ pub struct SeedData {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SeedMetadata {
+    /// Compact, human-readable, alphanumeric random name
+    pub seed_name: String,
     pub generator_version: String,
     /// Full source commit hash, if available with a clean working tree.
     pub generator_commit: Option<String>,

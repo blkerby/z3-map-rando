@@ -323,6 +323,13 @@ to spawn ordinary refill sprites or a one-time heart-piece sprite.
 
 ## Implications for randomization
 
+Saved seed placements identify each location by its authored `(room_id, item_id)`
+pair in `z3-json-data`. These are source room and item-entry IDs, not vanilla ROM
+room numbers, logic-node IDs, catalog indices, or item addresses. Existing IDs
+must remain unchanged and removed IDs must not be reused. Names and addresses
+can change independently. The current patch catalog maps these stable identities
+to the instructions for patching each carrier.
+
 The receipt ID is a useful common reward representation, but it is not a
 location representation. A complete item randomizer must give each eligible
 location its own stable identity and adapt each carrier separately:

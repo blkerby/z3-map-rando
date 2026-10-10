@@ -1,9 +1,11 @@
 # Project architecture
 
+See [the prototype implementation plan](../plan.md) for the sequence of work.
+
 The project has the following main components:
 
 - [**ASM patches**](#asm-patches): modify the game engine and produce IPS patches and a symbol manifest.
-- [**Catalog builders**](#catalog-builders): compile retiling and logic source data into compact binary catalogs.
+- [**Catalog builders**](#catalog-builders): compile retiling, logic, and patching data into compact binary catalogs.
 - [**Rearranger**](#rearranger): rearranges the overworld areas in a geometrically coherent way.
 - [**Generator**](#generator): places items to create a beatable randomized game ("seed") based on a rearrangement.
 - [**Patcher**](#patcher): combines a verified vanilla ROM, IPS patches, and seed data into a randomized ROM.
@@ -13,20 +15,32 @@ The project has the following main components:
 
 ## ASM patches
 
-The ASM patches contain seed-independent code and hooks needed to support the randomizer, including modifications to the game engine for the retiled overworld. They are assembled offline directly from patch sources, without reading a ROM, into IPS patches and a machine-readable JSON manifest containing symbol addresses needed to write seed-specific data later. Some patches are optional, and may be applied or not, depending on settings. 
+The ASM patches contain seed-independent code and hooks needed to support the
+randomizer, including the retiled overworld. They are assembled offline from
+patch sources without reading a ROM. Assembly produces IPS patches;
+a machine-readable symbol manifest for writing seed-specific data is also planned
+but not implemented. Shared ASM symbols are defined in `patches/src/symbols.inc`,
+and Rust currently defines patching addresses separately. Some patches are
+optional; patcher code decides their selection, application order, and phases.
 
 The IPS patches may be included in a release or otherwise stored so ordinary users do not need an assembler. The planned work on the game engine is described in [engine.md](engine.md), which is currently a primary focus.
 
 ## Catalog builders
 
-The catalog builders are small Rust executables which run offline; they bundle and preprocess the relevant content of two source projects:
+The catalog builders run offline and produce these artifacts under `build/`:
 
 1. **Retiling builder:** This consumes the [ALTTPRetiling](https://github.com/kjbranch/ALTTPRetiling) JSON data which contains tile graphics and area layouts, including rethemed areas and edge variants of areas. It emits a binary file (the "retiling catalog") collecting this data in a compact, internal format.
 2. **Logic builder:** This consumes `z3-json-data` and emits a compact binary file (the "logic catalog"). See [the logic catalog plan](logic.md).
+3. **Patch builder:** This bundles named IPS patches and their matching symbol manifest, plus stable location mappings, ROM addresses, item receipt IDs, and prize encodings extracted directly from `z3-json-data`. It does not read the logic catalog. Individual IPS patches remain separate; patcher code controls their application. See [the patch plan](patches.md).
+
+The output paths are `build/retiling_catalog.bin`, `build/logic_catalog.bin`, and
+`build/patch_catalog.bin`. This directory is ignored by Git; checked-in inputs
+remain under `data/`. Catalogs survive `cargo clean`, which removes Cargo
+artifacts under `target/`. The patch catalog builder is planned work.
 
 ### Catalog format
 
-The retiling and logic catalogs use `bincode-next` with a small envelope followed
+The catalogs use `bincode-next` with a small envelope followed
 by the payload. The envelope includes:
 
 - Magic bytes to identify the format.
@@ -41,6 +55,8 @@ a little-endian `u64`.
 A reader checks the envelope before decoding the payload. Schema changes that
 alter the identifier create a new format revision. Backward compatibility is not
 required; building and consuming a catalog use the same project version.
+This applies to catalogs, not saved seeds. The latest patcher and its matching
+patch catalog must support older seeds without their original catalogs.
 
 ### Retiling catalog
 
@@ -123,6 +139,9 @@ catalog from the source definitions.
 The catalog stores vanilla entrance, teleport, whirlpool, and adjacent overworld
 pairings separately from room edges. Generation expands these pairings or their
 randomized replacements into graph connections.
+The planned boundary keeps stable location and item identities in this catalog,
+while ROM addresses and item patch encodings go only into the patch catalog.
+Both builders read `z3-json-data` directly and may share source-reading types.
 [Door-specific keys](keys.md) are persistent progression items, so key logic does
 not require alternative spending histories.
 
@@ -152,7 +171,49 @@ The generator is a Rust library for creating a randomized game ("seed"). It invo
 items, subject to dungeon placement restrictions. A separate key-placement phase
 is optional.
 
-Successful seed generation results in a seed JSON object representing the following core data: area placement coordinates, selected theme and edge variants, entrance connections, and item placements. The seed JSON also records the randomizer version, the source commit that it was built with, and the RNG seed used.
+Successful seed generation produces the area placement coordinates, selected
+themes and edge variants, entrance connections, item placements, and
+seed-specific retiling content. Metadata records the seed name, generation
+timestamp, generator version, source commit when available, numeric RNG seed,
+and catalog hashes for provenance. Catalog hashes do not select patching assets.
+
+### Saved seed format
+
+Save the complete seed as JSON compressed with Zstd, including
+`SeedRetilingData`. Settings files remain ordinary JSON. Serialization can write
+directly through a Zstd encoder, and `serde_json::from_reader` can deserialize
+from a buffered Zstd decoder without holding the entire decompressed JSON or an
+intermediate JSON value in memory. The decoded seed itself remains in memory.
+
+The seed has an integer `format_version`, starting at `1`, separate from the
+generator version. Increment it for meaningful interpretation changes: changes
+to field meanings or units, representation changes requiring conversion, or new
+essential content that cannot be reconstructed from older seed data. Also
+increment it when an older reader ignoring a new field would interpret the
+generated game incorrectly, even if the latest reader can default that field
+for older seeds.
+
+Do not increment it for compatible extensions such as informational metadata,
+optional fields, or fields whose omission has a well-defined default preserving
+old behavior. A rename handled by a deserialization alias needs no bump. Defaults
+must express what an older seed meant, rather than merely provide convenient
+values. For example, adding generation-duration metadata needs no bump; changing
+coordinates from pixels to tiles does.
+
+Document the meaning of each format version. The latest patcher retains support
+for earlier versions through defaults or migrations that preserve their meaning.
+
+Saved data describes the generated game, independently of any catalog version.
+Item placements identify locations by the authored `(room_id, item_id)` pair
+from `z3-json-data`, not a logic-catalog index or ROM address. These IDs are
+permanent: do not renumber existing locations or reuse removed IDs. `item_id`
+is the ID of the room's item entry, not its `itemLocation` logic node. Item
+identities also remain stable across releases. The current patch catalog maps
+location identities to patching instructions.
+
+ROM addresses, symbol addresses, and runtime asset allocation decisions belong
+to the current patcher and patch catalog, rather than the saved seed. A seed
+does not require a particular patcher version or the catalogs used to generate it.
 
 Conceptually, rearrangement can be considered part of the generation process, and it is possible that they are combined in a single binary. However, because of the likely language boundary (with rearrangement likely happening primarily in Python), it may be more convenient for them to be separate services. On the other hand, there is also a possibility of building an offline pool of rearrangements, which would eliminate the need for rearrangement as a generation-time service.
 
@@ -160,13 +221,36 @@ Conceptually, rearrangement can be considered part of the generation process, an
 
 ### Seed-specific retiling data
 
-As a preliminary step in patching, the full retiling catalog is reduced to a seed-specific `SeedRetilingData` object containing only the selected area variants and the palettes and tiles needed to patch that seed. It must retain sanitized vanilla-graphics references rather than expanding them. For the randomizer web service, `SeedRetilingData` is constructed on the server side and then transmitted to the client (alongside other data including the seed JSON and the IPS patches), allowing it to patch the ROM without receiving the entire retiling catalog. `SeedRetilingData` will be encoded using `bincode-next`, using the same envelope rules as the other binary-encoded data.
+During generation, reduce the retiling catalog to a `SeedRetilingData` object
+containing the selected layouts, palettes, tiles, and other required content.
+Save this content in the seed rather than references to entries in the original
+catalog. It retains sanitized vanilla-graphics references with stable meanings;
+the patcher resolves these from the player's ROM. Runtime palette and character
+slots and ROM storage are assigned during patching.
+
+For the web service, this data is prepared on the server and included in the
+Zstd-compressed seed JSON. The client needs neither the full retiling catalog nor
+the logic catalog. `SeedRetilingData` uses the saved seed format, not the
+catalogs' bincode envelope.
 
 ### Patcher
 
-The patcher is a Rust library for transforming a user-provided vanilla ROM into a randomized ROM based on a generated seed. Its core is a pure function that receives the ROM, IPS patches, symbol manifest, seed JSON, `SeedRetilingData`, and customization settings, and returns an output ROM. It has no filesystem, network, clock, or RNG dependency.
+The patcher is a Rust library for transforming a user-provided vanilla ROM into
+a randomized ROM. Its core is a pure function receiving the ROM, decoded seed,
+current patch catalog, and patch-time customization settings, and returning an
+output ROM. It has no filesystem, network, clock, or RNG dependency, and does
+not consume the logic or retiling catalogs.
 
-The patcher first validates the user ROM against a static checksum, copies it to a new output ROM buffer, and applies the stored IPS. It then resolves sanitized vanilla graphics references from the ROM and populates seed-specific assets and other data into locations specified in the symbol manifest. Finally, it updates the checksum and complement.
+The patcher validates the user ROM against a static checksum and copies it to
+an output buffer. It applies patches in their required phases, resolves vanilla
+graphics references, compiles the saved content into runtime assets, and writes
+item placements and other seed data using current location mappings and symbols.
+Finally, it updates the checksum and complement.
+
+Use the latest patcher and its matching patch catalog even for old seeds, so
+patching bug fixes and new customization options remain available. Compatibility
+is maintained by the current seed readers and patching implementation, rather
+than by selecting archived patchers or patch catalogs based on seed metadata.
 
 The native CLI calls the core function directly. A WebAssembly build exposes the same API to the TypeScript frontend, serializing the inputs to byte buffers. The behavior is identical in the native and WebAssembly builds.
 
@@ -174,7 +258,10 @@ The native CLI calls the core function directly. A WebAssembly build exposes the
 
 ### CLI
 
-The CLI is a native Rust binary built on the Rust library. Its seed-generation command accepts a settings JSON and the retiling and logic catalogs, then writes a seed JSON. Its patching command accepts customization settings, the seed JSON, the IPS patches, and a local verified ROM, then writes an output ROM locally.
+The CLI is a native Rust binary that invokes the generator, patcher, or both
+according to its arguments. Distributed binaries bundle default settings and
+catalogs. See [the CLI plan](cli.md) for arguments, output
+naming, and build behavior.
 
 ### Web backend
 
@@ -182,7 +269,12 @@ The web backend is a Rust service built on the Rust library. It loads the logic 
 
 ### Web frontend
 
-The web frontend is a TypeScript application that calls the backend JSON API to request generation and fetch stored seed data. It obtains the compatible WebAssembly package built from the Rust library, plus the IPS patches and seed-specific retiling data. It selects the player's ROM through a local file input, invokes the library's WebAssembly patching API in the browser, and offers the returned ROM bytes as a local download. The ROM and output exist only on the player's system.
+The web frontend is a TypeScript application that requests generation and fetches
+stored Zstd-compressed seeds. It obtains the latest WebAssembly patcher and its
+matching patch catalog, including when loading an old seed. It selects the
+player's ROM through a local file input, invokes the WebAssembly patching API,
+and offers the returned ROM bytes as a download. The ROM and output exist only
+on the player's system.
 
 ## Crate boundaries
 

@@ -8,7 +8,8 @@ Shared types derive `Serialize` and `Deserialize` in
 [`logic_catalog`](../crates/logic_catalog/src/lib.rs). Build the catalog with:
 
 ```sh
-cargo run -p build_logic_catalog -- ../z3-json-data /tmp/logic_catalog.bin
+mkdir -p build
+cargo run -p build_logic_catalog -- ../z3-json-data build/logic_catalog.bin
 ```
 
 The builder reads source room, item, helper, tech, enemy, and connection definitions. It writes
@@ -30,10 +31,11 @@ The initial catalog has three main flat lists:
   list; source overworld and underworld identities are retained in each room.
 - **Edges:** directed actions with a source, destination, conditions, and effects.
   Preserve parallel strats and self-loops.
-- **Item locations:** stable catalog identities, names, a single associated
-  vertex, and ROM addresses (an empty list for an unknown source address).
-  Overworld items reference the vertex
-  in their world. Collection actions reference the item-location identity;
+- **Item locations:** catalog indices, names, and a single associated vertex.
+  Retain the authored `(room_id, item_id)` pair as the stable identity for saved
+  placements. These IDs must not be renumbered or reused; `item_id` is the item
+  entry's ID, not its `itemLocation` node. Overworld items reference the vertex
+  in their world. Collection actions reference the item-location index;
   reaching the associated vertex does not automatically collect its item.
   Fixed events such as flute activation are not randomized item locations.
 
@@ -82,10 +84,17 @@ lists.
 
 Item-location identity is separate from item identity: generation decides which
 item, including which [door-specific key](keys.md), occupies it.
+Saved seeds use stable source identities rather than catalog indices. The
+current patch catalog maps those identities to patching instructions, so
+patching an old seed does not require its original logic catalog.
 
 Names and strat provenance are retained for diagnostics. Tech definitions retain
 their stable source IDs for player settings and their supported proficiency tiers.
-Item definitions retain names, receipt IDs, and dungeon-prize patch bytes.
+Item definitions retain names as stable item identities. The current catalog
+also stores location ROM addresses, receipt IDs, and dungeon-prize patch bytes;
+remove these patching fields as part of the planned boundary change. The patch
+builder extracts them directly from `z3-json-data`, without consuming the logic
+catalog. Both builders may share source-deserialization types.
 
 ## Boundary events
 
