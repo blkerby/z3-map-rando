@@ -17,7 +17,7 @@ enum Command {
         source_directory: PathBuf,
         output_catalog: PathBuf,
     },
-    /// Build a ROM-free retiling catalog from ALTTPRetiling.
+    /// Build a retiling catalog from ALTTPRetiling.
     Retiling {
         retiling_project: PathBuf,
         output_catalog: PathBuf,

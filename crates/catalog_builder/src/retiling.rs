@@ -311,11 +311,11 @@ pub fn build_catalog(
         theme_count += area.themes.len();
     }
     eprintln!(
-        "{}: {} palettes, {} areas, {theme_count} area themes, {vanilla_graphics} vanilla references, {custom_graphics} custom graphics, {} bytes",
+        "Wrote retiling catalog to {} ({} bytes)\n  {} palettes, {} areas, {theme_count} area themes, {vanilla_graphics} vanilla references, {custom_graphics} custom graphics",
         output_catalog.display(),
+        bytes.len(),
         catalog.palettes.len(),
         catalog.areas.len(),
-        bytes.len(),
     );
     Ok(())
 }

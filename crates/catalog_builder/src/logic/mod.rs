@@ -497,15 +497,15 @@ pub fn build_catalog(source_directory: &Path, output_catalog: &Path) -> Result<(
     let bytes = encode_catalog(&catalog)?;
     fs::write(output_catalog, &bytes)
         .with_context(|| format!("failed to write {}", output_catalog.display()))?;
-    println!(
-        "Wrote {} rooms, {} vertices, {} edges, {} item locations, and {} vanilla connections ({} bytes) to {}",
+    eprintln!(
+        "Wrote logic catalog to {} ({} bytes)\n  {} rooms, {} vertices, {} edges, {} item locations, {} vanilla connections",
+        output_catalog.display(),
+        bytes.len(),
         catalog.rooms.len(),
         catalog.vertices.len(),
         catalog.edges.len(),
         catalog.item_locations.len(),
         catalog.vanilla_connections.len(),
-        bytes.len(),
-        output_catalog.display()
     );
     Ok(())
 }
