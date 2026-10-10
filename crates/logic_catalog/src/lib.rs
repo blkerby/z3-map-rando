@@ -187,15 +187,9 @@ impl LogicCatalog {
 
 /// Authored room identity. Cave, dungeon, house, and special IDs share a namespace.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct SourceRoomId {
-    pub namespace: RoomNamespace,
-    pub id: u32,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum RoomNamespace {
-    Overworld,
-    Underworld,
+pub enum SourceRoomId {
+    Overworld(u32),
+    Underworld(u32),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -594,7 +588,7 @@ pub fn compute_schema_hash() -> Result<u64> {
         tracer.trace_simple_type::<LogicCatalog>()?;
         // Each enum must be traced explicitly to discover all of its variants,
         // including those not encountered while tracing the root's first variants.
-        tracer.trace_simple_type::<RoomNamespace>()?;
+        tracer.trace_simple_type::<SourceRoomId>()?;
         tracer.trace_simple_type::<RoomKind>()?;
         tracer.trace_simple_type::<World>()?;
         tracer.trace_simple_type::<VertexOrigin>()?;

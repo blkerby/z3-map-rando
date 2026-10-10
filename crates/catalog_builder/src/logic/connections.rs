@@ -28,14 +28,8 @@ pub fn build_connections(
                     overworld,
                     underworld,
                 } => {
-                    let outside = &room_indices[&SourceRoomId {
-                        namespace: RoomNamespace::Overworld,
-                        id: overworld.room_id,
-                    }];
-                    let inside = &room_indices[&SourceRoomId {
-                        namespace: RoomNamespace::Underworld,
-                        id: underworld.room_id,
-                    }];
+                    let outside = &room_indices[&SourceRoomId::Overworld(overworld.room_id)];
+                    let inside = &room_indices[&SourceRoomId::Underworld(underworld.room_id)];
                     Connection::Entrance {
                         kind: entrance_kind.unwrap(),
                         entrance_idx: outside.entrances
@@ -48,14 +42,8 @@ pub fn build_connections(
                     underworld,
                     overworld,
                 } => {
-                    let inside = &room_indices[&SourceRoomId {
-                        namespace: RoomNamespace::Underworld,
-                        id: underworld.room_id,
-                    }];
-                    let outside = &room_indices[&SourceRoomId {
-                        namespace: RoomNamespace::Overworld,
-                        id: overworld.room_id,
-                    }];
+                    let inside = &room_indices[&SourceRoomId::Underworld(underworld.room_id)];
+                    let outside = &room_indices[&SourceRoomId::Overworld(overworld.room_id)];
                     Connection::Teleport {
                         from_vertex_idx: inside.vertices[&(underworld.node_id, None)],
                         teleport_idx: outside.teleports
@@ -67,14 +55,8 @@ pub fn build_connections(
                     overworld,
                     overworld2,
                 } => {
-                    let first = &room_indices[&SourceRoomId {
-                        namespace: RoomNamespace::Overworld,
-                        id: overworld.room_id,
-                    }];
-                    let second = &room_indices[&SourceRoomId {
-                        namespace: RoomNamespace::Overworld,
-                        id: overworld2.room_id,
-                    }];
+                    let first = &room_indices[&SourceRoomId::Overworld(overworld.room_id)];
+                    let second = &room_indices[&SourceRoomId::Overworld(overworld2.room_id)];
                     Connection::Whirlpool {
                         endpoints: [
                             first.whirlpools[&(overworld.whirlpool_id, world.get_world())],

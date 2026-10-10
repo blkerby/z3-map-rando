@@ -1,0 +1,8 @@
+[package]
+name = "patch_catalog"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bincode-next = { version = "3.1.1", default-features = false, features = ["std", "derive"] }
+type_hash = "0.3.0"

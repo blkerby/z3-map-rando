@@ -198,12 +198,11 @@ pub fn build_catalog(
         source_rooms.push(read_source(&path)?);
     }
     source_rooms.sort_by_key(|room| {
-        let namespace = if room.room_type == RoomKind::Overworld {
-            RoomNamespace::Overworld
+        if room.room_type == RoomKind::Overworld {
+            SourceRoomId::Overworld(room.id)
         } else {
-            RoomNamespace::Underworld
-        };
-        (namespace, room.id)
+            SourceRoomId::Underworld(room.id)
+        }
     });
     let mut event_indices = BTreeMap::new();
     let mut entry_vertices = BTreeMap::new();
@@ -212,16 +211,13 @@ pub fn build_catalog(
     for source_room in source_rooms {
         let room_idx = RoomIndex(catalog.rooms.len() as u32);
         let overworld = source_room.room_type == RoomKind::Overworld;
-        let namespace = if overworld {
-            RoomNamespace::Overworld
+        let room_id = if overworld {
+            SourceRoomId::Overworld(source_room.id)
         } else {
-            RoomNamespace::Underworld
+            SourceRoomId::Underworld(source_room.id)
         };
         let mut room = Room {
-            room_id: SourceRoomId {
-                namespace,
-                id: source_room.id,
-            },
+            room_id,
             name: source_room.name.clone(),
             kind: source_room.room_type,
             position: source_room.position,
