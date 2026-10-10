@@ -1,10 +1,13 @@
 # General guidelines
 
 - If anything is unclear, please ask the user for clarification rather than guessing.
-- Interpret the Ponytail approach as aiming to minimize the complexity of the project after applying a change, not minimizing the complexity of a change itself.
-- Please apply the Ponytail approach to Markdown docs too: keep things as simple as possible.
-- Write each Markdown paragraph on a single source line without hard wrapping, including paragraphs in list items. Preserve structural line breaks in headings, lists, tables, and code blocks.
+- Avoid overengineering. Keep things as simple as possible.
+- Maintaining a clean design is more important than completing a task. If things get messy, stop and propose a refactor or alternative approach.
 - Ask for confirmation before diving into making changes, unless the exact desired code change is already clear from the user's request. This includes follow-up debugging after a reported regression: investigate and explain the likely cause first, but do not apply a speculative fix or design change until the user confirms that specific change.
+
+# Markdown guidelines
+
+- Write each Markdown paragraph on a single source line without hard wrapping, including paragraphs in list items. 
 
 # Rust style guidelines
 
