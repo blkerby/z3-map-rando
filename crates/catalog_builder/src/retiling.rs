@@ -10,8 +10,9 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::{
     collections::{BTreeMap, btree_map::Entry},
-    fmt::Write,
+    fmt::Write as _,
     fs,
+    io::{BufWriter, Write},
     path::{Path, PathBuf},
 };
 
@@ -127,6 +128,7 @@ pub fn build_catalog(
     retiling_project: &Path,
     output_catalog: &Path,
     tile_fingerprints: &Path,
+    compression_level: i32,
 ) -> Result<()> {
     let fingerprint_bytes = fs::read(tile_fingerprints)
         .with_context(|| format!("failed to read {}", tile_fingerprints.display()))?;
@@ -283,9 +285,12 @@ pub fn build_catalog(
         });
     }
 
-    let bytes = encode_catalog(&catalog)?;
-    fs::write(output_catalog, &bytes)
+    let file = fs::File::create(output_catalog)
         .with_context(|| format!("failed to write {}", output_catalog.display()))?;
+    let mut output = BufWriter::new(file);
+    encode_catalog(&catalog, &mut output, compression_level)?;
+    output.flush()?;
+    let bytes_len = output.get_ref().metadata()?.len();
     let mut vanilla_graphics = 0;
     let mut custom_graphics = 0;
     for palette in catalog.palettes.values() {
@@ -313,7 +318,7 @@ pub fn build_catalog(
     eprintln!(
         "Wrote retiling catalog to {} ({} bytes)\n  {} palettes, {} areas, {theme_count} area themes, {vanilla_graphics} vanilla references, {custom_graphics} custom graphics",
         output_catalog.display(),
-        bytes.len(),
+        bytes_len,
         catalog.palettes.len(),
         catalog.areas.len(),
     );

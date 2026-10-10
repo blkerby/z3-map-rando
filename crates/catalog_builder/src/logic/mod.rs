@@ -9,6 +9,7 @@ use serde::de::DeserializeOwned;
 use std::{
     collections::BTreeMap,
     fs,
+    io::{BufWriter, Write},
     path::{Path, PathBuf},
 };
 
@@ -94,7 +95,11 @@ fn add_event_vertex(
 }
 
 /// Compile z3-json-data and write the encoded logic catalog.
-pub fn build_catalog(source_directory: &Path, output_catalog: &Path) -> Result<()> {
+pub fn build_catalog(
+    source_directory: &Path,
+    output_catalog: &Path,
+    compression_level: i32,
+) -> Result<()> {
     let mut catalog = LogicCatalog {
         vertices: Vec::new(),
         vertex_metadata: Vec::new(),
@@ -494,13 +499,16 @@ pub fn build_catalog(source_directory: &Path, output_catalog: &Path) -> Result<(
         catalog.rooms.push(room);
     }
     connections::build_connections(source_directory, &room_indices, &mut catalog)?;
-    let bytes = encode_catalog(&catalog)?;
-    fs::write(output_catalog, &bytes)
+    let file = fs::File::create(output_catalog)
         .with_context(|| format!("failed to write {}", output_catalog.display()))?;
+    let mut output = BufWriter::new(file);
+    encode_catalog(&catalog, &mut output, compression_level)?;
+    output.flush()?;
+    let bytes_len = output.get_ref().metadata()?.len();
     eprintln!(
         "Wrote logic catalog to {} ({} bytes)\n  {} rooms, {} vertices, {} edges, {} item locations, {} vanilla connections",
         output_catalog.display(),
-        bytes.len(),
+        bytes_len,
         catalog.rooms.len(),
         catalog.vertices.len(),
         catalog.edges.len(),

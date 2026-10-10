@@ -4,35 +4,50 @@
 use anyhow::{Result, ensure};
 use bincode_next::{Decode, Encode};
 use serde::Deserialize;
-use std::{collections::BTreeMap, io::Read};
+use std::{
+    collections::BTreeMap,
+    io::{BufReader, BufWriter, Read, Write},
+};
 use type_hash::TypeHash;
 
 const CATALOG_MAGIC: [u8; 8] = *b"Z3RETILE";
 const CATALOG_CONFIG: bincode_next::config::Configuration = bincode_next::config::standard();
 
-/// Encode the magic bytes, little-endian root type hash, and bincode payload.
-pub fn encode_catalog(catalog: &RetilingCatalog) -> Result<Vec<u8>> {
-    let mut bytes = CATALOG_MAGIC.to_vec();
-    bytes.extend_from_slice(&RetilingCatalog::type_hash().to_le_bytes());
-    bytes.extend(bincode_next::encode_to_vec(catalog, CATALOG_CONFIG)?);
-    Ok(bytes)
+/// Write the uncompressed envelope followed by a Zstd-compressed bincode payload.
+pub fn encode_catalog(
+    catalog: &RetilingCatalog,
+    mut writer: impl Write,
+    compression_level: i32,
+) -> Result<()> {
+    writer.write_all(&CATALOG_MAGIC)?;
+    writer.write_all(&RetilingCatalog::type_hash().to_le_bytes())?;
+    let mut encoder = zstd::stream::write::Encoder::new(writer, compression_level)?;
+    {
+        let mut buffered = BufWriter::new(&mut encoder);
+        bincode_next::encode_into_std_write(catalog, &mut buffered, CATALOG_CONFIG)?;
+        buffered.flush()?;
+    }
+    encoder.finish()?;
+    Ok(())
 }
 
-/// Check the envelope before decoding the catalog payload.
-pub fn decode_catalog(mut bytes: &[u8]) -> Result<RetilingCatalog> {
+/// Check the envelope, then stream the compressed payload into the catalog.
+pub fn decode_catalog(mut reader: impl Read) -> Result<RetilingCatalog> {
     let mut magic = [0; 8];
-    bytes.read_exact(&mut magic)?;
+    reader.read_exact(&mut magic)?;
     ensure!(
         magic == CATALOG_MAGIC,
         "invalid retiling catalog magic bytes"
     );
     let mut hash = [0; 8];
-    bytes.read_exact(&mut hash)?;
+    reader.read_exact(&mut hash)?;
     ensure!(
         u64::from_le_bytes(hash) == RetilingCatalog::type_hash(),
         "retiling catalog type hash mismatch; rebuild the catalog with this version"
     );
-    let (catalog, _) = bincode_next::decode_from_slice(bytes, CATALOG_CONFIG)?;
+    let decoder = zstd::stream::read::Decoder::new(reader)?;
+    let mut buffered = BufReader::new(decoder);
+    let catalog = bincode_next::decode_from_std_read(&mut buffered, CATALOG_CONFIG)?;
     Ok(catalog)
 }
 

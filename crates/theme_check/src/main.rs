@@ -62,7 +62,7 @@ enum TransitionAssetPhase {
 fn main() -> Result<()> {
     let args = Args::parse();
     let catalog = retiling_catalog::decode_catalog(
-        &fs::read(&args.retiling_catalog)
+        fs::File::open(&args.retiling_catalog)
             .with_context(|| format!("failed to read {}", args.retiling_catalog.display()))?,
     )?;
     let mut rom = read_vanilla_rom(&args.input_rom)?;

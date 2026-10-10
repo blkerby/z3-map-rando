@@ -4,18 +4,41 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_reflection::{Tracer, TracerConfig};
 use sha2::{Digest, Sha256};
+use std::io::{BufReader, BufWriter, Read, Write};
 
 const CATALOG_MAGIC: [u8; 8] = *b"Z3LOGIC\0";
 
-/// Encode the magic bytes, little-endian schema hash, and Serde bincode payload.
-pub fn encode_catalog(catalog: &LogicCatalog) -> Result<Vec<u8>> {
-    let mut bytes = CATALOG_MAGIC.to_vec();
-    bytes.extend_from_slice(&compute_schema_hash()?.to_le_bytes());
-    bytes.extend(bincode_next::serde::encode_to_vec(
-        catalog,
-        bincode_next::config::standard(),
-    )?);
-    Ok(bytes)
+/// Write the uncompressed envelope followed by a Zstd-compressed Serde bincode payload.
+pub fn encode_catalog(
+    catalog: &LogicCatalog,
+    mut writer: impl Write,
+    compression_level: i32,
+) -> Result<()> {
+    writer.write_all(&CATALOG_MAGIC)?;
+    writer.write_all(&compute_schema_hash()?.to_le_bytes())?;
+    let mut encoder = zstd::stream::write::Encoder::new(writer, compression_level)?;
+    {
+        let mut buffered = BufWriter::new(&mut encoder);
+        bincode_next::serde::encode_into_std_write(
+            catalog,
+            &mut buffered,
+            bincode_next::config::standard(),
+        )?;
+        buffered.flush()?;
+    }
+    encoder.finish()?;
+    Ok(())
+}
+
+/// Read the envelope, then stream the compressed payload into the catalog.
+pub fn decode_catalog(mut reader: impl Read) -> Result<LogicCatalog> {
+    let mut envelope = [0; 16];
+    reader.read_exact(&mut envelope)?;
+    let decoder = zstd::stream::read::Decoder::new(reader)?;
+    let mut buffered = BufReader::new(decoder);
+    let catalog =
+        bincode_next::serde::decode_from_std_read(&mut buffered, bincode_next::config::standard())?;
+    Ok(catalog)
 }
 
 /// Index into `LogicCatalog::vertices` and `LogicCatalog::vertex_metadata`.

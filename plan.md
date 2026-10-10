@@ -21,7 +21,7 @@ cargo run -p catalog_builder -- all
 
 Implemented: one builder CLI can build either existing catalog or both, with shared library modules available to other callers. Individual subcommands preserve the existing positional source/output arguments. `all` accepts `--logic-source`, `--retiling-source`, `--output-directory`, and `--tile-fingerprints`; defaults are relative to the working directory until step 5 adds shared configuration.
 
-## 2. Compress catalog payloads
+## 2. Compress catalog payloads (implemented)
 
 Keep the magic bytes and 64-bit schema identifier uncompressed, and encode the bincode payload through Zstd. Add streaming writer and reader APIs so serialization and deserialization do not require a complete uncompressed payload buffer. Update catalog consumers to read the compressed format; the future patch catalog uses the same convention.
 
@@ -29,7 +29,7 @@ Add `--compression-level` to the builder CLI for `logic`, `retiling`, and `all`,
 
 Shared configuration and caching in step 5 will incorporate the compression option. Keep all generated artifacts in `build/`; changing the level regenerates compressed catalog outputs without rebuilding Asar or reassembling unchanged patches.
 
-Result: catalogs are smaller on disk and in bundled binaries, with inexpensive default compression and streaming decoding.
+Implemented: logic and retiling catalogs have streaming writer/reader APIs and Zstd-compressed payloads. The builder supports a global `--compression-level` option before or after any subcommand, defaulting to `3`. `theme_check` reads the compressed catalog directly from a file stream. No legacy format reader is retained.
 
 ## 3. Add cached ASM assembly
 

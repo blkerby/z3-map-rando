@@ -1,13 +1,13 @@
 # Logic catalog
 
-The builder compiles `z3-json-data` into a compact binary catalog for generation. It does not place items or implement traversal. Use the catalog envelope described in [the architecture plan](README.md#catalog-format): magic bytes, root schema hash, and a `bincode-next` payload encoded and decoded through its Serde API. Shared types derive `Serialize` and `Deserialize` in [`logic_catalog`](../crates/logic_catalog/src/lib.rs). Build the catalog with:
+The builder compiles `z3-json-data` into a compact binary catalog for generation. It does not place items or implement traversal. Use the catalog envelope described in [the architecture plan](README.md#catalog-format): uncompressed magic bytes and root schema hash, followed by a Zstd-compressed `bincode-next` payload encoded and decoded through its streaming Serde API. Shared types derive `Serialize` and `Deserialize` in [`logic_catalog`](../crates/logic_catalog/src/lib.rs). Build the catalog with:
 
 ```sh
 mkdir -p build
 cargo run -p catalog_builder -- logic ../z3-json-data build/logic_catalog.bin
 ```
 
-The builder reads source room, item, helper, tech, enemy, and connection definitions. It writes `Z3LOGIC\0`, the little-endian schema hash, and the Serde bincode payload. Room indices follow source namespace and ID order; definitions retain source order.
+The builder reads source room, item, helper, tech, enemy, and connection definitions. It writes `Z3LOGIC\0`, the little-endian schema hash, and the compressed Serde bincode payload. Room indices follow source namespace and ID order; definitions retain source order. Compression defaults to Zstd level `3`, with a `--compression-level` override.
 
 `compute_schema_hash` traces the root and each enum with `serde-reflection`, then hashes the ordered schema registry. Recursive requirements use named references; enum changes need neither explicit discriminants nor representation attributes.
 

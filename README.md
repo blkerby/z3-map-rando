@@ -55,6 +55,12 @@ cargo run -p catalog_builder -- all
 
 Use `--logic-source`, `--retiling-source`, `--output-directory`, or `--tile-fingerprints` with `all` to override its working-directory-relative defaults. The `logic` and `retiling` subcommands accept positional source and output paths.
 
+Catalog payloads use Zstd compression, defaulting to level `3` for every Cargo profile. All builder subcommands accept `--compression-level`; use level `18` when prioritizing smaller release artifacts. Rebuild existing uncompressed catalogs with the current builder.
+
+```sh
+cargo run -p catalog_builder -- all --compression-level 18
+```
+
 # How to build the tile fingerprint index
 
 The fingerprint index helps the catalog builder recognize graphics from the original game and store references to them. The index contains no artwork and allows the catalog to be built without a ROM.
