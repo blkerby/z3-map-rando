@@ -4,13 +4,13 @@ use logic_catalog::{
     Ammo, Equipment, FlagIndex, Follower, ItemIndex, PrizeKind, Requirement, Resource, TechIndex,
 };
 
-use super::{RoomIndices, source};
+use super::{RoomIndices, z3_json_data};
 
 pub struct Compiler {
     pub items: BTreeMap<String, ItemIndex>,
     pub flags: BTreeMap<String, FlagIndex>,
-    pub helpers: BTreeMap<String, source::Helper>,
-    pub techs: BTreeMap<String, (TechIndex, source::Tech)>,
+    pub helpers: BTreeMap<String, z3_json_data::Helper>,
+    pub techs: BTreeMap<String, (TechIndex, z3_json_data::Tech)>,
     pub damage: BTreeMap<String, [u32; 3]>,
 }
 
@@ -34,7 +34,7 @@ pub fn compose_requirements(requirements: Vec<Requirement>) -> Requirement {
 impl Compiler {
     pub fn compile_requirements(
         &self,
-        source: &[source::Requirement],
+        source: &[z3_json_data::Requirement],
         room: &RoomIndices,
     ) -> Requirement {
         let mut requirements = Vec::new();
@@ -59,10 +59,14 @@ impl Compiler {
         ]))
     }
 
-    fn compile_requirement(&self, source: &source::Requirement, room: &RoomIndices) -> Requirement {
-        use source::Operation as Op;
+    fn compile_requirement(
+        &self,
+        source: &z3_json_data::Requirement,
+        room: &RoomIndices,
+    ) -> Requirement {
+        use z3_json_data::Operation as Op;
         let operation = match source {
-            source::Requirement::Named(name) => {
+            z3_json_data::Requirement::Named(name) => {
                 match name.as_str() {
                     "free" | "h_MothulaVulnerableToGoldSword" => return Requirement::Free,
                     "never" => return Requirement::Never,
@@ -80,7 +84,7 @@ impl Compiler {
                 }
                 return Requirement::Item(self.items[name]);
             }
-            source::Requirement::Operation(operation) => operation,
+            z3_json_data::Requirement::Operation(operation) => operation,
         };
         match operation {
             Op::And(children) => self.compile_requirements(children, room),

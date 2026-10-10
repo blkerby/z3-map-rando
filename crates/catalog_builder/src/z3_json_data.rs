@@ -1,5 +1,31 @@
+use anyhow::{Context, Result};
 use logic_catalog::{Direction, NodeType, ProficiencyTier, RoomKind, World};
-use serde::Deserialize;
+use serde::{Deserialize, de::DeserializeOwned};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+
+pub fn read_source<T: DeserializeOwned>(path: &Path) -> Result<T> {
+    let bytes = fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
+    serde_json::from_slice(&bytes).with_context(|| format!("failed to parse {}", path.display()))
+}
+
+pub fn collect_source_files(directory: &Path, paths: &mut Vec<PathBuf>) -> Result<()> {
+    for entry in fs::read_dir(directory)? {
+        let entry = entry?;
+        let path = entry.path();
+        if entry.file_type()?.is_dir() {
+            collect_source_files(&path, paths)?;
+        } else if path
+            .extension()
+            .is_some_and(|extension| extension == "json")
+        {
+            paths.push(path);
+        }
+    }
+    Ok(())
+}
 
 #[derive(Deserialize)]
 pub struct Connections {

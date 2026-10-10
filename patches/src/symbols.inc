@@ -1,24 +1,24 @@
 ; Interface shared by independently assembled patches.
 
 ; Define an ASM symbol and expose its numeric value to the Rust catalog builder.
-macro export_symbol(name, value)
-    !<name> = <value>
-    export_<name> = <value>
+macro export_symbol(internal_name, exported_name, value)
+    !<internal_name> = <value>
+    export_<exported_name> = <value>
 endmacro
 
 ; Four 16-bit 8x8 tilemap words make up each Map16 definition. Each table
 ; stores one quadrant, indexed by twice the Map16 ID.
-%export_symbol(Map16TopLeft, $A18000)
-%export_symbol(Map16TopRight, $A28000)
-%export_symbol(Map16BottomLeft, $A38000)
-%export_symbol(Map16BottomRight, $A48000)
+%export_symbol(Map16TopLeft, map16_top_left, $A18000)
+%export_symbol(Map16TopRight, map16_top_right, $A28000)
+%export_symbol(Map16BottomLeft, map16_bottom_left, $A38000)
+%export_symbol(Map16BottomRight, map16_bottom_right, $A48000)
 
 ; One property byte per Map16 ID and quadrant. The independent-property patch
 ; populates these tables from the generated Map16 definitions.
-%export_symbol(Map16PropertyTopLeft, $A58000)
-%export_symbol(Map16PropertyTopRight, $A5C000)
-%export_symbol(Map16PropertyBottomLeft, $A68000)
-%export_symbol(Map16PropertyBottomRight, $A6C000)
+%export_symbol(Map16PropertyTopLeft, map16_property_top_left, $A58000)
+%export_symbol(Map16PropertyTopRight, map16_property_top_right, $A5C000)
+%export_symbol(Map16PropertyBottomLeft, map16_property_bottom_left, $A68000)
+%export_symbol(Map16PropertyBottomRight, map16_property_bottom_right, $A6C000)
 
 ; Selects the property for the Map16 ID in A using the contacted quadrant from
 ; $00/$02. Returns the property in A with 8-bit accumulator and index registers.
@@ -27,15 +27,15 @@ endmacro
 
 ; Twenty-two little-endian 24-bit pointers to generated dynamic-tile groups,
 ; indexed by the stable replacement-type order in theme_check.
-%export_symbol(DynamicTileGroupPointers, $A78300)
+%export_symbol(DynamicTileGroupPointers, dynamic_tile_group_pointers, $A78300)
 
 ; Five little-endian 24-bit pointers to generated dungeon-entrance cutscene
 ; scripts, indexed by the vanilla trigger value minus one.
-%export_symbol(CutscenePointers, $A78342)
+%export_symbol(CutscenePointers, cutscene_pointers, $A78342)
 
 ; One little-endian 24-bit persistent event-overlay pointer per overworld area.
 ; A zero pointer means the area has no generated overlay.
-%export_symbol(OverworldOverlayPointers, $A78351)
+%export_symbol(OverworldOverlayPointers, overworld_overlay_pointers, $A78351)
 
 ; Opens a generated wooden door at the contacted Map16 offset in X.
 ; Carry set means a door was opened and entrance handling should stop.

@@ -1,16 +1,15 @@
 mod connections;
 mod requirements;
-mod source;
 
+use crate::z3_json_data::{self, collect_source_files, read_source};
 use anyhow::{Context, Result};
 use logic_catalog::*;
 use requirements::{Compiler, compose_requirements};
-use serde::de::DeserializeOwned;
 use std::{
     collections::BTreeMap,
     fs,
     io::{BufWriter, Write},
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 #[derive(Default)]
@@ -24,28 +23,11 @@ struct RoomIndices {
     obstacles: BTreeMap<String, ObstacleIndex>,
 }
 
-fn read_source<T: DeserializeOwned>(path: &Path) -> Result<T> {
-    let bytes = fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
-    serde_json::from_slice(&bytes).with_context(|| format!("failed to parse {}", path.display()))
-}
-
-fn collect_source_files(directory: &Path, paths: &mut Vec<PathBuf>) -> Result<()> {
-    for entry in fs::read_dir(directory)? {
-        let entry = entry?;
-        let path = entry.path();
-        if entry.file_type()?.is_dir() {
-            collect_source_files(&path, paths)?;
-        } else if path
-            .extension()
-            .is_some_and(|extension| extension == "json")
-        {
-            paths.push(path);
-        }
-    }
-    Ok(())
-}
-
-fn collect_techs(techs: Vec<source::Tech>, catalog: &mut LogicCatalog, compiler: &mut Compiler) {
+fn collect_techs(
+    techs: Vec<z3_json_data::Tech>,
+    catalog: &mut LogicCatalog,
+    compiler: &mut Compiler,
+) {
     for mut tech in techs {
         let extensions = std::mem::take(&mut tech.extension_techs);
         let tech_idx = TechIndex(catalog.techs.len() as u32);
@@ -129,7 +111,7 @@ pub fn build_catalog(
         techs: BTreeMap::new(),
         damage: BTreeMap::new(),
     };
-    let items: source::Items = read_source(&source_directory.join("items.json"))?;
+    let items: z3_json_data::Items = read_source(&source_directory.join("items.json"))?;
     for category in [
         items.inventory,
         items.refills,
@@ -165,11 +147,11 @@ pub fn build_catalog(
         compiler.flags.insert(name.clone(), flag_idx);
         catalog.flags.push(name);
     }
-    let helpers: Vec<source::Helper> = read_source(&source_directory.join("helpers.json"))?;
+    let helpers: Vec<z3_json_data::Helper> = read_source(&source_directory.join("helpers.json"))?;
     for helper in helpers {
         compiler.helpers.insert(helper.name.clone(), helper);
     }
-    let techs: source::Techs = read_source(&source_directory.join("tech.json"))?;
+    let techs: z3_json_data::Techs = read_source(&source_directory.join("tech.json"))?;
     for category in techs.tech_categories {
         collect_techs(category.techs, &mut catalog, &mut compiler);
     }
@@ -177,7 +159,7 @@ pub fn build_catalog(
     collect_source_files(&source_directory.join("enemies"), &mut enemy_paths)?;
     enemy_paths.sort();
     for path in enemy_paths {
-        let enemies: source::Enemies = read_source(&path)?;
+        let enemies: z3_json_data::Enemies = read_source(&path)?;
         for enemy in enemies.enemies {
             let damage = [
                 enemy.dmg_to_link.green,
@@ -193,7 +175,7 @@ pub fn build_catalog(
     let mut paths = Vec::new();
     collect_source_files(&source_directory.join("rooms"), &mut paths)?;
     paths.sort();
-    let mut source_rooms: Vec<source::Room> = Vec::new();
+    let mut source_rooms: Vec<z3_json_data::Room> = Vec::new();
     for path in paths {
         source_rooms.push(read_source(&path)?);
     }
@@ -239,12 +221,14 @@ pub fn build_catalog(
             room.nodes.push(NodeMetadata {
                 node_id: node.id,
                 name: node.name.clone(),
-                node_type: node.node_type.map(source::SourceNodeType::get_node_type),
+                node_type: node
+                    .node_type
+                    .map(z3_json_data::SourceNodeType::get_node_type),
             });
             let worlds: &[Option<World>] = match node.world {
-                Some(source::NodeWorld::Light) => &[Some(World::Light)],
-                Some(source::NodeWorld::Dark) => &[Some(World::Dark)],
-                Some(source::NodeWorld::Both) => &[Some(World::Light), Some(World::Dark)],
+                Some(z3_json_data::NodeWorld::Light) => &[Some(World::Light)],
+                Some(z3_json_data::NodeWorld::Dark) => &[Some(World::Dark)],
+                Some(z3_json_data::NodeWorld::Both) => &[Some(World::Light), Some(World::Dark)],
                 None => &[None],
             };
             for &world in worlds {
@@ -274,7 +258,7 @@ pub fn build_catalog(
                 }
                 for transition in &node.transitions {
                     if transition.world.is_none()
-                        || transition.world.map(source::SourceWorld::get_world) == world
+                        || transition.world.map(z3_json_data::SourceWorld::get_world) == world
                     {
                         catalog.screen_boundaries.push(ScreenBoundary {
                             vertex_idx,
@@ -332,8 +316,8 @@ pub fn build_catalog(
                 .items
                 .insert(item.id, Effect::CollectItem(item_location_idx));
             let addresses = match &item.item_address {
-                source::Addresses::One(address) => std::slice::from_ref(address),
-                source::Addresses::Many(addresses) => addresses.as_slice(),
+                z3_json_data::Addresses::One(address) => std::slice::from_ref(address),
+                z3_json_data::Addresses::Many(addresses) => addresses.as_slice(),
             };
             let mut rom_addresses = Vec::new();
             for address in addresses {
@@ -345,7 +329,7 @@ pub fn build_catalog(
                 name: format!("{} - {}", source_room.name, item.location_name),
                 vertex_idx: indices.vertices[&(
                     item.item_location,
-                    item.world.map(source::SourceWorld::get_world),
+                    item.world.map(z3_json_data::SourceWorld::get_world),
                 )],
                 rom_addresses,
             });
@@ -354,18 +338,18 @@ pub fn build_catalog(
             let door_idx = DoorIndex(catalog.doors.len() as u32);
             indices.doors.insert(door.id, door_idx);
             let lock = match door.key_type {
-                source::KeyType::Small => LockKind::SmallKey,
-                source::KeyType::Big => LockKind::BigKey,
-                source::KeyType::Bomb => LockKind::Bomb,
-                source::KeyType::BombOrBoots => LockKind::BombOrBoots,
-                source::KeyType::Boots => LockKind::Boots,
-                source::KeyType::Glove => LockKind::Glove,
+                z3_json_data::KeyType::Small => LockKind::SmallKey,
+                z3_json_data::KeyType::Big => LockKind::BigKey,
+                z3_json_data::KeyType::Bomb => LockKind::Bomb,
+                z3_json_data::KeyType::BombOrBoots => LockKind::BombOrBoots,
+                z3_json_data::KeyType::Boots => LockKind::Boots,
+                z3_json_data::KeyType::Glove => LockKind::Glove,
             };
             catalog.doors.push(Door {
                 room_idx,
                 door_id: door.id,
                 name: door.location_name.clone(),
-                world: door.world.map(source::SourceWorld::get_world),
+                world: door.world.map(z3_json_data::SourceWorld::get_world),
                 lock,
             });
         }
@@ -377,13 +361,15 @@ pub fn build_catalog(
             } else if let Some(from_world) = strat.from_world {
                 vec![(
                     Some(from_world.get_world()),
-                    strat.to_world.map(source::SourceWorld::get_world),
+                    strat.to_world.map(z3_json_data::SourceWorld::get_world),
                 )]
             } else {
                 match strat.world.unwrap() {
-                    source::StratWorld::Light => vec![(Some(World::Light), Some(World::Light))],
-                    source::StratWorld::Dark => vec![(Some(World::Dark), Some(World::Dark))],
-                    source::StratWorld::Any => {
+                    z3_json_data::StratWorld::Light => {
+                        vec![(Some(World::Light), Some(World::Light))]
+                    }
+                    z3_json_data::StratWorld::Dark => vec![(Some(World::Dark), Some(World::Dark))],
+                    z3_json_data::StratWorld::Any => {
                         let mut pairs = Vec::new();
                         for world in [Some(World::Light), Some(World::Dark)] {
                             if indices.vertices.contains_key(&(strat.link[0], world))
@@ -458,8 +444,8 @@ pub fn build_catalog(
                     }
                 }
                 let bunny_requirement = match strat.is_bunny {
-                    source::Bunny::Yes => Requirement::Never,
-                    source::Bunny::No if from_world == Some(World::Dark) => {
+                    z3_json_data::Bunny::Yes => Requirement::Never,
+                    z3_json_data::Bunny::No if from_world == Some(World::Dark) => {
                         Requirement::Item(compiler.items["MoonPearl"])
                     }
                     _ => Requirement::Free,
@@ -479,7 +465,7 @@ pub fn build_catalog(
             }
         }
         for node in &source_room.nodes {
-            if matches!(node.world, Some(source::NodeWorld::Both)) {
+            if matches!(node.world, Some(z3_json_data::NodeWorld::Both)) {
                 catalog.edges.push(Edge {
                     from_vertex_idx: indices.vertices[&(node.id, Some(World::Dark))],
                     to_vertex_idx: indices.vertices[&(node.id, Some(World::Light))],

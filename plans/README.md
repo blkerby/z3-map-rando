@@ -27,7 +27,7 @@ The catalog builders run offline and produce these artifacts under `build/`:
 2. **Logic builder:** This consumes `z3-json-data` and emits a compact binary file (the "logic catalog"). See [the logic catalog plan](logic.md).
 3. **Patch builder:** This bundles named IPS patches and their matching symbol manifest, plus stable location mappings, ROM addresses, item receipt IDs, and prize encodings extracted directly from `z3-json-data`. It does not read the logic catalog. Individual IPS patches remain separate; patcher code controls their application. See [the patch plan](patches.md).
 
-The output paths are `build/retiling_catalog.bin`, `build/logic_catalog.bin`, and `build/patch_catalog.bin`. This directory is ignored by Git; checked-in inputs remain under `data/`. Catalogs survive `cargo clean`, which removes Cargo artifacts under `target/`. The patch catalog builder is planned work.
+The output paths are `build/retiling_catalog.bin`, `build/logic_catalog.bin`, and `build/patch_catalog.bin`. This directory is ignored by Git; checked-in inputs remain under `data/`. Catalogs survive `cargo clean`, which removes Cargo artifacts under `target/`. `catalog_builder all` builds all three catalogs; `patches` builds the patch catalog alone, reusing cached IPS and symbol artifacts.
 
 ### Catalog format
 
@@ -36,7 +36,7 @@ The catalogs use a Zstd-compressed `bincode-next` payload following a 16-byte un
 - Magic bytes to identify the format.
 - A 64-bit schema identifier for the payload's root Rust type.
 
-The retiling catalog currently uses `type_hash`. The logic catalog uses `serde-reflection` to describe its complete schema, including recursive types and enum names, tags, and payloads. Its identifier is the first eight SHA-256 bytes of that registry encoded with the standard bincode configuration, interpreted as a little-endian `u64`.
+The retiling and patch catalogs use `type_hash`. The logic catalog uses `serde-reflection` to describe its complete schema, including recursive types and enum names, tags, and payloads. Its identifier is the first eight SHA-256 bytes of that registry encoded with the standard bincode configuration, interpreted as a little-endian `u64`.
 
 The catalog APIs stream encoding through a buffered Zstd encoder and decoding through a buffered Zstd decoder, without buffering the entire uncompressed payload. The builder accepts `--compression-level`, defaulting to `3` independently of Cargo profile; future CI release builds can explicitly use `18`. Changing compression does not change the decoded data or schema identifier. Prototype format changes require rebuilding catalogs, without legacy readers.
 

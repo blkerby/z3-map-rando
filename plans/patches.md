@@ -1,28 +1,30 @@
 # ASM patches
 
-Each `.asm` file is assembled into an independent IPS patch. Keeping the patches independent preserves conflict detection when they are applied on the Rust side. `fastrom_base.ips` is exceptional as a base transformation which is applied first; other patches may overwrite its changes without triggering conflicts.
+Each patch `.asm` file is assembled into an independent IPS patch; `symbols.asm` is the separate symbol-export entry point. Keeping the patches independent preserves conflict detection when they are applied on the Rust side. `fastrom_base.ips` is exceptional as a base transformation which is applied first; other patches may overwrite its changes without triggering conflicts.
 
 `symbols.inc` defines common symbols and interfaces shared by otherwise independent patches.
 
 ## Patch catalog
 
-A planned build step bundles the individual IPS patches into `build/patch_catalog.bin`, together with the matching symbol manifest and item/location patching data extracted directly from `z3-json-data`. Keep individual patches separate inside the catalog to preserve conflict detection and support optional patches and the initial `fastrom_base` transformation.
+`catalog_builder patches` bundles the individual IPS patches into `build/patch_catalog.bin`, together with the matching symbol manifest and item/location patching data extracted directly from `z3-json-data`. `all` includes this operation alongside logic and retiling catalog builds. Individual patches remain separate inside the catalog to preserve conflict detection and support optional patches and the initial `fastrom_base` transformation.
 
-Application order, phases, and optional patch selection belong in patcher code, not catalog records. The patch builder reads the logic source data directly to extract stable `(room_id, item_id)` location mappings, ROM addresses, item receipt IDs, and prize encodings. It does not consume the logic catalog. Builder modules can share source-deserialization types in `catalog_builder`.
+Application order, phases, and optional patch selection belong in patcher code, not catalog records. The patch builder reads `rooms/` and `items.json` directly to extract stable `(room_id, item_id)` location mappings, ROM addresses, item receipt IDs, and prize encodings. It does not consume the logic catalog. Builder modules share source-deserialization types and file readers in `catalog_builder::source`. Unknown addresses produce empty offset lists; dungeon-prize offsets and bytes retain their authored order. The fixed flute-activation event is not a placement location.
 
-Use the [catalog envelope](README.md#catalog-format) and bincode payload. The CLI embeds this single artifact or accepts `--patch-catalog <PATH>`; the browser obtains it alongside the matching current WebAssembly patcher.
+`PatchCatalog.patches` is a plain `PatchIps` struct, with one `Vec<u8>` field per patch named after its ASM filename stem. During building, Serde deserializes the filename/payload entries directly into this struct through in-memory map and sequence adapters. Required fields and `deny_unknown_fields` reject missing or extra patches. Adding or renaming a patch requires updating the struct; optional application stays in patcher code.
+
+The runtime `patch_catalog` crate provides streaming writer and reader APIs using the [catalog envelope](README.md#catalog-format) and Zstd-compressed bincode payload. Packaging publishes the completed file through a temporary file. IPS bytes and symbols are read under the assembly cache lock so the catalog receives a consistent snapshot. CLI embedding and `--patch-catalog <PATH>` support remain planned; the browser will obtain the artifact alongside the matching current WebAssembly patcher.
 
 Always patch saved seeds with the latest patcher and its matching patch catalog, so bug fixes and new patch-time customization options apply to old seeds too. Saved seeds describe game content using stable identities, not patch addresses or symbols, and do not require a particular patch catalog version. The current patcher supports older seed formats through defaults or migrations.
 
 ### Symbol manifest
 
-`patches/src/symbols.inc` defines the shared ASM interface. Use `%export_symbol(Name, $Value)` for symbols consumed by Rust; this defines both `!Name` for ASM and the assigned label `export_Name` for Asar's symbol output. Symbols shared only between ASM files retain ordinary `!Name = $Value` definitions. Routine labels and their address anchors need no extra export labels.
+`patches/src/symbols.inc` defines the shared ASM interface. Use `%export_symbol(InternalName, exported_name, $Value)` for symbols consumed by Rust; this defines both `!InternalName` for ASM and the assigned label `export_exported_name` for Asar's symbol output. The exported name matches its Rust field directly, for example `%export_symbol(Map16TopLeft, map16_top_left, $A18000)`. Symbols shared only between ASM files retain ordinary `!Name = $Value` definitions. Routine labels and their address anchors need no extra export labels.
 
 `patches/src/symbols.asm` includes the interface and is assembled independently with `--symbols=nocash`. It produces `build/patches/symbols.sym`, not an IPS patch. `catalog_builder asm` caches this file with the same dependency and assembler fingerprints as the patches, selects `export_` labels, and removes their prefix before importing them. Asar's symbol output retains 24 bits, so this interface is for addresses and small constants.
 
-`PatchCatalog.symbols` is a typed `PatchSymbols` struct. The Rust `define_patch_symbols!` macro declares each field and its corresponding ASM name once, deriving serialization and generating the builder-side importer. Importing removes every expected name from the temporary map and fails on missing or unconsumed exports, establishing exact correspondence between the ASM exports and the serialized fields. Initial exports cover Map16 graphical/property tables and dynamic-tile, cutscene, and overlay pointer tables.
+`PatchCatalog.symbols` is a plain `PatchSymbols` struct with Serde's `Deserialize` derive alongside its bincode and schema-hash derives. The builder deserializes the unprefixed export map directly through an in-memory map adapter. Required fields reject missing exports, and `deny_unknown_fields` rejects unconsumed exports, establishing exact correspondence between the ASM exports and the serialized fields. Rust needs no separate name mappings or constructor macro. Initial exports cover Map16 graphical/property tables and dynamic-tile, cutscene, and overlay pointer tables.
 
-Patch-catalog packaging and migration of existing Rust address constants to these fields remain planned work. The builder returns the typed manifest alongside the assembled IPS paths for that integration.
+The builder packages the typed manifest alongside the assembled IPS bytes. Migration of existing Rust address constants to these fields remains part of the later patcher integration.
 
 
 ## Patch overview

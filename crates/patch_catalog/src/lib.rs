@@ -3,63 +3,94 @@
 //! - item data extracted from z3-json-data.
 
 use bincode_next::{Decode, Encode};
-use std::collections::BTreeMap;
+use serde::Deserialize;
+use std::{
+    collections::BTreeMap,
+    io::{BufReader, BufWriter, Read, Write},
+};
 use type_hash::TypeHash;
+
+const CATALOG_MAGIC: [u8; 8] = *b"Z3PATCH\0";
+const CATALOG_CONFIG: bincode_next::config::Configuration = bincode_next::config::standard();
+
+/// Write the uncompressed envelope followed by a Zstd-compressed bincode payload.
+pub fn encode_catalog(
+    catalog: &PatchCatalog,
+    mut writer: impl Write,
+    compression_level: i32,
+) -> anyhow::Result<()> {
+    writer.write_all(&CATALOG_MAGIC)?;
+    writer.write_all(&PatchCatalog::type_hash().to_le_bytes())?;
+    let mut encoder = zstd::stream::write::Encoder::new(writer, compression_level)?;
+    {
+        let mut buffered = BufWriter::new(&mut encoder);
+        bincode_next::encode_into_std_write(catalog, &mut buffered, CATALOG_CONFIG)?;
+        buffered.flush()?;
+    }
+    encoder.finish()?;
+    Ok(())
+}
+
+/// Read the envelope, then stream the compressed payload into the catalog.
+pub fn decode_catalog(mut reader: impl Read) -> anyhow::Result<PatchCatalog> {
+    let mut envelope = [0; 16];
+    reader.read_exact(&mut envelope)?;
+    let decoder = zstd::stream::read::Decoder::new(reader)?;
+    let mut buffered = BufReader::new(decoder);
+    let catalog = bincode_next::decode_from_std_read(&mut buffered, CATALOG_CONFIG)?;
+    Ok(catalog)
+}
 
 #[derive(Clone, Debug, Encode, Decode, TypeHash)]
 pub struct PatchCatalog {
-    /// Keys are ASM filenames without their extension; values are complete IPS files.
-    /// Patches remain separate so the patcher can detect conflicting writes.
-    pub patches: BTreeMap<String, Vec<u8>>,
+    pub patches: PatchIps,
     pub symbols: PatchSymbols,
     pub item_locations: BTreeMap<ItemLocationId, ItemLocation>,
     /// Keys are stable item names from `z3-json-data/items.json`.
     pub items: BTreeMap<String, ItemEncoding>,
 }
 
-macro_rules! define_patch_symbols {
-    ($visibility:vis struct $name:ident {
-        $($field:ident: $field_type:ty => $symbol:ident),* $(,)?
-    }) => {
-        /// Exported ASM interface consumed by Rust. Addresses are SNES addresses,
-        /// not ROM file offsets.
-        #[derive(Clone, Debug, Encode, Decode, TypeHash)]
-        $visibility struct $name {
-            $(pub $field: $field_type,)*
-        }
-
-        impl $name {
-            /// Build the typed manifest from unprefixed export names, consuming
-            /// every export exactly once. This operation runs in the builder.
-            pub fn import_symbols(mut symbols: BTreeMap<String, u32>) -> anyhow::Result<Self> {
-                let imported = Self {
-                    $($field: symbols.remove(stringify!($symbol)).ok_or_else(|| {
-                        anyhow::anyhow!("Missing exported symbol: {}", stringify!($symbol))
-                    })?,)*
-                };
-                if !symbols.is_empty() {
-                    anyhow::bail!("Unconsumed exported symbols: {:?}", symbols.keys());
-                }
-                Ok(imported)
-            }
-        }
-    };
+/// Complete IPS payloads, named after their ASM filename stems.
+/// Patches remain separate so the patcher can detect conflicting writes.
+#[derive(Clone, Debug, Deserialize, Encode, Decode, TypeHash)]
+#[serde(deny_unknown_fields)]
+pub struct PatchIps {
+    pub bg3_tilemap: Vec<u8>,
+    pub fastrom_base: Vec<u8>,
+    pub fastrom_extra: Vec<u8>,
+    pub mirror_bg1_hdma: Vec<u8>,
+    pub nmi_optimize: Vec<u8>,
+    pub overworld_animations: Vec<u8>,
+    pub overworld_assets: Vec<u8>,
+    pub overworld_bg_color: Vec<u8>,
+    pub overworld_bg_tilemaps: Vec<u8>,
+    pub overworld_cutscenes: Vec<u8>,
+    pub overworld_dynamic_tiles: Vec<u8>,
+    pub overworld_entrances: Vec<u8>,
+    pub overworld_lightning: Vec<u8>,
+    pub overworld_map16_graphics: Vec<u8>,
+    pub overworld_map16_properties: Vec<u8>,
+    pub overworld_map_data: Vec<u8>,
+    pub overworld_vram: Vec<u8>,
+    pub rom_size: Vec<u8>,
 }
 
-define_patch_symbols! {
-    pub struct PatchSymbols {
-        map16_top_left: u32 => Map16TopLeft,
-        map16_top_right: u32 => Map16TopRight,
-        map16_bottom_left: u32 => Map16BottomLeft,
-        map16_bottom_right: u32 => Map16BottomRight,
-        map16_property_top_left: u32 => Map16PropertyTopLeft,
-        map16_property_top_right: u32 => Map16PropertyTopRight,
-        map16_property_bottom_left: u32 => Map16PropertyBottomLeft,
-        map16_property_bottom_right: u32 => Map16PropertyBottomRight,
-        dynamic_tile_group_pointers: u32 => DynamicTileGroupPointers,
-        cutscene_pointers: u32 => CutscenePointers,
-        overworld_overlay_pointers: u32 => OverworldOverlayPointers,
-    }
+/// Exported ASM interface consumed by Rust. Addresses are SNES addresses,
+/// not ROM file offsets. Field names match the explicit ASM export names.
+#[derive(Clone, Debug, Deserialize, Encode, Decode, TypeHash)]
+#[serde(deny_unknown_fields)]
+pub struct PatchSymbols {
+    pub map16_top_left: u32,
+    pub map16_top_right: u32,
+    pub map16_bottom_left: u32,
+    pub map16_bottom_right: u32,
+    pub map16_property_top_left: u32,
+    pub map16_property_top_right: u32,
+    pub map16_property_bottom_left: u32,
+    pub map16_property_bottom_right: u32,
+    pub dynamic_tile_group_pointers: u32,
+    pub cutscene_pointers: u32,
+    pub overworld_overlay_pointers: u32,
 }
 
 /// Authored identity, independent of catalog ordering and patching addresses.

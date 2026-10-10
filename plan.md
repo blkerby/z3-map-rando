@@ -39,19 +39,21 @@ Cache each IPS independently. Its fingerprint covers source and included file pa
 
 Result: editing one patch rebuilds only that patch; editing `symbols.inc` rebuilds its consumers. Unchanged patches, including `fastrom_base`, are reused.
 
-Implemented: `catalog_builder asm` invokes the shared patch-building module, builds the standalone patched Asar with CMake in Release mode, and updates `build/patches/*.ips` with per-patch fingerprint files. `--asar` skips the CMake build; `--repository` and `--output-directory` override working-directory-relative defaults. A shared `cache.lock` protects updates, and temporary files keep failed assembly from publishing incomplete outputs. Existing tracked IPS consumers and Python scripts remain until step 13.
+Implemented: `catalog_builder asm` invokes the shared patch-building module, builds the standalone patched Asar with CMake in Release mode, and updates `build/patches/*.ips` with per-patch fingerprint files. `--asm` selects the ASM directory (default `patches/src/`); `--asar-source` selects the patched Asar checkout containing `src/CMakeLists.txt` (default `asar/`); `--asar-executable` takes precedence and skips the CMake build. `--output-directory` selects the artifact directory. Defaults are relative to the working directory. A shared `cache.lock` protects updates, and temporary files keep failed assembly from publishing incomplete outputs. Existing tracked IPS consumers and Python scripts remain until step 13.
 
 Dependency tracking supports only standalone, single-line `incsrc "literal/path"` directives, resolved relative to the including file. Includes are followed recursively, including those in conditional branches. It does not evaluate Asar defines or macros, resolve include search paths, or track `incbin` or other file-reading directives. Extend the scanner before introducing those dependency forms; otherwise cached patches could become stale.
 
-## 4. Build the patch catalog
+## 4. Build the patch catalog (implemented)
 
 Define a runtime patch catalog and its encoder/decoder using the existing bincode envelope convention. Add a `patches` subcommand to the builder CLI and include it in `all`. The subcommand prepares Asar, assembles outdated patches, and packages the catalog. Bundle separate named IPS patches and their matching symbol manifest. Application order, phases, and optional patch selection stay in patcher code, including the initial `fastrom_base` transformation.
 
-Symbol manifest generation is implemented: `%export_symbol` in `symbols.inc` defines an ASM symbol and an `export_` label. The standalone `symbols.asm` entry point generates a cached symbol file alongside the IPS artifacts. `define_patch_symbols!` declares the serializable `PatchSymbols` fields and generates the builder-side importer, which rejects missing or unconsumed exports. `build_patches` returns IPS paths and this typed manifest. Patch-catalog types are defined; encoding, packaging, source-derived item/location extraction, and replacement of Rust patching address constants remain to be implemented.
+Symbol manifest generation is implemented: `%export_symbol(InternalName, exported_name, $Value)` in `symbols.inc` defines an ASM symbol and an explicitly named `export_` label. The standalone `symbols.asm` entry point generates a cached symbol file alongside the IPS artifacts. Plain `PatchSymbols` and `PatchIps` structs use Serde's `Deserialize` derive and `deny_unknown_fields` to import in-memory entries, rejecting missing or extra exports and patches. `build_patches` returns typed IPS payloads read under the assembly cache lock and this typed manifest. Runtime consumers switch from their existing address constants to the catalog during the later patcher integration.
 
 Read `z3-json-data` directly to extract stable location mappings, ROM addresses, item receipt IDs, and prize encodings for the patch catalog. Share source-reading types with the logic builder, without depending on the generated logic catalog.
 
 Result: one artifact supplies the fixed patches and symbols to native and browser patchers, together with the source-derived item/location patching data.
+
+Implemented: `catalog_builder patches` writes `build/patch_catalog.bin`, and `all` now builds all three catalogs. The patch catalog has streaming Zstd/bincode writer and reader APIs with its magic bytes and `type_hash` envelope. Logic and patch builders share `catalog_builder::source` types and file readers. The patch builder reads `rooms/` and `items.json` directly, retains authored IDs and ordered prize offsets, and excludes the fixed flute-activation event from placement locations. Completed catalog files are published through temporary files. `--logic-source`, `--asm`, `--asar-source`, `--asar-executable`, `--output-directory`, and `--compression-level` are supported; defaults remain relative to the working directory until step 5. Catalog packaging runs on every invocation while assembly remains cached.
 
 ## 5. Add shared configuration and caching
 
@@ -68,11 +70,13 @@ Use this default template:
 ```toml
 logic_source = "../z3-json-data"
 retiling_source = "../ALTTPRetiling"
+asm = "patches/src"
+asar_source = "asar"
 compression_level = 3
 
 # Override the automatically built assembler with our patched Asar executable.
 # IPS output support is required; an upstream Asar executable will not work.
-# asar = "/path/to/patched/asar"
+# asar_executable = "/path/to/patched/asar"
 ```
 
 The CLI compression-level argument overrides the local configuration; omission from both uses level `3`. Compression level is part of the catalog output fingerprint, not the Asar or IPS fingerprints, so changing it does not trigger assembly.

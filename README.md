@@ -47,19 +47,31 @@ mkdir -p build
 cargo run -p catalog_builder -- retiling path/to/ALTTPRetiling build/retiling_catalog.bin
 ```
 
-To build both logic and retiling catalogs from sibling `z3-json-data` and `ALTTPRetiling` checkouts into `build/`, run:
+To build all three catalogs from sibling `z3-json-data` and `ALTTPRetiling` checkouts into `build/`, run:
 
 ```sh
 cargo run -p catalog_builder -- all
 ```
 
-Use `--logic-source`, `--retiling-source`, `--output-directory`, or `--tile-fingerprints` with `all` to override its working-directory-relative defaults. The `logic` and `retiling` subcommands accept positional source and output paths.
+Use `--logic-source`, `--retiling-source`, `--output-directory`, `--tile-fingerprints`, `--asm`, `--asar-source`, or `--asar-executable` with `all` to override its working-directory-relative defaults. Building the patch catalog requires an initialized patched Asar submodule, CMake, and a C++ compiler unless `--asar-executable` supplies an existing patched executable. The `logic` and `retiling` subcommands accept positional source and output paths.
 
 Catalog payloads use Zstd compression, defaulting to level `3` for every Cargo profile. All builder subcommands accept `--compression-level`; use level `18` when prioritizing smaller release artifacts. Rebuild existing uncompressed catalogs with the current builder.
 
 ```sh
 cargo run -p catalog_builder -- all --compression-level 18
 ```
+
+# How to build the patch catalog
+
+The patch catalog bundles the separate IPS patches, their typed symbol manifest, and item/location patching data read directly from `z3-json-data`. It uses the same streaming Zstd-compressed bincode format as the other catalogs and requires neither a ROM nor a generated logic catalog.
+
+From the repository root:
+
+```sh
+cargo run -p catalog_builder -- patches
+```
+
+This writes `build/patch_catalog.bin`, reusing cached assembly artifacts. `--logic-source`, `--asm`, `--asar-source`, `--asar-executable`, and `--output-directory` override the data source, ASM directory, Asar checkout, assembler executable, and artifact directory defaults. `--compression-level` controls catalog compression without invalidating assembly. Catalog packaging runs on each invocation; catalog caching and shared configuration are planned in step 5. Existing ROM tools still consume the tracked IPS files until their later integration with the patch catalog.
 
 # How to build the tile fingerprint index
 
@@ -92,10 +104,10 @@ This automatically builds the repository's patched Asar submodule in Release mod
 
 The builder also caches `build/patches/symbols.sym`, exported independently from `patches/src/symbols.asm`, and imports it into the catalog's typed `PatchSymbols`. `%export_symbol` in the shared interface marks Rust-facing symbols; missing or unconsumed exports fail the build. See [the symbol manifest design](plans/patches.md#symbol-manifest).
 
-Use `--repository` and `--output-directory` to override the current-directory and `build/` defaults. An explicit `--asar` path skips the automatic assembler build:
+`--asm` selects the ASM source directory, defaulting to `patches/src/`. `--asar-source` selects the patched Asar checkout containing `src/CMakeLists.txt`, defaulting to `asar/`. `--output-directory` selects the artifact directory, defaulting to `build/`. An explicit `--asar-executable` path skips the automatic assembler build and takes precedence over `--asar-source`:
 
 ```sh
-cargo run -p catalog_builder -- asm --asar path/to/patched/asar
+cargo run -p catalog_builder -- asm --asar-executable path/to/patched/asar
 ```
 
 We use a patched version of Asar with IPS output support; an upstream Asar executable will not work. The new command leaves tracked `patches/ips/` files unchanged. Existing ROM-building tools still use those tracked patches until the later patch-catalog integration; the old Python scripts remain available for that workflow.

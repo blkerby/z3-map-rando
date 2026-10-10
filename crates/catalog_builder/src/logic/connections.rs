@@ -1,4 +1,4 @@
-use super::{RoomIndices, read_source, source};
+use super::{RoomIndices, read_source, z3_json_data};
 use anyhow::{Result, bail};
 use logic_catalog::*;
 use std::{collections::BTreeMap, path::Path};
@@ -9,21 +9,21 @@ pub fn build_connections(
     catalog: &mut LogicCatalog,
 ) -> Result<()> {
     for filename in ["entrances.json", "teleports.json", "whirlpools.json"] {
-        let source: source::Connections =
+        let source: z3_json_data::Connections =
             read_source(&source_directory.join("connections").join(filename))?;
         for connection in source.connections {
             let entrance_kind = match &connection {
-                source::Connection::Door { .. } => Some(EntranceKind::Door),
-                source::Connection::Drop { .. } => Some(EntranceKind::Drop),
+                z3_json_data::Connection::Door { .. } => Some(EntranceKind::Door),
+                z3_json_data::Connection::Drop { .. } => Some(EntranceKind::Drop),
                 _ => None,
             };
             let connection = match connection {
-                source::Connection::Door {
+                z3_json_data::Connection::Door {
                     world,
                     overworld,
                     underworld,
                 }
-                | source::Connection::Drop {
+                | z3_json_data::Connection::Drop {
                     world,
                     overworld,
                     underworld,
@@ -37,7 +37,7 @@ pub fn build_connections(
                         interior_vertex_idx: inside.vertices[&(underworld.node_id, None)],
                     }
                 }
-                source::Connection::Teleport {
+                z3_json_data::Connection::Teleport {
                     to_world,
                     underworld,
                     overworld,
@@ -50,7 +50,7 @@ pub fn build_connections(
                             [&(overworld.teleport_id, to_world.get_world())],
                     }
                 }
-                source::Connection::Whirlpool {
+                z3_json_data::Connection::Whirlpool {
                     world,
                     overworld,
                     overworld2,

@@ -17,13 +17,17 @@ struct Args {
 enum Command {
     /// Build cached IPS patches with the repository's patched Asar.
     Asm {
-        #[arg(long, default_value = ".")]
-        repository: PathBuf,
+        /// Directory containing patch ASM sources and symbols.asm.
+        #[arg(long, default_value = "patches/src")]
+        asm: PathBuf,
+        /// Patched Asar checkout containing src/CMakeLists.txt.
+        #[arg(long, default_value = "asar")]
+        asar_source: PathBuf,
         #[arg(long, default_value = "build")]
         output_directory: PathBuf,
         /// Override with a patched Asar executable supporting IPS output.
         #[arg(long)]
-        asar: Option<PathBuf>,
+        asar_executable: Option<PathBuf>,
     },
     /// Build the logic catalog from z3-json-data.
     Logic {
@@ -37,7 +41,23 @@ enum Command {
         #[arg(long, default_value = "data/tile_fingerprints.json")]
         tile_fingerprints: PathBuf,
     },
-    /// Build both catalogs using sibling source repositories by default.
+    /// Build the patch catalog from ASM and z3-json-data.
+    Patches {
+        #[arg(long, default_value = "../z3-json-data")]
+        logic_source: PathBuf,
+        /// Directory containing patch ASM sources and symbols.asm.
+        #[arg(long, default_value = "patches/src")]
+        asm: PathBuf,
+        /// Patched Asar checkout containing src/CMakeLists.txt.
+        #[arg(long, default_value = "asar")]
+        asar_source: PathBuf,
+        #[arg(long, default_value = "build")]
+        output_directory: PathBuf,
+        /// Override with a patched Asar executable supporting IPS output.
+        #[arg(long)]
+        asar_executable: Option<PathBuf>,
+    },
+    /// Build all three catalogs using sibling source repositories by default.
     All {
         #[arg(long, default_value = "../z3-json-data")]
         logic_source: PathBuf,
@@ -47,6 +67,15 @@ enum Command {
         output_directory: PathBuf,
         #[arg(long, default_value = "data/tile_fingerprints.json")]
         tile_fingerprints: PathBuf,
+        /// Directory containing patch ASM sources and symbols.asm.
+        #[arg(long, default_value = "patches/src")]
+        asm: PathBuf,
+        /// Patched Asar checkout containing src/CMakeLists.txt.
+        #[arg(long, default_value = "asar")]
+        asar_source: PathBuf,
+        /// Override with a patched Asar executable supporting IPS output.
+        #[arg(long)]
+        asar_executable: Option<PathBuf>,
     },
 }
 
@@ -54,11 +83,17 @@ fn main() -> Result<()> {
     let args = Args::parse();
     match args.command {
         Command::Asm {
-            repository,
+            asm,
+            asar_source,
             output_directory,
-            asar,
+            asar_executable,
         } => {
-            patches::build_patches(&repository, &output_directory, asar.as_deref())?;
+            patches::build_patches(
+                &asm,
+                &asar_source,
+                &output_directory,
+                asar_executable.as_deref(),
+            )?;
         }
         Command::Logic {
             source_directory,
@@ -74,11 +109,30 @@ fn main() -> Result<()> {
             &tile_fingerprints,
             args.compression_level,
         )?,
+        Command::Patches {
+            logic_source,
+            asm,
+            asar_source,
+            output_directory,
+            asar_executable,
+        } => {
+            patches::build_catalog(
+                &asm,
+                &asar_source,
+                &logic_source,
+                &output_directory,
+                asar_executable.as_deref(),
+                args.compression_level,
+            )?;
+        }
         Command::All {
             logic_source,
             retiling_source,
             output_directory,
             tile_fingerprints,
+            asm,
+            asar_source,
+            asar_executable,
         } => {
             fs::create_dir_all(&output_directory)?;
             logic::build_catalog(
@@ -90,6 +144,14 @@ fn main() -> Result<()> {
                 &retiling_source,
                 &output_directory.join("retiling_catalog.bin"),
                 &tile_fingerprints,
+                args.compression_level,
+            )?;
+            patches::build_catalog(
+                &asm,
+                &asar_source,
+                &logic_source,
+                &output_directory,
+                asar_executable.as_deref(),
                 args.compression_level,
             )?;
         }
