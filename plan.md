@@ -1,18 +1,37 @@
 # Prototype implementation plan
 
+Prototype formats may change freely: rebuild catalogs or regenerate seeds rather than adding migrations or legacy readers. Catalog-independent seed data remains a design goal for eventual long-term compatibility.
+
 Implement these steps separately. The first usable prototype generates saved seeds with uniform item placement; ROM patching follows later. Logical placement, overworld rearrangement, and the web service remain outside this prototype.
 
 See [the architecture plan](plans/README.md) and [CLI design](plans/cli.md) for the data boundaries and user-facing behavior. Commands below describe the planned crate and binary names.
 
-## 1. Consolidate the existing catalog builders
+## 1. Consolidate the existing catalog builders (implemented)
 
-Create `crates/catalog_builder` with a library containing separate logic and retiling modules. Move the existing builders into this crate, preserving their behavior and individual binaries, `build_logic_catalog` and `build_retiling_catalog`. Keep the runtime catalog crates separate.
+Create `crates/catalog_builder` with a library containing separate logic and retiling modules and one CLI binary. Move the existing builders into this crate, preserving their behavior. Keep the runtime catalog crates separate.
 
-The binaries handle arguments and files; library operations can also be called directly by a build script. Do not invoke nested `cargo run` from `build.rs`.
+The CLI handles arguments and dispatches through `logic`, `retiling`, and `all` subcommands. Initially, `all` builds both existing catalogs; extend it when the patch builder is added. Library operations can also be called directly by a build script. Do not invoke nested `cargo run` from `build.rs`.
 
-Result: both existing catalogs can be built through the shared builder crate.
+```sh
+mkdir -p build
+cargo run -p catalog_builder -- logic ../z3-json-data build/logic_catalog.bin
+cargo run -p catalog_builder -- retiling ../ALTTPRetiling build/retiling_catalog.bin
+cargo run -p catalog_builder -- all
+```
 
-## 2. Add cached ASM assembly
+Implemented: one builder CLI can build either existing catalog or both, with shared library modules available to other callers. Individual subcommands preserve the existing positional source/output arguments. `all` accepts `--logic-source`, `--retiling-source`, `--output-directory`, and `--tile-fingerprints`; defaults are relative to the working directory until step 5 adds shared configuration.
+
+## 2. Compress catalog payloads
+
+Keep the magic bytes and 64-bit schema identifier uncompressed, and encode the bincode payload through Zstd. Add streaming writer and reader APIs so serialization and deserialization do not require a complete uncompressed payload buffer. Update catalog consumers to read the compressed format; the future patch catalog uses the same convention.
+
+Add `--compression-level` to the builder CLI for `logic`, `retiling`, and `all`, defaulting to level `3` independently of Cargo profile. Higher levels remain explicit choices; the future CI release process can select level `18`. Change the prototype format directly and rebuild catalogs, without legacy readers or backward compatibility work.
+
+Shared configuration and caching in step 5 will incorporate the compression option. Keep all generated artifacts in `build/`; changing the level regenerates compressed catalog outputs without rebuilding Asar or reassembling unchanged patches.
+
+Result: catalogs are smaller on disk and in bundled binaries, with inexpensive default compression and streaming decoding.
+
+## 3. Add cached ASM assembly
 
 Add a patch-building module that automatically builds the repository's patched Asar submodule with CMake under `build/asar/`, using Release mode and only the standalone assembler target. Let CMake manage incremental C++ compilation. An explicit Asar executable override skips this build and must also support the patched IPS output mode; an upstream Asar executable will not work. Discover patch roots under `patches/src/` and recursively resolve literal `incsrc` paths relative to the including file. Support only this dependency syntax for now.
 
@@ -20,9 +39,9 @@ Cache each IPS independently. Its fingerprint covers source and included file pa
 
 Result: editing one patch rebuilds only that patch; editing `symbols.inc` rebuilds its consumers. Unchanged patches, including `fastrom_base`, are reused.
 
-## 3. Build the patch catalog
+## 4. Build the patch catalog
 
-Define a runtime patch catalog and its encoder/decoder using the existing bincode envelope convention. Add `build_patch_catalog` to the builder crate. Bundle separate named IPS patches and their matching symbol manifest. Application order, phases, and optional patch selection stay in patcher code, including the initial `fastrom_base` transformation.
+Define a runtime patch catalog and its encoder/decoder using the existing bincode envelope convention. Add a `patches` subcommand to the builder CLI and include it in `all`. The subcommand prepares Asar, assembles outdated patches, and packages the catalog. Bundle separate named IPS patches and their matching symbol manifest. Application order, phases, and optional patch selection stay in patcher code, including the initial `fastrom_base` transformation.
 
 Symbol manifest generation is not implemented yet: `symbols.inc` provides the ASM interface and Rust currently duplicates patching address constants. Add an export step for the symbols the patcher needs and include the resulting manifest with the matching assembled patches. Select the export mechanism in this step.
 
@@ -30,36 +49,39 @@ Read `z3-json-data` directly to extract stable location mappings, ROM addresses,
 
 Result: one artifact supplies the fixed patches and symbols to native and browser patchers, together with the source-derived item/location patching data.
 
-## 4. Add shared caching and the builder orchestrator
+## 5. Add shared configuration and caching
 
-Add `build_catalogs` to update all three catalogs in one command:
+Make the existing `all` subcommand update all three catalogs through the shared cache:
 
 ```sh
-cargo run -p catalog_builder --bin build_catalogs
+cargo run -p catalog_builder -- all
 ```
 
-Default source paths to sibling `../z3-json-data` and `../ALTTPRetiling` directories, resolved from the repository root. Check in `catalog-build.default.toml` and copy it to the Git-ignored `catalog-build.toml` if the local file is missing when a builder or bundled build runs. Read that local configuration without overwriting or merging it. Standalone binaries also accept path arguments; no custom environment variables are needed.
+Default source paths to sibling `../z3-json-data` and `../ALTTPRetiling` directories, resolved from the repository root. Check in `catalog-build.default.toml` and copy it to the Git-ignored `catalog-build.toml` if the local file is missing when a builder or bundled build runs. Read that local configuration without overwriting or merging it. The builder CLI also accepts path arguments; no custom environment variables are needed.
 
 Use this default template:
 
 ```toml
 logic_source = "../z3-json-data"
 retiling_source = "../ALTTPRetiling"
+compression_level = 3
 
 # Override the automatically built assembler with our patched Asar executable.
 # IPS output support is required; an upstream Asar executable will not work.
 # asar = "/path/to/patched/asar"
 ```
 
+The CLI compression-level argument overrides the local configuration; omission from both uses level `3`. Compression level is part of the catalog output fingerprint, not the Asar or IPS fingerprints, so changing it does not trigger assembly.
+
 Asar requires an initialized submodule, CMake, and a C++ toolchain. The source data repositories can remain sibling checkouts. Do not download repositories automatically.
 
 Use the ignored top-level `build/` directory for catalogs, IPS files, and cache metadata. Fingerprint all relevant source inputs, builder code, and configuration so changed data or implementations update the appropriate outputs. Fingerprints do not depend on debug versus release profiles.
 
-Use one shared cache lock during updates and snapshot copying. Write completed artifacts through temporary files so interrupted builds do not publish partial outputs. Standalone builders and the orchestrator share this implementation.
+Use one shared cache lock during updates and snapshot copying. Write completed artifacts through temporary files so interrupted builds do not publish partial outputs. Individual subcommands, `all`, and the randomizer's build script share this library implementation.
 
 Result: manual and automatic builds reuse the same cache, which survives `cargo clean`.
 
-## 5. Make seed identities independent of catalogs
+## 6. Make seed identities independent of catalogs
 
 Retain authored `(room_id, item_id)` pairs in logic-catalog item locations and replace saved `item_location_idx` values with these pairs. Establish that existing IDs are permanent and removed IDs are not reused. Item names remain the item identity; receipt IDs and ROM addresses are patching details. Remove location ROM addresses, item receipt IDs, and prize patch bytes from the logic catalog; the patch builder reads these directly from `z3-json-data`.
 
@@ -67,7 +89,7 @@ Add an integer seed `format_version` starting at `1`, following the [versioning 
 
 Result: reordering a logic catalog does not change saved location identities.
 
-## 6. Define and prepare seed-specific retiling content
+## 7. Define and prepare seed-specific retiling content
 
 Define serializable `SeedRetilingData` containing the selected layouts, palettes, tiles, and other content needed for one seed. For the prototype, select one whole-game theme and retain vanilla area placement and connections.
 
@@ -75,7 +97,7 @@ Extract this content during generation without a ROM. Preserve sanitized vanilla
 
 Result: saved seeds contain everything needed from the retiling catalog.
 
-## 7. Implement the uniform generator library
+## 8. Implement the uniform generator library
 
 Expand the settings item pool and uniformly shuffle it across eligible ordinary locations. Shuffle maps and compasses within their own dungeon. Keep keys and prizes vanilla, but record all placements. Preserve tech and proficiency settings without using them for placement yet.
 
@@ -83,7 +105,7 @@ Accept settings, generation catalogs, the selected theme, and deterministic rand
 
 Result: generation produces structured seed data without logical placement or ROM patching.
 
-## 8. Add seed serialization and the generation CLI
+## 9. Add seed serialization and the generation CLI
 
 Create `crates/cli` with binary `z3-map-rando`, initially supporting generation through external catalogs. Implement the arguments and defaults in [plans/cli.md](plans/cli.md), including bundled checked-in settings.
 
@@ -93,7 +115,7 @@ Stream JSON through Zstd when saving, and deserialize through a buffered Zstd de
 
 Result: a usable generation-only CLI that writes a complete compressed seed.
 
-## 9. Add automatic generation and embedding to bundled builds
+## 10. Add automatic generation and embedding to bundled builds
 
 Add the default-off `bundle-catalogs` feature and optional builder dependency. The CLI's `build.rs` calls the shared update operation only with this feature enabled. Track source directories/files, path overrides, and assembler changes using Cargo's rerun directives. Track the local configuration file, creating it from the template only for bundled builds or standalone builder invocations.
 
@@ -105,21 +127,21 @@ cargo build -p cli --release --features bundle-catalogs
 
 Result: bundled builds automatically create or update their assets. Ordinary `cargo check` without the feature requires neither catalogs, source repos, nor Asar. External catalog arguments can override embedded catalogs.
 
-## 10. Extract catalog-independent retiling patching
+## 11. Extract catalog-independent retiling patching
 
 Refactor the ROM-building flow in `theme_check` into a reusable patcher operation consuming a ROM, decoded seed, current patch catalog, and customization settings. Consume IPS bytes from the catalog instead of filesystem paths. Resolve vanilla graphics references from the ROM and compile saved retiling content into the current runtime layout using current symbols.
 
 Result: retiling patching needs neither the logic nor retiling catalog, and its core has no filesystem, clock, network, or RNG dependency.
 
-## 11. Add item-placement patching
+## 12. Add item-placement patching
 
 Use the patch catalog's source-derived location mappings and current item and prize encodings to translate saved identities. Extend this data where necessary for the patched pickup carriers. Implement the location-specific writes and hooks required by the prototype's randomized pickups.
 
-Use the latest patcher and matching patch catalog for old seeds. Support older seed formats through defaults or migrations that preserve their meaning; new customization options remain patch-time inputs.
+Use the current patcher and matching patch catalog independently of the catalogs used for generation; customization remains a patch-time input. Do not implement seed migrations or legacy readers during prototyping.
 
 Result: the patcher applies saved placements without the original logic catalog or saved ROM-write addresses.
 
-## 12. Complete CLI patching and remove tracked IPS artifacts
+## 13. Complete CLI patching and remove tracked IPS artifacts
 
 Wire `--seed` plus `--rom` to patching, and generation plus `--rom` to generation followed by patching. Save the seed before patching in combined operation. Reuse the saved seed name for default ROM output paths.
 
@@ -129,4 +151,4 @@ Result: the CLI generates, patches, or does both based on its arguments, with no
 
 ## Verification during implementation
 
-Use the existing checks and temporary development checks appropriate to each step; do not add permanent tests or validation without an explicit request. Check unchanged-cache reuse, individual ASM edits, shared include edits, and reuse between debug and release builds. Exercise seed serialization and CLI generation before moving on to ROM patching. Check that patch-only operation works without generation catalogs and that saved seeds remain usable after catalog rebuilds.
+Use the existing checks and temporary development checks appropriate to each step; do not add permanent tests or validation without an explicit request. Check compressed catalog round trips, unchanged-cache reuse, individual ASM edits, shared include edits, and reuse between debug and release builds. Changing compression level should update catalog outputs while reusing unchanged assembly artifacts. Exercise seed serialization and CLI generation before moving on to ROM patching. Check that patch-only operation works without generation catalogs and that saved seeds remain usable after catalog rebuilds.

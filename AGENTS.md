@@ -4,6 +4,7 @@
 - Avoid overengineering. Keep things as simple as possible.
 - Maintaining a clean design is more important than completing a task. If things get messy, stop and propose a refactor or alternative approach.
 - Ask for confirmation before diving into making changes, unless the exact desired code change is already clear from the user's request. This includes follow-up debugging after a reported regression: investigate and explain the likely cause first, but do not apply a speculative fix or design change until the user confirms that specific change.
+- At this point, the project is in a prototyping phase, so do not make any effort to preserve backward compatibility.
 
 # Markdown guidelines
 

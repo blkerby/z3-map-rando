@@ -28,7 +28,7 @@ Build the retiling catalog, then a test ROM:
 
 ```sh
 mkdir -p build
-cargo run -p build_retiling_catalog -- path/to/ALTTPRetiling build/retiling_catalog.bin
+cargo run -p catalog_builder -- retiling path/to/ALTTPRetiling build/retiling_catalog.bin
 cargo run -p theme_check -- path/to/vanilla.sfc path/to/output.sfc build/retiling_catalog.bin --theme Base
 ```
 
@@ -44,8 +44,16 @@ From the repository root:
 
 ```sh
 mkdir -p build
-cargo run -p build_retiling_catalog -- path/to/ALTTPRetiling build/retiling_catalog.bin
+cargo run -p catalog_builder -- retiling path/to/ALTTPRetiling build/retiling_catalog.bin
 ```
+
+To build both logic and retiling catalogs from sibling `z3-json-data` and `ALTTPRetiling` checkouts into `build/`, run:
+
+```sh
+cargo run -p catalog_builder -- all
+```
+
+Use `--logic-source`, `--retiling-source`, `--output-directory`, or `--tile-fingerprints` with `all` to override its working-directory-relative defaults. The `logic` and `retiling` subcommands accept positional source and output paths.
 
 # How to build the tile fingerprint index
 

@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use clap::Parser;
 use patcher::graphics::{TileFingerprintIndex, canonicalize_tile};
 use retiling_catalog::{
     AnimatedTileGroup, Area, AreaTheme, Background, BackgroundLayering, BackgroundSettings, Color,
@@ -17,15 +16,6 @@ use std::{
 };
 
 type Pixels = [[u8; 8]; 8];
-
-#[derive(Parser)]
-#[command(about = "Build a ROM-free retiling catalog from an ALTTPRetiling project")]
-struct Args {
-    retiling_project: PathBuf,
-    output_catalog: PathBuf,
-    #[arg(long, default_value = "data/tile_fingerprints.json")]
-    tile_fingerprints: PathBuf,
-}
 
 #[derive(Deserialize)]
 struct SourcePalette {
@@ -132,12 +122,16 @@ struct SourcePlacement {
     flip: u8,
 }
 
-fn main() -> Result<()> {
-    let args = Args::parse();
-    let fingerprint_bytes = fs::read(&args.tile_fingerprints)
-        .with_context(|| format!("failed to read {}", args.tile_fingerprints.display()))?;
+/// Compile ALTTPRetiling using the vanilla fingerprint index and write the catalog.
+pub fn build_catalog(
+    retiling_project: &Path,
+    output_catalog: &Path,
+    tile_fingerprints: &Path,
+) -> Result<()> {
+    let fingerprint_bytes = fs::read(tile_fingerprints)
+        .with_context(|| format!("failed to read {}", tile_fingerprints.display()))?;
     let index: TileFingerprintIndex = serde_json::from_slice(&fingerprint_bytes)
-        .with_context(|| format!("failed to parse {}", args.tile_fingerprints.display()))?;
+        .with_context(|| format!("failed to parse {}", tile_fingerprints.display()))?;
     let mut fingerprints = BTreeMap::new();
     for sheet in index.sheets {
         for (tile, fingerprint) in sheet.tile_fingerprints.into_iter().enumerate() {
@@ -160,7 +154,7 @@ fn main() -> Result<()> {
         dynamic_tile_groups: Vec::new(),
     };
 
-    for path in find_json_paths(&args.retiling_project.join("Palettes"))? {
+    for path in find_json_paths(&retiling_project.join("Palettes"))? {
         let source: SourcePalette = read_json(&path)?;
         let mut palette = Palette {
             name: path.file_stem().unwrap().to_str().unwrap().to_owned(),
@@ -193,7 +187,7 @@ fn main() -> Result<()> {
     }
 
     let mut area_paths = Vec::new();
-    for entry in fs::read_dir(args.retiling_project.join("Areas"))? {
+    for entry in fs::read_dir(retiling_project.join("Areas"))? {
         let path = entry?.path();
         if path.is_dir() {
             area_paths.push(path);
@@ -270,7 +264,7 @@ fn main() -> Result<()> {
     }
 
     let dynamic: SourceDynamicTiles =
-        read_json(&args.retiling_project.join("DynamicTiles/replacements.json"))?;
+        read_json(&retiling_project.join("DynamicTiles/replacements.json"))?;
     for group in dynamic.groups {
         let mut variants = Vec::new();
         for variant in group.variants {
@@ -290,8 +284,8 @@ fn main() -> Result<()> {
     }
 
     let bytes = encode_catalog(&catalog)?;
-    fs::write(&args.output_catalog, &bytes)
-        .with_context(|| format!("failed to write {}", args.output_catalog.display()))?;
+    fs::write(output_catalog, &bytes)
+        .with_context(|| format!("failed to write {}", output_catalog.display()))?;
     let mut vanilla_graphics = 0;
     let mut custom_graphics = 0;
     for palette in catalog.palettes.values() {
@@ -318,7 +312,7 @@ fn main() -> Result<()> {
     }
     eprintln!(
         "{}: {} palettes, {} areas, {theme_count} area themes, {vanilla_graphics} vanilla references, {custom_graphics} custom graphics, {} bytes",
-        args.output_catalog.display(),
+        output_catalog.display(),
         catalog.palettes.len(),
         catalog.areas.len(),
         bytes.len(),

@@ -4,7 +4,7 @@ use logic_catalog::{
     Ammo, Equipment, FlagIndex, Follower, ItemIndex, PrizeKind, Requirement, Resource, TechIndex,
 };
 
-use crate::{RoomIndices, source};
+use super::{RoomIndices, source};
 
 pub struct Compiler {
     pub items: BTreeMap<String, ItemIndex>,

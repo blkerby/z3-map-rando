@@ -3,7 +3,6 @@ mod requirements;
 mod source;
 
 use anyhow::{Context, Result};
-use clap::Parser;
 use logic_catalog::*;
 use requirements::{Compiler, compose_requirements};
 use serde::de::DeserializeOwned;
@@ -12,13 +11,6 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-
-#[derive(Parser)]
-#[command(about = "Build the logic catalog from z3-json-data")]
-struct Args {
-    source_directory: PathBuf,
-    output_catalog: PathBuf,
-}
 
 #[derive(Default)]
 struct RoomIndices {
@@ -101,8 +93,8 @@ fn add_event_vertex(
     vertex_idx
 }
 
-fn main() -> Result<()> {
-    let args = Args::parse();
+/// Compile z3-json-data and write the encoded logic catalog.
+pub fn build_catalog(source_directory: &Path, output_catalog: &Path) -> Result<()> {
     let mut catalog = LogicCatalog {
         vertices: Vec::new(),
         vertex_metadata: Vec::new(),
@@ -132,7 +124,7 @@ fn main() -> Result<()> {
         techs: BTreeMap::new(),
         damage: BTreeMap::new(),
     };
-    let items: source::Items = read_source(&args.source_directory.join("items.json"))?;
+    let items: source::Items = read_source(&source_directory.join("items.json"))?;
     for category in [
         items.inventory,
         items.refills,
@@ -168,16 +160,16 @@ fn main() -> Result<()> {
         compiler.flags.insert(name.clone(), flag_idx);
         catalog.flags.push(name);
     }
-    let helpers: Vec<source::Helper> = read_source(&args.source_directory.join("helpers.json"))?;
+    let helpers: Vec<source::Helper> = read_source(&source_directory.join("helpers.json"))?;
     for helper in helpers {
         compiler.helpers.insert(helper.name.clone(), helper);
     }
-    let techs: source::Techs = read_source(&args.source_directory.join("tech.json"))?;
+    let techs: source::Techs = read_source(&source_directory.join("tech.json"))?;
     for category in techs.tech_categories {
         collect_techs(category.techs, &mut catalog, &mut compiler);
     }
     let mut enemy_paths = Vec::new();
-    collect_source_files(&args.source_directory.join("enemies"), &mut enemy_paths)?;
+    collect_source_files(&source_directory.join("enemies"), &mut enemy_paths)?;
     enemy_paths.sort();
     for path in enemy_paths {
         let enemies: source::Enemies = read_source(&path)?;
@@ -194,7 +186,7 @@ fn main() -> Result<()> {
     }
 
     let mut paths = Vec::new();
-    collect_source_files(&args.source_directory.join("rooms"), &mut paths)?;
+    collect_source_files(&source_directory.join("rooms"), &mut paths)?;
     paths.sort();
     let mut source_rooms: Vec<source::Room> = Vec::new();
     for path in paths {
@@ -501,10 +493,10 @@ fn main() -> Result<()> {
         room_indices.insert(room.room_id, indices);
         catalog.rooms.push(room);
     }
-    connections::build_connections(&args.source_directory, &room_indices, &mut catalog)?;
+    connections::build_connections(source_directory, &room_indices, &mut catalog)?;
     let bytes = encode_catalog(&catalog)?;
-    fs::write(&args.output_catalog, &bytes)
-        .with_context(|| format!("failed to write {}", args.output_catalog.display()))?;
+    fs::write(output_catalog, &bytes)
+        .with_context(|| format!("failed to write {}", output_catalog.display()))?;
     println!(
         "Wrote {} rooms, {} vertices, {} edges, {} item locations, and {} vanilla connections ({} bytes) to {}",
         catalog.rooms.len(),
@@ -513,7 +505,7 @@ fn main() -> Result<()> {
         catalog.item_locations.len(),
         catalog.vanilla_connections.len(),
         bytes.len(),
-        args.output_catalog.display()
+        output_catalog.display()
     );
     Ok(())
 }

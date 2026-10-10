@@ -86,13 +86,13 @@ The `bundle-catalogs` Cargo feature embeds the logic, retiling, and patch catalo
 
 Generation needs the logic and retiling catalogs to produce placements and saved retiling content. Patching needs the saved seed, ROM, and the current patch catalog matching the patcher. It does not need either generation catalog. Bundled binaries provide the catalogs without additional user arguments.
 
-The planned `catalog_builder` crate exposes shared library operations and separate binaries for logic, retiling, patches, and building everything. The orchestrator can populate the ignored top-level `build/` cache independently of the CLI feature:
+The `catalog_builder` crate exposes separate library modules through one builder CLI with `logic`, `retiling`, and `all` subcommands; `patches` is planned. It can populate the ignored top-level `build/` cache independently of the randomizer CLI feature:
 
 ```sh
-cargo run -p catalog_builder --bin build_catalogs
+cargo run -p catalog_builder -- all
 ```
 
-Source paths default to sibling `../z3-json-data` and `../ALTTPRetiling` directories. Builders and bundled builds copy the checked-in `catalog-build.default.toml` to the Git-ignored `catalog-build.toml` if missing, then read the local file without overwriting or merging it. Relative paths are resolved from the repository root. Standalone binaries also accept path overrides.
+Source paths default to sibling `../z3-json-data` and `../ALTTPRetiling` directories. Builders and bundled builds copy the checked-in `catalog-build.default.toml` to the Git-ignored `catalog-build.toml` if missing, then read the local file without overwriting or merging it. Relative paths are resolved from the repository root. The builder CLI also accepts path overrides.
 
 By default, build the repository's patched Asar submodule incrementally with CMake under `build/asar/`, using Release mode and only the standalone target. An explicit `asar` path in the local configuration skips building Asar. The template comment must warn that this override needs our patched IPS output support and that upstream Asar will not work. This requires initialized Asar sources, CMake, and a C++ toolchain, without automatic downloads. The builder assembles outdated patches, tracking recursive literal `incsrc` dependencies, and bundles them with current symbols and location mappings. IPS files become local artifacts rather than tracked data. Location mappings and item encodings come directly from `z3-json-data`, not the logic catalog. Application order and phases stay in patcher code. Symbol manifest generation is planned work; current assembly only emits IPS files.
 
