@@ -47,7 +47,7 @@ Dependency tracking supports only standalone, single-line `incsrc "literal/path"
 
 Define a runtime patch catalog and its encoder/decoder using the existing bincode envelope convention. Add a `patches` subcommand to the builder CLI and include it in `all`. The subcommand prepares Asar, assembles outdated patches, and packages the catalog. Bundle separate named IPS patches and their matching symbol manifest. Application order, phases, and optional patch selection stay in patcher code, including the initial `fastrom_base` transformation.
 
-Symbol manifest generation is not implemented yet: `symbols.inc` provides the ASM interface and Rust currently duplicates patching address constants. Add an export step for the symbols the patcher needs and include the resulting manifest with the matching assembled patches. Select the export mechanism in this step.
+Symbol manifest generation is implemented: `%export_symbol` in `symbols.inc` defines an ASM symbol and an `export_` label. The standalone `symbols.asm` entry point generates a cached symbol file alongside the IPS artifacts. `define_patch_symbols!` declares the serializable `PatchSymbols` fields and generates the builder-side importer, which rejects missing or unconsumed exports. `build_patches` returns IPS paths and this typed manifest. Patch-catalog types are defined; encoding, packaging, source-derived item/location extraction, and replacement of Rust patching address constants remain to be implemented.
 
 Read `z3-json-data` directly to extract stable location mappings, ROM addresses, item receipt IDs, and prize encodings for the patch catalog. Share source-reading types with the logic builder, without depending on the generated logic catalog.
 

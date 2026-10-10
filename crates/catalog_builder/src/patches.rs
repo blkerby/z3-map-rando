@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, bail};
+use patch_catalog::PatchSymbols;
 use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeMap,
@@ -7,20 +8,21 @@ use std::{
     process::Command,
 };
 
-const ASSEMBLY_ARGUMENTS: &[&str] = &[
-    "--fix-checksum=off",
-    "--no-title-check",
-    "--disable-read",
-    "--ips",
-];
+const ASSEMBLY_ARGUMENTS: &[&str] = &["--fix-checksum=off", "--no-title-check", "--disable-read"];
+
+pub struct BuiltPatches {
+    pub patches: Vec<PathBuf>,
+    pub symbols: PatchSymbols,
+}
 
 /// Build the patched Asar and update independently cached IPS patches.
+/// Also export and import the shared ASM interface into its typed manifest.
 /// Dependency tracking supports only literal `incsrc "path"` directives.
 pub fn build_patches(
     repository: &Path,
     build_directory: &Path,
     asar_override: Option<&Path>,
-) -> Result<Vec<PathBuf>> {
+) -> Result<BuiltPatches> {
     let repository = repository.canonicalize()?;
     fs::create_dir_all(build_directory)?;
     let build_directory = build_directory.canonicalize()?;
@@ -71,22 +73,28 @@ pub fn build_patches(
         }
         let fingerprint = fingerprint.finalize();
         let filename = root.file_name().unwrap();
-        let output = output_directory.join(filename).with_extension("ips");
-        let metadata = output.with_extension("ips.sha256");
+        let is_symbols = filename == "symbols.asm";
+        let extension = if is_symbols { "sym" } else { "ips" };
+        let output = output_directory.join(filename).with_extension(extension);
+        let metadata = output.with_extension(format!("{extension}.sha256"));
         if output.exists() && fs::read(&metadata).unwrap_or_default() == fingerprint.as_slice() {
             reused += 1;
         } else {
             eprintln!("Assembling {}", root.display());
-            let temporary_output = temporary.path().join(filename).with_extension("ips");
+            let temporary_output = temporary.path().join(filename).with_extension(extension);
             File::create(&temporary_rom)?;
-            run_command(
-                Command::new(&asar)
-                    .args(ASSEMBLY_ARGUMENTS)
-                    .arg(&temporary_output)
-                    .arg(&root)
-                    .arg(&temporary_rom),
-            )?;
-            let temporary_metadata = temporary_output.with_extension("ips.sha256");
+            let mut command = Command::new(&asar);
+            command.args(ASSEMBLY_ARGUMENTS);
+            if is_symbols {
+                command
+                    .arg("--symbols=nocash")
+                    .arg(format!("--symbols-path={}", temporary_output.display()));
+            } else {
+                command.arg("--ips").arg(&temporary_output);
+            }
+            command.arg(&root).arg(&temporary_rom);
+            run_command(&mut command)?;
+            let temporary_metadata = temporary_output.with_extension(format!("{extension}.sha256"));
             fs::write(&temporary_metadata, fingerprint)?;
             // Invalidate the old fingerprint before replacing its output. An interruption
             // between publishing the two files must leave a cache miss.
@@ -95,13 +103,30 @@ pub fn build_patches(
             fs::rename(&temporary_metadata, &metadata)?;
             rebuilt += 1;
         }
-        outputs.push(output);
+        if !is_symbols {
+            outputs.push(output);
+        }
     }
+
+    let mut symbols = BTreeMap::new();
+    let symbol_file = fs::read_to_string(output_directory.join("symbols.sym"))?;
+    for line in symbol_file.lines() {
+        let Some((value, name)) = line.split_once(' ') else {
+            continue;
+        };
+        if let Some(name) = name.trim().strip_prefix("export_") {
+            symbols.insert(name.to_owned(), u32::from_str_radix(value, 16)?);
+        }
+    }
+    let symbols = PatchSymbols::import_symbols(symbols)?;
     eprintln!(
-        "Updated IPS patches in {}\n  {rebuilt} assembled, {reused} reused",
+        "Updated ASM artifacts in {}\n  {rebuilt} assembled, {reused} reused",
         output_directory.display()
     );
-    Ok(outputs)
+    Ok(BuiltPatches {
+        patches: outputs,
+        symbols,
+    })
 }
 
 fn build_asar(repository: &Path, build_directory: &Path) -> Result<PathBuf> {

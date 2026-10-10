@@ -1,18 +1,24 @@
 ; Interface shared by independently assembled patches.
 
+; Define an ASM symbol and expose its numeric value to the Rust catalog builder.
+macro export_symbol(name, value)
+    !<name> = <value>
+    export_<name> = <value>
+endmacro
+
 ; Four 16-bit 8x8 tilemap words make up each Map16 definition. Each table
 ; stores one quadrant, indexed by twice the Map16 ID.
-!Map16TopLeft = $A18000
-!Map16TopRight = $A28000
-!Map16BottomLeft = $A38000
-!Map16BottomRight = $A48000
+%export_symbol(Map16TopLeft, $A18000)
+%export_symbol(Map16TopRight, $A28000)
+%export_symbol(Map16BottomLeft, $A38000)
+%export_symbol(Map16BottomRight, $A48000)
 
 ; One property byte per Map16 ID and quadrant. The independent-property patch
 ; populates these tables from the generated Map16 definitions.
-!Map16PropertyTopLeft = $A58000
-!Map16PropertyTopRight = $A5C000
-!Map16PropertyBottomLeft = $A68000
-!Map16PropertyBottomRight = $A6C000
+%export_symbol(Map16PropertyTopLeft, $A58000)
+%export_symbol(Map16PropertyTopRight, $A5C000)
+%export_symbol(Map16PropertyBottomLeft, $A68000)
+%export_symbol(Map16PropertyBottomRight, $A6C000)
 
 ; Selects the property for the Map16 ID in A using the contacted quadrant from
 ; $00/$02. Returns the property in A with 8-bit accumulator and index registers.
@@ -21,15 +27,15 @@
 
 ; Twenty-two little-endian 24-bit pointers to generated dynamic-tile groups,
 ; indexed by the stable replacement-type order in theme_check.
-!DynamicTileGroupPointers = $A78300
+%export_symbol(DynamicTileGroupPointers, $A78300)
 
 ; Five little-endian 24-bit pointers to generated dungeon-entrance cutscene
 ; scripts, indexed by the vanilla trigger value minus one.
-!CutscenePointers = $A78342
+%export_symbol(CutscenePointers, $A78342)
 
 ; One little-endian 24-bit persistent event-overlay pointer per overworld area.
 ; A zero pointer means the area has no generated overlay.
-!OverworldOverlayPointers = $A78351
+%export_symbol(OverworldOverlayPointers, $A78351)
 
 ; Opens a generated wooden door at the contacted Map16 offset in X.
 ; Carry set means a door was opened and entrance handling should stop.

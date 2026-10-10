@@ -11,13 +11,55 @@ pub struct PatchCatalog {
     /// Keys are ASM filenames without their extension; values are complete IPS files.
     /// Patches remain separate so the patcher can detect conflicting writes.
     pub patches: BTreeMap<String, Vec<u8>>,
-    /// Exported Asar symbol names without the leading `!`, with their numeric values.
-    /// Address symbols use SNES addresses, not ROM file offsets. Values may also
-    /// represent RAM/VRAM addresses or constants, according to the ASM interface.
-    pub symbols: BTreeMap<String, u32>,
+    pub symbols: PatchSymbols,
     pub item_locations: BTreeMap<ItemLocationId, ItemLocation>,
     /// Keys are stable item names from `z3-json-data/items.json`.
     pub items: BTreeMap<String, ItemEncoding>,
+}
+
+macro_rules! define_patch_symbols {
+    ($visibility:vis struct $name:ident {
+        $($field:ident: $field_type:ty => $symbol:ident),* $(,)?
+    }) => {
+        /// Exported ASM interface consumed by Rust. Addresses are SNES addresses,
+        /// not ROM file offsets.
+        #[derive(Clone, Debug, Encode, Decode, TypeHash)]
+        $visibility struct $name {
+            $(pub $field: $field_type,)*
+        }
+
+        impl $name {
+            /// Build the typed manifest from unprefixed export names, consuming
+            /// every export exactly once. This operation runs in the builder.
+            pub fn import_symbols(mut symbols: BTreeMap<String, u32>) -> anyhow::Result<Self> {
+                let imported = Self {
+                    $($field: symbols.remove(stringify!($symbol)).ok_or_else(|| {
+                        anyhow::anyhow!("Missing exported symbol: {}", stringify!($symbol))
+                    })?,)*
+                };
+                if !symbols.is_empty() {
+                    anyhow::bail!("Unconsumed exported symbols: {:?}", symbols.keys());
+                }
+                Ok(imported)
+            }
+        }
+    };
+}
+
+define_patch_symbols! {
+    pub struct PatchSymbols {
+        map16_top_left: u32 => Map16TopLeft,
+        map16_top_right: u32 => Map16TopRight,
+        map16_bottom_left: u32 => Map16BottomLeft,
+        map16_bottom_right: u32 => Map16BottomRight,
+        map16_property_top_left: u32 => Map16PropertyTopLeft,
+        map16_property_top_right: u32 => Map16PropertyTopRight,
+        map16_property_bottom_left: u32 => Map16PropertyBottomLeft,
+        map16_property_bottom_right: u32 => Map16PropertyBottomRight,
+        dynamic_tile_group_pointers: u32 => DynamicTileGroupPointers,
+        cutscene_pointers: u32 => CutscenePointers,
+        overworld_overlay_pointers: u32 => OverworldOverlayPointers,
+    }
 }
 
 /// Authored identity, independent of catalog ordering and patching addresses.

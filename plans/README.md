@@ -15,7 +15,7 @@ The project has the following main components:
 
 ## ASM patches
 
-The ASM patches contain seed-independent code and hooks needed to support the randomizer, including the retiled overworld. They are assembled offline from patch sources without reading a ROM. Assembly produces IPS patches; a machine-readable symbol manifest for writing seed-specific data is also planned but not implemented. Shared ASM symbols are defined in `patches/src/symbols.inc`, and Rust currently defines patching addresses separately. Some patches are optional; patcher code decides their selection, application order, and phases.
+The ASM patches contain seed-independent code and hooks needed to support the randomizer, including the retiled overworld. They are assembled offline from patch sources without reading a ROM. Assembly produces IPS patches and a typed symbol manifest for writing seed-specific data. Shared ASM symbols are defined in `patches/src/symbols.inc`; `%export_symbol` marks those consumed by Rust, and `symbols.asm` exports them through Asar's symbol output. The builder checks exact correspondence with the fields of `PatchSymbols`. Rust patching code still defines addresses separately until patch-catalog integration. Some patches are optional; patcher code decides their selection, application order, and phases.
 
 The IPS patches may be included in a release or otherwise stored so ordinary users do not need an assembler. The planned work on the game engine is described in [engine.md](engine.md), which is currently a primary focus.
 

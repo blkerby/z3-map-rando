@@ -7,6 +7,7 @@ edition = "2024"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 logic_catalog = { path = "../logic_catalog" }
+patch_catalog = { path = "../patch_catalog" }
 patcher = { path = "../patcher" }
 retiling_catalog = { path = "../retiling_catalog" }
 serde = { version = "1", features = ["derive"] }

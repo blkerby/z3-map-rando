@@ -16,9 +16,13 @@ Always patch saved seeds with the latest patcher and its matching patch catalog,
 
 ### Symbol manifest
 
-The machine-readable symbol manifest is not implemented yet. Today `patches/src/symbols.inc` defines the shared ASM interface, while Rust patching code uses separately defined address constants. The current assembly script produces IPS files only.
+`patches/src/symbols.inc` defines the shared ASM interface. Use `%export_symbol(Name, $Value)` for symbols consumed by Rust; this defines both `!Name` for ASM and the assigned label `export_Name` for Asar's symbol output. Symbols shared only between ASM files retain ordinary `!Name = $Value` definitions. Routine labels and their address anchors need no extra export labels.
 
-Add an export step for the symbols needed to write seed-specific data and allocate runtime assets. Generate the manifest alongside the matching IPS artifacts and include it in the patch catalog. The patcher should consume these exported addresses rather than duplicate the corresponding constants in Rust. The exact symbol-export mechanism remains to be selected during implementation.
+`patches/src/symbols.asm` includes the interface and is assembled independently with `--symbols=nocash`. It produces `build/patches/symbols.sym`, not an IPS patch. `catalog_builder asm` caches this file with the same dependency and assembler fingerprints as the patches, selects `export_` labels, and removes their prefix before importing them. Asar's symbol output retains 24 bits, so this interface is for addresses and small constants.
+
+`PatchCatalog.symbols` is a typed `PatchSymbols` struct. The Rust `define_patch_symbols!` macro declares each field and its corresponding ASM name once, deriving serialization and generating the builder-side importer. Importing removes every expected name from the temporary map and fails on missing or unconsumed exports, establishing exact correspondence between the ASM exports and the serialized fields. Initial exports cover Map16 graphical/property tables and dynamic-tile, cutscene, and overlay pointer tables.
+
+Patch-catalog packaging and migration of existing Rust address constants to these fields remain planned work. The builder returns the typed manifest alongside the assembled IPS paths for that integration.
 
 
 ## Patch overview

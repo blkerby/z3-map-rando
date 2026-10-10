@@ -90,6 +90,8 @@ cargo run -p catalog_builder -- asm
 
 This automatically builds the repository's patched Asar submodule in Release mode under `build/asar/`, using CMake's incremental compilation, and writes IPS files and their fingerprints under `build/patches/`. Initialize the submodule when cloning, as shown above. Only the standalone assembler target is compiled. Each patch is reused when its source files, transitive includes, assembler contents, and assembly options are unchanged. Builder implementation changes also invalidate the fingerprints. Updates hold `build/cache.lock`; temporary ROMs and outputs are local to each invocation, and failed assembly leaves the previous completed patch available.
 
+The builder also caches `build/patches/symbols.sym`, exported independently from `patches/src/symbols.asm`, and imports it into the catalog's typed `PatchSymbols`. `%export_symbol` in the shared interface marks Rust-facing symbols; missing or unconsumed exports fail the build. See [the symbol manifest design](plans/patches.md#symbol-manifest).
+
 Use `--repository` and `--output-directory` to override the current-directory and `build/` defaults. An explicit `--asar` path skips the automatic assembler build:
 
 ```sh
