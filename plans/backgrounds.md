@@ -2,18 +2,11 @@
 
 ## Goal
 
-Make `theme_check` compile the BG1 layers, composition mode, and camera behavior
-stored in ALTTPRetiling. Generated tables should replace vanilla's
-screen-specific BG1 selection, color-math, and scrolling branches wherever the
-retiling project provides data.
+Make `theme_check` compile the BG1 layers, composition mode, and camera behavior stored in ALTTPRetiling. Generated tables should replace vanilla's screen-specific BG1 selection, color-math, and scrolling branches wherever the retiling project provides data.
 
-Rain remains state-dependent and uses a separate static background. Area `$80`
-remains a small hard-coded exception because its two entrances use the same
-area ID as two functionally different areas.
+Rain remains state-dependent and uses a separate static background. Area `$80` remains a small hard-coded exception because its two entrances use the same area ID as two functionally different areas.
 
-This plan supersedes the logical BG1 dimensions and preserved-scroll-policy
-assumptions in [bg1_streamer.md](bg1_streamer.md). Its shared rendering and NMI
-queue remain useful.
+This plan supersedes the logical BG1 dimensions and preserved-scroll-policy assumptions in [bg1_streamer.md](bg1_streamer.md). Its shared rendering and NMI queue remain useful.
 
 ## Source model
 
@@ -24,153 +17,98 @@ ALTTPRetiling area JSON provides:
 - horizontal and vertical camera-follow multipliers;
 - horizontal and vertical automatic drift rates.
 
-Layers targeting the same PPU background resolve at 8x8-tile granularity. A
-placement in a higher layer replaces the complete lower placement at that
-coordinate, including its color-zero pixels. Only the final BG1 and BG2 images
-are composited per pixel by the PPU. Future edge-variant layers will follow the
-same rule and will be resolved when a seed chooses its variants.
+Layers targeting the same PPU background resolve at 8x8-tile granularity. A placement in a higher layer replaces the complete lower placement at that coordinate, including its color-zero pixels. Only the final BG1 and BG2 images are composited per pixel by the PPU. Future edge-variant layers will follow the same rule and will be resolved when a seed chooses its variants.
 
-Lost Woods has two BG1 alternatives: `Woods Fog` before the Master Sword event
-and `Woods Clear` afterward. Area `$80` likewise has two alternatives, `Grove
-Fog` and `Bridge Shadow`. Alternatives are not composited.
+Lost Woods has two BG1 alternatives: `Woods Fog` before the Master Sword event and `Woods Clear` afterward. Area `$80` likewise has two alternatives, `Grove Fog` and `Bridge Shadow`. Alternatives are not composited.
 
 ## Logical BG1 map
 
-An authored BG1 has the same dimensions as BG2 in that area. A 4x4-screen area
-uses a 64x64 grid of Map16 tiles in `$7E4000-$7E5FFF`, while a 2x2-screen area
-uses one 32x32-Map16 flat map.
+An authored BG1 has the same dimensions as BG2 in that area. A 4x4-screen area uses a 64x64 grid of Map16 tiles in `$7E4000-$7E5FFF`, while a 2x2-screen area uses one 32x32-Map16 flat map.
 
 `theme_check` will:
 
 1. resolve the selected BG1 layers into one optional placement per 8x8 cell;
 2. divide the result into 2x2 cells;
-3. intern those cells as Map16 definitions using the allocated character and
-   palette slots;
-4. use a transparent 8x8 word for absent placements and zero collision
-   properties for new BG1-only Map16 definitions;
-5. emit the same arrangement of flat 32x32-Map16 maps as BG2 for every active
-   BG1 variant.
+3. intern those cells as Map16 definitions using the allocated character and palette slots;
+4. use a transparent 8x8 word for absent placements and zero collision properties for new BG1-only Map16 definitions;
+5. emit the same arrangement of flat 32x32-Map16 maps as BG2 for every active BG1 variant.
 
-The maps use the existing flat-map format and can share its map-data interner. A
-parallel 160-entry pointer table maps screen IDs to BG1 maps. A zero pointer
-means that the retiling project supplies no BG1 for that screen.
+The maps use the existing flat-map format and can share its map-data interner. A parallel 160-entry pointer table maps screen IDs to BG1 maps. A zero pointer means that the retiling project supplies no BG1 for that screen.
 
-Every map used by the area's BG2 dimensions is initialized when BG1 is active.
-Transparent or deliberately filled regions must not retain data from the
-previous area.
+Every map used by the area's BG2 dimensions is initialized when BG1 is active. Transparent or deliberately filled regions must not retain data from the previous area.
 
 ### Pyramid
 
-The Pyramid BG1 should contain the tan fill needed below its detailed artwork.
-With valid data across the complete logical BG1 map, its camera can use the
-same wrapping coordinate calculation as other backgrounds. The vanilla
-vertical `$06C0` clamp and related special cases can then be removed after a
-visual comparison confirms the authored fill covers every reachable camera
-position.
+The Pyramid BG1 should contain the tan fill needed below its detailed artwork. With valid data across the complete logical BG1 map, its camera can use the same wrapping coordinate calculation as other backgrounds. The vanilla vertical `$06C0` clamp and related special cases can then be removed after a visual comparison confirms the authored fill covers every reachable camera position.
 
 ## Graphics and palette allocation
 
-BG1 placements participate in the existing palette and stable-character
-allocation with BG2 and dynamic tiles. Only placements surviving same-background
-layer resolution are required for a seed, except runtime alternatives such as
-area `$80`, whose assets must coexist.
+BG1 placements participate in the existing palette and stable-character allocation with BG2 and dynamic tiles. Only placements surviving same-background layer resolution are required for a seed, except runtime alternatives such as area `$80`, whose assets must coexist.
 
-The compiler continues to emit the existing six palette rows and character-row
-payloads. BG1 Map16 words refer to those allocated destinations, so runtime
-loading needs no second graphics or palette mechanism.
+The compiler continues to emit the existing six palette rows and character-row payloads. BG1 Map16 words refer to those allocated destinations, so runtime loading needs no second graphics or palette mechanism.
 
 Allocation checks must report:
 
 - an area or neighboring-area set that cannot fit in six palette rows;
 - stable character rows exceeding the existing 960-character capacity;
-- a BG1 Map16 word referring to an asset absent from that area's full-load
-  record;
-- the fullest palette allocation and highest character slot after BG1 and rain
-  dependencies are included.
+- a BG1 Map16 word referring to an asset absent from that area's full-load record;
+- the fullest palette allocation and highest character slot after BG1 and rain dependencies are included.
 
 ## Area background table
 
-Each playable screen receives a generated BG1 map pointer, or zero when it has
-no authored BG1. The existing generated area record contains:
+Each playable screen receives a generated BG1 map pointer, or zero when it has no authored BG1. The existing generated area record contains:
 
 - composition mode;
 - X and Y camera-follow values;
 - X and Y drift values.
 
-Both lookups use `$8A`. Runtime code reads them during the existing overworld
-background-loading phase, loads the logical BG1 map, and configures BG1, the
-main/subscreen selection, and color math. Screen IDs should not otherwise
-select presentation behavior in ASM.
+Both lookups use `$8A`. Runtime code reads them during the existing overworld background-loading phase, loads the logical BG1 map, and configures BG1, the main/subscreen selection, and color math. Screen IDs should not otherwise select presentation behavior in ASM.
 
-Edge variants do not require runtime condition records. The randomizer chooses
-them before patching, and the patcher writes the resulting direct pointers.
+Edge variants do not require runtime condition records. The randomizer chooses them before patching, and the patcher writes the resulting direct pointers.
 
 ### Area `$80`
 
 Area `$80` keeps one narrow exception matching vanilla:
 
 - `$A0 == $0181` selects `Bridge Shadow`;
-- the other entrance selects `Grove Fog` unless `$7EF300 & $40` has removed
-  the Master Sword grove overlay;
+- the other entrance selects `Grove Fog` unless `$7EF300 & $40` has removed the Master Sword grove overlay;
 - one BG2 map continues to contain both functional halves of the area.
 
-The exception selects between generated pointers or no BG1. `Bridge Shadow`
-also scrolls in lockstep with BG2, including vanilla's `$0100` vertical
-offset, and has no drift. The ordinary loader, renderer, allocation, and
-camera code remain shared.
+The exception selects between generated pointers or no BG1. `Bridge Shadow` also scrolls in lockstep with BG2, including vanilla's `$0100` vertical offset, and has no drift. The ordinary loader, renderer, allocation, and camera code remain shared.
 
 ## Camera behavior
 
-Camera-follow values are dimensionless multipliers. Drift values are signed
-pixels per frame. For each axis, the active background position advances as:
+Camera-follow values are dimensionless multipliers. Drift values are signed pixels per frame. For each axis, the active background position advances as:
 
 ```text
 background_delta = camera_delta * follow + drift
 ```
 
-The runtime keeps background positions in eighth-pixel fixed-point and derives
-the integer BG1 scroll and streamer source coordinate from them. The current
-follow choices (`0`, `0.25`, `0.5`, `1`, and `1.5`) are shift-and-add friendly;
-drift still needs fractional precision for values such as `0.125`.
+The runtime keeps background positions in eighth-pixel fixed-point and derives the integer BG1 scroll and streamer source coordinate from them. The current follow choices (`0`, `0.25`, `0.5`, `1`, and `1.5`) are shift-and-add friendly; drift still needs fractional precision for values such as `0.125`.
 
-On a full area load, initialize the position from the camera's local coordinate
-within the area multiplied by `follow`. While active, add unshaken camera
-movement and drift, then apply screen shake to the presented BG1 scroll. Reset
-the fractional drift phase on a full load unless gameplay comparison shows a
-vanilla path that requires continuity.
+On a full area load, initialize the position from the camera's local coordinate within the area multiplied by `follow`. While active, add unshaken camera movement and drift, then apply screen shake to the presented BG1 scroll. Reset the fractional drift phase on a full load unless gameplay comparison shows a vanilla path that requires continuity.
 
-BG1 uses the same source-coordinate mask and wrapping dimensions as BG2 in the
-area; there are no Pyramid-specific clamps. Authored transparent or filled
-regions determine what appears at every reachable position.
+BG1 uses the same source-coordinate mask and wrapping dimensions as BG2 in the area; there are no Pyramid-specific clamps. Authored transparent or filled regions determine what appears at every reachable position.
 
-The existing shared BG1/BG2 streamer remains responsible for the rolling PPU
-tilemap. BG1 uses the same source mask as BG2 for the area's dimensions; its
-VRAM base and BG1-specific scroll hooks remain distinct from BG2.
+The existing shared BG1/BG2 streamer remains responsible for the rolling PPU tilemap. BG1 uses the same source mask as BG2 for the area's dimensions; its VRAM base and BG1-specific scroll hooks remain distinct from BG2.
 
 ## Rain
 
-Rain is not represented as an ordinary ALTTPRetiling BG1 layer. It remains a
-static 64x32-8x8-tile background with its existing four-step offset animation,
-splashes, thunder flashes, sound, and state triggers. It bypasses the ordinary
-BG1 streamer.
+Rain is not represented as an ordinary ALTTPRetiling BG1 layer. It remains a static 64x32-8x8-tile background with its existing four-step offset animation, splashes, thunder flashes, sound, and state triggers. It bypasses the ordinary BG1 streamer.
 
 Rain is selected only when:
 
 1. the current game state satisfies the rain predicate; and
 2. the generated background table has no authored BG1 for the area.
 
-Two sets of 8x8 rain graphics reproduce the same shapes with pixel indices
-appropriate to their allocated ALTTPRetiling palettes:
+Two sets of 8x8 rain graphics reproduce the same shapes with pixel indices appropriate to their allocated ALTTPRetiling palettes:
 
 | Context | Palette | Nontransparent colors and indices |
 | --- | ---: | --- |
 | Light World | `3` (`Light World 1`) | `1=[5,5,5]`, `10=[6,9,15]`, `11=[7,12,21]`, `12=[14,22,30]` |
 | Dark World (sampled from Mire) | `8` (`Dark World 1`) | `11=[4,6,2]`, `13=[0,10,5]`, `14=[6,17,12]` |
 
-`theme_check` will construct these tiles and their Map16 definitions, add the
-applicable palette and character dependencies to every area without authored
-BG1, and emit the existing optimized rain layout using the new definitions. No
-new rain palette is needed.
+`theme_check` will construct these tiles and their Map16 definitions, add the applicable palette and character dependencies to every area without authored BG1, and emit the existing optimized rain layout using the new definitions. No new rain palette is needed.
 
 ## Implementation phases
 
@@ -182,18 +120,14 @@ new rain palette is needed.
 - Include the resulting assets in existing allocations.
 - Emit allocation and map-bound diagnostics, but do not change ASM.
 
-This phase establishes whether the six palette rows remain sufficient using
-the assets that the final maps actually reference.
+This phase establishes whether the six palette rows remain sufficient using the assets that the final maps actually reference.
 
 ### 2. Emit generated background tables
 
 - Add the parallel BG1 map-pointer table.
-- Append composition, follow, and drift values to the existing area record,
-  encoded in signed eighths.
-- Write the pointer table into its declared ROM range with overlap and bounds
-  checks.
-- Add offline checks that every active BG1 initializes the same maps as BG2 and
-  all referenced assets.
+- Append composition, follow, and drift values to the existing area record, encoded in signed eighths.
+- Write the pointer table into its declared ROM range with overlap and bounds checks.
+- Add offline checks that every active BG1 initializes the same maps as BG2 and all referenced assets.
 
 The game still follows vanilla background selection in this phase.
 
@@ -204,38 +138,29 @@ The game still follows vanilla background selection in this phase.
 - Clear BG1 when the table has no authored map.
 - Add the area `$80` pointer-selection exception.
 - Preserve the existing rain map path until phase 5 replaces its graphics.
-- Retain vanilla composition and scrolling temporarily to isolate map-loading
-  failures.
+- Retain vanilla composition and scrolling temporarily to isolate map-loading failures.
 
 ### 4. Drive presentation and camera from data
 
-- Configure BG1 enablement, main/subscreen selection, and color math from the
-  generated composition mode.
+- Configure BG1 enablement, main/subscreen selection, and color math from the generated composition mode.
 - Implement fixed-point follow and drift for both axes.
 - Use BG2's source mask for the area's dimensions in the BG1 streamer.
 - Use the full authored Pyramid map and remove its clamp after validation.
-- Cover full loads, gameplay streaming, scrolling transitions, mirror and
-  portal travel, whirlpools, world-map return, and interior return.
+- Cover full loads, gameplay streaming, scrolling transitions, mirror and portal travel, whirlpools, world-map return, and interior return.
 
 ### 5. Add generated rain assets
 
-- Generate Light World and Dark World rain tiles with their respective palette
-  indices.
+- Generate Light World and Dark World rain tiles with their respective palette indices.
 - Rebuild the optimized rain Map16 layout with allocated definitions.
 - Add rain dependencies to every area without authored BG1.
-- Route the existing rain predicate to the static rain path and keep it outside
-  ordinary BG1 streaming.
-- Test Link's House, Misery Mire, animation phases, splashes, thunder, state
-  changes, and interior exits.
+- Route the existing rain predicate to the static rain path and keep it outside ordinary BG1 streaming.
+- Test Link's House, Misery Mire, animation phases, splashes, thunder, state changes, and interior exits.
 
 ### 6. Remove superseded vanilla branches
 
-- Delete or bypass hard-coded overlay selection, composition, camera-follow,
-  drift, and Pyramid clamp paths now covered by generated data.
-- Retain only the area `$80` exception and presentation paths outside playable
-  overworld gameplay, such as dungeons and credits.
-- Run allocation checks, patch assembly, `theme_check`, and representative
-  emulator tests for every composition and camera mode.
+- Delete or bypass hard-coded overlay selection, composition, camera-follow, drift, and Pyramid clamp paths now covered by generated data.
+- Retain only the area `$80` exception and presentation paths outside playable overworld gameplay, such as dungeons and credits.
+- Run allocation checks, patch assembly, `theme_check`, and representative emulator tests for every composition and camera mode.
 
 ## Completion checks
 
@@ -244,7 +169,5 @@ The game still follows vanilla background selection in this phase.
 - Composition, follow, and drift come from generated area data.
 - Pyramid traverses its full camera range without a clamp or exposed garbage.
 - Areas with authored BG1 never select rain.
-- Light World and Dark World rain contexts use the correct palette-indexed tiles and
-  retain animation, thunder, and sound wherever the rain predicate selects them.
-- Area `$80` behaves like vanilla without introducing a general runtime variant
-  system.
+- Light World and Dark World rain contexts use the correct palette-indexed tiles and retain animation, thunder, and sound wherever the rain predicate selects them.
+- Area `$80` behaves like vanilla without introducing a general runtime variant system.

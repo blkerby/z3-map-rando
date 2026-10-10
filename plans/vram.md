@@ -2,10 +2,7 @@
 
 Addresses below are VRAM word addresses. Sizes are physical bytes, so each `$400`-word tilemap screen block occupies 2 KiB.
 
-Milestones 5 and 6 are global gameplay changes: their BG3 reductions apply to
-both overworld and dungeons because those modes share the HUD and pause-menu
-paths. Milestones 7, 8, and 9A rearrange only overworld VRAM; dungeons retain
-their vanilla BG1, BG2, graphics, and OBJ locations.
+Milestones 5 and 6 are global gameplay changes: their BG3 reductions apply to both overworld and dungeons because those modes share the HUD and pause-menu paths. Milestones 7, 8, and 9A rearrange only overworld VRAM; dungeons retain their vanilla BG1, BG2, graphics, and OBJ locations.
 
 ## Vanilla layout
 
@@ -20,8 +17,7 @@ their vanilla BG1, BG2, graphics, and OBJ locations.
 
 ## After milestone 5
 
-In both overworld and dungeons, BG3 becomes 32x64. Its pause-menu block moves
-from `$6800` to `$6400`, releasing the unused right-hand blocks.
+In both overworld and dungeons, BG3 becomes 32x64. Its pause-menu block moves from `$6800` to `$6400`, releasing the unused right-hand blocks.
 
 | VRAM range | Size | Use |
 | --- | ---: | --- |
@@ -35,8 +31,7 @@ from `$6800` to `$6400`, releasing the unused right-hand blocks.
 
 ## After milestone 6
 
-In both overworld and dungeons, BG3 becomes a streamed 32x32 tilemap,
-releasing another 2 KiB.
+In both overworld and dungeons, BG3 becomes a streamed 32x32 tilemap, releasing another 2 KiB.
 
 | VRAM range | Size | Use |
 | --- | ---: | --- |
@@ -50,8 +45,7 @@ releasing another 2 KiB.
 
 ## After milestone 7
 
-BG2 becomes 64x32. It keeps its two horizontal screen blocks and releases its
-lower two blocks.
+BG2 becomes 64x32. It keeps its two horizontal screen blocks and releases its lower two blocks.
 
 | VRAM range | Size | Use |
 | --- | ---: | --- |
@@ -66,8 +60,7 @@ lower two blocks.
 
 ## After milestone 8
 
-BG1 also becomes 64x32, freeing another 4 KiB. The BG1/BG2 free ranges are
-not yet contiguous.
+BG1 also becomes 64x32, freeing another 4 KiB. The BG1/BG2 free ranges are not yet contiguous.
 
 | VRAM range | Size | Use |
 | --- | ---: | --- |
@@ -83,9 +76,7 @@ not yet contiguous.
 
 ## After milestone 9A (current)
 
-The reduced BG1/BG2 tilemaps move to `$6000-$6FFF`, and the BG3 tilemap moves
-to `$3C00`. OBJ and BG3 graphics remain in place. The shared BG1/BG2 character
-region expands from 16 KiB to 30 KiB, or from 512 to 960 characters.
+The reduced BG1/BG2 tilemaps move to `$6000-$6FFF`, and the BG3 tilemap moves to `$3C00`. OBJ and BG3 graphics remain in place. The shared BG1/BG2 character region expands from 16 KiB to 30 KiB, or from 512 to 960 characters.
 
 | VRAM range | Size | Use |
 | --- | ---: | --- |
@@ -98,12 +89,7 @@ region expands from 16 KiB to 30 KiB, or from 512 to 960 characters.
 
 ## Dungeon gameplay layout retained by milestone 9A
 
-Milestone 9A does not rearrange dungeon VRAM. BG1, BG2, their graphics, and OBJ
-graphics retain their vanilla locations. The BG3 entry below is intentionally
-non-vanilla because milestones 5 and 6 apply to dungeons as well as the
-overworld. Dungeons keep complete 64x64 BG1 and BG2 tilemaps resident and
-upload whole 32x32 quadrants before scrolling between rooms; they do not
-stream rows or columns as the camera moves.
+Milestone 9A does not rearrange dungeon VRAM. BG1, BG2, their graphics, and OBJ graphics retain their vanilla locations. The BG3 entry below is intentionally non-vanilla because milestones 5 and 6 apply to dungeons as well as the overworld. Dungeons keep complete 64x64 BG1 and BG2 tilemaps resident and upload whole 32x32 quadrants before scrolling between rooms; they do not stream rows or columns as the camera moves.
 
 | VRAM range | Size | Use |
 | --- | ---: | --- |
@@ -126,7 +112,4 @@ stream rows or columns as the camera moves.
 | Milestone 8 | `$11` | `$01` | `$60` | `$22` |
 | Milestone 9A (current) | `$69` | `$61` | `$3C` | `$00` |
 
-`BG1SC`, `BG2SC`, and `BG3SC` select each tilemap's base and dimensions.
-`BG12NBA` selects the shared BG1/BG2 character base. Every overworld scene uses
-the milestone 9A layout. Dungeons retain `BG1SC=$13`, `BG2SC=$03`,
-`BG3SC=$60`, and `BG12NBA=$22`.
+`BG1SC`, `BG2SC`, and `BG3SC` select each tilemap's base and dimensions. `BG12NBA` selects the shared BG1/BG2 character base. Every overworld scene uses the milestone 9A layout. Dungeons retain `BG1SC=$13`, `BG2SC=$03`, `BG3SC=$60`, and `BG12NBA=$22`.

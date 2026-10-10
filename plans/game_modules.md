@@ -7,8 +7,7 @@ The game runs one state-machine step per logic frame:
 1. NMI sets `$12`, allowing `MainGameLoop` to start a frame.
 2. `MainGameLoop` calls `RunModule`.
 3. `RunModule` uses `$10` to select one top-level module.
-4. The selected module may use `$11` and then `$B0` or `$0200` for nested
-   state machines.
+4. The selected module may use `$11` and then `$B0` or `$0200` for nested state machines.
 5. The main loop prepares OAM, clears `$12`, and waits for the next NMI.
 
 The relevant variables are:
@@ -21,14 +20,9 @@ The relevant variables are:
 | `$7E0200` | — | Another nested-state counter used by some larger sequences. |
 | `$7E0012` | `LAG` | Synchronizes the main loop with NMI. |
 
-These are conventions, not a type system. The meaning of `$11`, `$B0`, and
-`$0200` depends on the active module. A routine may advance a sequence by
-incrementing one of them, jump elsewhere by assigning a new value, or return
-to ordinary play by clearing it.
+These are conventions, not a type system. The meaning of `$11`, `$B0`, and `$0200` depends on the active module. A routine may advance a sequence by incrementing one of them, jump elsewhere by assigning a new value, or return to ordinary play by clearing it.
 
-The authoritative top-level dispatcher is
-[`RunModule`](../jpdasm/bank_00.asm#L61). Individual modules usually have
-their own local dispatch table.
+The authoritative top-level dispatcher is [`RunModule`](../jpdasm/bank_00.asm#L61). Individual modules usually have their own local dispatch table.
 
 ## Top-level modules
 
@@ -89,14 +83,9 @@ underworld play ($07)
   ─> overworld play ($09)
 ```
 
-Here `$07:$0F` means top-level module `$07`, submode `$0F`. Opening the iris
-outdoors is top-level module `$10`; opening it indoors is submode
-`Module07_0F_LandingWipe`. Module `$0F` closes the iris and then selects the
-destination module previously stored in `$010C`.
+Here `$07:$0F` means top-level module `$07`, submode `$0F`. Opening the iris outdoors is top-level module `$10`; opening it indoors is submode `Module07_0F_LandingWipe`. Module `$0F` closes the iris and then selects the destination module previously stored in `$010C`.
 
-Module `$0E` temporarily owns the frame while an interface is open. The
-spotlight, game-over, boss-victory, warp, and ending modules are separate
-multi-frame sequences that eventually select another top-level module.
+Module `$0E` temporarily owns the frame while an interface is open. The spotlight, game-over, boss-victory, warp, and ending modules are separate multi-frame sequences that eventually select another top-level module.
 
 ## Overworld module family
 
@@ -107,14 +96,9 @@ The playable overworld uses four top-level values but only two implementations:
 | `$08` | `$09` | Normal Light World or Dark World area. |
 | `$0A` | `$0B` | Special overworld area. |
 
-`Module08_OverworldLoad` and `Module0A_OverworldSpecialLoad` share one
-three-entry load table. `Module09_Overworld` and
-`Module0B_OverworldSpecial` share one gameplay table and common per-frame
-sprite, Link, camera-shake, and rain handling.
+`Module08_OverworldLoad` and `Module0A_OverworldSpecialLoad` share one three-entry load table. `Module09_Overworld` and `Module0B_OverworldSpecial` share one gameplay table and common per-frame sprite, Link, camera-shake, and rain handling.
 
-“Special overworld” is a game-engine category, not another size of ordinary
-area. It includes isolated outdoor scenes handled separately from the normal
-Light World and Dark World maps.
+“Special overworld” is a game-engine category, not another size of ordinary area. It includes isolated outdoor scenes handled separately from the normal Light World and Dark World maps.
 
 ### Modules `$08` and `$0A`: load sequence
 
@@ -124,15 +108,11 @@ Light World and Dark World maps.
 | `$01` | `Overworld_LoadSubscreenAndSilenceSFX1` | Select and load the optional BG1 overlay. |
 | `$02` | `Module08_02_LoadAndAdvance` | Build the logical overworld map and vanilla BG2 tilemap, then enter module `$10` for the opening iris. |
 
-Module `$08` loads an area reached from an interior.
-Module `$0A` uses the same stages but gets its source state from another
-special overworld.
+Module `$08` loads an area reached from an interior. Module `$0A` uses the same stages but gets its source state from another special overworld.
 
 ### Modules `$09` and `$0B`: gameplay sequence
 
-`$11 = $00` is ordinary player control. Other values temporarily replace
-player control with a transition or scripted action. The dispatcher is
-[`Module09_Overworld`](../jpdasm/bank_02.asm#L7017).
+`$11 = $00` is ordinary player control. Other values temporarily replace player control with a transition or scripted action. The dispatcher is [`Module09_Overworld`](../jpdasm/bank_02.asm#L7017).
 
 | `$11` | Purpose |
 | --- | --- |
@@ -156,18 +136,11 @@ player control with a transition or scripted action. The dispatcher is
 | `$2E` | Whirlpool-warp state machine. |
 | `$2F` | Create the Turtle Rock portal and return to control. |
 
-Several ranges reuse the same routines. For example, `$01` and `$0F` both
-load auxiliary graphics, while `$02`, `$10`, `$1B`, and `$27` all request a
-tilemap update. Their meaning comes from the surrounding sequence rather
-than from the shared routine alone.
+Several ranges reuse the same routines. For example, `$01` and `$0F` both load auxiliary graphics, while `$02`, `$10`, `$1B`, and `$27` all request a tilemap update. Their meaning comes from the surrounding sequence rather than from the shared routine alone.
 
 ### Module `$09` scrolling transition states `$01`-`$08`
 
-Normal play detects a screen-edge crossing in `$11=$00`, selects the
-destination area and direction, then enters this sequence. Vanilla also
-selects the destination palettes here. Our hook retains its sprite-palette
-selection, suppresses the obsolete background-palette writes, and selects the
-generated directional asset schedule before `$11` becomes `$01`.
+Normal play detects a screen-edge crossing in `$11=$00`, selects the destination area and direction, then enters this sequence. Vanilla also selects the destination palettes here. Our hook retains its sprite-palette selection, suppresses the obsolete background-palette writes, and selects the generated directional asset schedule before `$11` becomes `$01`.
 
 | `$11` | Routine | Vanilla behavior | Current patches |
 | --- | --- | --- | --- |
@@ -180,32 +153,21 @@ generated directional asset schedule before `$11` becomes `$01`.
 | `$07` | `Overworld_EaseOffScrollTransition` | Allows another eight or nine frames for direction-dependent stripe work to finish, restores saved map cursors where needed, removes transition-only Kiki/locksmith sprites, then advances. | The settling timer and cleanup remain. Legacy BG2 stripe generation is disabled because the common streamer has already loaded each exposed edge; no generated asset batch is scheduled in this state. |
 | `$08` | `Overworld_FinalizeEntryOntoScreen` | Walks Link the final few pixels into the destination, updates the camera, restores normal control at the landing point, and starts destination music when the previous song was fading. | A wrapper processes one post-scroll asset batch per frame and delays vanilla finalization until that section is empty. The vanilla movement, camera, music, and return-to-control logic then runs unchanged. |
 
-Some submodes use `$B0` for another state machine. Mirror warp (`$23`/`$2C`),
-whirlpool (`$2E`), drowning recovery (`$2A`), and the mosaic stages are
-examples. This is why a label such as `Module09_21` identifies one state in a
-larger flow rather than a separately scheduled module.
+Some submodes use `$B0` for another state machine. Mirror warp (`$23`/`$2C`), whirlpool (`$2E`), drowning recovery (`$2A`), and the mosaic stages are examples. This is why a label such as `Module09_21` identifies one state in a larger flow rather than a separately scheduled module.
 
 ## Relevance to the BG streamer
 
-The BG streamer changes renderer ownership without replacing the module
-system:
+The BG streamer changes renderer ownership without replacing the module system:
 
-- Logical overworld loading still belongs in the existing load and transition
-  states.
+- Logical overworld loading still belongs in the existing load and transition states.
 - Bulk BG rendering belongs in a forced-blank load state.
-- Per-frame streaming belongs in module `$09`/`$0B` after final camera and
-  shake offsets are known.
-- NMI remains responsible for transferring tile data prepared by the main
-  loop.
+- Per-frame streaming belongs in module `$09`/`$0B` after final camera and shake offsets are known.
+- NMI remains responsible for transferring tile data prepared by the main loop.
 
-For milestone 1, replacing `Module09_21` removes only one vanilla BG2 rebuild
-path. `LoadAndBuildOverworldScreen` and the mirror-warp sequence contain
-other calls to `BuildOverworldFromMap16`, so those paths must be handled
-separately before the global builder hook can be removed.
+For milestone 1, replacing `Module09_21` removes only one vanilla BG2 rebuild path. `LoadAndBuildOverworldScreen` and the mirror-warp sequence contain other calls to `BuildOverworldFromMap16`, so those paths must be handled separately before the global builder hook can be removed.
 
 ## Related references
 
-- [`overworld_banks.md`](overworld_banks.md) describes where overworld code
-  and data live.
+- [`overworld_banks.md`](overworld_banks.md) describes where overworld code and data live.
 - [`bg_streamer.md`](bg_streamer.md) describes the replacement BG renderer.
 - [`vram.md`](vram.md) describes tilemap and upload ownership.

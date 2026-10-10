@@ -263,92 +263,55 @@ Milestone 6 is complete. BG3 uses `$6000-$63FF` in both overworld and dungeons, 
 
 ### Design
 
-Convert playable-overworld BG2 from 64x64 to 64x32 while leaving the logical
-Map16 map at `$7E2000-$7E3FFF`. Keep VRAM blocks `$0000` and `$0400` and free
-`$0800-$0FFF`.
+Convert playable-overworld BG2 from 64x64 to 64x32 while leaving the logical Map16 map at `$7E2000-$7E3FFF`. Keep VRAM blocks `$0000` and `$0400` and free `$0800-$0FFF`.
 
 ### Implementation strategy
 
-The detailed design and implementation checkpoints are in
-[`bg_streamer.md`](bg_streamer.md). In summary:
+The detailed design and implementation checkpoints are in [`bg_streamer.md`](bg_streamer.md). In summary:
 
-1. Disable every vanilla playable-overworld BG2 tilemap producer while
-   preserving logical Map16 updates. First validate that BG2 remains blank.
-2. For a full load, render the 33x29 tile window beginning at the tile
-   containing the viewport's top-left pixel into the existing `$1100/$18`
-   arbitrary DMA list.
-3. During gameplay, compare the previous and new finalized BG2 scroll values,
-   including shake. Crossing an 8-pixel boundary prepares at most one entering
-   33-tile row and one entering 29-tile column.
-4. Append the prepared transfers to the existing `$1100/$18` arbitrary DMA
-   list. The existing `$12` main-loop/NMI barrier protects the buffer, so no
-   new queue, ready bits, margin, or resident-window state is needed.
-5. Keep immediate Map16 changes on `$1000/$14`, with their VRAM destination
-   calculation changed for the 64x32 tilemap.
+1. Disable every vanilla playable-overworld BG2 tilemap producer while preserving logical Map16 updates. First validate that BG2 remains blank.
+2. For a full load, render the 33x29 tile window beginning at the tile containing the viewport's top-left pixel into the existing `$1100/$18` arbitrary DMA list.
+3. During gameplay, compare the previous and new finalized BG2 scroll values, including shake. Crossing an 8-pixel boundary prepares at most one entering 33-tile row and one entering 29-tile column.
+4. Append the prepared transfers to the existing `$1100/$18` arbitrary DMA list. The existing `$12` main-loop/NMI barrier protects the buffer, so no new queue, ready bits, margin, or resident-window state is needed.
+5. Keep immediate Map16 changes on `$1000/$14`, with their VRAM destination calculation changed for the 64x32 tilemap.
 
-Rows split at 32-tile VRAM screen-block boundaries and columns split at the
-32-row wrap. Camera discontinuities use the bulk-list path rather than
-gameplay edge streaming. Shared NMI handlers remain available to non-BG2
-users; only the vanilla overworld BG2 producers are removed.
+Rows split at 32-tile VRAM screen-block boundaries and columns split at the 32-row wrap. Camera discontinuities use the bulk-list path rather than gameplay edge streaming. Shared NMI handlers remain available to non-BG2 users; only the vanilla overworld BG2 producers are removed.
 
 ### Validation and exit criteria
 
 1. Complete the five incremental checkpoints in `bg_streamer.md`.
-2. Test ordinary movement, diagonal movement, shake, and scrolling area
-   transitions in all four directions.
-3. Test dynamic tiles near wrap boundaries, flute travel, mirror, whirlpools,
-   interior exits, pits, special overworlds, and ending credits.
-4. Confirm that BG2 never writes `$0800-$0FFF` and that frames without an
-   8-pixel boundary crossing perform no BG2 tilemap upload.
+2. Test ordinary movement, diagonal movement, shake, and scrolling area transitions in all four directions.
+3. Test dynamic tiles near wrap boundaries, flute travel, mirror, whirlpools, interior exits, pits, special overworlds, and ending credits.
+4. Confirm that BG2 never writes `$0800-$0FFF` and that frames without an 8-pixel boundary crossing perform no BG2 tilemap upload.
 
-Milestone 7 is complete. BG2 uses a 64x32 tilemap on every
-playable-overworld path, including bulk loads, scrolling transitions,
-immediate Map16 changes, mirror warps, portals, whirlpools, and world-map
-returns.
+Milestone 7 is complete. BG2 uses a 64x32 tilemap on every playable-overworld path, including bulk loads, scrolling transitions, immediate Map16 changes, mirror warps, portals, whirlpools, and world-map returns.
 
 ## Milestone 8: streamed 64x32 BG1 tilemap
 
 ### Design
 
-Convert playable-overworld BG1 to a 64x32 tilemap while leaving its logical
-64x64 8x8-tile overlay map at `$7E4000-$7E5FFF`. Keep VRAM blocks `$1000` and
-`$1400` and free `$1800-$1FFF`.
+Convert playable-overworld BG1 to a 64x32 tilemap while leaving its logical 64x64 8x8-tile overlay map at `$7E4000-$7E5FFF`. Keep VRAM blocks `$1000` and `$1400` and free `$1800-$1FFF`.
 
-Adapt the proven milestone 7 design to BG1: a 33x29 forced-blank load followed
-by at most one entering 8x8 row and column per gameplay frame. Generalize only
-the renderer code that BG1 and BG2 actually share. Both layers must be able to
-append transfers in the same frame without adding a second synchronization
-mechanism.
+Adapt the proven milestone 7 design to BG1: a 33x29 forced-blank load followed by at most one entering 8x8 row and column per gameplay frame. Generalize only the renderer code that BG1 and BG2 actually share. Both layers must be able to append transfers in the same frame without adding a second synchronization mechanism.
 
-Rain remains separate from the streamer. Use a modified rain tilemap and
-offset sequence that fits in 64x32.
+Rain remains separate from the streamer. Use a modified rain tilemap and offset sequence that fits in 64x32.
 
-The detailed design and incremental test gates are in
-[`bg1_streamer.md`](bg1_streamer.md).
+The detailed design and incremental test gates are in [`bg1_streamer.md`](bg1_streamer.md).
 
 ### Validation and exit criteria
 
-1. Exercise every non-rain overlay across its full camera range, including
-   the Pyramid, fog, special overworlds, and screen shake.
-2. Test simultaneous BG1 and BG2 edge updates, plus mirror, whirlpool,
-   flute/world-map return, interior return, and save/reload.
-3. Confirm through VRAM/DMA logging that BG1 never writes `$1800-$1FFF` and
-   BG2 never writes `$0800-$0FFF`.
+1. Exercise every non-rain overlay across its full camera range, including the Pyramid, fog, special overworlds, and screen shake.
+2. Test simultaneous BG1 and BG2 edge updates, plus mirror, whirlpool, flute/world-map return, interior return, and save/reload.
+3. Confirm through VRAM/DMA logging that BG1 never writes `$1800-$1FFF` and BG2 never writes `$0800-$0FFF`.
 4. Add and test the separate 64x32 rain treatment.
 
-Milestone 8 is complete. BG1 uses a 64x32 tilemap on every
-playable-overworld path, including rain and the mirror margins exposed by its
-HDMA wave. Milestone 14 separately corrects the Castle/Pyramid parallax
-relationship across ordinary scrolling transitions.
+Milestone 8 is complete. BG1 uses a 64x32 tilemap on every playable-overworld path, including rain and the mirror margins exposed by its HDMA wave. Milestone 14 separately corrects the Castle/Pyramid parallax relationship across ordinary scrolling transitions.
 
 ## Milestone 9A: final VRAM layout with vanilla assets
 
 ### Objective
 
-Install the final overworld VRAM layout while retaining the vanilla graphics,
-palettes, maps, and collision. Rebase the existing graphics loader so this
-checkpoint isolates memory-layout and mode-switching changes from the new
-bundle format and custom assets.
+Install the final overworld VRAM layout while retaining the vanilla graphics, palettes, maps, and collision. Rebase the existing graphics loader so this checkpoint isolates memory-layout and mode-switching changes from the new bundle format and custom assets.
 
 ### Overworld VRAM layout
 
@@ -371,83 +334,39 @@ Keep the shared code small:
 - Rebase only overworld stripe, ring, and dynamic-tile address calculations. Dungeon quadrant builders remain unchanged.
 - Restore the appropriate layout and graphics under forced blank whenever gameplay or a presentation mode changes between them.
 
-Milestone 9A is complete. The game remains visually vanilla, all overworld
-scenes use the final layout, dungeons retain their milestone 8 layout, and
-transitions restore the correct registers, tilemaps, and graphics.
+Milestone 9A is complete. The game remains visually vanilla, all overworld scenes use the final layout, dungeons retain their milestone 8 layout, and transitions restore the correct registers, tilemaps, and graphics.
 
 ## Milestone 9B: generated 4bpp bundle with vanilla appearance
 
-Have the compiler convert the existing vanilla overworld graphics and
-palettes into one flat 4bpp bundle. Load it through generated descriptors into
-the milestone 9A layout while retaining the existing maps, Map16 definitions,
-collision records, and visual appearance.
+Have the compiler convert the existing vanilla overworld graphics and palettes into one flat 4bpp bundle. Load it through generated descriptors into the milestone 9A layout while retaining the existing maps, Map16 definitions, collision records, and visual appearance.
 
-The implementation sequence begins with the module `$08` forced-blank path
-described in [`asset_loading.md`](asset_loading.md).
+The implementation sequence begins with the module `$08` forced-blank path described in [`asset_loading.md`](asset_loading.md).
 
-Submilestones 9B.1-9B.4 are implemented, with gameplay validation pending.
-Generated static assets now cover forced-blank entry, scrolling, mirror and
-whirlpool effects, mosaic recovery, flute travel, world-map restoration,
-credits scenes, the Triforce room, and the four area-dependent OBJ slots.
-Submilestone 9B.5 is implemented with generated ROM-backed animation tracks;
-gameplay validation remains pending.
+Submilestones 9B.1-9B.4 are implemented, with gameplay validation pending. Generated static assets now cover forced-blank entry, scrolling, mirror and whirlpool effects, mosaic recovery, flute travel, world-map restoration, credits scenes, the Triforce room, and the four area-dependent OBJ slots. Submilestone 9B.5 is implemented with generated ROM-backed animation tracks; gameplay validation remains pending.
 
-Define the runtime ABI here: bundle descriptors contain 24-bit source
-pointers and fixed-size VRAM or palette-row destinations. Use the same
-descriptor path for forced-blank overworld entry, flute travel, interior
-return, non-scrolling travel, and restoration from presentation modes. Store
-the data flat unless ROM-size measurement demonstrates that compression is
-needed.
+Define the runtime ABI here: bundle descriptors contain 24-bit source pointers and fixed-size VRAM or palette-row destinations. Use the same descriptor path for forced-blank overworld entry, flute travel, interior return, non-scrolling travel, and restoration from presentation modes. Store the data flat unless ROM-size measurement demonstrates that compression is needed.
 
-Replace the old overworld graphics and palette loaders at their common entry
-points while leaving dungeon loading unchanged. The principal hooks are
-`LoadGraphicsAndScreenSize`, the overworld load state machines in
-`bank_02.asm`, `InitializeTilesets` and the graphics/DMA routines in
-`bank_00.asm`, and `OverworldPalettesLoader` in `bank_0C.asm`.
+Replace the old overworld graphics and palette loaders at their common entry points while leaving dungeon loading unchanged. The principal hooks are `LoadGraphicsAndScreenSize`, the overworld load state machines in `bank_02.asm`, `InitializeTilesets` and the graphics/DMA routines in `bank_00.asm`, and `OverworldPalettesLoader` in `bank_0C.asm`.
 
-Milestone 9B is complete when the ROM remains visually vanilla and playable,
-all overworld load and restoration paths use the generated 4bpp bundle and
-descriptor ABI, and no runtime path requires the old overworld graphics or
-palette loaders.
+Milestone 9B is complete when the ROM remains visually vanilla and playable, all overworld load and restoration paths use the generated 4bpp bundle and descriptor ABI, and no runtime path requires the old overworld graphics or palette loaders.
 
 ## Milestone 9C: compiled Desert world
 
 ### First playable checkpoint
 
-Add a separate `theme_check` binary which reads the editable `Desert.json`
-area data and palette definitions directly from the checked-out
-`ALTTPRetiling` submodule. It verifies a vanilla ROM,
-applies the current patches, and writes a test ROM. It expands this checkpoint
-ROM to 4 MiB so it can retain the milestone 9B fixed-row descriptor ABI without
-new engine ASM.
+Add a separate `theme_check` binary which reads the editable `Desert.json` area data and palette definitions directly from the checked-out `ALTTPRetiling` submodule. It verifies a vanilla ROM, applies the current patches, and writes a test ROM. It expands this checkpoint ROM to 4 MiB so it can retain the milestone 9B fixed-row descriptor ABI without new engine ASM.
 
-Compile each 2x2 group of editor screens into one vanilla-layout flat Map16
-screen. Preserve the vanilla definitions at their existing IDs and append
-deduplicated Desert definitions and independent quadrant properties. Assign
-palette halves and character slots deterministically across screens: assets
-which coexist must have distinct slots, while non-coexisting assets may reuse
-them. Emit six complete palette rows and 32 complete character rows per screen
-through the existing generated bundle loader.
+Compile each 2x2 group of editor screens into one vanilla-layout flat Map16 screen. Preserve the vanilla definitions at their existing IDs and append deduplicated Desert definitions and independent quadrant properties. Assign palette halves and character slots deterministically across screens: assets which coexist must have distinct slots, while non-coexisting assets may reuse them. Emit six complete palette rows and 32 complete character rows per screen through the existing generated bundle loader.
 
-Use Desert maps, palettes, graphics, priority, flips, and collision for every
-authored screen. Retain vanilla sprites and unauthored special/credits scenes.
-The compiled catalog and vanilla sanitization mapping described below remain
-later 9C work.
+Use Desert maps, palettes, graphics, priority, flips, and collision for every authored screen. Retain vanilla sprites and unauthored special/credits scenes. The compiled catalog and vanilla sanitization mapping described below remain later 9C work.
 
 Known gaps in this checkpoint:
 
-- Dynamic Map16 changes and vanilla BG1/event overlays can show incorrect
-  graphics outside the authored static and animation tracks.
-- Reused slots can show artifacts while a scrolling transition replaces the
-  source screen's fixed rows with the destination rows.
-- Mode 7 map art, rain/fog effects, dungeon openings, and other dynamic
-  presentation paths are not yet theme-aware.
+- Dynamic Map16 changes and vanilla BG1/event overlays can show incorrect graphics outside the authored static and animation tracks.
+- Reused slots can show artifacts while a scrolling transition replaces the source screen's fixed rows with the destination rows.
+- Mode 7 map art, rain/fog effects, dungeon openings, and other dynamic presentation paths are not yet theme-aware.
 
-This checkpoint is successful when the ordinary Light and Dark Worlds render
-from Desert data on the vanilla arrangement, authored collision is playable,
-the output remains usable across ordinary travel and dungeon entry/exit, and
-generation rejects any palette, character, Map16, metadata, payload, or ROM
-region overflow.
+This checkpoint is successful when the ordinary Light and Dark Worlds render from Desert data on the vanilla arrangement, authored collision is playable, the output remains usable across ordinary travel and dungeon entry/exit, and generation rejects any palette, character, Map16, metadata, payload, or ROM region overflow.
 
 ### Compiled retiling data and first asset target
 
@@ -471,47 +390,31 @@ The patcher converts compiled `ALTTPRetiling` records into SNES-specific seed da
 
 Shared seed-generation and patcher validation must enforce the measured milestone 7 and 8 character, CGRAM, DMA, NMI, and ROM budgets, reporting the source asset and coordinate responsible for any failure.
 
-Before designing transition-local loading, measure the complete compiled
-`Desert` world against the 960-character and available BG-palette limits. If
-it fits, assign one seed-global slot to each asset and load one global bundle;
-do not add residency tracking.
+Before designing transition-local loading, measure the complete compiled `Desert` world against the 960-character and available BG-palette limits. If it fits, assign one seed-global slot to each asset and load one global bundle; do not add residency tracking.
 
 ### Palette allocation
 
 Replace `OverworldPalettesScreenToSet`, `OverworldPaletteSet`, and `OverworldPalettesLoader` for custom areas with generated palette descriptors. Allocation must cover every source/destination band, BG1 overlay, animated color, and dynamic tile that can coexist during a scrolling transition.
 
-Use seed-global palette and graphics slots when the measured bundle fits:
-each asset has one runtime slot everywhere in the seed. Reject an assignment
-that exceeds capacity with useful per-asset diagnostics. Add transition-local
-loading or remapping only if measurements prove that a global bundle cannot
-support the required assets.
+Use seed-global palette and graphics slots when the measured bundle fits: each asset has one runtime slot everywhere in the seed. Reject an assignment that exceeds capacity with useful per-asset diagnostics. Add transition-local loading or remapping only if measurements prove that a global bundle cannot support the required assets.
 
 Audit rain, fog, darkening, mirror/whirlpool transitions, damage flashes, palette cycling, and Light World/Dark World background colors. Custom bundles must reserve the locations those effects require or make the effects descriptor-aware. OBJ palettes remain outside BG allocation.
 
 ### Graphics loading
 
-Reuse the milestone 9B descriptor loader to upload the generated 4bpp bundle
-to `$0000-$3BFF`. With a global bundle, forced-blank entry and restoration
-paths load it as one stable layout and scrolling transitions require no
-graphics loading or residency state.
+Reuse the milestone 9B descriptor loader to upload the generated 4bpp bundle to `$0000-$3BFF`. With a global bundle, forced-blank entry and restoration paths load it as one stable layout and scrolling transitions require no graphics loading or residency state.
 
-Only if the global bundle does not fit, extend the descriptors and loader to
-support:
+Only if the global bundle does not fit, extend the descriptors and loader to support:
 
 - A forced-blank full load when entering the overworld, using flute travel, returning from an interior, or taking a non-scrolling transition.
 - Loading missing blocks needed by upcoming visible bands before a scrolling transition, without remapping an asset already on screen.
 - A residency record so already-loaded blocks can be skipped and mirror, whirlpool, special-overworld, attract, credits, and world-map restoration paths cannot leave stale graphics.
 
-Generate assertions for every reserved VRAM region and reject any bundle that
-exceeds the tilemap character-index range.
+Generate assertions for every reserved VRAM region and reject any bundle that exceeds the tilemap character-index range.
 
 ### Runtime patch points
 
-Milestone 9C reuses the milestone 9A layout switching and milestone 9B bundle
-ABI. Its runtime changes should be limited to consuming the generated Desert
-maps, Map16 definitions, collision records, tile words, graphics, and
-palettes. Dungeon tilemaps, graphics, and quadrant loaders retain their
-existing layout. Shared HUD and menu code uses the active BG3 destination.
+Milestone 9C reuses the milestone 9A layout switching and milestone 9B bundle ABI. Its runtime changes should be limited to consuming the generated Desert maps, Map16 definitions, collision records, tile words, graphics, and palettes. Dungeon tilemaps, graphics, and quadrant loaders retain their existing layout. Shared HUD and menu code uses the active BG3 destination.
 
 Map16 generation and graphics allocation share one tile-word ABI. `Map16Definitions`, the edge stripe builders, dynamic `DrawMap16Anywhere` updates, and BG1 overlay construction consume the compiler's final character and palette slots; runtime code never interprets editor IDs.
 
@@ -648,38 +551,24 @@ Milestone 12 is complete when both Mode 7 maps accurately represent the seed, al
 
 ## Milestone 13: BG1 logical overlays during area transitions
 
-Ordinary overworld transitions currently retain the logical BG1 overlay in
-`$7E4000`; leaving and re-entering an area changes its BG1 enable and scroll
-state but does not call `LoadOverworldOverlay`. This only works when adjacent
-areas share the already-loaded overlay.
+Ordinary overworld transitions currently retain the logical BG1 overlay in `$7E4000`; leaving and re-entering an area changes its BG1 enable and scroll state but does not call `LoadOverworldOverlay`. This only works when adjacent areas share the already-loaded overlay.
 
-Use the generated destination-area descriptor to load its logical BG1 overlay
-when crossing into a different area. Sequence the reload so tiles still
-visible from the source area remain correct while destination tiles stream
-into view. Handle transitions between two different overlays, between an
-overlay and no overlay, and between areas sharing one overlay.
+Use the generated destination-area descriptor to load its logical BG1 overlay when crossing into a different area. Sequence the reload so tiles still visible from the source area remain correct while destination tiles stream into view. Handle transitions between two different overlays, between an overlay and no overlay, and between areas sharing one overlay.
 
-Milestone 13 is complete when all four transition directions replace the
-logical overlay without stale rows, visible source-area changes, or requiring
-a full overworld reload.
+Milestone 13 is complete when all four transition directions replace the logical overlay without stale rows, visible source-area changes, or requiring a full overworld reload.
 
 ## Milestone 14: deterministic BG1 parallax and tilemap offsets
 
 ### Coordinate model
 
-Separate the BG1 coordinate used to select logical overlay tiles from the
-coordinate used to address the physical 64x32 tilemap ring:
+Separate the BG1 coordinate used to select logical overlay tiles from the coordinate used to address the physical 64x32 tilemap ring:
 
 - **BG2 scroll** is the ordinary overworld camera position in `$E2/$E8`.
-- **Logical BG1 scroll** selects pixels from the 64x64 logical overlay in
-  `$7E4000-$7E5FFF`.
-- **Physical BG1 scroll** in `$E0/$E6` selects pixels from the 64x32 PPU
-  tilemap ring.
-- **BG1 X/Y tile offsets** map physical ring tiles to logical overlay tiles.
-  They are arbitrary integer tile counts, reduced modulo 64.
+- **Logical BG1 scroll** selects pixels from the 64x64 logical overlay in `$7E4000-$7E5FFF`.
+- **Physical BG1 scroll** in `$E0/$E6` selects pixels from the 64x32 PPU tilemap ring.
+- **BG1 X/Y tile offsets** map physical ring tiles to logical overlay tiles. They are arbitrary integer tile counts, reduced modulo 64.
 
-If physical tile `(x, y)` contains logical tile
-`(x + offset_x, y + offset_y)`, the normal-movement relationship is:
+If physical tile `(x, y)` contains logical tile `(x + offset_x, y + offset_y)`, the normal-movement relationship is:
 
 ```text
 physical BG1 scroll = logical BG1 scroll - 8 * tile offset
@@ -697,91 +586,44 @@ Castle and Pyramid use one simpler parallax rule on both axes:
 logical BG1 = floor(BG2 / 2)
 ```
 
-This deliberately replaces the vanilla centered horizontal formula and
-piecewise vertical clamp. The old horizontal formula differs from exact
-half-speed by four pixels modulo one tile, so it cannot be represented
-exactly by an integer tile offset. Shift the Castle/Pyramid overlay data by
-whole tiles offline to restore the closest useful framing, and validate the
-remaining approximation visually rather than adding a sub-tile runtime
-exception.
+This deliberately replaces the vanilla centered horizontal formula and piecewise vertical clamp. The old horizontal formula differs from exact half-speed by four pixels modulo one tile, so it cannot be represented exactly by an integer tile offset. Shift the Castle/Pyramid overlay data by whole tiles offline to restore the closest useful framing, and validate the remaining approximation visually rather than adding a sub-tile runtime exception.
 
-Select the canonical relationship once when area state changes. Renderer hot
-paths consume coordinates and offsets; they must not branch on Castle or
-Pyramid IDs.
+Select the canonical relationship once when area state changes. Renderer hot paths consume coordinates and offsets; they must not branch on Castle or Pyramid IDs.
 
 ### Normal movement and bulk loads
 
-During normal movement, derive the logical scroll directly from BG2 using the
-active 1:1 or half-speed policy, then derive the physical scroll from the
-logical scroll and current tile offset. The old fractional accumulators are
-unnecessary. Bulk loading, world-map return, mirror, whirlpool, interior
-return, and save/reload must all initialize the same canonical relationship
-and render the same logical viewport.
+During normal movement, derive the logical scroll directly from BG2 using the active 1:1 or half-speed policy, then derive the physical scroll from the logical scroll and current tile offset. The old fractional accumulators are unnecessary. Bulk loading, world-map return, mirror, whirlpool, interior return, and save/reload must all initialize the same canonical relationship and render the same logical viewport.
 
-Keep physical tile coordinates as the renderer API. They already match VRAM
-ring addressing and its 32-tile split boundaries. Add the active BG1 tile
-offset only when selecting the logical Map16 source. BG2 supplies zero source
-offsets to the same renderer.
+Keep physical tile coordinates as the renderer API. They already match VRAM ring addressing and its 32-tile split boundaries. Add the active BG1 tile offset only when selecting the logical Map16 source. BG2 supplies zero source offsets to the same renderer.
 
 ### Scrolling transitions
 
 At the start of an ordinary transition:
 
-1. Determine the final BG2 position and the destination area's canonical
-   logical BG1 position.
-2. Calculate the final physical BG1 position produced by lockstep movement
-   and choose destination X/Y tile offsets so it maps to the canonical logical
-   viewport.
+1. Determine the final BG2 position and the destination area's canonical logical BG1 position.
+2. Calculate the final physical BG1 position produced by lockstep movement and choose destination X/Y tile offsets so it maps to the canonical logical viewport.
 3. Advance physical BG1 in lockstep with BG2 for the entire transition.
-4. Use those destination offsets for entering BG1 rows and columns during the
-   transition.
+4. Use those destination offsets for entering BG1 rows and columns during the transition.
 
-Transition displacements and the new half-speed formula are tile-aligned, so
-the destination offsets are always integral. Validate that difference before
-dividing by eight; do not round an unexpected sub-tile remainder. A full
-scrolling transition replaces the visible BG1 window with tiles selected
-using the destination mapping; no end-of-transition bulk reload or scroll
-correction is needed.
+Transition displacements and the new half-speed formula are tile-aligned, so the destination offsets are always integral. Validate that difference before dividing by eight; do not round an unexpected sub-tile remainder. A full scrolling transition replaces the visible BG1 window with tiles selected using the destination mapping; no end-of-transition bulk reload or scroll correction is needed.
 
-The offset state and transition calculation apply to every area. The first
-playable checkpoint enables the half-speed policy only for Castle/Pyramid and
-uses the ordinary 1:1 policy elsewhere, but entering or leaving those areas
-may produce nonzero physical-to-logical offsets in either destination.
+The offset state and transition calculation apply to every area. The first playable checkpoint enables the half-speed policy only for Castle/Pyramid and uses the ordinary 1:1 policy elsewhere, but entering or leaving those areas may produce nonzero physical-to-logical offsets in either destination.
 
 ### Renderer and DMA constraints
 
-Rows and columns continue to split only at physical 32-tile VRAM boundaries,
-so each requires at most two DMA entries. A physical DMA segment may cross
-the 64-tile logical-source wrap. In that case, fill its contiguous WRAM
-payload from two logical source runs, wrapping the source while retaining one
-DMA header.
+Rows and columns continue to split only at physical 32-tile VRAM boundaries, so each requires at most two DMA entries. A physical DMA segment may cross the 64-tile logical-source wrap. In that case, fill its contiguous WRAM payload from two logical source runs, wrapping the source while retaining one DMA header.
 
-Convert coordinates once per source run, not once per tile. Apply the same
-offset mapping to bulk windows, gameplay edges, mirror margins, and any
-immediate BG1 tile update that addresses the physical ring.
+Convert coordinates once per source run, not once per tile. Apply the same offset mapping to bulk windows, gameplay edges, mirror margins, and any immediate BG1 tile update that addresses the physical ring.
 
 ### Playable checkpoints and validation
 
-1. Add generic X/Y offset state and source-run wrapping while all area
-   policies remain 1:1 and initial offsets remain zero. Confirm no rendering
-   change.
-2. Enable the half-speed policy and adjusted overlay data for Castle/Pyramid.
-   Compare bulk entry, all four scrolling entries, normal movement, and
-   subsequent exits at the same BG2 positions.
-3. Exercise arbitrary X/Y offsets for ordinary areas, including logical
-   source wraps on both axes and transitions into and out of parallax areas.
-4. Verify through DMA logging that a row or column still emits no more than
-   two DMA entries and that every tile visible at transition completion was
-   rendered with the destination mapping.
-5. Retest mirror, whirlpool, flute/world-map return, interior return,
-   save/reload, screen shake, and dynamic overlay changes.
+1. Add generic X/Y offset state and source-run wrapping while all area policies remain 1:1 and initial offsets remain zero. Confirm no rendering change.
+2. Enable the half-speed policy and adjusted overlay data for Castle/Pyramid. Compare bulk entry, all four scrolling entries, normal movement, and subsequent exits at the same BG2 positions.
+3. Exercise arbitrary X/Y offsets for ordinary areas, including logical source wraps on both axes and transitions into and out of parallax areas.
+4. Verify through DMA logging that a row or column still emits no more than two DMA entries and that every tile visible at transition completion was rendered with the destination mapping.
+5. Retest mirror, whirlpool, flute/world-map return, interior return, save/reload, screen shake, and dynamic overlay changes.
 
-Milestone 14 is complete when BG1's visible logical viewport is determined
-only by BG2 position and the active area policy after every entry path,
-scrolling transitions leave a fully rendered destination viewport, arbitrary
-tile offsets work for every area without per-area renderer branches, and the
-Castle/Pyramid framing is acceptably close to vanilla with the adjusted
-overlay data.
+Milestone 14 is complete when BG1's visible logical viewport is determined only by BG2 position and the active area policy after every entry path, scrolling transitions leave a fully rendered destination viewport, arbitrary tile offsets work for every area without per-area renderer branches, and the Castle/Pyramid framing is acceptably close to vanilla with the adjusted overlay data.
 
 ## Deferred design decisions
 

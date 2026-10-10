@@ -1,20 +1,12 @@
 # Overworld cutscenes
 
-Overworld cutscenes will be stored as JSON scripts created by the overworld
-editor. Rust will compile the scripts into ROM data, and a small ASM interpreter
-will execute them during gameplay.
+Overworld cutscenes will be stored as JSON scripts created by the overworld editor. Rust will compile the scripts into ROM data, and a small ASM interpreter will execute them during gameplay.
 
-The initial scope is dungeon-entrance-style cutscenes: timed changes to area
-layers, accompanied by sounds, shaking, and music. Scripts do
-not need to reproduce unwanted vanilla display effects such as black-and-white
-flashing.
+The initial scope is dungeon-entrance-style cutscenes: timed changes to area layers, accompanied by sounds, shaking, and music. Scripts do not need to reproduce unwanted vanilla display effects such as black-and-white flashing.
 
 ## Script model
 
-A script belongs to one area and contains a sequence of actions. Each area's
-theme directory stores its scripts in `cutscenes.json`, allowing more scripts
-to be added to the same file later. A `draw` action references a layer in that
-area directly. The initial implementation supports BG2 cutscene layers only.
+A script belongs to one area and contains a sequence of actions. Each area's theme directory stores its scripts in `cutscenes.json`, allowing more scripts to be added to the same file later. A `draw` action references a layer in that area directly. The initial implementation supports BG2 cutscene layers only.
 
 ```json
 {
@@ -37,19 +29,11 @@ area directly. The initial implementation supports BG2 cutscene layers only.
 }
 ```
 
-Cutscene layers are sparse incremental patches. Drawing a layer adds its tiles
-to the displayed cutscene state; cells absent from the layer are left unchanged,
-and later writes replace earlier writes to the same cells. The compiler applies
-every drawn layer in script order to derive the persistent appearance used when
-loading an area whose event is complete. Keeping each layer to only its new tile
-writes also limits the work requested from NMI.
+Cutscene layers are sparse incremental patches. Drawing a layer adds its tiles to the displayed cutscene state; cells absent from the layer are left unchanged, and later writes replace earlier writes to the same cells. The compiler applies every drawn layer in script order to derive the persistent appearance used when loading an area whose event is complete. Keeping each layer to only its new tile writes also limits the work requested from NMI.
 
-Only the `Main` BG2 layer participates in ordinary initial rendering. Other
-BG2 layers are reserved for cutscenes now and future edge variants.
+Only the `Main` BG2 layer participates in ordinary initial rendering. Other BG2 layers are reserved for cutscenes now and future edge variants.
 
-The interpreter executes actions until one waits, then resumes from that point
-on a later frame. Effects such as screen shaking remain active across waits
-until stopped.
+The interpreter executes actions until one waits, then resumes from that point on a later frame. Effects such as screen shaking remain active across waits until stopped.
 
 ## Actions
 
@@ -68,24 +52,15 @@ The fixed shake alternates between `[-1, 1]` and `[1, -1]` pixel displacements.
 
 ## Vanilla scripts
 
-These scripts transcribe the waits, terrain phases, sounds, music, and shaking
-in [`EntranceCutscene`](../jpdasm/bank_1B.asm#L14694). Layer names describe what
-the vanilla importer should create. Decimal sound and song numbers correspond
-to the hexadecimal IDs in the disassembly.
+These scripts transcribe the waits, terrain phases, sounds, music, and shaking in [`EntranceCutscene`](../jpdasm/bank_1B.asm#L14694). Layer names describe what the vanilla importer should create. Decimal sound and song numbers correspond to the hexadecimal IDs in the disassembly.
 
-This model is adequate for the terrain, BG2 artwork, timing, sound, music,
-shaking, and persistence used by the five sequences. Ganon's Tower's
-orbiting crystals remain intact as a vanilla sprite sequence before the script
-starts, so they do not require sprite control in the cutscene format.
+This model is adequate for the terrain, BG2 artwork, timing, sound, music, shaking, and persistence used by the five sequences. Ganon's Tower's orbiting crystals remain intact as a vanilla sprite sequence before the script starts, so they do not require sprite control in the cutscene format.
 
-The scripts intentionally omit Misery Mire's intermittent BG1 flashing,
-Ganon's Tower's black-and-white flash, and Turtle Rock's palette fade.
+The scripts intentionally omit Misery Mire's intermittent BG1 flashing, Ganon's Tower's black-and-white flash, and Turtle Rock's palette fade.
 
 ### Palace of Darkness
 
-Vanilla waits 64 frames before the first change and 32 frames between each
-later phase. Each change plays SFX2 `$0C` and SFX3 `$07`; the sequence ends
-with SFX3 `$1B`.
+Vanilla waits 64 frames before the first change and 32 frames between each later phase. Each change plays SFX2 `$0C` and SFX3 `$07`; the sequence ends with SFX3 `$1B`.
 
 ```json
 {
@@ -121,9 +96,7 @@ with SFX3 `$1B`.
 
 ### Skull Woods
 
-The first fire change occurs after 4 frames. Four more phases follow at
-12-frame intervals. Every phase plays SFX3 `$16`, and the last also leads into
-SFX3 `$1B`.
+The first fire change occurs after 4 frames. Four more phases follow at 12-frame intervals. Every phase plays SFX3 `$16`, and the last also leads into SFX3 `$1B`.
 
 ```json
 {
@@ -157,10 +130,7 @@ SFX3 `$1B`.
 
 ### Misery Mire
 
-Vanilla spends 239 frames on its initial intermittent BG1 effect. The effect is
-omitted here. Rumbling begins 16 frames later; shaking uses the vanilla
-alternating offsets. The terrain phases occur after a further 56, 72, and 80
-frames, followed by a final 128-frame wait.
+Vanilla spends 239 frames on its initial intermittent BG1 effect. The effect is omitted here. Rumbling begins 16 frames later; shaking uses the vanilla alternating offsets. The terrain phases occur after a further 56, 72, and 80 frames, followed by a final 128-frame wait.
 
 ```json
 {
@@ -197,10 +167,7 @@ frames, followed by a final 128-frame wait.
 
 ### Turtle Rock
 
-This simplified sequence skips the vanilla palette fade. It shakes for 16 frames,
-reveals the final BG2 terrain at once, then shakes for 16 more frames. SFX3 `$02`
-plays before and after the reveal; the sequence ends with SFX1 `$05` and SFX3
-`$1B`.
+This simplified sequence skips the vanilla palette fade. It shakes for 16 frames, reveals the final BG2 terrain at once, then shakes for 16 more frames. SFX3 `$02` plays before and after the reveal; the sequence ends with SFX1 `$05` and SFX3 `$1B`.
 
 ```json
 {
@@ -227,12 +194,7 @@ plays before and after the reveal; the sequence ends with SFX1 `$05` and SFX3
 
 ### Ganon's Tower
 
-This begins after the vanilla orbiting-crystal sequence, which remains part of
-the trigger-side behavior. Only its following black-and-white flash is omitted.
-Rumbling starts immediately. The nine terrain phases use vanilla waits of 48,
-48, 52, then six lots of 32 frames. Every phase plays SFX2 `$0C` and SFX3
-`$07`. After 72 more frames, vanilla plays SFX3 `$1B`, changes to song `$0D`,
-and starts SFX1 `$09` wind.
+This begins after the vanilla orbiting-crystal sequence, which remains part of the trigger-side behavior. Only its following black-and-white flash is omitted. Rumbling starts immediately. The nine terrain phases use vanilla waits of 48, 48, 52, then six lots of 32 frames. Every phase plays SFX2 `$0C` and SFX3 `$07`. After 72 more frames, vanilla plays SFX3 `$1B`, changes to song `$0D`, and starts SFX1 `$09` wind.
 
 ```json
 {
@@ -292,36 +254,16 @@ and starts SFX1 `$09` wind.
 
 ## Vanilla import
 
-The editor's ROM importer should create these scripts only for the five vanilla
-parent areas (`$5E`, `$40`, `$70`, `$47`, and `$43`). No general 65816 script
-decoder is needed.
+The editor's ROM importer should create these scripts only for the five vanilla parent areas (`$5E`, `$40`, `$70`, `$47`, and `$43`). No general 65816 script decoder is needed.
 
-For each terrain phase, the importer should convert only that phase's known
-vanilla Map16 writes through the same Map16-to-8x8 path used by the ordinary
-area import and save them as a sparse cutscene layer. The layers accumulate in
-script order, including later replacements at positions written by earlier
-phases. Their accumulated result is the persistent opened state. Turtle Rock
-imports only its final BG2 terrain writes; its temporary vanilla BG1 data is
-not needed.
+For each terrain phase, the importer should convert only that phase's known vanilla Map16 writes through the same Map16-to-8x8 path used by the ordinary area import and save them as a sparse cutscene layer. The layers accumulate in script order, including later replacements at positions written by earlier phases. Their accumulated result is the persistent opened state. Turtle Rock imports only its final BG2 terrain writes; its temporary vanilla BG1 data is not needed.
 
-The importer should then write the corresponding script template above to the
-area theme's `cutscenes.json`, with `draw` actions referencing those layer
-names directly. This deliberately uses five small, known tables in the importer
-instead of trying to infer arbitrary cutscene code from a ROM. Custom ROM
-cutscene code is outside the vanilla import contract.
+The importer should then write the corresponding script template above to the area theme's `cutscenes.json`, with `draw` actions referencing those layer names directly. This deliberately uses five small, known tables in the importer instead of trying to infer arbitrary cutscene code from a ROM. Custom ROM cutscene code is outside the vanilla import contract.
 
 ## Engine behavior
 
-Starting a cutscene suspends normal player and sprite processing. Ending one
-restores that processing and clears any active shake. Drawing actions
-automatically request the necessary NMI uploads; scripts do not manage VRAM or
-transfer queues directly.
+Starting a cutscene suspends normal player and sprite processing. Ending one restores that processing and clears any active shake. Drawing actions automatically request the necessary NMI uploads; scripts do not manage VRAM or transfer queues directly.
 
-Cutscene triggers are separate from scripts. An area event selects and starts a
-script, while the script describes only what happens after it begins. The
-format does not initially include branches, loops, arbitrary ASM calls,
-arbitrary memory writes, or sprite choreography.
+Cutscene triggers are separate from scripts. An area event selects and starts a script, while the script describes only what happens after it begins. The format does not initially include branches, loops, arbitrary ASM calls, arbitrary memory writes, or sprite choreography.
 
-Each compiled theme must provide all five vanilla entrance events. Missing,
-duplicate, misplaced, or incomplete scripts are compiler errors; the runtime
-does not fall back to the vanilla cutscene implementation.
+Each compiled theme must provide all five vanilla entrance events. Missing, duplicate, misplaced, or incomplete scripts are compiler errors; the runtime does not fall back to the vanilla cutscene implementation.

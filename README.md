@@ -32,17 +32,13 @@ cargo run -p build_retiling_catalog -- path/to/ALTTPRetiling build/retiling_cata
 cargo run -p theme_check -- path/to/vanilla.sfc path/to/output.sfc build/retiling_catalog.bin --theme Base
 ```
 
-The input must be the unheadered 1 MiB Japanese 1.0 ROM with SHA-256 digest
-`794e040b02c7591b59ad8843b51e7c619b88f87cddc6083a8e7a4027b96a2271`.
-`theme_check` reads the selected theme from the catalog and produces a 4 MiB ROM.
+The input must be the unheadered 1 MiB Japanese 1.0 ROM with SHA-256 digest `794e040b02c7591b59ad8843b51e7c619b88f87cddc6083a8e7a4027b96a2271`. `theme_check` reads the selected theme from the catalog and produces a 4 MiB ROM.
 
 If you notice any issue while testing or if you run into any trouble following these instructions, please reach out in the [Discord](https://discord.gg/Mxb5zYZeVj) to let us know. Even in this early phase of the project, playtesting is very helpful!
 
 # How to build the retiling catalog
 
-The catalog bundles artwork and overworld layouts from `ALTTPRetiling` into one
-file for building retiled ROMs. Building it does not require a game ROM. Rebuild
-the catalog whenever you update your copy of `ALTTPRetiling`.
+The catalog bundles artwork and overworld layouts from `ALTTPRetiling` into one file for building retiled ROMs. Building it does not require a game ROM. Rebuild the catalog whenever you update your copy of `ALTTPRetiling`.
 
 From the repository root:
 
@@ -53,12 +49,9 @@ cargo run -p build_retiling_catalog -- path/to/ALTTPRetiling build/retiling_cata
 
 # How to build the tile fingerprint index
 
-The fingerprint index helps the catalog builder recognize graphics from the
-original game and store references to them. The index contains no artwork and
-allows the catalog to be built without a ROM.
+The fingerprint index helps the catalog builder recognize graphics from the original game and store references to them. The index contains no artwork and allows the catalog to be built without a ROM.
 
-An index is already included in this repository. To regenerate it, use the same
-Japanese 1.0 ROM described above and run this command from the repository root:
+An index is already included in this repository. To regenerate it, use the same Japanese 1.0 ROM described above and run this command from the repository root:
 
 ```sh
 cargo run -p build_tile_fingerprints -- path/to/vanilla.sfc data/tile_fingerprints.json
