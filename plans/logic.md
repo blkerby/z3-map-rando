@@ -4,7 +4,7 @@ The builder compiles `z3-json-data` into a compact binary catalog for generation
 
 ```sh
 mkdir -p build
-cargo run -p catalog_builder -- logic ../z3-json-data build/logic_catalog.bin
+cargo run -p catalog_builder -- logic z3-json-data build/logic_catalog.bin
 ```
 
 The builder reads source room, item, helper, tech, enemy, and connection definitions. It writes `Z3LOGIC\0`, the little-endian schema hash, and the compressed Serde bincode payload. Room indices follow source namespace and ID order; definitions retain source order. Compression defaults to Zstd level `3`, with a `--compression-level` override.

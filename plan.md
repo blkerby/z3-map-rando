@@ -14,8 +14,8 @@ The CLI handles arguments and dispatches through `logic`, `retiling`, and `all` 
 
 ```sh
 mkdir -p build
-cargo run -p catalog_builder -- logic ../z3-json-data build/logic_catalog.bin
-cargo run -p catalog_builder -- retiling ../ALTTPRetiling build/retiling_catalog.bin
+cargo run -p catalog_builder -- logic z3-json-data build/logic_catalog.bin
+cargo run -p catalog_builder -- retiling ALTTPRetiling build/retiling_catalog.bin
 cargo run -p catalog_builder -- all
 ```
 
@@ -53,7 +53,7 @@ Read `z3-json-data` directly to extract stable location mappings, ROM addresses,
 
 Result: one artifact supplies the fixed patches and symbols to native and browser patchers, together with the source-derived item/location patching data.
 
-Implemented: `catalog_builder patches` writes `build/patch_catalog.bin`, and `all` now builds all three catalogs. The patch catalog has streaming Zstd/bincode writer and reader APIs with its magic bytes and `type_hash` envelope. Logic and patch builders share `catalog_builder::source` types and file readers. The patch builder reads `rooms/` and `items.json` directly, retains authored IDs and ordered prize offsets, and excludes the fixed flute-activation event from placement locations. Completed catalog files are published through temporary files. `--logic-source`, `--asm`, `--asar-source`, `--asar-executable`, `--output-directory`, and `--compression-level` are supported; defaults remain relative to the working directory until step 5. Catalog packaging runs on every invocation while assembly remains cached.
+Implemented: `catalog_builder patches` writes `build/patch_catalog.bin`, and `all` now builds all three catalogs. The patch catalog has streaming Zstd/bincode writer and reader APIs with its magic bytes and `type_hash` envelope. Logic and patch builders share `catalog_builder::z3_json_data` types and file readers. The patch builder reads `rooms/` and `items.json` directly, retains authored IDs and ordered prize offsets, and excludes the fixed flute-activation event from placement locations. Completed catalog files are published through temporary files. `--logic-source`, `--asm`, `--asar-source`, `--asar-executable`, `--output-directory`, and `--compression-level` are supported; defaults remain relative to the working directory until step 5. Catalog packaging runs on every invocation while assembly remains cached.
 
 ## 5. Add shared configuration and caching
 
@@ -63,13 +63,13 @@ Make the existing `all` subcommand update all three catalogs through the shared 
 cargo run -p catalog_builder -- all
 ```
 
-Default source paths to sibling `../z3-json-data` and `../ALTTPRetiling` directories, resolved from the repository root. Check in `catalog-build.default.toml` and copy it to the Git-ignored `catalog-build.toml` if the local file is missing when a builder or bundled build runs. Read that local configuration without overwriting or merging it. The builder CLI also accepts path arguments; no custom environment variables are needed.
+Default source paths to the root-level `z3-json-data` and `ALTTPRetiling` submodules, resolved from the repository root. Check in `catalog-build.default.toml` and copy it to the Git-ignored `catalog-build.toml` if the local file is missing when a builder or bundled build runs. Read that local configuration without overwriting or merging it. The builder CLI also accepts path arguments; no custom environment variables are needed.
 
 Use this default template:
 
 ```toml
-logic_source = "../z3-json-data"
-retiling_source = "../ALTTPRetiling"
+logic_source = "z3-json-data"
+retiling_source = "ALTTPRetiling"
 asm = "patches/src"
 asar_source = "asar"
 compression_level = 3
@@ -81,7 +81,7 @@ compression_level = 3
 
 The CLI compression-level argument overrides the local configuration; omission from both uses level `3`. Compression level is part of the catalog output fingerprint, not the Asar or IPS fingerprints, so changing it does not trigger assembly.
 
-Asar requires an initialized submodule, CMake, and a C++ toolchain. The source data repositories can remain sibling checkouts. Do not download repositories automatically.
+Asar requires an initialized submodule, CMake, and a C++ toolchain. The source data repositories are root-level submodules; local configuration or CLI overrides can select other checkouts. Do not download repositories automatically.
 
 Use the ignored top-level `build/` directory for catalogs, IPS files, and cache metadata. Fingerprint all relevant source inputs, builder code, and configuration so changed data or implementations update the appropriate outputs. Fingerprints do not depend on debug versus release profiles.
 

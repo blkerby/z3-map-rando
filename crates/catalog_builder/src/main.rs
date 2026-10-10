@@ -43,7 +43,7 @@ enum Command {
     },
     /// Build the patch catalog from ASM and z3-json-data.
     Patches {
-        #[arg(long, default_value = "../z3-json-data")]
+        #[arg(long, default_value = "z3-json-data")]
         logic_source: PathBuf,
         /// Directory containing patch ASM sources and symbols.asm.
         #[arg(long, default_value = "patches/src")]
@@ -57,11 +57,11 @@ enum Command {
         #[arg(long)]
         asar_executable: Option<PathBuf>,
     },
-    /// Build all three catalogs using sibling source repositories by default.
+    /// Build all three catalogs using source submodules by default.
     All {
-        #[arg(long, default_value = "../z3-json-data")]
+        #[arg(long, default_value = "z3-json-data")]
         logic_source: PathBuf,
-        #[arg(long, default_value = "../ALTTPRetiling")]
+        #[arg(long, default_value = "ALTTPRetiling")]
         retiling_source: PathBuf,
         #[arg(long, default_value = "build")]
         output_directory: PathBuf,

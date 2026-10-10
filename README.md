@@ -28,7 +28,7 @@ Build the retiling catalog, then a test ROM:
 
 ```sh
 mkdir -p build
-cargo run -p catalog_builder -- retiling path/to/ALTTPRetiling build/retiling_catalog.bin
+cargo run -p catalog_builder -- retiling ALTTPRetiling build/retiling_catalog.bin
 cargo run -p theme_check -- path/to/vanilla.sfc path/to/output.sfc build/retiling_catalog.bin --theme Base
 ```
 
@@ -44,10 +44,16 @@ From the repository root:
 
 ```sh
 mkdir -p build
-cargo run -p catalog_builder -- retiling path/to/ALTTPRetiling build/retiling_catalog.bin
+cargo run -p catalog_builder -- retiling ALTTPRetiling build/retiling_catalog.bin
 ```
 
-To build all three catalogs from sibling `z3-json-data` and `ALTTPRetiling` checkouts into `build/`, run:
+Initialize the source submodules from the repository root:
+
+```sh
+git submodule update --init --recursive
+```
+
+To build all three catalogs from the `z3-json-data` and `ALTTPRetiling` submodules into `build/`, run:
 
 ```sh
 cargo run -p catalog_builder -- all

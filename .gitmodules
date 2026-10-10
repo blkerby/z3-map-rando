@@ -5,3 +5,11 @@
 [submodule "asar"]
 	path = asar
 	url = https://github.com/blkerby/asar.git
+[submodule "ALTTPRetiling"]
+	path = ALTTPRetiling
+	url = https://github.com/kjbranch/ALTTPRetiling.git
+	branch = main
+[submodule "z3-json-data"]
+	path = z3-json-data
+	url = https://github.com/vg-json-data/z3-json-data.git
+	branch = master

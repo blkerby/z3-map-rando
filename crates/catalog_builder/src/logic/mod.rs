@@ -325,12 +325,23 @@ pub fn build_catalog(
                     rom_addresses.push(u32::from_str_radix(address.trim_start_matches("0x"), 16)?);
                 }
             }
+            let world = item.world.map(z3_json_data::SourceWorld::get_world);
             catalog.item_locations.push(ItemLocation {
                 name: format!("{} - {}", source_room.name, item.location_name),
-                vertex_idx: indices.vertices[&(
-                    item.item_location,
-                    item.world.map(z3_json_data::SourceWorld::get_world),
-                )],
+                vertex_idx: *indices
+                    .vertices
+                    .get(&(item.item_location, world))
+                    .with_context(|| {
+                        format!(
+                            "missing item-location vertex in room {:?} {:?}, item {} {:?}: node {}, world {:?}",
+                            room_id,
+                            source_room.name,
+                            item.id,
+                            item.location_name,
+                            item.item_location,
+                            world,
+                        )
+                    })?,
                 rom_addresses,
             });
         }
