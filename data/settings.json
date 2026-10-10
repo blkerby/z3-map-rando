@@ -1,0 +1,249 @@
+{
+  "proficiencies": [
+    {
+      "tech_id": 1,
+      "name": "combatProficiency",
+      "level": 0
+    },
+    {
+      "tech_id": 2,
+      "name": "bossProficiency",
+      "level": 0
+    },
+    {
+      "tech_id": 3,
+      "name": "darkProficiency",
+      "level": 0
+    }
+  ],
+  "tech": [
+    {
+      "tech_id": 4,
+      "name": "canBonkBoost",
+      "enabled": false
+    },
+    {
+      "tech_id": 5,
+      "name": "canBombBoost",
+      "enabled": false
+    },
+    {
+      "tech_id": 7,
+      "name": "canPreciseBombBoost",
+      "enabled": false
+    },
+    {
+      "tech_id": 6,
+      "name": "canPushBlockClip",
+      "enabled": false
+    },
+    {
+      "tech_id": 8,
+      "name": "canBreakDashableWall",
+      "enabled": false
+    },
+    {
+      "tech_id": 9,
+      "name": "canRiskPermanentLossOfAccess",
+      "enabled": false
+    }
+  ],
+  "item_pool": [
+    {
+      "name": "FireRod",
+      "count": 1
+    },
+    {
+      "name": "IceRod",
+      "count": 1
+    },
+    {
+      "name": "Hammer",
+      "count": 1
+    },
+    {
+      "name": "Hookshot",
+      "count": 1
+    },
+    {
+      "name": "Bow",
+      "count": 1
+    },
+    {
+      "name": "BlueBoomerang",
+      "count": 1
+    },
+    {
+      "name": "MagicPowder",
+      "count": 1
+    },
+    {
+      "name": "Bombos",
+      "count": 1
+    },
+    {
+      "name": "Ether",
+      "count": 1
+    },
+    {
+      "name": "Quake",
+      "count": 1
+    },
+    {
+      "name": "Lamp",
+      "count": 1
+    },
+    {
+      "name": "Shovel",
+      "count": 1
+    },
+    {
+      "name": "CaneOfSomaria",
+      "count": 1
+    },
+    {
+      "name": "CaneOfByrna",
+      "count": 1
+    },
+    {
+      "name": "Cape",
+      "count": 1
+    },
+    {
+      "name": "MagicMirror",
+      "count": 1
+    },
+    {
+      "name": "BookOfMudora",
+      "count": 1
+    },
+    {
+      "name": "Flippers",
+      "count": 1
+    },
+    {
+      "name": "MoonPearl",
+      "count": 1
+    },
+    {
+      "name": "BugCatchingNet",
+      "count": 1
+    },
+    {
+      "name": "Mushroom",
+      "count": 1
+    },
+    {
+      "name": "RedBoomerang",
+      "count": 1
+    },
+    {
+      "name": "Bottle",
+      "count": 4
+    },
+    {
+      "name": "PegasusBoots",
+      "count": 1
+    },
+    {
+      "name": "SilverArrowUpgrade",
+      "count": 1
+    },
+    {
+      "name": "L1Sword",
+      "count": 1
+    },
+    {
+      "name": "MasterSword",
+      "count": 1
+    },
+    {
+      "name": "L3Sword",
+      "count": 1
+    },
+    {
+      "name": "L4Sword",
+      "count": 1
+    },
+    {
+      "name": "RedShield",
+      "count": 1
+    },
+    {
+      "name": "MirrorShield",
+      "count": 1
+    },
+    {
+      "name": "OcarinaInactive",
+      "count": 1
+    },
+    {
+      "name": "PowerGlove",
+      "count": 1
+    },
+    {
+      "name": "TitansMitt",
+      "count": 1
+    },
+    {
+      "name": "BlueMail",
+      "count": 1
+    },
+    {
+      "name": "RedMail",
+      "count": 1
+    },
+    {
+      "name": "HalfMagic",
+      "count": 1
+    },
+    {
+      "name": "Arrow",
+      "count": 1
+    },
+    {
+      "name": "ThreeBombs",
+      "count": 17
+    },
+    {
+      "name": "TenArrows",
+      "count": 11
+    },
+    {
+      "name": "OneRupee",
+      "count": 2
+    },
+    {
+      "name": "FiveRupees",
+      "count": 4
+    },
+    {
+      "name": "TwentyRupees",
+      "count": 30
+    },
+    {
+      "name": "FiftyRupees",
+      "count": 7
+    },
+    {
+      "name": "OneHundredRupees",
+      "count": 1
+    },
+    {
+      "name": "ThreeHundredRupees",
+      "count": 5
+    },
+    {
+      "name": "BossHeartContainer",
+      "count": 10
+    },
+    {
+      "name": "SanctuaryHeartContainer",
+      "count": 1
+    },
+    {
+      "name": "PieceOfHeart",
+      "count": 24
+    }
+  ]
+}
