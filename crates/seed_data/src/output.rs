@@ -10,8 +10,7 @@ pub struct SeedData {
     pub format_version: u32,
     pub metadata: SeedMetadata,
     pub settings: Settings,
-    /// Theme selected for the whole game.
-    pub theme_name: String,
+    pub world_layout: WorldLayout,
     /// Final placements of all pickups, including maps, compasses, keys, and prizes.
     /// Maps and compasses are shuffled within their own dungeon.
     /// Keys and prizes keep their vanilla placements.
@@ -29,7 +28,7 @@ pub struct SeedMetadata {
     /// Provenance only; patching does not require this catalog.
     pub logic_catalog_hash: String,
     /// SHA-256 of the complete encoded retiling catalog, in hexadecimal.
-    /// Provenance only; patching does not require this catalog.
+    /// Provenance only; patch preparation uses the current catalog, not this version.
     pub retiling_catalog_hash: String,
     /// RNG seed stored as a string to preserve precision in JSON.
     pub rng_seed: String,
@@ -43,4 +42,20 @@ pub struct ItemPlacement {
     pub item_location_id: ItemLocationId,
     /// Item identity from items.json.
     pub item_name: String,
+}
+
+/// Persisted area choices, independent of catalog ordering and graphical content.
+/// Area positions and connections remain vanilla for the prototype.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WorldLayout {
+    pub areas: Vec<AreaLayout>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct AreaLayout {
+    /// Top-left vanilla map ID, including the world, not a source room ID or
+    /// the area's eventual position. Existing IDs are permanent and not reused.
+    pub vanilla_map_id: u8,
+    /// Authored theme name used as a stable identity, not merely a display name.
+    pub theme_name: String,
 }

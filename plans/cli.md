@@ -15,7 +15,7 @@ The `z3-map-rando` binary calls the generator and patcher libraries. Arguments s
 | `--output-rom <PATH>` | Output path for the patched ROM | `z3-map-rando-<SEED-NAME>.sfc` |
 | `--version` | Generator version and commit, when available | |
 
-`--settings` and `--seed` are alternative inputs. When neither is supplied, use the bundled default settings. `--theme` and `--rng` apply to generation; patching an existing seed uses its recorded theme and item placements.
+`--settings` and `--seed` are alternative inputs. When neither is supplied, use the bundled default settings. `--theme` and `--rng` apply to generation; patching an existing seed uses its recorded world layout and item placements.
 
 | Input | ROM supplied | Operation | Outputs |
 | --- | --- | --- | --- |
@@ -46,7 +46,7 @@ z3-map-rando --rom vanilla.sfc --output-seed seed.json.zst --output-rom seed.sfc
 
 Expand the settings' item pool into individual pickups and uniformly randomize them across available locations. Maps and compasses are randomized within their own dungeon. Keys and dungeon prizes keep their vanilla placements. Record all of these placements in the output, including fixed placements.
 
-Use one selected theme for the whole game. Logical item placement and overworld rearrangement are deferred. Preserve tech and proficiency settings in the output even though this prototype does not use them for placement.
+Use one selected theme for the whole game and record each area’s theme in `WorldLayout`, with vanilla positions implicit. Logical item placement and overworld rearrangement are deferred. Preserve tech and proficiency settings in the output even though this prototype does not use them for placement.
 
 The CLI handles files, timestamps, numeric seed selection, seed naming, and bundled assets. Libraries receive their inputs as arguments.
 
@@ -68,9 +68,9 @@ Generate a fresh nine-character name using the numeric RNG seed and the current 
 
 The alphabet omits vowels and characters resembling vowels to reduce the chance of forming words. Naming randomness is independent of placement randomness. Repeated generation with the same `--rng` intentionally produces a fresh name; placements are reproducible with the same generator, catalogs, and settings.
 
-Store the numeric RNG seed as a string in JSON to preserve precision. Record the generation timestamp in RFC 3339 UTC format and the SHA-256 hash of the complete encoded logic catalog used for generation. Catalog hashes are provenance only; patching does not require these catalogs. Save placements using stable authored `room_id` and `item_id` values, not catalog indices or ROM addresses.
+Store the numeric RNG seed as a string in JSON to preserve precision. Record the generation timestamp in RFC 3339 UTC format and the SHA-256 hash of the complete encoded logic catalog used for generation. Catalog hashes are provenance only; patching does not require the original catalog versions. Save placements using stable authored `room_id` and `item_id` values, not catalog indices or ROM addresses.
 
-The saved seed includes a `format_version` and the selected retiling content. The latest patcher supports old seed formats and uses its current patch catalog. Patch-time customization can therefore expose new options for existing seeds.
+The saved seed includes a `format_version` and stable `WorldLayout` choices, not graphical content. At patching time the CLI extracts transient `SeedRetilingData` from the saved layout and current retiling catalog. The latest patcher supports old seed formats and uses this prepared content and its current patch catalog. Patch-time customization can therefore expose new options for existing seeds.
 
 Capture the generator version from `CARGO_PKG_VERSION` at compile time. A build script captures the full Git commit when Git is available and the working tree is clean; otherwise, metadata contains `None` for the commit.
 
@@ -84,7 +84,7 @@ The `bundle-catalogs` Cargo feature embeds the logic, retiling, and patch catalo
 - `--retiling-catalog <PATH>`
 - `--patch-catalog <PATH>`
 
-Generation needs the logic and retiling catalogs to produce placements and saved retiling content. Patching needs the saved seed, ROM, and the current patch catalog matching the patcher. It does not need either generation catalog. Bundled binaries provide the catalogs without additional user arguments.
+Generation needs the logic and retiling catalogs to produce item placements and saved world-layout choices. Patching needs the saved seed, ROM, current retiling catalog for preparing transient content, and current patch catalog matching the patcher. It does not need the logic catalog or archived versions of generation catalogs. Bundled binaries provide the catalogs without additional user arguments.
 
 The `catalog_builder` crate exposes separate library modules through one builder CLI with `logic`, `retiling`, `patches`, and `all` subcommands. All read their options from shared configuration, with fixed catalog filenames inside the output directory. It can populate the ignored top-level `build/` cache independently of the randomizer CLI feature:
 
