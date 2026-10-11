@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+seed_data = { path = "../seed_data" }
 anyhow = "1.0.104"
 retiling_catalog = { path = "../retiling_catalog" }
 serde = { version = "1", features = ["derive"] }

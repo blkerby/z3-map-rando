@@ -34,7 +34,7 @@ Catalog indices use distinct newtypes, and fields holding them end in `_idx`. Ea
 
 Item-location identity is separate from item identity: generation decides which item, including which [door-specific key](keys.md), occupies it. Saved seeds use stable source identities rather than catalog indices. The current patch catalog maps those identities to patching instructions, so patching an old seed does not require its original logic catalog.
 
-Names and strat provenance are retained for diagnostics. Tech definitions retain their stable source IDs for player settings and their supported proficiency tiers. Item definitions retain names as stable item identities. The current catalog also stores location ROM addresses, receipt IDs, and dungeon-prize patch bytes; remove these patching fields as part of the planned boundary change. The patch builder extracts them directly from `z3-json-data`, without consuming the logic catalog. Both builders may share source-deserialization types.
+Names and strat provenance are retained for diagnostics. Tech definitions retain their stable source IDs for player settings and their supported proficiency tiers. Item definitions retain names as stable item identities. Locations retain the shared `ItemLocationId` authored room/item pair. Location ROM addresses, receipt IDs, and dungeon-prize patch bytes are stored only in the patch catalog. The patch builder extracts them directly from `z3-json-data`, without consuming the logic catalog. Both builders may share source-deserialization types.
 
 ## Boundary events
 

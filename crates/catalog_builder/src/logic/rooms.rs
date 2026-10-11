@@ -204,18 +204,9 @@ fn compile_room_items(
         indices
             .items
             .insert(item.id, Effect::CollectItem(item_location_idx));
-        let addresses = match &item.item_address {
-            z3_json_data::Addresses::One(address) => std::slice::from_ref(address),
-            z3_json_data::Addresses::Many(addresses) => addresses.as_slice(),
-        };
-        let mut rom_addresses = Vec::new();
-        for address in addresses {
-            if address != "unknown" {
-                rom_addresses.push(u32::from_str_radix(address.trim_start_matches("0x"), 16)?);
-            }
-        }
         let world = item.world.map(z3_json_data::SourceWorld::get_world);
         catalog.item_locations.push(ItemLocation {
+            id: ItemLocationId { room_id, item_id: item.id },
             name: format!("{} - {}", source_room.name, item.location_name),
             vertex_idx: *indices
                 .vertices
@@ -231,7 +222,6 @@ fn compile_room_items(
                         world,
                     )
                 })?,
-            rom_addresses,
         });
     }
     Ok(())

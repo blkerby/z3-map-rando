@@ -1,5 +1,7 @@
 //! A compact catalog of the z3-json-data data, processed into the
 //! randomizer's graph-oriented format
+pub use common_types::{ItemLocationId, SourceRoomId};
+
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use serde_reflection::{Tracer, TracerConfig};
@@ -183,13 +185,6 @@ impl LogicCatalog {
     pub fn entrance(&self, entrance_idx: EntranceIndex) -> &Entrance {
         &self.entrances[entrance_idx.0 as usize]
     }
-}
-
-/// Authored room identity. Cave, dungeon, house, and special IDs share a namespace.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum SourceRoomId {
-    Overworld(u32),
-    Underworld(u32),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -523,19 +518,17 @@ pub enum Effect {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ItemLocation {
+    /// Permanent authored room/item identity; independent of catalog ordering.
+    pub id: ItemLocationId,
     pub name: String,
     /// Source `itemLocation` node, resolved in the item's world for overworld items.
     /// Collection is performed by a strat's `CollectItem` effect.
     pub vertex_idx: VertexIndex,
-    /// Unheadered ROM file offsets. Empty when the source address is unknown.
-    pub rom_addresses: Vec<u32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ItemDefinition {
     pub name: String,
-    pub receipt_id: u8,
-    pub prize_patch_bytes: Option<[u8; 6]>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

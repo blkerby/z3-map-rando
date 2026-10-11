@@ -2,8 +2,9 @@
 //! - IPS patches pre-built from ASM
 //! - item data extracted from z3-json-data.
 
-use bincode_next::{Decode, Encode};
-use serde::Deserialize;
+pub use common_types::{ItemLocationId, SourceRoomId};
+
+use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
     io::{BufReader, BufWriter, Read, Write},
@@ -24,7 +25,7 @@ pub fn encode_catalog(
     let mut encoder = zstd::stream::write::Encoder::new(writer, compression_level)?;
     {
         let mut buffered = BufWriter::new(&mut encoder);
-        bincode_next::encode_into_std_write(catalog, &mut buffered, CATALOG_CONFIG)?;
+        bincode_next::serde::encode_into_std_write(catalog, &mut buffered, CATALOG_CONFIG)?;
         buffered.flush()?;
     }
     encoder.finish()?;
@@ -37,11 +38,11 @@ pub fn decode_catalog(mut reader: impl Read) -> anyhow::Result<PatchCatalog> {
     reader.read_exact(&mut envelope)?;
     let decoder = zstd::stream::read::Decoder::new(reader)?;
     let mut buffered = BufReader::new(decoder);
-    let catalog = bincode_next::decode_from_std_read(&mut buffered, CATALOG_CONFIG)?;
+    let catalog = bincode_next::serde::decode_from_std_read(&mut buffered, CATALOG_CONFIG)?;
     Ok(catalog)
 }
 
-#[derive(Clone, Debug, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
 pub struct PatchCatalog {
     pub patches: PatchIps,
     pub symbols: PatchSymbols,
@@ -52,7 +53,7 @@ pub struct PatchCatalog {
 
 /// Complete IPS payloads, named after their ASM filename stems.
 /// Patches remain separate so the patcher can detect conflicting writes.
-#[derive(Clone, Debug, Deserialize, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
 #[serde(deny_unknown_fields)]
 pub struct PatchIps {
     pub bg3_tilemap: Vec<u8>,
@@ -77,7 +78,7 @@ pub struct PatchIps {
 
 /// Exported ASM interface consumed by Rust. Addresses are SNES addresses,
 /// not ROM file offsets. Field names match the explicit ASM export names.
-#[derive(Clone, Debug, Deserialize, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
 #[serde(deny_unknown_fields)]
 pub struct PatchSymbols {
     pub map16_top_left: u32,
@@ -93,22 +94,7 @@ pub struct PatchSymbols {
     pub overworld_overlay_pointers: u32,
 }
 
-/// Authored identity, independent of catalog ordering and patching addresses.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, TypeHash)]
-pub struct ItemLocationId {
-    pub room_id: SourceRoomId,
-    /// ID of the room's item entry, not its `itemLocation` logic node.
-    pub item_id: u32,
-}
-
-/// Overworld rooms have a separate ID namespace from all interior room kinds.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, TypeHash)]
-pub enum SourceRoomId {
-    Overworld(u32),
-    Underworld(u32),
-}
-
-#[derive(Clone, Debug, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
 pub struct ItemLocation {
     /// Unheadered ROM file offsets extracted from the z3-json-data `itemAddress`.
     /// Ordinary pickups receive the item's receipt ID as a single address.
@@ -117,7 +103,7 @@ pub struct ItemLocation {
     pub rom_addresses: Vec<u32>,
 }
 
-#[derive(Clone, Debug, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
 pub struct ItemEncoding {
     pub receipt_id: u8,
     /// Dungeon-prize bytes in source order, paired with the location's six offsets.

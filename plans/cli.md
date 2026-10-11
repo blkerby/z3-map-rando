@@ -52,7 +52,7 @@ The CLI handles files, timestamps, numeric seed selection, seed naming, and bund
 
 ## Seed name and metadata
 
-The initial serializable output types are defined in [`output.rs`](../crates/generator/src/output.rs). The planned format and compatibility changes are described in the [architecture plan](README.md#saved-seed-format). Persist a seed name in metadata when generating a new seed. Loading `--seed` reuses its saved name for default output filenames.
+The initial serializable output types are defined in [`output.rs`](../crates/seed_data/src/output.rs). The planned format and compatibility changes are described in the [architecture plan](README.md#saved-seed-format). Persist a seed name in metadata when generating a new seed. Loading `--seed` reuses its saved name for default output filenames.
 
 Generate a fresh nine-character name using the numeric RNG seed and the current Unix timestamp in nanoseconds:
 

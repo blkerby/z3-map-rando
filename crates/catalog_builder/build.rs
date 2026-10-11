@@ -58,7 +58,7 @@ fn main() {
         &root,
         &mut source,
         "LOGIC_CODE_INPUTS",
-        &["crates/logic_catalog"],
+        &["crates/logic_catalog", "crates/common_types"],
     );
     write_inputs(
         &root,
@@ -70,7 +70,11 @@ fn main() {
         &root,
         &mut source,
         "PATCH_CODE_INPUTS",
-        &["crates/logic_catalog", "crates/patch_catalog"],
+        &[
+            "crates/logic_catalog",
+            "crates/patch_catalog",
+            "crates/common_types",
+        ],
     );
     fs::write(
         PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("code_inputs.rs"),

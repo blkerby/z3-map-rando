@@ -1,0 +1,8 @@
+[package]
+name = "seed_data"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+common_types = { path = "../common_types" }
+serde = { version = "1", features = ["derive"] }

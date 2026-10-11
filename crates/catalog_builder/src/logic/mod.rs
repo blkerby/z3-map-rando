@@ -97,22 +97,8 @@ fn load_definitions(source_directory: &Path, catalog: &mut LogicCatalog) -> Resu
     ] {
         for item in category {
             let item_idx = ItemIndex(catalog.items.len() as u32);
-            let receipt_id = u8::from_str_radix(item.item_receipt_id.trim_start_matches("0x"), 16)?;
-            let prize_patch_bytes = if let Some(source_bytes) = item.prize_patch_bytes {
-                let mut bytes = [0; 6];
-                for (i, byte) in source_bytes.iter().enumerate() {
-                    bytes[i] = u8::from_str_radix(byte.trim_start_matches("0x"), 16)?;
-                }
-                Some(bytes)
-            } else {
-                None
-            };
             compiler.items.insert(item.name.clone(), item_idx);
-            catalog.items.push(ItemDefinition {
-                name: item.name,
-                receipt_id,
-                prize_patch_bytes,
-            });
+            catalog.items.push(ItemDefinition { name: item.name });
         }
     }
     for name in items.flags {

@@ -18,7 +18,7 @@ pub struct ProficiencySetting {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TechSetting {
-    /// Stable ID from sm-json-data tech.json.
+    /// Stable ID from z3-json-data tech.json.
     pub tech_id: u32,
     /// Informational; does not determine identity or affect logic.
     pub name: String,

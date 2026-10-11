@@ -1,2 +1,1 @@
-pub mod output;
-pub mod settings;
+pub use seed_data::{SeedData, Settings};

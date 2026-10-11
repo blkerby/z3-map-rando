@@ -1,3 +1,5 @@
+pub use seed_data::SeedData;
+
 use anyhow::{Context, Result, ensure};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, fmt::Write, io::Read, path::Path};
