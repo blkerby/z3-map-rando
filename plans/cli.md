@@ -1,6 +1,8 @@
 # CLI
 
-The `z3-map-rando` binary calls the generator and patcher libraries. Arguments select generation, patching, or both; there are no subcommands.
+The `z3-map-rando` binary calls the generator and, once integrated, patcher libraries. Arguments select generation, patching, or both; there are no subcommands.
+
+Implemented now: generation with `--settings`, `--theme`, `--rng`, `--output-seed`, `--compression-level`, external catalog paths, and `--version`. The `--seed`, `--rom`, `--output-rom`, and `--patch-catalog` arguments are planned for patching integration. Catalog bundling is also a later step.
 
 ## Arguments
 
@@ -12,6 +14,7 @@ The `z3-map-rando` binary calls the generator and patcher libraries. Arguments s
 | `--theme <NAME>` | Whole-game theme selected during generation | `Base` |
 | `--rng <U64>` | Numeric seed for item randomization | Choose randomly |
 | `--output-seed <PATH>` | Output path for Zstd-compressed seed JSON | `z3-map-rando-<SEED-NAME>.json.zst` |
+| `--compression-level <I32>` | Zstd compression level for the seed output | `3` |
 | `--output-rom <PATH>` | Output path for the patched ROM | `z3-map-rando-<SEED-NAME>.sfc` |
 | `--version` | Generator version and commit, when available | |
 
@@ -23,7 +26,7 @@ The `z3-map-rando` binary calls the generator and patcher libraries. Arguments s
 | Settings or defaults | Yes | Generate, then patch | Seed file and ROM |
 | Existing seed | Yes | Patch | ROM |
 
-Output path arguments override filenames for the selected operation. Default paths are relative to the current working directory. Explicit paths do not change the stored seed name. Write seed JSON with indentation through a Zstd encoder, and progress and diagnostics to stderr. In combined operation, save the seed file before patching. Read saved seeds through a buffered Zstd decoder and `serde_json::from_reader`, without buffering the complete decompressed JSON.
+Output path arguments override filenames for the selected operation. Default paths are relative to the current working directory. Explicit paths do not change the stored seed name. Write seed JSON with indentation through a Zstd encoder using `--compression-level` (default `3`), and progress and diagnostics to stderr. In combined operation, save the seed file before patching. Read saved seeds through a buffered Zstd decoder and `serde_json::from_reader`, without buffering the complete decompressed JSON.
 
 ```sh
 # Generate a compressed seed file using default settings.
@@ -68,17 +71,17 @@ Generate a fresh nine-character name using the numeric RNG seed and the current 
 
 The alphabet omits vowels and characters resembling vowels to reduce the chance of forming words. Naming randomness is independent of placement randomness. Repeated generation with the same `--rng` intentionally produces a fresh name; placements are reproducible with the same generator, catalogs, and settings.
 
-Store the numeric RNG seed as a string in JSON to preserve precision. Record the generation timestamp in RFC 3339 UTC format and the SHA-256 hash of the complete encoded logic catalog used for generation. Catalog hashes are provenance only; patching does not require the original catalog versions. Save placements using stable authored `room_id` and `item_id` values, not catalog indices or ROM addresses.
+Store the numeric RNG seed as a string in JSON to preserve precision. Record the generation timestamp in RFC 3339 UTC format and the SHA-256 hashes of the complete encoded logic and retiling catalogs used for generation. Catalog hashes are provenance only; patching does not require the original catalog versions. Save placements using stable authored `room_id` and `item_id` values, not catalog indices or ROM addresses.
 
 The saved seed includes a `format_version` and stable `WorldLayout` choices, not graphical content. At patching time the CLI passes its already-loaded current `RetilingCatalog` unchanged to the patcher, which selects content using the saved layout. The latest patcher supports old seed formats and uses the current retiling and patch catalogs. Patch-time customization can therefore expose new options for existing seeds.
 
-Capture the generator version from `CARGO_PKG_VERSION` at compile time. A build script captures the full Git commit when Git is available and the working tree is clean; otherwise, metadata contains `None` for the commit.
+Capture the generator version from its `CARGO_PKG_VERSION` at compile time. Local development leaves `generator_commit` as `None`, without Git queries or metadata rebuild tracking. When release packaging is introduced, CI will write a release metadata file containing the version and full source commit, packaged with the application for the CLI and later web backend to load. Generating and loading that file are deferred until release packaging is set up.
 
 ## Bundled assets and builds
 
-The planned CLI crate, `crates/cli`, embeds default settings from the checked-in [`data/settings.json`](../data/settings.json).
+The CLI crate, `crates/cli`, embeds default settings from the checked-in [`data/settings.json`](../data/settings.json).
 
-The `bundle-catalogs` Cargo feature embeds the logic, retiling, and patch catalogs into the CLI binary. It is disabled by default so ordinary `cargo check` and workspace builds work without generated catalogs. Unbundled binaries load external assets through these arguments, which also override bundled assets when supplied:
+The planned `bundle-catalogs` Cargo feature embeds the logic, retiling, and patch catalogs into the CLI binary. It is disabled by default so ordinary `cargo check` and workspace builds work without generated catalogs. The current unbundled binary loads `--logic-catalog` and `--retiling-catalog`, defaulting to `build/logic_catalog.bin` and `build/retiling_catalog.bin` relative to the working directory. Explicit paths override these defaults. Once bundling and patching are implemented, these external asset arguments will also override bundled assets:
 
 - `--logic-catalog <PATH>`
 - `--retiling-catalog <PATH>`

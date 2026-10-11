@@ -125,13 +125,15 @@ Implemented: `generator::generate` accepts settings, logic and retiling catalogs
 
 Result: generation produces structured seed data without logical placement or ROM patching.
 
-## 9. Add seed serialization and the generation CLI
+## 9. Add seed serialization and the generation CLI (implemented)
 
 Create `crates/cli` with binary `z3-map-rando`, initially supporting generation through external catalogs. Implement the arguments and defaults in [plans/cli.md](plans/cli.md), including bundled checked-in settings.
 
-Choose or accept a `u64` RNG seed. Generate and persist the fresh nine-character seed name using the agreed separate naming RNG. Record the UTC timestamp, package version, clean Git commit when available, and catalog provenance.
+Choose or accept a `u64` RNG seed. Generate and persist the fresh nine-character seed name using the agreed separate naming RNG. Record the UTC timestamp, package version, and catalog provenance. Retain `generator_commit` as `None` during development; release packaging will later provide a metadata file containing the version and full source commit.
 
 Stream JSON through Zstd when saving, and deserialize through a buffered Zstd decoder when loading. Default seed output to `z3-map-rando-<SEED-NAME>.json.zst`. Naming remains fresh when `--rng` repeats, while placements remain reproducible with identical generation inputs.
+
+Implemented: `cli` provides `z3-map-rando` with `--settings`, `--theme`, `--rng`, `--output-seed`, `--compression-level`, `--logic-catalog`, `--retiling-catalog`, and `--version`. Settings default to the embedded JSON; catalog paths default to `build/logic_catalog.bin` and `build/retiling_catalog.bin` relative to the working directory. `SeedData::write` and `SeedData::read` stream pretty JSON through Zstd; CLI output uses `--compression-level`, defaulting to `3`. Metadata includes both encoded catalog hashes and the generator package version; `generator_commit` remains `None` for now. No build script queries Git for development metadata. Release metadata generation and loading are deferred until release packaging is set up. Catalog bundling and patching arguments remain for later steps.
 
 Result: a usable generation-only CLI that writes a complete compressed seed.
 

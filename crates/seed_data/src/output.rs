@@ -1,6 +1,8 @@
 use crate::settings::Settings;
+use anyhow::Result;
 use common_types::ItemLocationId;
 use serde::{Deserialize, Serialize};
+use std::io::{BufReader, BufWriter, Read, Write};
 
 /// Current saved-seed format; independent of generator and catalog versions.
 pub const SEED_FORMAT_VERSION: u32 = 1;
@@ -58,4 +60,24 @@ pub struct AreaLayout {
     pub vanilla_map_id: u8,
     /// Authored theme name used as a stable identity, not merely a display name.
     pub theme_name: String,
+}
+
+impl SeedData {
+    /// Stream pretty JSON through Zstd without buffering the full JSON payload.
+    pub fn write(&self, writer: impl Write, compression_level: i32) -> Result<()> {
+        let mut encoder = zstd::stream::write::Encoder::new(writer, compression_level)?;
+        {
+            let mut buffered = BufWriter::new(&mut encoder);
+            serde_json::to_writer_pretty(&mut buffered, self)?;
+            buffered.flush()?;
+        }
+        encoder.finish()?;
+        Ok(())
+    }
+
+    /// Stream Zstd-compressed JSON directly into the saved seed types.
+    pub fn read(reader: impl Read) -> Result<Self> {
+        let decoder = zstd::stream::read::Decoder::new(reader)?;
+        Ok(serde_json::from_reader(BufReader::new(decoder))?)
+    }
 }

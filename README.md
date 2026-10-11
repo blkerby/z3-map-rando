@@ -6,9 +6,23 @@ The goal of this project is to create a randomizer for generating randomized *A 
 
 An [overworld editor](https://github.com/blkerby/Z3OverworldEditor) exists, based around the ability to define and use custom palettes and tilesets with a degree of flexibility beyond what the vanilla game engine provides. The editor is functional enough to enable artists to create new themes (in progress [here](https://github.com/kjbranch/ALTTPRetiling)), but the work needed to translate this into a playable ROM is mostly still in a planning stage. The editor also still needs development, 1) to define structured variants of area perimeter/edge segments so they can connect cleanly with other areas after rearrangement, 2) to support customizing animations, including dungeon openings, 3) to support redrawing the Mode 7 overworld map. Currently the editor focuses on retiling the overworld BG2 layer and associated collision data, as this is primarily what is needed for the randomizer project; it may later be extended with support to customize other game elements such as enemies, entrances, secrets, items, and dungeons.
 
-The randomizer itself, including item-placement logic, and the command-line tool and web service, are also in a planning stage. A [design doc](https://docs.google.com/document/d/1skZsIxZLKbCC8C_-3b3TTZVwblzNkN2ZTXraZ4Zxzkc) describes the planned tier-based item placement logic along with several balance-oriented gameplay changes. 
+A prototype generator and CLI now produce structured seeds with uniform item placement; logical item placement and the web service remain planned. A [design doc](https://docs.google.com/document/d/1skZsIxZLKbCC8C_-3b3TTZVwblzNkN2ZTXraZ4Zxzkc) describes the planned tier-based item placement logic along with several balance-oriented gameplay changes.
 
 The current focus is on the technical foundation for the project, particularly the game engine changes needed to support the flexible palette and tileset system. For detailed plans, see the docs in [plans](plans/README.md).
+
+# How to generate a prototype seed
+
+From the repository root, build the generation catalogs and invoke the CLI:
+
+```sh
+cargo run -p catalog_builder -- logic
+cargo run -p catalog_builder -- retiling
+cargo run -p cli -- --rng 12345
+```
+
+The CLI uses bundled default settings and catalogs from `build/`, and writes `z3-map-rando-<SEED-NAME>.json.zst` in the working directory. Omit `--rng` to choose a numeric seed randomly. Use `--settings settings.json`, `--theme Desert`, or `--output-seed seed.json.zst` to override generation inputs or the output path. Set `--compression-level 18` to use a higher Zstd compression level instead of the default `3`. If catalogs are stored elsewhere, specify `--logic-catalog` and `--retiling-catalog`. Run `cargo run -p cli -- --help` for the implemented arguments.
+
+The prototype shuffles ordinary items globally, maps and compasses within their dungeon, and pendants and crystals among prize locations. SmallKey and BigKey placements remain vanilla. It records the selected theme for each supported area with vanilla placement implicit. It does not check logical progression or produce a ROM. See [the CLI design](plans/cli.md) for planned patching and bundled catalogs.
 
 # How to test current engine changes
 
