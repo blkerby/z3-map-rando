@@ -44,7 +44,7 @@ z3-map-rando --rom vanilla.sfc --output-seed seed.json.zst --output-rom seed.sfc
 
 ## Prototype generation
 
-Expand the settings' item pool into individual pickups and uniformly randomize them across available locations. Maps and compasses are randomized within their own dungeon. Keys and dungeon prizes keep their vanilla placements. Record all of these placements in the output, including fixed placements.
+Expand the settings' item pool into individual pickups and uniformly randomize them across available locations. Maps and compasses are placed uniformly among all non-key, non-prize locations within their own dungeon. Ordinary items are shuffled globally across the remaining locations. SmallKey and BigKey placements remain vanilla. Pendants and crystals are shuffled only among prize locations. Record all of these placements in the output, including fixed placements. Return an error if the ordinary item pool quantity does not match the available locations.
 
 Use one selected theme for the whole game and record each area’s theme in `WorldLayout`, with vanilla positions implicit. Logical item placement and overworld rearrangement are deferred. Preserve tech and proficiency settings in the output even though this prototype does not use them for placement.
 

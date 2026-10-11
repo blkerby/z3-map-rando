@@ -521,6 +521,8 @@ pub struct ItemLocation {
     /// Permanent authored room/item identity; independent of catalog ordering.
     pub id: ItemLocationId,
     pub name: String,
+    /// Authored pickup used for dungeon restrictions and fixed placements.
+    pub vanilla_item_idx: ItemIndex,
     /// Source `itemLocation` node, resolved in the item's world for overworld items.
     /// Collection is performed by a strat's `CollectItem` effect.
     pub vertex_idx: VertexIndex,

@@ -208,6 +208,7 @@ fn compile_room_items(
         catalog.item_locations.push(ItemLocation {
             id: ItemLocationId { room_id, item_id: item.id },
             name: format!("{} - {}", source_room.name, item.location_name),
+            vanilla_item_idx: compiler.items[&item.item],
             vertex_idx: *indices
                 .vertices
                 .get(&(item.item_location, world))

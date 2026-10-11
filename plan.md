@@ -115,11 +115,13 @@ Implemented: `seed_data::WorldLayout` contains an array of `AreaLayout` entries 
 
 Result: generation saves high-level layout decisions; patching selects their graphical content from the current full or filtered retiling catalog.
 
-## 8. Implement the uniform generator library
+## 8. Implement the uniform generator library (implemented)
 
-Expand the settings item pool and uniformly shuffle it across eligible ordinary locations. Shuffle maps and compasses within their own dungeon. Keep keys and prizes vanilla, but record all placements. Preserve tech and proficiency settings without using them for placement yet.
+Expand the settings item pool and uniformly shuffle it across eligible ordinary locations. Place maps and compasses uniformly among all non-key, non-prize locations within their own dungeon, then shuffle ordinary items globally across the remaining locations. Keep SmallKey and BigKey placements vanilla, shuffle pendants and crystals only among prize locations, and record all placements. Return an error if the ordinary pool quantity does not match the available locations. Preserve tech and proficiency settings without using them for placement yet.
 
 Accept settings, generation catalogs, the selected theme, and deterministic randomness from the caller. Produce the prototype `WorldLayout`, recording the selected theme for each area with vanilla positions implicit. Keep clocks, filesystem access, and seed-name generation outside the generator library.
+
+Implemented: `generator::generate` accepts settings, logic and retiling catalogs, the selected theme, caller-prepared metadata, and a caller-owned RNG. The logic catalog retains each location’s vanilla item index for dungeon restrictions, prize shuffling, and fixed keys. The result records all pickups and selected mapped areas that provide the requested theme, sorted by vanilla map ID; omitted areas retain vanilla content. No clocks, files, ROM access, or RNG seeding occur inside the generator.
 
 Result: generation produces structured seed data without logical placement or ROM patching.
 

@@ -13,7 +13,7 @@ pub struct SeedData {
     pub world_layout: WorldLayout,
     /// Final placements of all pickups, including maps, compasses, keys, and prizes.
     /// Maps and compasses are shuffled within their own dungeon.
-    /// Keys and prizes keep their vanilla placements.
+    /// Keys keep their vanilla placements; pendants and crystals shuffle among prize locations.
     pub item_placements: Vec<ItemPlacement>,
 }
 

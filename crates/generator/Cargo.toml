@@ -4,4 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1"
+logic_catalog = { path = "../logic_catalog" }
+retiling_catalog = { path = "../retiling_catalog" }
+rand = { version = "0.9", default-features = false, features = ["std"] }
 seed_data = { path = "../seed_data" }
