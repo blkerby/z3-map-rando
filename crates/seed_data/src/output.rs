@@ -23,6 +23,7 @@ pub struct SeedData {
 pub struct SeedMetadata {
     /// Compact, human-readable, alphanumeric random name
     pub seed_name: String,
+    /// Shared project release version, independent of Cargo package versions.
     pub generator_version: String,
     /// Full source commit hash, if available with a clean working tree.
     pub generator_commit: Option<String>,

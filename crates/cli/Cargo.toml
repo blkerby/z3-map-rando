@@ -11,6 +11,7 @@ path = "src/main.rs"
 anyhow = "1"
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 clap = { version = "4", features = ["derive"] }
+common_types = { path = "../common_types" }
 generator = { path = "../generator" }
 logic_catalog = { path = "../logic_catalog" }
 rand = "0.9"

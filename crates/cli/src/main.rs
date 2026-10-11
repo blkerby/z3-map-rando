@@ -17,7 +17,7 @@ const DEFAULT_SETTINGS: &str = include_str!("../../../data/settings.json");
 #[derive(Parser)]
 #[command(
     name = "z3-map-rando",
-    version = generator::VERSION,
+    version = common_types::VERSION,
     about = "Generate a randomized seed"
 )]
 struct Args {
@@ -98,7 +98,7 @@ fn create_metadata(
     let timestamp = now.duration_since(UNIX_EPOCH)?.as_nanos();
     Ok(SeedMetadata {
         seed_name: generate_seed_name(numeric_seed, timestamp),
-        generator_version: generator::VERSION.to_owned(),
+        generator_version: common_types::VERSION.to_owned(),
         generator_commit: None,
         logic_catalog_hash: compute_catalog_hash(logic_bytes),
         retiling_catalog_hash: compute_catalog_hash(retiling_bytes),

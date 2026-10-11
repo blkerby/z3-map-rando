@@ -203,6 +203,7 @@ dependencies = [
  "anyhow",
  "chrono",
  "clap",
+ "common_types",
  "generator",
  "logic_catalog",
  "rand",

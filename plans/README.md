@@ -94,7 +94,11 @@ The generator is a Rust library for creating a randomized game ("seed"). It invo
 
 The current prototype exposes [`generator::generate`](../crates/generator/src/lib.rs), which uniformly shuffles the ordinary pool without checking logical progression. It places maps and compasses among all eligible locations in their own dungeon, preserves vanilla SmallKey and BigKey placements, shuffles pendants and crystals only among prize locations, and returns an error for a mismatched ordinary pool quantity. Callers supply catalogs, settings, the selected theme, metadata, and RNG state; the library returns `SeedData` without ROM or filesystem access.
 
-Successful seed generation produces the area placement coordinates, selected themes and edge variants, entrance connections, and item placements. Persist area positions, themes, and edge-variant choices in `WorldLayout` within `SeedData`; prepare graphical content later at patching time. Metadata records the seed name, generation timestamp, generator version, source commit when available, numeric RNG seed, and catalog hashes for provenance. Catalog hashes do not select patching assets.
+Successful seed generation produces the area placement coordinates, selected themes and edge variants, entrance connections, and item placements. Persist area positions, themes, and edge-variant choices in `WorldLayout` within `SeedData`; prepare graphical content later at patching time. Metadata records the seed name, generation timestamp, shared project version, source commit when available, numeric RNG seed, and catalog hashes for provenance. Catalog hashes do not select patching assets.
+
+### Project version
+
+The root [`VERSION`](../VERSION) file is the single source for the CLI, future web service, seed metadata, and release packaging. `common_types::VERSION` embeds this value at compile time. Versions have two components: the first increments for regular releases, and the second increments for rare hotfixes addressing severe bugs. For example, `7.0` can be followed by `7.1` and `7.2`, then `8.0` for the next regular release. Cargo package versions are unused. The seed data's integer `format_version` has its separate compatibility rules.
 
 ### Saved seed format
 

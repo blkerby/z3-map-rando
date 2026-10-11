@@ -2,9 +2,6 @@
 
 pub use seed_data::{SeedData, Settings};
 
-/// Generator package version recorded in saved seed metadata.
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-
 use anyhow::{Result, ensure};
 use logic_catalog::{LogicCatalog, RoomIndex};
 use rand::{Rng, seq::SliceRandom};
