@@ -38,7 +38,7 @@ The catalogs use a Zstd-compressed `bincode-next` payload following a 16-byte un
 
 The retiling and patch catalogs use `type_hash`. The logic catalog uses `serde-reflection` to describe its complete schema, including recursive types and enum names, tags, and payloads. Its identifier is the first eight SHA-256 bytes of that registry encoded with the standard bincode configuration, interpreted as a little-endian `u64`.
 
-The catalog APIs stream encoding through a buffered Zstd encoder and decoding through a buffered Zstd decoder, without buffering the entire uncompressed payload. The builder accepts `--compression-level`, defaulting to `3` independently of Cargo profile; future CI release builds can explicitly use `18`. Changing compression does not change the decoded data or schema identifier. Prototype format changes require rebuilding catalogs, without legacy readers.
+The catalog APIs stream encoding through a buffered Zstd encoder and decoding through a buffered Zstd decoder, without buffering the entire uncompressed payload. The builder reads `compression_level` from `catalog-build.toml`, with `3` in the default template independently of Cargo profile; future CI release builds can explicitly use `18`. Changing compression does not change the decoded data or schema identifier. Prototype format changes require rebuilding catalogs, without legacy readers.
 
 A reader checks the envelope before decoding the payload. Schema changes that alter the identifier create a new format revision. Backward compatibility is not required; building and consuming a catalog use the same project version. This applies to catalogs, not saved seeds. The latest patcher and its matching patch catalog must support older seeds without their original catalogs.
 

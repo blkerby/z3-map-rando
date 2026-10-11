@@ -1,6 +1,8 @@
 //! A compact catalog of the ALTTPRetiling data, sanitized to reference
 //! vanilla tile graphics rather than contain a copy of them.
 
+pub mod graphics;
+
 use anyhow::{Result, ensure};
 use bincode_next::{Decode, Encode};
 use serde::Deserialize;

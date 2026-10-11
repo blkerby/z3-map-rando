@@ -492,9 +492,7 @@ pub fn build_catalog(
         catalog.rooms.push(room);
     }
     connections::build_connections(source_directory, &room_indices, &mut catalog)?;
-    let file = fs::File::create(output_catalog)
-        .with_context(|| format!("failed to write {}", output_catalog.display()))?;
-    let mut output = BufWriter::new(file);
+    let mut output = BufWriter::new(fs::File::create(output_catalog)?);
     encode_catalog(&catalog, &mut output, compression_level)?;
     output.flush()?;
     let bytes_len = output.get_ref().metadata()?.len();

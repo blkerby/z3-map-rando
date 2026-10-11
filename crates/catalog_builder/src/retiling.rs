@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use patcher::graphics::{TileFingerprintIndex, canonicalize_tile};
+use retiling_catalog::graphics::{TileFingerprintIndex, canonicalize_tile};
 use retiling_catalog::{
     AnimatedTileGroup, Area, AreaTheme, Background, BackgroundLayering, BackgroundSettings, Color,
     Cutscene, CutsceneAction, CutsceneEvent, DynamicTileGroup, DynamicTileType, DynamicTileVariant,
@@ -285,9 +285,7 @@ pub fn build_catalog(
         });
     }
 
-    let file = fs::File::create(output_catalog)
-        .with_context(|| format!("failed to write {}", output_catalog.display()))?;
-    let mut output = BufWriter::new(file);
+    let mut output = BufWriter::new(fs::File::create(output_catalog)?);
     encode_catalog(&catalog, &mut output, compression_level)?;
     output.flush()?;
     let bytes_len = output.get_ref().metadata()?.len();

@@ -1,0 +1,11 @@
+logic_source = "z3-json-data"
+retiling_source = "ALTTPRetiling"
+asm = "patches/src"
+asar_source = "asar"
+output_directory = "build"
+tile_fingerprints = "data/tile_fingerprints.json"
+compression_level = 3
+
+# Override the automatically built assembler with our patched Asar executable.
+# IPS output support is required; an upstream Asar executable will not work.
+# asar_executable = "/path/to/patched/asar"

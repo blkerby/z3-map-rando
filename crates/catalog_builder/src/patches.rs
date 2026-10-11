@@ -33,9 +33,7 @@ pub fn build_patches(
     build_directory: &Path,
     asar_executable: Option<&Path>,
 ) -> Result<BuiltPatches> {
-    let asm_directory = asm_directory.canonicalize()?;
     fs::create_dir_all(build_directory)?;
-    let build_directory = build_directory.canonicalize()?;
     let lock = File::options()
         .create(true)
         .truncate(false)
@@ -43,7 +41,17 @@ pub fn build_patches(
         .write(true)
         .open(build_directory.join("cache.lock"))?;
     lock.lock()?;
+    assemble_patches(asm_directory, asar_source, build_directory, asar_executable)
+}
 
+pub(crate) fn assemble_patches(
+    asm_directory: &Path,
+    asar_source: &Path,
+    build_directory: &Path,
+    asar_executable: Option<&Path>,
+) -> Result<BuiltPatches> {
+    let asm_directory = asm_directory.canonicalize()?;
+    let build_directory = build_directory.canonicalize()?;
     let asar = if let Some(asar) = asar_executable {
         asar.canonicalize()?
     } else {
@@ -164,6 +172,15 @@ pub fn build_catalog(
         output_directory,
         asar_executable,
     )?;
+    package_catalog(built, source_directory, output_directory, compression_level)
+}
+
+pub(crate) fn package_catalog(
+    built: BuiltPatches,
+    source_directory: &Path,
+    output_directory: &Path,
+    compression_level: i32,
+) -> Result<()> {
     let mut catalog = PatchCatalog {
         patches: built.patches,
         symbols: built.symbols,
@@ -236,14 +253,10 @@ pub fn build_catalog(
         }
     }
     let output_catalog = output_directory.join("patch_catalog.bin");
-    let mut temporary = tempfile::NamedTempFile::new_in(output_directory)?;
-    {
-        let mut output = BufWriter::new(temporary.as_file_mut());
-        patch_catalog::encode_catalog(&catalog, &mut output, compression_level)?;
-        output.flush()?;
-    }
-    let bytes_len = temporary.as_file().metadata()?.len();
-    temporary.persist(&output_catalog)?;
+    let mut output = BufWriter::new(File::create(&output_catalog)?);
+    patch_catalog::encode_catalog(&catalog, &mut output, compression_level)?;
+    output.flush()?;
+    let bytes_len = output.get_ref().metadata()?.len();
     eprintln!(
         "Wrote patch catalog to {} ({} bytes)\n  {} IPS patches, {} item locations, {} item encodings",
         output_catalog.display(),

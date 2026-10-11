@@ -1,10 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use patcher::{
-    graphics::{TileFingerprintIndex, TileFingerprintSheet, canonicalize_tile},
-    import::Importer,
-    verify_vanilla_rom,
-};
+use patcher::{import::Importer, verify_vanilla_rom};
+use retiling_catalog::graphics::{TileFingerprintIndex, TileFingerprintSheet, canonicalize_tile};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, fmt::Write, fs, path::PathBuf};
 

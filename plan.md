@@ -14,22 +14,22 @@ The CLI handles arguments and dispatches through `logic`, `retiling`, and `all` 
 
 ```sh
 mkdir -p build
-cargo run -p catalog_builder -- logic z3-json-data build/logic_catalog.bin
-cargo run -p catalog_builder -- retiling ALTTPRetiling build/retiling_catalog.bin
+cargo run -p catalog_builder -- logic
+cargo run -p catalog_builder -- retiling
 cargo run -p catalog_builder -- all
 ```
 
-Implemented: one builder CLI can build either existing catalog or both, with shared library modules available to other callers. Individual subcommands preserve the existing positional source/output arguments. `all` accepts `--logic-source`, `--retiling-source`, `--output-directory`, and `--tile-fingerprints`; defaults are relative to the working directory until step 5 adds shared configuration.
+Implemented: one builder CLI can build either existing catalog or both, with shared library modules available to other callers. All subcommands read their options from the root configuration introduced in step 5.
 
 ## 2. Compress catalog payloads (implemented)
 
 Keep the magic bytes and 64-bit schema identifier uncompressed, and encode the bincode payload through Zstd. Add streaming writer and reader APIs so serialization and deserialization do not require a complete uncompressed payload buffer. Update catalog consumers to read the compressed format; the future patch catalog uses the same convention.
 
-Add `--compression-level` to the builder CLI for `logic`, `retiling`, and `all`, defaulting to level `3` independently of Cargo profile. Higher levels remain explicit choices; the future CI release process can select level `18`. Change the prototype format directly and rebuild catalogs, without legacy readers or backward compatibility work.
+Configure `compression_level` in `catalog-build.toml`, with the template setting level `3` independently of Cargo profile. Higher levels remain explicit choices; the future CI release process can select level `18`. Change the prototype format directly and rebuild catalogs, without legacy readers or backward compatibility work.
 
-Shared configuration and caching in step 5 will incorporate the compression option. Keep all generated artifacts in `build/`; changing the level regenerates compressed catalog outputs without rebuilding Asar or reassembling unchanged patches.
+Shared configuration and caching in step 5 incorporate the compression option. Keep all generated artifacts in `build/`; changing the level regenerates compressed catalog outputs without rebuilding Asar or reassembling unchanged patches.
 
-Implemented: logic and retiling catalogs have streaming writer/reader APIs and Zstd-compressed payloads. The builder supports a global `--compression-level` option before or after any subcommand, defaulting to `3`. `theme_check` reads the compressed catalog directly from a file stream. No legacy format reader is retained.
+Implemented: logic and retiling catalogs have streaming writer/reader APIs and Zstd-compressed payloads. The builder reads `compression_level` from local configuration, with `3` in the default template. `theme_check` reads the compressed catalog directly from a file stream. No legacy format reader is retained.
 
 ## 3. Add cached ASM assembly (implemented)
 
@@ -39,7 +39,7 @@ Cache each IPS independently. Its fingerprint covers source and included file pa
 
 Result: editing one patch rebuilds only that patch; editing `symbols.inc` rebuilds its consumers. Unchanged patches, including `fastrom_base`, are reused.
 
-Implemented: `catalog_builder asm` invokes the shared patch-building module, builds the standalone patched Asar with CMake in Release mode, and updates `build/patches/*.ips` with per-patch fingerprint files. `--asm` selects the ASM directory (default `patches/src/`); `--asar-source` selects the patched Asar checkout containing `src/CMakeLists.txt` (default `asar/`); `--asar-executable` takes precedence and skips the CMake build. `--output-directory` selects the artifact directory. Defaults are relative to the working directory. A shared `cache.lock` protects updates, and temporary files keep failed assembly from publishing incomplete outputs. Existing tracked IPS consumers and Python scripts remain until step 13.
+Implemented: `catalog_builder patches` invokes the shared patch-building module, builds the standalone patched Asar with CMake in Release mode, updates `build/patches/*.ips` with per-patch fingerprint files, and packages the patch catalog introduced in step 4. `asm` selects the ASM directory (default `patches/src/`); `asar_source` selects the patched Asar checkout containing `src/CMakeLists.txt` (default `asar/`); `asar_executable` takes precedence and skips the CMake build. `output_directory` selects the artifact directory. Step 5 reads these settings from local configuration and resolves relative paths from the repository root. A shared `cache.lock` protects updates, and temporary files keep failed assembly from publishing incomplete outputs. Existing tracked IPS consumers and Python scripts remain until step 13.
 
 Dependency tracking supports only standalone, single-line `incsrc "literal/path"` directives, resolved relative to the including file. Includes are followed recursively, including those in conditional branches. It does not evaluate Asar defines or macros, resolve include search paths, or track `incbin` or other file-reading directives. Extend the scanner before introducing those dependency forms; otherwise cached patches could become stale.
 
@@ -53,17 +53,17 @@ Read `z3-json-data` directly to extract stable location mappings, ROM addresses,
 
 Result: one artifact supplies the fixed patches and symbols to native and browser patchers, together with the source-derived item/location patching data.
 
-Implemented: `catalog_builder patches` writes `build/patch_catalog.bin`, and `all` now builds all three catalogs. The patch catalog has streaming Zstd/bincode writer and reader APIs with its magic bytes and `type_hash` envelope. Logic and patch builders share `catalog_builder::z3_json_data` types and file readers. The patch builder reads `rooms/` and `items.json` directly, retains authored IDs and ordered prize offsets, and excludes the fixed flute-activation event from placement locations. Completed catalog files are published through temporary files. `--logic-source`, `--asm`, `--asar-source`, `--asar-executable`, `--output-directory`, and `--compression-level` are supported; defaults remain relative to the working directory until step 5. Catalog packaging runs on every invocation while assembly remains cached.
+Implemented: `catalog_builder patches` writes `build/patch_catalog.bin`, and `all` now builds all three catalogs. The patch catalog has streaming Zstd/bincode writer and reader APIs with its magic bytes and `type_hash` envelope. Logic and patch builders share `catalog_builder::z3_json_data` types and file readers. The patch builder reads `rooms/` and `items.json` directly, retains authored IDs and ordered prize offsets, and excludes the fixed flute-activation event from placement locations. Catalog files are written directly. Local configuration selects source paths, assembler options, output directory, and compression level; step 5 provides shared configuration and skips unchanged catalog packaging alongside the existing assembly cache.
 
 ## 5. Add shared configuration and caching
 
-Make the existing `all` subcommand update all three catalogs through the shared cache:
+Add catalog caching so the existing `all` subcommand reuses unchanged catalogs:
 
 ```sh
 cargo run -p catalog_builder -- all
 ```
 
-Default source paths to the root-level `z3-json-data` and `ALTTPRetiling` submodules, resolved from the repository root. Check in `catalog-build.default.toml` and copy it to the Git-ignored `catalog-build.toml` if the local file is missing when a builder or bundled build runs. Read that local configuration without overwriting or merging it. The builder CLI also accepts path arguments; no custom environment variables are needed.
+Default source paths to the root-level `z3-json-data` and `ALTTPRetiling` submodules, resolved from the repository root. Check in `catalog-build.default.toml` and copy it to the Git-ignored `catalog-build.toml` if the local file is missing when a builder or bundled build runs. Read that local configuration without overwriting or merging it. The template is the single source of defaults; all configuration fields are required except the optional `asar_executable`. The builder CLI only selects which catalogs to build; all options come from local configuration, without custom environment variables.
 
 Use this default template:
 
@@ -72,6 +72,8 @@ logic_source = "z3-json-data"
 retiling_source = "ALTTPRetiling"
 asm = "patches/src"
 asar_source = "asar"
+output_directory = "build"
+tile_fingerprints = "data/tile_fingerprints.json"
 compression_level = 3
 
 # Override the automatically built assembler with our patched Asar executable.
@@ -79,13 +81,15 @@ compression_level = 3
 # asar_executable = "/path/to/patched/asar"
 ```
 
-The CLI compression-level argument overrides the local configuration; omission from both uses level `3`. Compression level is part of the catalog output fingerprint, not the Asar or IPS fingerprints, so changing it does not trigger assembly.
+The required `compression_level` configuration value is set to `3` in the template. Compression level is part of the catalog output fingerprint, not the Asar or IPS fingerprints, so changing it does not trigger assembly.
 
-Asar requires an initialized submodule, CMake, and a C++ toolchain. The source data repositories are root-level submodules; local configuration or CLI overrides can select other checkouts. Do not download repositories automatically.
+Asar requires an initialized submodule, CMake, and a C++ toolchain. The source data repositories are root-level submodules; local configuration can select other checkouts. Do not download repositories automatically.
 
-Use the ignored top-level `build/` directory for catalogs, IPS files, and cache metadata. Fingerprint all relevant source inputs, builder code, and configuration so changed data or implementations update the appropriate outputs. Fingerprints do not depend on debug versus release profiles.
+Use the ignored top-level `build/` directory for catalogs, IPS files, and cache metadata. Use each source repository’s checked-out Git `HEAD` commit and canonical path in its catalog fingerprint. Staged, unstaged, or untracked changes force a rebuild without recording a reusable fingerprint. Non-Git source overrides also rebuild every time. Ignored files do not affect Git status; source inputs must be tracked or unignored. Include the external tile fingerprint index for retiling and assembled IPS/symbol artifacts for patches. Collect code inputs at crate granularity at compile time. The entire `catalog_builder` crate and workspace manifest/lockfile affect all three fingerprints. Logic additionally includes `logic_catalog`; retiling includes `retiling_catalog`; patches include `patch_catalog` and `logic_catalog`, whose enums are used by source deserialization. Rust sources and Cargo manifests are collected recursively within each selected crate. Generator, patcher, and unrelated tool sources do not invalidate catalogs. Include the effective compression level rather than configuration file text. Fingerprints do not depend on debug versus release profiles.
 
-Use one shared cache lock during updates and snapshot copying. Write completed artifacts through temporary files so interrupted builds do not publish partial outputs. Individual subcommands, `all`, and the randomizer's build script share this library implementation.
+Use one shared cache lock during updates and snapshot copying. Write catalogs and their fingerprint metadata directly; invalidate old fingerprints before rebuilding and record new fingerprints only after a successful write. Interrupted catalog writes may leave incomplete files, which the next invocation rebuilds. Individual subcommands, `all`, and the randomizer's build script share this library implementation.
+
+Implemented: `catalog_builder` loads the root configuration, resolves all relative paths from the repository root, and routes individual catalog commands and `all` through `CatalogCache`. All subcommands read their options from configuration, with fixed catalog filenames inside the output directory. The cache holds `build/cache.lock` until dropped, including any snapshot copying a library caller performs while holding it. Catalogs and fingerprint metadata are written directly, and metadata is invalidated before rebuilding so failed or interrupted writes cannot produce a false cache hit. Asar’s CMake cache and the existing per-ASM dependency cache remain independent. The future bundled build can use the same library API; its integration is step 10.
 
 Result: manual and automatic builds reuse the same cache, which survives `cargo clean`.
 
@@ -125,7 +129,7 @@ Result: a usable generation-only CLI that writes a complete compressed seed.
 
 ## 10. Add automatic generation and embedding to bundled builds
 
-Add the default-off `bundle-catalogs` feature and optional builder dependency. The CLI's `build.rs` calls the shared update operation only with this feature enabled. Track source directories/files, path overrides, and assembler changes using Cargo's rerun directives. Track the local configuration file, creating it from the template only for bundled builds or standalone builder invocations.
+Add the default-off `bundle-catalogs` feature and optional builder dependency. The CLI's `build.rs` calls the shared update operation only with this feature enabled. Track source directories/files, configured paths, and assembler changes using Cargo's rerun directives. Track the local configuration file, creating it from the template only for bundled builds or standalone builder invocations.
 
 While holding the shared cache lock, update `build/` and copy the completed catalogs into this build's `OUT_DIR`. Embed those snapshots, not mutable cache paths. Debug and release share expensive generation and assembly work while each compilation has consistent inputs.
 

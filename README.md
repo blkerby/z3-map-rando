@@ -28,7 +28,7 @@ Build the retiling catalog, then a test ROM:
 
 ```sh
 mkdir -p build
-cargo run -p catalog_builder -- retiling ALTTPRetiling build/retiling_catalog.bin
+cargo run -p catalog_builder -- retiling
 cargo run -p theme_check -- path/to/vanilla.sfc path/to/output.sfc build/retiling_catalog.bin --theme Base
 ```
 
@@ -44,7 +44,7 @@ From the repository root:
 
 ```sh
 mkdir -p build
-cargo run -p catalog_builder -- retiling ALTTPRetiling build/retiling_catalog.bin
+cargo run -p catalog_builder -- retiling
 ```
 
 Initialize the source submodules from the repository root:
@@ -59,12 +59,13 @@ To build all three catalogs from the `z3-json-data` and `ALTTPRetiling` submodul
 cargo run -p catalog_builder -- all
 ```
 
-Use `--logic-source`, `--retiling-source`, `--output-directory`, `--tile-fingerprints`, `--asm`, `--asar-source`, or `--asar-executable` with `all` to override its working-directory-relative defaults. Building the patch catalog requires an initialized patched Asar submodule, CMake, and a C++ compiler unless `--asar-executable` supplies an existing patched executable. The `logic` and `retiling` subcommands accept positional source and output paths.
+Builders copy `catalog-build.default.toml` to the Git-ignored `catalog-build.toml` if missing, then read that local configuration without overwriting or merging it. Edit that local file to set source paths, the output directory, tile fingerprints, assembler options, and compression level. All relative paths are resolved from the repository root. Building the patch catalog requires an initialized patched Asar submodule, CMake, and a C++ compiler unless `asar_executable` supplies an existing patched executable. Each catalog uses its fixed filename inside the configured output directory; the subcommands have no positional arguments.
 
-Catalog payloads use Zstd compression, defaulting to level `3` for every Cargo profile. All builder subcommands accept `--compression-level`; use level `18` when prioritizing smaller release artifacts. Rebuild existing uncompressed catalogs with the current builder.
+Catalog payloads use Zstd compression, defaulting to level `3` for every Cargo profile. Set `compression_level` in `catalog-build.toml` to change the level. Use level `18` when prioritizing smaller release artifacts. Unchanged catalogs are reused using fingerprints of source Git commits, Rust code, compression level, and external inputs. Dirty Git checkouts and non-Git source directories rebuild every time; ignored files do not affect Git status. The shared cache under `build/` survives `cargo clean`.
 
-```sh
-cargo run -p catalog_builder -- all --compression-level 18
+```toml
+# In catalog-build.toml:
+compression_level = 18
 ```
 
 # How to build the patch catalog
@@ -77,7 +78,7 @@ From the repository root:
 cargo run -p catalog_builder -- patches
 ```
 
-This writes `build/patch_catalog.bin`, reusing cached assembly artifacts. `--logic-source`, `--asm`, `--asar-source`, `--asar-executable`, and `--output-directory` override the data source, ASM directory, Asar checkout, assembler executable, and artifact directory defaults. `--compression-level` controls catalog compression without invalidating assembly. Catalog packaging runs on each invocation; catalog caching and shared configuration are planned in step 5. Existing ROM tools still consume the tracked IPS files until their later integration with the patch catalog.
+This writes `build/patch_catalog.bin`, reusing cached assembly artifacts. Settings in `catalog-build.toml` select the data source, ASM directory, Asar checkout or executable, artifact directory, and compression level. Changing compression does not invalidate assembly. Unchanged catalog packaging is skipped through the shared cache and configuration. Existing ROM tools still consume the tracked IPS files until their later integration with the patch catalog.
 
 # How to build the tile fingerprint index
 
@@ -103,17 +104,18 @@ sudo apt install build-essential cmake
 From the repository root:
 
 ```sh
-cargo run -p catalog_builder -- asm
+cargo run -p catalog_builder -- patches
 ```
 
-This automatically builds the repository's patched Asar submodule in Release mode under `build/asar/`, using CMake's incremental compilation, and writes IPS files and their fingerprints under `build/patches/`. Initialize the submodule when cloning, as shown above. Only the standalone assembler target is compiled. Each patch is reused when its source files, transitive includes, assembler contents, and assembly options are unchanged. Builder implementation changes also invalidate the fingerprints. Updates hold `build/cache.lock`; temporary ROMs and outputs are local to each invocation, and failed assembly leaves the previous completed patch available.
+This automatically builds the repository's patched Asar submodule in Release mode under `build/asar/`, using CMake's incremental compilation, writes IPS files and their fingerprints under `build/patches/`, and packages `build/patch_catalog.bin`. Initialize the submodule when cloning, as shown above. Only the standalone assembler target is compiled. Each patch is reused when its source files, transitive includes, assembler contents, and assembly options are unchanged. Builder implementation changes also invalidate the fingerprints. Updates hold `build/cache.lock`; temporary ROMs and outputs are local to each invocation, and failed assembly leaves the previous completed patch available.
 
 The builder also caches `build/patches/symbols.sym`, exported independently from `patches/src/symbols.asm`, and imports it into the catalog's typed `PatchSymbols`. `%export_symbol` in the shared interface marks Rust-facing symbols; missing or unconsumed exports fail the build. See [the symbol manifest design](plans/patches.md#symbol-manifest).
 
-`--asm` selects the ASM source directory, defaulting to `patches/src/`. `--asar-source` selects the patched Asar checkout containing `src/CMakeLists.txt`, defaulting to `asar/`. `--output-directory` selects the artifact directory, defaulting to `build/`. An explicit `--asar-executable` path skips the automatic assembler build and takes precedence over `--asar-source`:
+`asm` selects the ASM source directory, defaulting to `patches/src/`. `asar_source` selects the patched Asar checkout containing `src/CMakeLists.txt`, defaulting to `asar/`. `output_directory` selects the artifact directory, defaulting to `build/`. An explicit `asar_executable` path in `catalog-build.toml` skips the automatic assembler build and takes precedence over `asar_source`:
 
-```sh
-cargo run -p catalog_builder -- asm --asar-executable path/to/patched/asar
+```toml
+# In catalog-build.toml:
+asar_executable = "path/to/patched/asar"
 ```
 
 We use a patched version of Asar with IPS output support; an upstream Asar executable will not work. The new command leaves tracked `patches/ips/` files unchanged. Existing ROM-building tools still use those tracked patches until the later patch-catalog integration; the old Python scripts remain available for that workflow.
