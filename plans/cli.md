@@ -70,7 +70,7 @@ The alphabet omits vowels and characters resembling vowels to reduce the chance 
 
 Store the numeric RNG seed as a string in JSON to preserve precision. Record the generation timestamp in RFC 3339 UTC format and the SHA-256 hash of the complete encoded logic catalog used for generation. Catalog hashes are provenance only; patching does not require the original catalog versions. Save placements using stable authored `room_id` and `item_id` values, not catalog indices or ROM addresses.
 
-The saved seed includes a `format_version` and stable `WorldLayout` choices, not graphical content. At patching time the CLI extracts transient `SeedRetilingData` from the saved layout and current retiling catalog. The latest patcher supports old seed formats and uses this prepared content and its current patch catalog. Patch-time customization can therefore expose new options for existing seeds.
+The saved seed includes a `format_version` and stable `WorldLayout` choices, not graphical content. At patching time the CLI passes its already-loaded current `RetilingCatalog` unchanged to the patcher, which selects content using the saved layout. The latest patcher supports old seed formats and uses the current retiling and patch catalogs. Patch-time customization can therefore expose new options for existing seeds.
 
 Capture the generator version from `CARGO_PKG_VERSION` at compile time. A build script captures the full Git commit when Git is available and the working tree is clean; otherwise, metadata contains `None` for the commit.
 
@@ -84,7 +84,7 @@ The `bundle-catalogs` Cargo feature embeds the logic, retiling, and patch catalo
 - `--retiling-catalog <PATH>`
 - `--patch-catalog <PATH>`
 
-Generation needs the logic and retiling catalogs to produce item placements and saved world-layout choices. Patching needs the saved seed, ROM, current retiling catalog for preparing transient content, and current patch catalog matching the patcher. It does not need the logic catalog or archived versions of generation catalogs. Bundled binaries provide the catalogs without additional user arguments.
+Generation needs the logic and retiling catalogs to produce item placements and saved world-layout choices. Patching needs the saved seed, ROM, current retiling catalog, and current patch catalog matching the patcher. It does not need the logic catalog or archived versions of generation catalogs. Bundled binaries provide the catalogs without additional user arguments.
 
 The `catalog_builder` crate exposes separate library modules through one builder CLI with `logic`, `retiling`, `patches`, and `all` subcommands. All read their options from shared configuration, with fixed catalog filenames inside the output directory. It can populate the ignored top-level `build/` cache independently of the randomizer CLI feature:
 

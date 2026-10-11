@@ -103,17 +103,17 @@ Implemented: the shared `seed_data` crate owns settings, `SeedData`, metadata, a
 
 Result: reordering a logic catalog does not change saved location identities.
 
-## 7. Define stable world layout and transient retiling content
+## 7. Define stable world layout
 
 Define serializable `WorldLayout` as part of persisted `SeedData`. Initially record stable area identities and assigned themes, leaving area positions and edge variants out of the types. For the prototype, select one whole-game theme and retain implicit vanilla area placement and connections. Extend the layout with positions in the world grid and enabled edge variants when rearrangement is implemented. Keep fine-grained graphical content and runtime allocation choices out of saved seeds.
 
-Define `SeedRetilingData` separately as transient content extracted from the current retiling catalog using `WorldLayout` at patching time, without a ROM. It contains the selected layouts, palettes, tiles, and other required content, including sanitized vanilla graphics references rather than copied vanilla pixels. Its representation evolves with the current patcher and has no backward-compatibility requirement. Do not persist it in `SeedData`.
+Reuse `RetilingCatalog` as patching input alongside `WorldLayout`; do not introduce a separate seed-specific retiling type or persist graphical content in `SeedData`. The native CLI can pass its already-loaded catalog unchanged. The future web backend filters the current catalog to the content needed by the saved layout before sending it to the client. Filtering is a transport optimization, not a required native preparation step. Full and filtered catalogs use the same type and have no backward-compatibility requirement.
 
 For eventual saved-seed compatibility, keep area, theme, and edge-variant identities stable and provide mappings for retired or restructured choices. Preserve layout connectivity and gameplay meaning when resolving old choices against current content. Catalog hashes remain provenance rather than selectors for archived catalogs. Do not implement migrations or legacy readers during prototyping.
 
-Implemented so far: `seed_data::WorldLayout` contains an array of `AreaLayout` entries with `area_id` (the top-left vanilla map ID) and `theme_name` (the authored theme identity). `SeedData.world_layout` replaces its former whole-game `theme_name` field. Area positions and edge variants are deferred; transient retiling types and extraction remain to be implemented.
+Implemented: `seed_data::WorldLayout` contains an array of `AreaLayout` entries with `area_id` (the top-left vanilla map ID) and `theme_name` (the authored theme identity). `SeedData.world_layout` replaces its former whole-game `theme_name` field. Area positions and edge variants are deferred. Web catalog filtering is deferred until the web service is introduced.
 
-Result: generation saves high-level layout decisions; patching prepares the corresponding graphical content from current catalogs.
+Result: generation saves high-level layout decisions; patching selects their graphical content from the current full or filtered retiling catalog.
 
 ## 8. Implement the uniform generator library
 
@@ -145,11 +145,11 @@ cargo build -p cli --release --features bundle-catalogs
 
 Result: bundled builds automatically create or update their assets. Ordinary `cargo check` without the feature requires neither catalogs, source repos, nor Asar. External catalog arguments can override embedded catalogs.
 
-## 11. Extract retiling preparation and patching
+## 11. Extract retiling patching
 
-Prepare transient `SeedRetilingData` from the saved `WorldLayout` and current retiling catalog. Refactor the ROM-building flow in `theme_check` into a reusable patcher operation consuming a ROM, decoded seed, prepared retiling data, current patch catalog, and customization settings. Consume IPS bytes from the catalog instead of filesystem paths. Resolve vanilla graphics references from the ROM and compile the prepared content into the current runtime layout using current symbols.
+Refactor the ROM-building flow in `theme_check` into a reusable patcher operation consuming a ROM, decoded seed, current retiling catalog, current patch catalog, and customization settings. Select area content using the saved `WorldLayout`; accept either a full or filtered `RetilingCatalog` through the same interface. The CLI passes its loaded catalog unchanged. Consume IPS bytes from the patch catalog instead of filesystem paths. Resolve vanilla graphics references from the ROM and compile the selected content into the current runtime layout using current symbols.
 
-Result: native callers prepare retiling data locally; the future web backend prepares it for the client at patching time. The patching core consumes prepared content rather than the full logic or retiling catalog and has no filesystem, clock, network, or RNG dependency.
+Result: native and future browser patchers share one interface accepting the current retiling catalog. The core does not need the logic catalog and has no filesystem, clock, network, or RNG dependency.
 
 ## 12. Add item-placement patching
 
@@ -161,7 +161,7 @@ Result: the patcher applies saved placements without the original logic catalog 
 
 ## 13. Complete CLI patching and remove tracked IPS artifacts
 
-Wire `--seed` plus `--rom` to patching, and generation plus `--rom` to generation followed by patching. Save the seed before preparing transient retiling data and patching in combined operation. Reuse the saved seed name for default ROM output paths.
+Wire `--seed` plus `--rom` to patching, and generation plus `--rom` to generation followed by patching. Save the seed before patching in combined operation. Reuse the saved seed name for default ROM output paths.
 
 Move remaining IPS consumers and development instructions to generated outputs or the patch catalog, then remove `patches/ips/` files from source control. Update or retire `scripts/build_patches.py` and `scripts/build_asar.py` so there is one assembly and caching implementation. Document the local configuration, source-directory overrides, and Asar prerequisites.
 
@@ -169,4 +169,4 @@ Result: the CLI generates, patches, or does both based on its arguments, with no
 
 ## Verification during implementation
 
-Use the existing checks and temporary development checks appropriate to each step; do not add permanent tests or validation without an explicit request. Check compressed catalog round trips, unchanged-cache reuse, individual ASM edits, shared include edits, and reuse between debug and release builds. Changing compression level should update catalog outputs while reusing unchanged assembly artifacts. Exercise seed serialization and CLI generation before moving on to ROM patching. Check that patch-only operation works without the logic catalog, prepares transient content from the current retiling catalog, and leaves persisted seed data unchanged. Check that saved seeds remain usable after catalog rebuilds without selecting archived catalogs.
+Use the existing checks and temporary development checks appropriate to each step; do not add permanent tests or validation without an explicit request. Check compressed catalog round trips, unchanged-cache reuse, individual ASM edits, shared include edits, and reuse between debug and release builds. Changing compression level should update catalog outputs while reusing unchanged assembly artifacts. Exercise seed serialization and CLI generation before moving on to ROM patching. Check that patch-only operation works without the logic catalog, uses the current retiling catalog directly, and leaves persisted seed data unchanged. Check that saved seeds remain usable after catalog rebuilds without selecting archived catalogs.

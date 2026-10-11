@@ -98,7 +98,7 @@ Successful seed generation produces the area placement coordinates, selected the
 
 The shared [`seed_data`](../crates/seed_data/src/lib.rs) crate defines settings and saved seed types without depending on catalogs or the generator. The [`common_types`](../crates/common_types/src/lib.rs) crate defines stable room/item-location identities shared by seed data and catalogs. Catalog builders do not depend on settings or saved seed types. Saved placements contain `item_location_id` with the authored `room_id` and `item_id`, plus the stable item name. Logic graph indices stay internal to the logic catalog.
 
-Save the complete seed as JSON compressed with Zstd, including `WorldLayout`, but excluding transient `SeedRetilingData`. Settings files remain ordinary JSON. Serialization can write directly through a Zstd encoder, and `serde_json::from_reader` can deserialize from a buffered Zstd decoder without holding the entire decompressed JSON or an intermediate JSON value in memory. The decoded seed itself remains in memory.
+Save the complete seed as JSON compressed with Zstd, including `WorldLayout` and excluding graphical catalog content. Settings files remain ordinary JSON. Serialization can write directly through a Zstd encoder, and `serde_json::from_reader` can deserialize from a buffered Zstd decoder without holding the entire decompressed JSON or an intermediate JSON value in memory. The decoded seed itself remains in memory.
 
 The seed has an integer `format_version`, starting at `1`, separate from the generator version. Increment it for meaningful interpretation changes: changes to field meanings or units, representation changes requiring conversion, or new essential content that cannot be reconstructed from older seed data. Also increment it when an older reader ignoring a new field would interpret the generated game incorrectly, even if the latest reader can default that field for older seeds.
 
@@ -116,19 +116,21 @@ Conceptually, rearrangement can be considered part of the generation process, an
 
 ## ROM patching
 
-### Seed-specific retiling data
+### Retiling catalog at patching time
 
-At patching time, resolve the saved `WorldLayout` against the current retiling catalog and extract `SeedRetilingData` containing the selected layouts, palettes, tiles, and other required content. This is transient data, not part of persisted `SeedData`. It retains sanitized vanilla-graphics references rather than copied vanilla pixels; the patcher resolves these from the player's ROM. Runtime palette and character slots and ROM storage are assigned during patching.
+Reuse `RetilingCatalog` as patching input alongside the persisted `WorldLayout`. The patcher selects the layouts, palettes, tiles, and other content required by the saved choices. The native CLI passes its already-loaded current catalog unchanged, without a filtering or conversion step. There is no separate `SeedRetilingData` type, and graphical content is not persisted in `SeedData`.
 
-The native CLI prepares this content locally. For the web service, the backend prepares it at the time of patching and sends it to the client alongside the saved seed and current patching assets. The client needs neither the full retiling catalog nor the logic catalog. `SeedRetilingData` evolves with the current preparation code and client patcher, has no backward-compatibility requirement, and is independent of the persisted seed's `format_version`. Its transport encoding is separate from the saved seed format.
+For the web service, the backend filters the current catalog according to the saved layout at patching time and sends the smaller `RetilingCatalog` to the client alongside the saved seed and current patching assets. The same patcher interface accepts full and filtered catalogs. The client needs neither the full retiling catalog nor the logic catalog. Both full and filtered catalog formats evolve with the current code and have no backward-compatibility requirement; persisted layout choices retain their long-term compatibility contract.
+
+Initially filter areas and themes while retaining all layers within selected themes. Further filtering can remove unused layers, palettes, tiles, and dynamic-tile variants when their dependencies are accounted for, including alternate backgrounds, event overlays, cutscenes, and animation frames. Retain referenced content and preserve identities and tile indices so filtering does not change interpretation. Sanitized vanilla graphics references remain in the catalog; the patcher resolves them from the player's ROM. Runtime palette and character slots and ROM storage are assigned during patching.
 
 ### Patcher
 
-The patcher is a Rust library for transforming a user-provided vanilla ROM into a randomized ROM. Its core is a pure function receiving the ROM, decoded seed, prepared `SeedRetilingData`, current patch catalog, and patch-time customization settings, and returning an output ROM. It has no filesystem, network, clock, or RNG dependency, and does not consume the logic or retiling catalogs.
+The patcher is a Rust library for transforming a user-provided vanilla ROM into a randomized ROM. Its core is a pure function receiving the ROM, decoded seed, current full or filtered `RetilingCatalog`, current patch catalog, and patch-time customization settings, and returning an output ROM. It has no filesystem, network, clock, or RNG dependency, and does not consume the logic catalog.
 
-The patcher validates the user ROM against a static checksum and copies it to an output buffer. It applies patches in their required phases, resolves vanilla graphics references, compiles the transient retiling content into runtime assets, and writes item placements and other seed data using current location mappings and symbols. Finally, it updates the checksum and complement.
+The patcher validates the user ROM against a static checksum and copies it to an output buffer. It applies patches in their required phases, resolves vanilla graphics references, compiles the selected retiling content into runtime assets, and writes item placements and other seed data using current location mappings and symbols. Finally, it updates the checksum and complement.
 
-Use the latest patcher, its matching patch catalog, and retiling content prepared from the current retiling catalog even for old seeds, so patching bug fixes and new customization options remain available. Compatibility is maintained by current seed readers, layout-choice mappings, and patching code, rather than by selecting archived catalogs or patchers based on seed metadata.
+Use the latest patcher, its matching patch catalog, and the current full or filtered retiling catalog even for old seeds, so patching bug fixes and new customization options remain available. Compatibility is maintained by current seed readers, layout-choice mappings, and patching code, rather than by selecting archived catalogs or patchers based on seed metadata.
 
 The native CLI calls the core function directly. A WebAssembly build exposes the same API to the TypeScript frontend, serializing the inputs to byte buffers. The behavior is identical in the native and WebAssembly builds.
 
@@ -140,11 +142,11 @@ The CLI is a native Rust binary that invokes the generator, patcher, or both acc
 
 ### Web backend
 
-The web backend is a Rust service built on the Rust library. It loads the logic and retiling catalogs, connects to an object store for seed storage, and exposes an HTTP JSON API for seed generation and other services needed by the frontend. At patching time it resolves the saved world layout against the current retiling catalog and sends transient `SeedRetilingData` to the client; it does not add this content to the stored seed.
+The web backend is a Rust service built on the Rust library. It loads the logic and retiling catalogs, connects to an object store for seed storage, and exposes an HTTP JSON API for seed generation and other services needed by the frontend. At patching time it filters the current `RetilingCatalog` using the saved world layout and sends that catalog to the client.
 
 ### Web frontend
 
-The web frontend is a TypeScript application that requests generation and fetches stored Zstd-compressed seeds. At patching time it obtains transient `SeedRetilingData` prepared by the backend, the latest WebAssembly patcher, and its matching patch catalog, including when loading an old seed. It selects the player's ROM through a local file input, invokes the WebAssembly patching API, and offers the returned ROM bytes as a download. The ROM and output exist only on the player's system.
+The web frontend is a TypeScript application that requests generation and fetches stored Zstd-compressed seeds. At patching time it obtains a filtered current `RetilingCatalog` from the backend, the latest WebAssembly patcher, and its matching patch catalog, including when loading an old seed. It selects the player's ROM through a local file input, invokes the WebAssembly patching API, and offers the returned ROM bytes as a download. The ROM and output exist only on the player's system.
 
 ## Crate boundaries
 
