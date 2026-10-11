@@ -181,12 +181,24 @@ pub(crate) fn package_catalog(
     output_directory: &Path,
     compression_level: i32,
 ) -> Result<()> {
-    let mut catalog = PatchCatalog {
+    let items = read_item_encodings(source_directory)?;
+    let item_locations = read_item_locations(source_directory)?;
+    let catalog = PatchCatalog {
         patches: built.patches,
         symbols: built.symbols,
-        item_locations: BTreeMap::new(),
-        items: BTreeMap::new(),
+        item_locations,
+        items,
     };
+    write_catalog(
+        &catalog,
+        built.patch_count,
+        output_directory,
+        compression_level,
+    )
+}
+
+fn read_item_encodings(source_directory: &Path) -> Result<BTreeMap<String, ItemEncoding>> {
+    let mut encodings = BTreeMap::new();
     let items: z3_json_data::Items = read_source(&source_directory.join("items.json"))?;
     for category in [
         items.inventory,
@@ -209,7 +221,7 @@ pub(crate) fn package_catalog(
             } else {
                 None
             };
-            catalog.items.insert(
+            encodings.insert(
                 item.name,
                 ItemEncoding {
                     receipt_id,
@@ -218,6 +230,11 @@ pub(crate) fn package_catalog(
             );
         }
     }
+    Ok(encodings)
+}
+
+fn read_item_locations(source_directory: &Path) -> Result<BTreeMap<ItemLocationId, ItemLocation>> {
+    let mut locations = BTreeMap::new();
     let mut room_paths = Vec::new();
     collect_source_files(&source_directory.join("rooms"), &mut room_paths)?;
     room_paths.sort();
@@ -243,7 +260,7 @@ pub(crate) fn package_catalog(
                     rom_addresses.push(u32::from_str_radix(address.trim_start_matches("0x"), 16)?);
                 }
             }
-            catalog.item_locations.insert(
+            locations.insert(
                 ItemLocationId {
                     room_id,
                     item_id: item.id,
@@ -252,16 +269,25 @@ pub(crate) fn package_catalog(
             );
         }
     }
+    Ok(locations)
+}
+
+fn write_catalog(
+    catalog: &PatchCatalog,
+    patch_count: usize,
+    output_directory: &Path,
+    compression_level: i32,
+) -> Result<()> {
     let output_catalog = output_directory.join("patch_catalog.bin");
     let mut output = BufWriter::new(File::create(&output_catalog)?);
-    patch_catalog::encode_catalog(&catalog, &mut output, compression_level)?;
+    patch_catalog::encode_catalog(catalog, &mut output, compression_level)?;
     output.flush()?;
     let bytes_len = output.get_ref().metadata()?.len();
     eprintln!(
         "Wrote patch catalog to {} ({} bytes)\n  {} IPS patches, {} item locations, {} item encodings",
         output_catalog.display(),
         bytes_len,
-        built.patch_count,
+        patch_count,
         catalog.item_locations.len(),
         catalog.items.len(),
     );

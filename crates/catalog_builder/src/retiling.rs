@@ -17,6 +17,7 @@ use std::{
 };
 
 type Pixels = [[u8; 8]; 8];
+type TileFingerprints = BTreeMap<String, (u8, u8)>;
 
 #[derive(Deserialize)]
 struct SourcePalette {
@@ -130,10 +131,20 @@ pub fn build_catalog(
     tile_fingerprints: &Path,
     compression_level: i32,
 ) -> Result<()> {
-    let fingerprint_bytes = fs::read(tile_fingerprints)
-        .with_context(|| format!("failed to read {}", tile_fingerprints.display()))?;
+    let fingerprints = read_tile_fingerprints(tile_fingerprints)?;
+    let catalog = RetilingCatalog {
+        palettes: compile_palettes(retiling_project, &fingerprints)?,
+        areas: compile_areas(retiling_project)?,
+        dynamic_tile_groups: compile_dynamic_tiles(retiling_project)?,
+    };
+    write_catalog(&catalog, output_catalog, compression_level)
+}
+
+fn read_tile_fingerprints(path: &Path) -> Result<TileFingerprints> {
+    let fingerprint_bytes =
+        fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
     let index: TileFingerprintIndex = serde_json::from_slice(&fingerprint_bytes)
-        .with_context(|| format!("failed to parse {}", tile_fingerprints.display()))?;
+        .with_context(|| format!("failed to parse {}", path.display()))?;
     let mut fingerprints = BTreeMap::new();
     for sheet in index.sheets {
         for (tile, fingerprint) in sheet.tile_fingerprints.into_iter().enumerate() {
@@ -150,12 +161,14 @@ pub fn build_catalog(
             }
         }
     }
-    let mut catalog = RetilingCatalog {
-        palettes: BTreeMap::new(),
-        areas: BTreeMap::new(),
-        dynamic_tile_groups: Vec::new(),
-    };
+    Ok(fingerprints)
+}
 
+fn compile_palettes(
+    retiling_project: &Path,
+    fingerprints: &TileFingerprints,
+) -> Result<BTreeMap<PaletteId, Palette>> {
+    let mut palettes = BTreeMap::new();
     for path in find_json_paths(&retiling_project.join("Palettes"))? {
         let source: SourcePalette = read_json(&path)?;
         let mut palette = Palette {
@@ -166,7 +179,7 @@ pub fn build_catalog(
         };
         for source_tile in source.tiles {
             palette.tiles.push(Tile {
-                graphic: sanitize_graphic(source_tile.pixels, &fingerprints),
+                graphic: sanitize_graphic(source_tile.pixels, fingerprints),
                 priority: source_tile.priority,
                 collision: source_tile.collision,
                 h_flippable: source_tile.h_flippable,
@@ -176,7 +189,7 @@ pub fn build_catalog(
         for group in source.animated_tile_groups {
             let mut frames = Vec::new();
             for frame in group.frames {
-                frames.push(frame.map(|pixels| sanitize_graphic(pixels, &fingerprints)));
+                frames.push(frame.map(|pixels| sanitize_graphic(pixels, fingerprints)));
             }
             palette.animated_tile_groups.push(AnimatedTileGroup {
                 base_tile: group.base_tile,
@@ -185,9 +198,14 @@ pub fn build_catalog(
                 phase_offset: group.phase_offset,
             });
         }
-        catalog.palettes.insert(source.id, palette);
+        palettes.insert(source.id, palette);
     }
 
+    Ok(palettes)
+}
+
+fn compile_areas(retiling_project: &Path) -> Result<BTreeMap<String, Area>> {
+    let mut areas = BTreeMap::new();
     let mut area_paths = Vec::new();
     for entry in fs::read_dir(retiling_project.join("Areas"))? {
         let path = entry?.path();
@@ -201,70 +219,82 @@ pub fn build_catalog(
         for path in find_json_paths(&directory)? {
             let source: SourceArea = read_json(&path)?;
             let theme = path.file_stem().unwrap().to_str().unwrap().to_owned();
-            let mut layers = Vec::new();
-            for layer in source.layers {
-                let mut tiles = BTreeMap::new();
-                for screen in layer.screens {
-                    for y in 0..usize::from(screen.size[1]) {
-                        for x in 0..usize::from(screen.size[0]) {
-                            if let (Some(palette), Some(tile), Some(flip)) = (
-                                screen.palettes[y][x],
-                                screen.tiles[y][x],
-                                screen.flips[y][x],
-                            ) {
-                                let placement = TilePlacement {
-                                    x: (screen.position[0] + x as u16) as u8,
-                                    y: (screen.position[1] + y as u16) as u8,
-                                    palette,
-                                    tile,
-                                    flip: convert_flip(flip),
-                                };
-                                tiles.insert((placement.y, placement.x), placement);
-                            }
-                        }
-                    }
-                }
-                layers.push(Layer {
-                    name: layer.name,
-                    background: layer.background,
-                    grid: TileGrid {
-                        width: source.size[0] * 32,
-                        height: source.size[1] * 32,
-                        tiles: tiles.into_values().collect(),
-                    },
-                });
-            }
-            let cutscene_path = directory.join(&theme).join("cutscenes.json");
-            let mut cutscenes = Vec::new();
-            if cutscene_path.is_file() {
-                let scripts: SourceCutscenes = read_json(&cutscene_path)?;
-                for script in scripts.cutscenes {
-                    cutscenes.push(Cutscene {
-                        event: script.event,
-                        actions: script.actions,
-                    });
-                }
-            }
-            let area = catalog.areas.entry(name.clone()).or_insert_with(|| Area {
-                vanilla_map_id: source.vanilla_map_id,
+            let vanilla_map_id = source.vanilla_map_id;
+            let area_theme = compile_area_theme(source, &directory, &theme)?;
+            let area = areas.entry(name.clone()).or_insert_with(|| Area {
+                vanilla_map_id,
                 themes: BTreeMap::new(),
             });
-            area.themes.insert(
-                theme,
-                AreaTheme {
-                    background: BackgroundSettings {
-                        color: source.bg_color,
-                        layering: source.bg_layering,
-                        camera_follow: [source.bg_camera_follow_x, source.bg_camera_follow_y],
-                        camera_drift: [source.bg_camera_drift_x, source.bg_camera_drift_y],
-                    },
-                    layers,
-                    cutscenes,
-                },
-            );
+            area.themes.insert(theme, area_theme);
         }
     }
 
+    Ok(areas)
+}
+
+fn compile_area_theme(source: SourceArea, directory: &Path, theme: &str) -> Result<AreaTheme> {
+    let mut layers = Vec::new();
+    for layer in source.layers {
+        layers.push(convert_layer(layer, source.size));
+    }
+    let cutscene_path = directory.join(theme).join("cutscenes.json");
+    let mut cutscenes = Vec::new();
+    if cutscene_path.is_file() {
+        let scripts: SourceCutscenes = read_json(&cutscene_path)?;
+        for script in scripts.cutscenes {
+            cutscenes.push(Cutscene {
+                event: script.event,
+                actions: script.actions,
+            });
+        }
+    }
+    Ok(AreaTheme {
+        background: BackgroundSettings {
+            color: source.bg_color,
+            layering: source.bg_layering,
+            camera_follow: [source.bg_camera_follow_x, source.bg_camera_follow_y],
+            camera_drift: [source.bg_camera_drift_x, source.bg_camera_drift_y],
+        },
+        layers,
+        cutscenes,
+    })
+}
+
+fn convert_layer(layer: SourceLayer, size: [u8; 2]) -> Layer {
+    let mut tiles = BTreeMap::new();
+    for screen in layer.screens {
+        for y in 0..usize::from(screen.size[1]) {
+            for x in 0..usize::from(screen.size[0]) {
+                if let (Some(palette), Some(tile), Some(flip)) = (
+                    screen.palettes[y][x],
+                    screen.tiles[y][x],
+                    screen.flips[y][x],
+                ) {
+                    let placement = TilePlacement {
+                        x: (screen.position[0] + x as u16) as u8,
+                        y: (screen.position[1] + y as u16) as u8,
+                        palette,
+                        tile,
+                        flip: convert_flip(flip),
+                    };
+                    tiles.insert((placement.y, placement.x), placement);
+                }
+            }
+        }
+    }
+    Layer {
+        name: layer.name,
+        background: layer.background,
+        grid: TileGrid {
+            width: size[0] * 32,
+            height: size[1] * 32,
+            tiles: tiles.into_values().collect(),
+        },
+    }
+}
+
+fn compile_dynamic_tiles(retiling_project: &Path) -> Result<Vec<DynamicTileGroup>> {
+    let mut groups = Vec::new();
     let dynamic: SourceDynamicTiles =
         read_json(&retiling_project.join("DynamicTiles/replacements.json"))?;
     for group in dynamic.groups {
@@ -279,14 +309,22 @@ pub fn build_catalog(
                 after_frames,
             });
         }
-        catalog.dynamic_tile_groups.push(DynamicTileGroup {
+        groups.push(DynamicTileGroup {
             kind: group.kind,
             variants,
         });
     }
 
+    Ok(groups)
+}
+
+fn write_catalog(
+    catalog: &RetilingCatalog,
+    output_catalog: &Path,
+    compression_level: i32,
+) -> Result<()> {
     let mut output = BufWriter::new(fs::File::create(output_catalog)?);
-    encode_catalog(&catalog, &mut output, compression_level)?;
+    encode_catalog(catalog, &mut output, compression_level)?;
     output.flush()?;
     let bytes_len = output.get_ref().metadata()?.len();
     let mut vanilla_graphics = 0;
@@ -323,7 +361,7 @@ pub fn build_catalog(
     Ok(())
 }
 
-fn sanitize_graphic(pixels: Pixels, fingerprints: &BTreeMap<String, (u8, u8)>) -> TileGraphic {
+fn sanitize_graphic(pixels: Pixels, fingerprints: &TileFingerprints) -> TileGraphic {
     let canonical = canonicalize_tile(&pixels);
     let mut fingerprint = String::with_capacity(64);
     for byte in Sha256::digest(canonical.pixels) {
