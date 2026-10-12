@@ -1,6 +1,6 @@
 # Logical item placement implementation plan
 
-Status: Step 1 implemented; Steps 2 through 11 remain planned. The placement strategy and the resource, fairy-exchange, and retry policies below reflect the decisions made in discussion.
+Status: Steps 1 and 2 implemented; Steps 3 through 11 remain planned. The placement strategy and the resource, fairy-exchange, and retry policies below reflect the decisions made in discussion.
 
 ## Agreed behavior
 

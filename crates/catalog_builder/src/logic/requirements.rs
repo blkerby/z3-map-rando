@@ -99,7 +99,10 @@ impl Compiler {
                 equipment: Equipment::Sword,
                 minimum_level: *level,
             },
-            Op::Shield(level) => Requirement::Equipment {
+            // Progressive Shield rewards only raise the acquired level, so interpret
+            // shieldExact as a minimum too, including fixed fairy exchanges. Revisit
+            // this monotonic interpretation if fairy exchanges or shield requirements change.
+            Op::Shield(level) | Op::ShieldExact(level) => Requirement::Equipment {
                 equipment: Equipment::Shield,
                 minimum_level: *level,
             },
@@ -107,7 +110,7 @@ impl Compiler {
                 equipment: Equipment::Glove,
                 minimum_level: *level,
             },
-            Op::SwordExact(_level) | Op::ShieldExact(_level) => Requirement::Never,
+            Op::SwordExact(_level) => Requirement::Never,
             Op::Arrows(count) => Requirement::UseAmmo {
                 kind: Ammo::Arrow,
                 count: *count,
