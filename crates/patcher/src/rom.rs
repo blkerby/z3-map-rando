@@ -78,7 +78,7 @@ pub fn apply_retiling(
     settings: &PatchSettings,
 ) -> Result<RetilingStats> {
     let mut fastrom_base = Patcher::default();
-    fastrom_base.use_ips("fastrom_base.ips", &patches.patches.fastrom_base)?;
+    fastrom_base.use_ips(&patches.patches.fastrom_base)?;
     fastrom_base.apply(rom)?;
 
     let mut importer = Importer::new(rom.clone())?;
@@ -236,56 +236,26 @@ pub fn apply_retiling(
         .context("overworld asset data")
         .write(SnesAddr(bundle.data_start).into(), bundle.data)?;
 
-    for (name, bytes) in [
-        ("fastrom_extra.ips", &patches.patches.fastrom_extra),
-        ("rom_size.ips", &patches.patches.rom_size),
-        (
-            "overworld_map_data.ips",
-            &patches.patches.overworld_map_data,
-        ),
-        (
-            "overworld_map16_graphics.ips",
-            &patches.patches.overworld_map16_graphics,
-        ),
-        (
-            "overworld_map16_properties.ips",
-            &patches.patches.overworld_map16_properties,
-        ),
-        ("bg3_tilemap.ips", &patches.patches.bg3_tilemap),
-        (
-            "overworld_bg_tilemaps.ips",
-            &patches.patches.overworld_bg_tilemaps,
-        ),
-        ("nmi_optimize.ips", &patches.patches.nmi_optimize),
-        ("mirror_bg1_hdma.ips", &patches.patches.mirror_bg1_hdma),
-        ("overworld_vram.ips", &patches.patches.overworld_vram),
-        ("overworld_assets.ips", &patches.patches.overworld_assets),
-        (
-            "overworld_animations.ips",
-            &patches.patches.overworld_animations,
-        ),
-        (
-            "overworld_entrances.ips",
-            &patches.patches.overworld_entrances,
-        ),
-        (
-            "overworld_bg_color.ips",
-            &patches.patches.overworld_bg_color,
-        ),
-        (
-            "overworld_dynamic_tiles.ips",
-            &patches.patches.overworld_dynamic_tiles,
-        ),
-        (
-            "overworld_cutscenes.ips",
-            &patches.patches.overworld_cutscenes,
-        ),
-        (
-            "overworld_lightning.ips",
-            &patches.patches.overworld_lightning,
-        ),
+    for patch in [
+        &patches.patches.fastrom_extra,
+        &patches.patches.rom_size,
+        &patches.patches.overworld_map_data,
+        &patches.patches.overworld_map16_graphics,
+        &patches.patches.overworld_map16_properties,
+        &patches.patches.bg3_tilemap,
+        &patches.patches.overworld_bg_tilemaps,
+        &patches.patches.nmi_optimize,
+        &patches.patches.mirror_bg1_hdma,
+        &patches.patches.overworld_vram,
+        &patches.patches.overworld_assets,
+        &patches.patches.overworld_animations,
+        &patches.patches.overworld_entrances,
+        &patches.patches.overworld_bg_color,
+        &patches.patches.overworld_dynamic_tiles,
+        &patches.patches.overworld_cutscenes,
+        &patches.patches.overworld_lightning,
     ] {
-        patcher.use_ips(name, bytes)?;
+        patcher.use_ips(patch)?;
     }
     patcher.apply(rom)?;
     rom[0x7fd7] = 0x0c;

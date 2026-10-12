@@ -1,6 +1,7 @@
 pub use seed_data::SeedData;
 
 use anyhow::{Result, ensure};
+use patch_catalog::Ips;
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeMap, fmt::Write, io::Read};
 
@@ -77,7 +78,9 @@ impl Patcher {
         PatchContext { id, rom: self }
     }
 
-    pub fn use_ips(&mut self, name: &str, mut input: &[u8]) -> Result<()> {
+    pub fn use_ips(&mut self, patch: &Ips) -> Result<()> {
+        let name = &patch.name;
+        let mut input = patch.bytes.as_slice();
         let mut header = [0; 5];
         input.read_exact(&mut header)?;
         anyhow::ensure!(&header == b"PATCH", "invalid IPS header in {name}");
@@ -228,10 +231,11 @@ mod tests {
         };
 
         patcher
-            .use_ips(
-                "example.ips",
-                b"PATCH\x00\x00\x10\x00\x02\xaa\xbb\x00\x00\x12\x00\x00\x00\x03\xccEOF",
-            )
+            .use_ips(&Ips {
+                name: "example.ips".into(),
+                bytes: b"PATCH\x00\x00\x10\x00\x02\xaa\xbb\x00\x00\x12\x00\x00\x00\x03\xccEOF"
+                    .to_vec(),
+            })
             .unwrap();
 
         assert_eq!(patcher.contexts[0], "example.ips");

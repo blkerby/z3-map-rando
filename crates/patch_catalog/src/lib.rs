@@ -51,29 +51,36 @@ pub struct PatchCatalog {
     pub items: BTreeMap<String, ItemEncoding>,
 }
 
-/// Complete IPS payloads, named after their ASM filename stems.
+/// A complete IPS payload with its diagnostic name.
+#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
+pub struct Ips {
+    pub name: String,
+    pub bytes: Vec<u8>,
+}
+
+/// Complete IPS payloads, with fields named after their ASM filename stems.
 /// Patches remain separate so the patcher can detect conflicting writes.
 #[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
 #[serde(deny_unknown_fields)]
 pub struct PatchIps {
-    pub bg3_tilemap: Vec<u8>,
-    pub fastrom_base: Vec<u8>,
-    pub fastrom_extra: Vec<u8>,
-    pub mirror_bg1_hdma: Vec<u8>,
-    pub nmi_optimize: Vec<u8>,
-    pub overworld_animations: Vec<u8>,
-    pub overworld_assets: Vec<u8>,
-    pub overworld_bg_color: Vec<u8>,
-    pub overworld_bg_tilemaps: Vec<u8>,
-    pub overworld_cutscenes: Vec<u8>,
-    pub overworld_dynamic_tiles: Vec<u8>,
-    pub overworld_entrances: Vec<u8>,
-    pub overworld_lightning: Vec<u8>,
-    pub overworld_map16_graphics: Vec<u8>,
-    pub overworld_map16_properties: Vec<u8>,
-    pub overworld_map_data: Vec<u8>,
-    pub overworld_vram: Vec<u8>,
-    pub rom_size: Vec<u8>,
+    pub bg3_tilemap: Ips,
+    pub fastrom_base: Ips,
+    pub fastrom_extra: Ips,
+    pub mirror_bg1_hdma: Ips,
+    pub nmi_optimize: Ips,
+    pub overworld_animations: Ips,
+    pub overworld_assets: Ips,
+    pub overworld_bg_color: Ips,
+    pub overworld_bg_tilemaps: Ips,
+    pub overworld_cutscenes: Ips,
+    pub overworld_dynamic_tiles: Ips,
+    pub overworld_entrances: Ips,
+    pub overworld_lightning: Ips,
+    pub overworld_map16_graphics: Ips,
+    pub overworld_map16_properties: Ips,
+    pub overworld_map_data: Ips,
+    pub overworld_vram: Ips,
+    pub rom_size: Ips,
 }
 
 /// Exported ASM interface consumed by Rust. Addresses are SNES addresses,

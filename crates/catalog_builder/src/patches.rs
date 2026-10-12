@@ -1,11 +1,12 @@
 use crate::z3_json_data::{self, collect_source_files, read_source};
 use anyhow::{Context, Result, bail};
 use patch_catalog::{
-    ItemEncoding, ItemLocation, ItemLocationId, PatchCatalog, PatchIps, PatchSymbols, SourceRoomId,
+    Ips, ItemEncoding, ItemLocation, ItemLocationId, PatchCatalog, PatchIps, PatchSymbols,
+    SourceRoomId,
 };
 use serde::{
     Deserialize,
-    de::value::{Error, MapDeserializer, SeqDeserializer},
+    de::value::{Error, MapDeserializer},
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -124,7 +125,10 @@ pub(crate) fn assemble_patches(
         if !is_symbols {
             outputs.insert(
                 root.file_stem().unwrap().to_string_lossy().into_owned(),
-                fs::read(&output)?,
+                Ips {
+                    name: output.file_name().unwrap().to_string_lossy().into_owned(),
+                    bytes: fs::read(&output)?,
+                },
             );
         }
     }
@@ -141,11 +145,7 @@ pub(crate) fn assemble_patches(
     }
     let symbols = PatchSymbols::deserialize(MapDeserializer::<_, Error>::new(symbols.into_iter()))?;
     let patch_count = outputs.len();
-    let mut entries = Vec::new();
-    for (name, bytes) in outputs {
-        entries.push((name, SeqDeserializer::<_, Error>::new(bytes.into_iter())));
-    }
-    let patches = PatchIps::deserialize(MapDeserializer::<_, Error>::new(entries.into_iter()))?;
+    let patches = PatchIps::deserialize(serde_json::to_value(outputs)?)?;
     eprintln!(
         "Updated ASM artifacts in {}\n  {rebuilt} assembled, {reused} reused",
         output_directory.display()
