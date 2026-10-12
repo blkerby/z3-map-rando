@@ -25,9 +25,11 @@
 !RupeeGraphicsBuffer = $7FF300
 ItemGraphicsCodeStart:
 
-org $80841E
-hook_clear_pickup_frame:
-    JML ClearPickupFrame
+; ClearOAMBuffer's loop returns to its second instruction, so keep that routine
+; intact. Reset frame metadata after clearing and before the module draws sprites.
+org $808056
+hook_begin_pickup_frame:
+    JSL BeginPickupFrame
 
 org $80E310
 hook_initialize_pickup_graphics:
@@ -93,13 +95,14 @@ hook_color_milestone_bottom:
 
 org ItemGraphicsCodeStart
 
-ClearPickupFrame:
+BeginPickupFrame:
+    PHP
+    PHA
     LDA.b #$00
     STA.l !DrawHeartPickup
-    ; Run hi-jacked instructions:
-    LDX.b #$60
-    LDA.b #$F0
-    JML $808422
+    PLA
+    PLP
+    JML $8080B5 ; Run hi-jacked instruction: dispatch the current module.
 
 InitializePickupGraphics:
     LDA.b #$00

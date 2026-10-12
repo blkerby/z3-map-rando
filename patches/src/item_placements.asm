@@ -143,6 +143,15 @@ hook_choose_crystal_speech:
 
 ; Two default pool IDs extend the vanilla receipt table: $4E is HalfMagic,
 ; $50 is a regular Master Sword without the pedestal-only cutscene.
+org $87B57D
+hook_check_chest_reward_replacement:
+    JML ReadChestRewardReplacement
+    NOP
+org $87B582
+return_check_chest_reward_replacement:
+org $87B59F
+return_receive_chest_reward:
+
 org $87999D
 hook_grant_item:
     JML GrantAssignedItem
@@ -535,5 +544,21 @@ FinishMagicReceipt:
     JML $88C4F7
 
 incsrc "item_graphics.inc"
+
+ReadChestRewardReplacement:
+    ; Entry is A8/X8/Y8 with DB=$87. Preserve X/Y and use only the original
+    ; $03 scratch write. Custom IDs have no entries in the vanilla tables.
+    CPY.b #$50
+    BEQ .custom_reward
+    CPY.b #$4E
+    BEQ .custom_reward
+
+    ; Run hi-jacked instructions:
+    LDA.w $B511,Y
+    STA.b $03
+
+    JML return_check_chest_reward_replacement
+.custom_reward
+    JML return_receive_chest_reward
 
 assert pc() <= !free_space_bank_a0_end
