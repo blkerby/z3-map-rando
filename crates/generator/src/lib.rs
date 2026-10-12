@@ -3,14 +3,14 @@
 pub use seed_data::{SeedData, Settings};
 
 use anyhow::{Result, ensure};
-use logic_catalog::{LogicCatalog, RoomIndex};
+use logic_catalog::{LogicCatalog, RoomIndex, SourceRoomId};
 use rand::{Rng, seq::SliceRandom};
 use retiling_catalog::RetilingCatalog;
 use seed_data::{AreaLayout, ItemPlacement, SEED_FORMAT_VERSION, SeedMetadata, WorldLayout};
 use std::collections::BTreeMap;
 
 /// Shuffle ordinary items globally and maps/compasses within their source dungeon.
-/// Keys remain vanilla; pendants and crystals shuffle among prize locations.
+/// Keys and fairy exchanges remain vanilla; pendants and crystals shuffle among prize locations.
 /// The caller supplies RNG state and metadata;
 /// tech and proficiency settings are saved but do not constrain placement yet.
 pub fn generate(
@@ -34,6 +34,13 @@ pub fn generate(
             item_location_id: location.id,
             item_name: item_name.clone(),
         });
+        // Waterfall and Pyramid fairy rewards stay in the vanilla exchange process.
+        if matches!(
+            (location.id.room_id, location.id.item_id),
+            (SourceRoomId::Underworld(12 | 69), 1 | 2)
+        ) {
+            continue;
+        }
         let room_idx = logic_catalog.vertex(location.vertex_idx).room_idx;
         match item_name.as_str() {
             "SmallKey" | "BigKey" => continue,

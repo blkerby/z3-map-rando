@@ -117,7 +117,7 @@ Result: generation saves high-level layout decisions; patching selects their gra
 
 ## 8. Implement the uniform generator library (implemented)
 
-Expand the settings item pool and uniformly shuffle it across eligible ordinary locations. Place maps and compasses uniformly among all non-key, non-prize locations within their own dungeon, then shuffle ordinary items globally across the remaining locations. Keep SmallKey and BigKey placements vanilla, shuffle pendants and crystals only among prize locations, and record all placements. Return an error if the ordinary pool quantity does not match the available locations. Preserve tech and proficiency settings without using them for placement yet.
+Expand the settings item pool and uniformly shuffle it across eligible ordinary locations. Place maps and compasses uniformly among all non-key, non-prize locations within their own dungeon, then shuffle ordinary items globally across the remaining locations. Keep SmallKey and BigKey placements and Waterfall/Pyramid fairy exchange rewards vanilla, shuffle pendants and crystals only among prize locations, and record all placements. Return an error if the ordinary pool quantity does not match the available locations. Preserve tech and proficiency settings without using them for placement yet.
 
 Accept settings, generation catalogs, the selected theme, and deterministic randomness from the caller. Produce the prototype `WorldLayout`, recording the selected theme for each area with vanilla positions implicit. Keep clocks, filesystem access, and seed-name generation outside the generator library.
 
@@ -162,6 +162,8 @@ Result: native and future browser patchers share one interface accepting the cur
 ## 12. Add item-placement patching
 
 Use the patch catalog's source-derived location mappings and current item and prize encodings to translate saved identities. Extend this data where necessary for the patched pickup carriers. Implement the location-specific writes and hooks required by the prototype's randomized pickups.
+
+Leave the Waterfall and Pyramid fairies on their vanilla item-exchange paths. Their four rewards remain fixed in seed output and are excluded from the randomized settings pool. Do not patch the source addresses for those exchange entries, which refer to reused chest slots.
 
 Use the current patcher and matching patch catalog independently of the catalog versions used for generation; customization remains a patch-time input. Do not implement seed migrations or legacy readers during prototyping.
 

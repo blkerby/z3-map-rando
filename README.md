@@ -30,7 +30,7 @@ cargo build -p cli --release --features bundle-catalogs
 
 This invokes the existing cached builder for all three catalogs, including ASM assembly, and embeds catalog files from the configured output directory. The resulting `target/release/z3-map-rando` generates seeds without external catalog files. Explicit catalog paths still override bundled data. Bundled builds rebuild the CLI on every invocation but reuse unchanged catalog and assembly outputs. Avoid updating the shared catalog cache concurrently with compilation.
 
-The prototype shuffles ordinary items globally, maps and compasses within their dungeon, and pendants and crystals among prize locations. SmallKey and BigKey placements remain vanilla. It records the selected theme for each supported area with vanilla placement implicit. It does not check logical progression or produce a ROM. See [the CLI design](plans/cli.md) for bundled builds and planned patching.
+The prototype shuffles ordinary items globally, maps and compasses within their dungeon, and pendants and crystals among prize locations. SmallKey and BigKey placements and the Waterfall/Pyramid fairy exchange rewards remain vanilla. It records the selected theme for each supported area with vanilla placement implicit. It does not check logical progression or produce a ROM. See [the CLI design](plans/cli.md) for bundled builds and planned patching.
 
 # How to test current engine changes
 
