@@ -1,194 +1,175 @@
-# Prototype implementation plan
+# Logical item placement implementation plan
 
-Prototype formats may change freely: rebuild catalogs or regenerate seeds rather than adding migrations or legacy readers. Saved seeds with stable identities and high-level layout choices remain a design goal for eventual long-term compatibility; patching resolves them using current catalogs rather than archived generation catalogs.
+Status: implementation plan. The placement strategy and the resource, fairy-exchange, and retry policies below reflect the decisions made in discussion.
 
-Implement these steps separately. The first usable prototype generates saved seeds with uniform item placement; ROM patching follows later. Logical placement, overworld rearrangement, and the web service remain outside this prototype.
+## Agreed behavior
 
-See [the architecture plan](plans/README.md) and [CLI design](plans/cli.md) for the data boundaries and user-facing behavior. Commands below describe the planned crate and binary names.
+- Keep the existing uniform randomizer as the `no-logic` setting. Logical mode uses player tech and proficiency settings.
+- Logical mode must make every catalog item location collectible, including fixed rewards, by executing its collection action rather than merely reaching its associated vertex.
+- Save and quit is always available and returns to the catalog's starting vertex while retaining collected inventory and persistent progress. Do not require an escape route from a pickup.
+- Small and Big Key pickups stay in their vanilla locations. Each small key receives a persistent identity that unlocks exactly one same-dungeon small-key door. Assume the small-key pickup count matches the small-key door count; the missing Ganon's Tower key will be supplied upstream.
+- Assign small-key identities in a preliminary pass, processing one dungeon at a time. Traverse the whole world, following its directed connections, while treating other dungeons' locks and non-key requirements as free. Enforce the selected dungeon's small-key doors and Big Key requirements.
+- Assign all unassigned collectible small keys as a batch, so a candidate can open several doors before exposing another key. Do not demand progress from each individual key assignment.
+- If a dungeon's preliminary attempt fails, restart only that dungeon. Retain successfully completed assignments for other dungeons. Stop with failure after a bounded number of attempts on a given dungeon; use a constant of 1000.
+- During main placement, place a dungeon's Map and Compass in collectible eligible locations before placing any other randomized ordinary rewards there. Keep keys and prizes in their separate location classes.
+- Sample candidates from the complete remaining ordinary pool for the newly collectible ordinary locations. There is no separate progression-only fill followed by junk fill.
+- A main-placement candidate succeeds when it exposes at least one additional collectible item location, or when all required locations are collectible. Retry failed candidates and restart a failed main-placement attempt without backtracking.
+- Treat rupee costs as free. Do not track rupee balances in traversal state.
+- Initialize health using the game's capacity-dependent spawn-health table. Magic, bombs, and arrows initially start empty. Once a resource refill is logically obtained, remember that resource in global state so subsequent traversals can start with it full at the current capacity. Resource costs still apply along a route; arriving at another vertex does not replenish resources.
+- Only environmental refill sources establish this global preparation permission. Ignore the resource-restoring effects of one-time refill rewards in logical reachability; retain their actual rewards and placement slots. Permanent capacity upgrades still affect logic.
+- Track bottles owned and logically established reusable bottle-refill types globally. Local traversal tracks remaining bottle uses without committing each bottle to a particular content. Consuming a bottle chooses any established content type and spends one use; a Blue Potion spends one use while restoring both health and magic.
+- Keep fixed fairy exchanges in the all-items guarantee. Treat `shieldExact` requirement as a regular `shield` requirement; revisit this if fairy-exchange behavior changes.
+- Bound candidate retries, per-dungeon key-assignment attempts, and main-placement attempts. Report generation failure when a budget is exhausted.
+- Postpone ROM support for door-specific keys and optimization through a reduced preliminary graph.
 
-## 1. Consolidate the existing catalog builders (implemented)
+## Settled resource, fairy-exchange, and retry policies
 
-Create `crates/catalog_builder` with a library containing separate logic and retiling modules and one CLI binary. Move the existing builders into this crate, preserving their behavior. Keep the runtime catalog crates separate.
+### Resource preparation
 
-The CLI handles arguments and dispatches through `logic`, `retiling`, and `all` subcommands. Initially, `all` builds both existing catalogs; extend it when the patch builder is added. Library operations can also be called directly by a build script. Do not invoke nested `cargo run` from `build.rs`.
+Follow the game's starting-health behavior and start the other resources empty until their first logical environmental refill. Thereafter, a global refill-discovery bit permits starting future traversals with that resource full. Bottle preparation uses the separately agreed global set of reusable content types. One-time resource rewards do not establish refill discoveries and their finite amounts are ignored by the logical model, so there is no shared finite-pickup or spending history to track.
 
-```sh
-mkdir -p build
-cargo run -p catalog_builder -- logic
-cargo run -p catalog_builder -- retiling
-cargo run -p catalog_builder -- all
-```
+For example, `ThreeBombs`, `TenArrows`, `Heart`, and `SmallMagic` remain rewards in the placement pool but add no logical resource amount. Heart containers, heart pieces, ammunition-capacity upgrades, magic upgrades, and new bottles still increase their permanent capacities; ignore any accompanying one-time refill or initially supplied bottle contents. Only a logically usable reusable bottle-content source expands the set of flexible bottle contents.
 
-Implemented: one builder CLI can build either existing catalog or both, with shared library modules available to other callers. All subcommands read their options from the root configuration introduced in step 5.
+Use [`MaxHealthBasedSpawnHP`](jpdasm/bank_09.asm:21348), indexed by maximum whole hearts, for health before a health refill is known. For capacities of 3 through 20 hearts, its starting-heart values are `3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9, 9, 10`. The ROM table stores these values in eighths of a heart. New-game capacity is three hearts; initial capacities for the other resources follow vanilla defaults and acquired upgrades.
 
-## 2. Compress catalog payloads (implemented)
+### Fixed fairy exchanges and the all-items guarantee
 
-Keep the magic bytes and 64-bit schema identifier uncompressed, and encode the bincode payload through Zstd. Add streaming writer and reader APIs so serialization and deserialization do not require a complete uncompressed payload buffer. Update catalog consumers to read the compressed format; the future patch catalog uses the same convention.
+The current generator keeps the Waterfall and Pyramid fairy exchanges fixed. Preserve those placements and include their locations in the all-items guarantee. The Waterfall shield exchange currently compiles to `Never` because exact shield requirements and the free-upgrade helper are disabled. Compile that exchange's `shieldExact: 1` condition as a minimum level-one shield requirement so its fixed upgraded shield can be collected. Since this is the only purpose of `shieldExact` this can be implemented in how `shieldExact` is processed in general.
 
-Configure `compression_level` in `catalog-build.toml`, with the template setting level `3` independently of Cargo profile. Higher levels remain explicit choices; the future CI release process can select level `18`. Change the prototype format directly and rebuild catalogs, without legacy readers or backward compatibility work.
+Retain the current conservative treatment of other exact equipment and negative-flag requirements. Add a nearby explanation that the exception must be revisited if fairy exchanges or shield availability are changed. Do not enable the free-upgrade helper globally or remove the exchange from the required-location set.
 
-Shared configuration and caching in step 5 incorporate the compression option. Keep all generated artifacts in `build/`; changing the level regenerates compressed catalog outputs without rebuilding Asar or reassembling unchanged patches.
+### Retry termination
 
-Implemented: logic and retiling catalogs have streaming writer/reader APIs and Zstd-compressed payloads. The builder reads `compression_level` from local configuration, with `3` in the default template. `theme_check` reads the compressed catalog directly from a file stream. No legacy format reader is retained.
+Use separate internal budgets for candidates within a wave, attempts for the current dungeon, and complete main-placement attempts. Candidate exhaustion restarts only the current dungeon in the preliminary phase, or the current main-placement attempt in the main phase. Exhausting the relevant outer budget returns a generation failure through the existing `Result` API. Preserve successfully settled earlier dungeons throughout preliminary retries and preserve all settled key assignments throughout main retries.
 
-## 3. Add cached ASM assembly (implemented)
+Choose initial budget constants during implementation and tune them with representative generation timings; no new user-facing settings are necessary for the first version. A failure report should identify the phase, selected dungeon when applicable, exhausted budget, and remaining inaccessible locations or lack of progress. Distinguish a failed randomized attempt from a proof that the layout has no solution.
 
-Add a patch-building module that automatically builds the repository's patched Asar submodule with CMake under `build/asar/`, using Release mode and only the standalone assembler target. Let CMake manage incremental C++ compilation. An explicit Asar executable override skips this build and must also support the patched IPS output mode; an upstream Asar executable will not work. Discover patch roots under `patches/src/` and recursively resolve literal `incsrc` paths relative to the including file. Support only this dependency syntax for now.
+## Current code and scope
 
-Cache each IPS independently. Its fingerprint covers source and included file paths and contents, the assembler contents, and assembly arguments and defines. Missing outputs or changed fingerprints trigger assembly; record success only after completed output is available. Use invocation-local temporary ROM paths instead of the shared `/tmp/dummy.smc`.
+[`generator::generate`](crates/generator/src/lib.rs) currently classifies locations, shuffles prizes, places Maps and Compasses within their source dungeon, shuffles the ordinary pool, and constructs `SeedData`. [`LogicCatalog`](crates/logic_catalog/src/lib.rs) provides authored edges, recursive requirements, effects, typed indices, the start vertex, and separate connection records; it does not implement traversal. [`Settings`](crates/seed_data/src/settings.rs) has no placement-mode setting, and [`SeedData`](crates/seed_data/src/output.rs) has no small-key identity assignments.
 
-Result: editing one patch rebuilds only that patch; editing `symbols.inc` rebuilds its consumers. Unchanged patches, including `fastrom_base`, are reused.
+Implement the first version inside the generator crate, splitting graph preparation, traversal, and placement into modules. Keep the catalog immutable; use catalog indices for generation and stable authored identities for saved seeds. No new crate or general graph framework is needed.
 
-Implemented: `catalog_builder patches` invokes the shared patch-building module, builds the standalone patched Asar with CMake in Release mode, updates `build/patches/*.ips` with per-patch fingerprint files, and packages the patch catalog introduced in step 4. `asm` selects the ASM directory (default `patches/src/`); `asar_source` selects the patched Asar checkout containing `src/CMakeLists.txt` (default `asar/`); `asar_executable` takes precedence and skips the CMake build. `output_directory` selects the artifact directory. Step 5 reads these settings from local configuration and resolves relative paths from the repository root. A shared `cache.lock` protects updates, and temporary files keep failed assembly from publishing incomplete outputs. Existing tracked IPS consumers and Python scripts remain until step 13.
+Use vanilla world connections initially. Keep connection expansion separate from traversal so future randomized maps can supply another connection set. Do not implement map randomization, multiple restart destinations, key receipt patches, or door-binding patches in this work.
 
-Dependency tracking supports only standalone, single-line `incsrc "literal/path"` directives, resolved relative to the including file. Includes are followed recursively, including those in conditional branches. It does not evaluate Asar defines or macros, resolve include search paths, or track `incbin` or other file-reading directives. Extend the scanner before introducing those dependency forms; otherwise cached patches could become stale.
+The logical model will use door-specific keys before the ROM does. Saved logical placements can be inspected and solved under that model, but the existing patcher will still produce vanilla key behavior. The eventual ROM-playability guarantee depends on the deferred key patches and any other gameplay changes assumed by the catalog.
 
-## 4. Build the patch catalog (implemented)
+## Implementation steps
 
-Define a runtime patch catalog and its encoder/decoder using the existing bincode envelope convention. Add a `patches` subcommand to the builder CLI and include it in `all`. The subcommand prepares Asar, assembles outdated patches, and packages the catalog. Bundle separate named IPS patches and their matching symbol manifest. Application order, phases, and optional patch selection stay in patcher code, including the initial `fastrom_base` transformation.
+### Step 1: Add placement mode and saved key assignments
 
-Symbol manifest generation is implemented: `%export_symbol(InternalName, exported_name, $Value)` in `symbols.inc` defines an ASM symbol and an explicitly named `export_` label. The standalone `symbols.asm` entry point generates a cached symbol file alongside the IPS artifacts. Plain `PatchSymbols` and `PatchIps` structs use Serde's `Deserialize` derive and `deny_unknown_fields` to import in-memory entries, rejecting missing or extra exports and patches. `build_patches` returns typed IPS payloads read under the assembly cache lock and this typed manifest. Runtime consumers use these catalog fields in step 11, which also exports the flat-map tables, background colors, and asset storage addresses.
+Add a placement-mode setting with `no-logic` and logical variants, and make the selected mode explicit in bundled settings. Preserve the current uniform shuffle as its own generation branch. Both branches produce the existing item-placement records and world layout; only logical mode runs the traverser and assigns key identities.
 
-Read `z3-json-data` directly to extract stable location mappings, ROM addresses, item receipt IDs, and prize encodings for the patch catalog. Share source-reading types with the logic builder, without depending on the generated logic catalog.
+Introduce a stable authored door identity consisting of source room ID and authored door ID. Save each small-key assignment as the vanilla pickup's `ItemLocationId` paired with its assigned door identity. Keep the pickup's saved item name `SmallKey`, so this phase does not require changing the patcher's receipt encoding. No-logic seeds have no generated small-key assignments.
 
-Result: one artifact supplies the fixed patches and symbols to native and browser patchers, together with the source-derived item/location patching data.
+Resolve item names and stable tech IDs to catalog indices once when preparing logical generation. Build each dungeon's fixed key pickup lists, small-key door list, Map/Compass pool, prize locations, ordinary locations, and fixed exchange locations. Derive dungeon ownership from the catalog's source room, which represents the whole authored dungeon. Retain the existing ordinary-pool count behavior and adjust bundled pool quantities if upstream changes make that necessary.
 
-Implemented: `catalog_builder patches` writes `build/patch_catalog.bin`, and `all` now builds all three catalogs. The patch catalog has streaming Zstd/bincode writer and reader APIs with its magic bytes and `type_hash` envelope. Logic and patch builders share `catalog_builder::z3_json_data` types and file readers. The patch builder reads `rooms/` and `items.json` directly, retains authored IDs and ordered prize offsets, and excludes the fixed flute-activation event from placement locations. Catalog files are written directly. Local configuration selects source paths, assembler options, output directory, and compression level; step 5 provides shared configuration and skips unchanged catalog packaging alongside the existing assembly cache.
+Completion: the current generator can still produce no-logic seeds, and logical generation has the indexed data and saved representation needed by later steps. Do not add backward-compatibility machinery.
 
-## 5. Add shared configuration and caching
+### Step 2: Enable the fixed Waterfall shield exchange in the catalog
 
-Add catalog caching so the existing `all` subcommand reuses unchanged catalogs:
+Apply the narrowly scoped minimum-shield interpretation while compiling the Waterfall shield exchange's requirement. Keep its stable location identity and fixed reward. Document why this exception applies and when it must be revisited. Rebuild the logic catalog so normal traversal sees the approved monotonic requirement rather than an impossible action.
 
-```sh
-cargo run -p catalog_builder -- all
-```
+Completion: the fixed exchange can be represented in the all-items solve without enabling unrelated exact-equipment routes or fairy helpers.
 
-Default source paths to the root-level `z3-json-data` and `ALTTPRetiling` submodules, resolved from the repository root. Check in `catalog-build.default.toml` and copy it to the Git-ignored `catalog-build.toml` if the local file is missing when a builder or bundled build runs. Read that local configuration without overwriting or merging it. The template is the single source of defaults; all configuration fields are required except the optional `asar_executable`. The builder CLI only selects which catalogs to build; all options come from local configuration, without custom environment variables.
+### Step 3: Expand the selected connections into a playable graph
 
-Use this default template:
+Build outgoing adjacency for catalog edges plus generation-owned connection edges. Expand doors bidirectionally, drops only inward, teleports only outward, and screen boundaries and whirlpools bidirectionally. The destination vertex determines the world; do not add an independent world state to interior vertices.
 
-```toml
-logic_source = "z3-json-data"
-retiling_source = "ALTTPRetiling"
-asm = "patches/src"
-asar_source = "asar"
-output_directory = "build"
-tile_fingerprints = "data/tile_fingerprints.json"
-compression_level = 3
+Apply entrance follower rules and reset room-local obstacles when leaving their owning source room. Match event-exit and event-entry vertices only across the selected physical connection with the same event identity. Do not attach event-entry actions to ordinary endpoint vertices.
 
-# Override the automatically built assembler with our patched Asar executable.
-# IPS output support is required; an upstream Asar executable will not work.
-# asar_executable = "/path/to/patched/asar"
-```
+Add flute travel using the catalog's destinations and the active-flute capability. Keep save-and-quit behavior available to both traversers. Normal traversal returns to the start with persistent discoveries retained, follower and room obstacles reset, and resource preparation governed by the global refill-discovery bits and spawn-health rule. The simplified traverser can restart directly at the start because it has no resources or followers.
 
-The required `compression_level` configuration value is set to `3` in the template. Compression level is part of the catalog output fingerprint, not the Asar or IPS fingerprints, so changing it does not trigger assembly.
+Completion: both traversers can use the same directed world topology, including routes that leave and reenter a dungeon through another entrance.
 
-Asar requires an initialized submodule, CMake, and a C++ toolchain. The source data repositories are root-level submodules; local configuration can select other checkouts. Do not download repositories automatically.
+### Step 4: Implement the simplified key-pass traversal
 
-Use the ignored top-level `build/` directory for catalogs, IPS files, and cache metadata. Use each source repository’s checked-out Git `HEAD` commit and canonical path in its catalog fingerprint. Staged, unstaged, or untracked changes force a rebuild without recording a reusable fingerprint. Non-Git source overrides also rebuild every time. Ignored files do not affect Git status; source inputs must be tracked or unignored. Include the external tile fingerprint index for retiling and assembled IPS/symbol artifacts for patches. Collect code inputs at crate granularity at compile time. The entire `catalog_builder` crate and workspace manifest/lockfile affect all three fingerprints. Logic additionally includes `logic_catalog` and `common_types`; retiling includes `retiling_catalog`; patches include `patch_catalog`, `common_types`, and `logic_catalog`, whose enums are used by source deserialization. Rust sources and Cargo manifests are collected recursively within each selected crate. Generator, patcher, and unrelated tool sources do not invalidate catalogs. Include the effective compression level rather than configuration file text. Fingerprints do not depend on debug versus release profiles.
+Use a vertex work queue, a visited set for the current key inventory, and discoveries of the selected dungeon's key pickups and item collection actions. There is no resource, bottle, follower, or obstacle frontier in this mode.
 
-Use one shared cache lock throughout catalog updates. Write catalogs and their fingerprint metadata directly; invalidate old fingerprints before rebuilding and record new fingerprints only after a successful write. Interrupted catalog writes may leave incomplete files, which the next invocation rebuilds. Individual subcommands, `all`, and the randomizer's build script share this library implementation.
+Evaluate requirement composition while treating non-key leaves as free. Enforce a selected-dungeon small-key door through its candidate assignment, and a selected-dungeon Big Key door through collection of its vanilla Big Key. Treat other dungeons' doors and ordinary `Item(BigKey)` collection requirements as free. Ignore temporary-state effects; preserve collection discoveries. An unassigned small-key pickup is collectible but enables no door until a candidate assigns it an identity.
 
-Implemented: `catalog_builder` loads the root configuration, resolves all relative paths from the repository root, and routes individual catalog commands and `all` through `CatalogCache`. All subcommands read their options from configuration, with fixed catalog filenames inside the output directory. The cache holds `build/cache.lock` until dropped. Catalogs and fingerprint metadata are written directly, and metadata is invalidated before rebuilding so failed or interrupted writes cannot produce a false cache hit. Asar’s CMake cache and the existing per-ASM dependency cache remain independent. The bundled build uses the same library API in step 10.
+Run to closure after discovering a usable key, restarting or extending traversal as needed. Report collected small-key locations, Big Key availability, and collectible item locations in the selected dungeon. Do not seed every dungeon entrance as independently reachable.
 
-Result: manual and automatic builds reuse the same cache, which survives `cargo clean`.
+Completion: the key pass can ask which target-dungeon keys and items are collectible for a partial candidate assignment.
 
-## 6. Make seed identities independent of catalogs
+### Step 5: Assign one dungeon's small-key identities at a time
 
-Retain authored `(room_id, item_id)` pairs in logic-catalog item locations and replace saved `item_location_idx` values with these pairs. Establish that existing IDs are permanent and removed IDs are not reused. Item names remain the item identity; receipt IDs and ROM addresses are patching details. Remove location ROM addresses, item receipt IDs, and prize patch bytes from the logic catalog; the patch builder reads these directly from `z3-json-data`.
+For the current dungeon, start with no assignments and run the simplified traverser. Gather its collectible, unassigned small-key pickups and sample a distinct unassigned door for each pickup in the candidate batch. Recompute closure with those assignments. Accept a candidate if another small key becomes collectible or every item location in that dungeon becomes collectible; otherwise discard the candidate without altering committed assignments.
 
-Add an integer seed `format_version` starting at `1`, following the [versioning rules](plans/README.md#saved-seed-format): bump for meaningful interpretation changes, not compatible extensions. Keep generator metadata and catalog hashes as provenance, without requiring an old catalog or patcher version. Make the saved-seed types available to generation and patching without making the patcher depend on the generator's implementation.
+Continue with the newly collectible unassigned keys. Once every dungeon item is collectible, randomly pair any remaining unassigned key pickups and doors. Those keys are already collectible without their new doors, so these final assignments cannot introduce a key-collection cycle. The result assigns an identity to every small-key pickup and door.
 
-Implemented: the shared `seed_data` crate owns settings, `SeedData`, metadata, and item placements. The `common_types` crate owns the single definitions of `SourceRoomId` and `ItemLocationId`; catalogs depend on it without depending on settings or saved seed data. Generator and patcher expose the shared seed type without depending on one another. Logic-catalog locations store an `id` containing the authored room/item pair; saved placements store `item_location_id`. Graph effects still use internal location indices. Logic-catalog items contain names, and locations contain their stable identity, display name, and vertex; ROM addresses, receipt IDs, and prize bytes remain in the patch catalog. `SeedData::format_version` is an integer and writers use `SEED_FORMAT_VERSION = 1`. Metadata includes logic and retiling catalog hashes for provenance. The catalog cache fingerprints the shared types for logic and patch outputs.
+If an attempt cannot continue, discard only the current dungeon's assignments and restart that dungeon within its attempt budget. Never discard successfully settled previous dungeons. Other dungeons' locks remain free regardless of their saved assignments. Freeze all successful assignments before main placement.
 
-Result: reordering a logic catalog does not change saved location identities.
+Completion: every dungeon has a complete key assignment whose keys and item locations are collectible under the preliminary pass's relaxed requirements.
 
-## 7. Define stable world layout
+### Step 6: Define normal global and local state and item grants
 
-Define serializable `WorldLayout` as part of persisted `SeedData`. Initially record stable area identities and assigned themes, leaving area positions and edge variants out of the types. For the prototype, select one whole-game theme and retain implicit vanilla area placement and connections. Extend the layout with positions in the world grid and enabled edge variants when rearrangement is implemented. Keep fine-grained graphical content and runtime allocation choices out of saved seeds.
+Global state contains permanent item capabilities and equipment levels, health and resource capacities, heart-piece accumulation, bottles owned, known reusable bottle-content types, discovered environmental health/magic/bomb/arrow refills, collected location identities, permanent flags, dungeon-scoped Big Keys, acquired door-specific small keys, and persistently opened non-key doors. One-time refill rewards add no logical resource amount or refill-discovery bit.
 
-Reuse `RetilingCatalog` as patching input alongside `WorldLayout`; do not introduce a separate seed-specific retiling type or persist graphical content in `SeedData`. The native CLI can pass its already-loaded catalog unchanged. The future web backend filters the current catalog to the content needed by the saved layout before sending it to the client. Filtering is a transport optimization, not a required native preparation step. Full and filtered catalogs use the same type and have no backward-compatibility requirement.
+Local state contains current health, magic, bombs, arrows, remaining flexible bottle uses, the current follower, and the owning room's obstacle states. Omit rupees. Keep resource quantities together in actual route states rather than taking independent maxima.
 
-For eventual saved-seed compatibility, keep area, theme, and edge-variant identities stable and provide mappings for retired or restructured choices. Preserve layout connectivity and gameplay meaning when resolving old choices against current content. Catalog hashes remain provenance rather than selectors for archived catalogs. Do not implement migrations or legacy readers during prototyping.
+Implement reward grants for the supported item definitions. Equipment uses the highest acquired level, bow and silver-arrow capabilities remain distinct, flute activation supplies the active capability without removing the inactive capability, and capacities derive from acquired upgrades. Collect each location once. Resolve fixed key grants using the location's dungeon and saved assignment rather than the anonymous item name alone.
 
-Implemented: `seed_data::WorldLayout` contains an array of `AreaLayout` entries with `area_id` (the top-left vanilla map ID) and `theme_name` (the authored theme identity). `SeedData.world_layout` replaces its former whole-game `theme_name` field. Area positions and edge variants are deferred. Web catalog filtering is deferred until the web service is introduced.
+Use eighths of a heart for health and the catalog's normalized magic units. Account for potions and Fairy revival through the flexible-bottle model. Distinguish a one-time filled-bottle reward from a reusable refill source; buying or finding one potion does not itself establish an unlimited supply.
 
-Result: generation saves high-level layout decisions; patching selects their graphical content from the current full or filtered retiling catalog.
+Completion: applying a reward produces the capacities and capabilities needed by requirement evaluation. Route initialization follows the spawn-health table and known environmental refill bits.
 
-## 8. Implement the uniform generator library (implemented)
+### Step 7: Interpret normal requirements and effects
 
-Expand the settings item pool and uniformly shuffle it across eligible ordinary locations. Place maps and compasses uniformly among all non-key, non-prize locations within their own dungeon, then shuffle ordinary items globally across the remaining locations. Keep SmallKey and BigKey placements and Waterfall/Pyramid fairy exchange rewards vanilla, shuffle pendants and crystals only among prize locations, and record all placements. Return an error if the ordinary pool quantity does not match the available locations. Preserve tech and proficiency settings without using them for placement yet.
+Implement each `Requirement` variant over a fixed global snapshot and local input state. Execute `And` children in order; evaluate each `Or` branch from the same input and retain meaningful successful output states. Honor tech enablement, proficiency thresholds, prize counts, followers, obstacles, and doors. Preserve `Never` in normal traversal.
 
-Accept settings, generation catalogs, the selected theme, and deterministic randomness from the caller. Produce the prototype `WorldLayout`, recording the selected theme for each area with vanilla positions implicit. Keep clocks, filesystem access, and seed-name generation outside the generator library.
+Apply ammunition and magic costs, damage, refills, and resource-state checks to the local state. Process magic uses and damage hits individually so potions and Fairy revival can intervene. A bottle consumption may choose an established refill content and spends one shared bottle use. A Fairy refill can heal immediately; storing it for later use must honor capture requirements, including the net where applicable. Rupee payment and refill operations have no balance effect.
 
-Implemented: `generator::generate` accepts settings, logic and retiling catalogs, the selected theme, caller-prepared metadata, and a caller-owned RNG. The logic catalog retains each location’s vanilla item index for dungeon restrictions, prize shuffling, and fixed keys. The result records all pickups and selected mapped areas that provide the requested theme, sorted by vanilla map ID; omitted areas retain vanilla content. No clocks, files, ROM access, or RNG seeding occur inside the generator.
+Apply strat effects after successful requirements. Temporary obstacle and follower effects update the local state. Collection, fixed item grants, flags, persistent door openings, resource refills, and newly established reusable bottle refill types become global discoveries. Record a refill discovery only after its action is logically obtainable. Do not grant a hypothetical item from an unfilled location: report that the collection action is executable so the filler can use the slot.
 
-Result: generation produces structured seed data without logical placement or ROM patching.
+Completion: the interpreter supports the catalog's action semantics and returns successful states plus global discoveries.
 
-## 9. Add seed serialization and the generation CLI (implemented)
+### Step 8: Traverse normal routes and compute discovery closure
 
-Create `crates/cli` with binary `z3-map-rando`, initially supporting generation through external catalogs. Implement the arguments and defaults in [plans/cli.md](plans/cli.md), including bundled checked-in settings.
+Use a work queue of vertex/local-state pairs. Store multiple compatible local states at a vertex. Begin with exact deduplication and conservative resource dominance between states with matching temporary state; retain alternatives when obstacle, follower, or resource combinations differ. Never combine unrelated states into an invented route.
 
-Choose or accept a `u64` RNG seed. Generate and persist the fresh nine-character seed name using the agreed separate naming RNG. Record the UTC timestamp, shared project version from the root `VERSION` file, and catalog provenance. Retain `generator_commit` as `None` during development; release packaging will later provide a metadata file containing the version and full source commit.
+Run a traversal wave with a fixed global snapshot, gather discoveries, apply the guaranteed discoveries, and repeat until no additional global capabilities, flags, door openings, or refill types are discovered. Global discoveries may come from fixed placements, committed randomized placements, fixed events, or successful refill actions. Each new traversal starts with the known refilled resources full at their current capacities; others start empty, except health uses its spawn table until a health refill is known.
 
-Stream JSON through Zstd when saving, and deserialize through a buffered Zstd decoder when loading. Default seed output to `z3-map-rando-<SEED-NAME>.json.zst`. Naming remains fresh when `--rng` repeats, while placements remain reproducible with identical generation inputs.
+Keep inventory dependent continuations for the next wave; a successful collection effect does not let the old snapshot immediately use the new item. Track the provenance of discoveries and successful collection actions sufficiently to explain inaccessible locations during development.
 
-Implemented: `cli` provides `z3-map-rando` with `--settings`, `--theme`, `--rng`, `--output-seed`, `--compression-level`, `--logic-catalog`, `--retiling-catalog`, and `--version`. Settings default to the embedded JSON; unbundled catalog paths default to `build/logic_catalog.bin` and `build/retiling_catalog.bin` relative to the working directory. `SeedData::write` and `SeedData::read` stream pretty JSON through Zstd; CLI output uses `--compression-level`, defaulting to `3`. Metadata includes both encoded catalog hashes and the shared project version (`common_types::VERSION`); `generator_commit` remains `None` for now. No build script queries Git for development metadata. Release metadata generation and loading are deferred until release packaging is set up. Catalog bundling is implemented in step 10; patching arguments remain for later steps.
+Return the collectible location set and executable unfilled collection actions. Do not use vertex reachability as a substitute for collection. Postpone a bounded metric frontier until measurements show a need; adding one would require an explicit decision about lost completeness.
 
-Result: a usable generation-only CLI that writes a complete compressed seed.
+Completion: given a partial placement, the filler can obtain all currently collectible slots and permanent discoveries under normal logic.
 
-## 10. Add automatic generation and embedding to bundled builds (implemented)
+### Step 9: Prepare main placement and apply Map/Compass priority
 
-Add the default-off `bundle-catalogs` feature and optional builder build dependency. With this feature enabled, the CLI's `build.rs` invokes `CatalogCache::update_all()` on every build, using one deliberately nonexistent rerun path instead of another source-tracking scheme. The existing builder cache decides which catalogs and ASM artifacts need rebuilding. Read the shared local configuration, creating it from the template if missing. Without the feature, the build script does no catalog work and the builder is not a CLI dependency.
+Start each main attempt with the frozen small-key assignments, fixed vanilla key rewards, fixed fairy rewards, and a fresh shuffle of pendants and crystals among prize locations. Preassign prizes using the current placement restriction, then let normal traversal collect them when their boss reward action is executable. Do not assume possession of a prize merely because it is assigned.
 
-Update catalogs under the existing shared cache lock, then embed files directly from the configured output directory using `include_bytes!`. Do not copy catalogs into `OUT_DIR`. Debug and release share cached generation and assembly work. The lock is released before Rust embeds the files, so do not update the shared catalog cache concurrently with compilation. Bundled builds rerun the script and rebuild the CLI each invocation, while expensive catalog work is reused when unchanged.
+Traverse committed placements to closure. For newly collectible eligible ordinary locations in each dungeon, place that dungeon's outstanding Map and Compass first, choosing their slots with the RNG. If only one slot is collectible, place one and carry the other forward. Ordinary pool rewards may use that dungeon's remaining collectible slots only once both dungeon items are placed.
 
-```sh
-cargo build -p cli --release --features bundle-catalogs
-```
+Treat these forced dungeon-item placements and the sampled ordinary rewards as the complete candidate for the wave. Account for all pool quantities without pre-reserving arbitrary inaccessible dungeon slots.
 
-Implemented: bundled builds update all three catalogs and provide embedded logic and retiling bytes to generation without copying them into heap buffers. Explicit `--logic-catalog` and `--retiling-catalog` paths override bundled inputs. Unbundled binaries retain their `build/` path defaults. The patch catalog is embedded for patching in step 13; it is not consumed by generation.
+Completion: candidate construction honors Map/Compass priority, fixed-key locations, and prize-only placement restrictions.
 
-Result: bundled builds automatically create or update their assets. Ordinary `cargo check` without the feature requires neither catalogs, source repos, nor Asar. External catalog arguments can override embedded catalogs.
+### Step 10: Sample, accept, and retry placement waves
 
-## 11. Extract retiling patching (implemented)
+Sample without replacement from the remaining ordinary pool to fill every other newly collectible ordinary slot. Evaluate the full candidate with normal traversal to closure; items that only help as a combination can therefore succeed together.
 
-Refactor the ROM-building flow in `theme_check` into a reusable patcher operation consuming a ROM, decoded seed, current retiling catalog, current patch catalog, and customization settings. Select area content using the saved `WorldLayout`; accept either a full or filtered `RetilingCatalog` through the same interface. The CLI passes its loaded catalog unchanged. Consume IPS bytes from the patch catalog instead of filesystem paths. Resolve vanilla graphics references from the ROM and compile the selected content into the current runtime layout using current symbols.
+Accept the candidate when its collectible-location set includes at least one previously uncollectible required item location, or when all required locations are collectible. On acceptance, commit its placements and pool removals. On rejection, leave the committed placements, remaining pool, and global state unchanged, then sample another candidate. Advance RNG state normally so retries do not repeat the same candidate.
 
-Implemented: `patcher::patch_rom` verifies and copies the vanilla ROM, applies the saved `WorldLayout` using the current catalogs, and returns a 4 MiB ROM with its checksum and complement updated. `PatchSettings` is serializable and exposes `transition_asset_phase`, defaulting to `Scroll`. The shared `apply_retiling` operation returns development statistics and warnings without printing; `theme_check` constructs a layout for its selected theme, calls this operation, and finalizes the ROM. It reads the patch catalog through `--patch-catalog`, defaulting to `build/patch_catalog.bin`. IPS application reads in-memory payloads, and runtime table addresses come from `PatchSymbols`.
+If the attempt cannot continue, restart main placement with its ordinary placements and prize shuffle cleared and its Map/Compass pools restored. Retain the settled dungeon key assignments. No placement backtracking is needed. Enforce the agreed candidate and outer-attempt budgets and report failure when the outer budget is exhausted.
 
-Result: native and future browser patchers share one interface accepting the current retiling catalog. The core does not need the logic catalog and has no filesystem, clock, network, or RNG dependency.
+Completion: logical mode can construct a complete assignment through advancing waves and restarts.
 
-## 12. Add item-placement patching (implemented)
+### Step 11: Finish the logical solve and integrate output
 
-Use the patch catalog's source-derived location mappings and current item and prize encodings to translate saved identities. Extend this data where necessary for the patched pickup carriers. Implement the location-specific writes and hooks required by the prototype's randomized pickups.
+Solve the completed placements from the agreed starting state with all dungeon key restrictions, player settings, normal resource semantics, and save and quit enabled. Require every catalog item location to have an executable collection action, including fixed keys, prizes, and fairy exchanges. This completed solve is part of logical generation's acceptance algorithm, not a separate generic validation layer. An incomplete solve makes the main placement attempt unsuccessful.
 
-Leave the Waterfall and Pyramid fairies on their vanilla item-exchange paths. Their four rewards remain fixed in seed output and are excluded from the randomized settings pool. Do not patch the source addresses for those exchange entries, which refer to reused chest slots.
+Return the saved placement mode, complete reward placements, stable small-key assignments, existing metadata, and existing vanilla world layout. Keep generation free of ROM and filesystem access. Keep patch-only operation driven by saved data; defer applying generated key identities to the ROM.
 
-Use the current patcher and matching patch catalog independently of the catalog versions used for generation; customization remains a patch-time input. Do not implement seed migrations or legacy readers during prototyping.
+Update generator API comments and user-facing documentation to explain the two placement modes and the deferred ROM key behavior. Reconcile the older strategy in [plans/keys.md](plans/keys.md) and the traversal discussion in [plans/logic.md](plans/logic.md) when implementation lands.
 
-Implemented: `patcher::patch_rom` translates each saved location/item identity through the current patch catalog. Item and retiling writes, including their IPS patches, are collected in one `Patcher` and applied together using the existing conflict detection. The FastROM base patch remains a separate initial stage because graphics import reads the ROM after that patch. Chest and NPC reward bytes are written directly; non-chest carriers read assigned rewards from ROM tables while preserving independent collection flags. Catfish and King Zora retain their vanilla sprite subtypes and use exported reward slots. NPCs whose vanilla completion checks depend on inventory now use saved location flags. Boss hearts, freestanding pickups, the Grove dig reward, tablets, and generous NPCs grant their assigned rewards. Prize ownership checks use the assigned pendant/crystal type, and maiden messages use the assigned crystal. Keys and the four fairy exchanges are left untouched. The default pool’s HalfMagic and MasterSword receipt IDs are supported, and equipment uses vanilla receipt behavior. Assigned pickup graphics are implemented in step 14 using the carriers’ existing graphics slots. CLI patching integration is implemented in step 13.
+Completion: callers can choose no-logic or logical generation, and saved logical seeds contain the decisions needed to reproduce the logical model.
 
-Result: the patcher applies saved placements without the original logic catalog or saved ROM-write addresses.
+## Development verification and deferred work
 
-## 13. Complete CLI patching and remove tracked IPS artifacts (implemented)
+Follow the repository's instruction against adding permanent tests, assertions, validation branches, or unrelated new error paths without an explicit request. The bounded-retry failure report is explicitly requested. Use temporary developer probes when implementing each step, and remove them before completing the changes. Existing compilation and test commands can be run as appropriate; they do not authorize adding new permanent checks.
 
-Wire `--seed` plus `--rom` to patching, and generation plus `--rom` to generation followed by patching. Read and verify any supplied ROM before generation. Save the seed before patching in combined operation. Reuse the saved seed name for default ROM output paths.
+Useful temporary probes include the two-collected-keys/two-doors case, a route that leaves and reenters a dungeon, a pickup with a collection requirement distinct from its vertex, sequential resource costs across an `Or`, two flexible bottles used for different contents, Map/Compass priority across two waves, and the final-wave acceptance exception. Inspect representative generated placements and their discovery histories after integration.
 
-Move remaining IPS consumers and development instructions to generated outputs or the patch catalog, then remove `patches/ips/` files from source control. Update or retire `scripts/build_patches.py` and `scripts/build_asar.py` so there is one assembly and caching implementation. Document the local configuration, source-directory overrides, and Asar prerequisites.
-
-Implemented: `--seed` plus `--rom` patches a saved seed, while `--rom` with settings or defaults generates and saves a seed before patching it. The CLI reads and verifies supplied ROMs before loading catalogs or generating a seed, then passes the loaded bytes to patching. Default ROM filenames use the persisted seed name; `--output-rom` overrides the path. `--transition-asset-phase` exposes patch-time customization, defaulting to `scroll`. The retiling catalog is loaded once and reused in combined operation; patch-only mode never reads the logic catalog and does not rewrite the seed. All three catalog overrides work with bundled or external catalogs. Clap rejects `--seed` without `--rom` and `--seed` together with `--settings`. The 18 tracked IPS files and both Python builder scripts have been removed; the Rust builder generates cached IPS payloads under the configured artifact directory and packages them into the patch catalog. Build prerequisites, configuration overrides, and CLI operation are documented.
-
-Result: the CLI generates, patches, or does both based on its arguments, with no user-specified catalogs needed for a bundled binary.
-
-## 14. Show randomized rewards before collection
-
-Replace the prototype's placeholder pickup graphics with the graphics of the assigned item. Reuse the existing item artwork, connecting reward identities to the appropriate sprite graphics loading, palettes, OAM layouts, and animation. Include freestanding rewards, thrown NPC gifts, boss drops, and scripted rewards. Keep collection flags and vanilla receipt behavior independent of these visual changes.
-
-Implemented: `item_graphics.inc`, included in the item-placement patch, selects assigned artwork for freestanding rewards, boss drops, the Library, Mushroom, powder bag, pedestal, Grove dig spot, thrown Catfish/Zora gifts, and falling tablet rewards. The heart-piece carriers retain their fixed `$E0/$F0` tiles, while other pickups reuse the dynamic `$24/$34` item slot. Their separate buffers let Spectacle Rock and the Ether Tablet display different rewards together. No equipment or follower graphics slots are borrowed, and the global VRAM layout is unchanged. Native decompression is cached; rupee animation frames are prepared together and then copied from RAM. Narrow images are padded and centered within existing sprite allocations. Sword/shield pixels are reindexed into common palettes, keeping their previews independent of owned equipment. HalfMagic reuses the existing small magic-jar artwork. Prize and fairy rendering, collection flags, and receipt behavior remain native.
-
-Result: players can recognize the assigned reward before collecting it.
-
-## Verification during implementation
-
-Use the existing checks and temporary development checks appropriate to each step; do not add permanent tests or validation without an explicit request. Check compressed catalog round trips, unchanged-cache reuse, individual ASM edits, shared include edits, and reuse between debug and release builds. Changing compression level should update catalog outputs while reusing unchanged assembly artifacts. Exercise seed serialization and CLI generation before moving on to ROM patching. Check that patch-only operation works without the logic catalog, uses the current retiling catalog directly, and leaves persisted seed data unchanged. Check that saved seeds remain usable after catalog rebuilds without selecting archived catalogs.
+Deferred: actual door-specific ROM key behavior; Thieves' Town's asymmetric reverse entrance lock beyond the current catalog model; randomized map connections; alternative restart destinations; reduced key-pass graphs; metric-limited traversal frontiers; placement balancing and progression pacing; and other gameplay patches assumed by the logic catalog.
