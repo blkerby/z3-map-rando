@@ -66,6 +66,7 @@ pub fn build_catalog(
         teleports: Vec::new(),
         whirlpools: Vec::new(),
         flute_spots: Vec::new(),
+        flute_hub_vertex_idx: VertexIndex(0),
         vanilla_connections: Vec::new(),
         event_entries: Vec::new(),
         event_exits: Vec::new(),
@@ -73,7 +74,64 @@ pub fn build_catalog(
     let compiler = load_definitions(source_directory, &mut catalog)?;
     let room_indices = rooms::compile_rooms(source_directory, &mut catalog, &compiler)?;
     connections::build_connections(source_directory, &room_indices, &mut catalog)?;
+    build_flute_travel(&mut catalog, compiler.items["OcarinaActive"]);
     write_catalog(&catalog, output_catalog, compression_level)
+}
+
+fn build_flute_travel(catalog: &mut LogicCatalog, active_flute_idx: ItemIndex) {
+    let room_idx = RoomIndex(catalog.rooms.len() as u32);
+    catalog.rooms.push(Room {
+        room_id: None,
+        name: "Flute travel".to_owned(),
+        kind: RoomKind::FluteHub,
+        position: None,
+        size: None,
+        obstacles: Vec::new(),
+        nodes: vec![NodeMetadata {
+            node_id: 0,
+            name: "Flute hub".to_owned(),
+            node_type: None,
+        }],
+        strats: Vec::new(),
+    });
+    catalog.flute_hub_vertex_idx = VertexIndex(catalog.vertices.len() as u32);
+    catalog.vertices.push(Vertex { room_idx });
+    catalog.vertex_metadata.push(VertexMetadata {
+        node_idx: NodeIndex(0),
+        world: None,
+        origin: VertexOrigin::Node,
+    });
+
+    for (index, vertex) in catalog.vertices.iter().enumerate() {
+        let vertex_idx = VertexIndex(index as u32);
+        let metadata = catalog.vertex_metadata(vertex_idx);
+        if catalog.room(vertex.room_idx).kind != RoomKind::Overworld
+            || metadata.world != Some(World::Light)
+            || !matches!(metadata.origin, VertexOrigin::Node)
+        {
+            continue;
+        }
+        catalog.edges.push(Edge {
+            from_vertex_idx: vertex_idx,
+            to_vertex_idx: catalog.flute_hub_vertex_idx,
+            requirement: Requirement::Item(active_flute_idx),
+            effects: Box::new([]),
+        });
+        catalog.edge_metadata.push(EdgeMetadata {
+            origin: EdgeOrigin::ImplicitFlute,
+        });
+    }
+    for spot in &catalog.flute_spots {
+        catalog.edges.push(Edge {
+            from_vertex_idx: catalog.flute_hub_vertex_idx,
+            to_vertex_idx: spot.vertex_idx,
+            requirement: Requirement::Free,
+            effects: Box::new([]),
+        });
+        catalog.edge_metadata.push(EdgeMetadata {
+            origin: EdgeOrigin::ImplicitFlute,
+        });
+    }
 }
 
 fn load_definitions(source_directory: &Path, catalog: &mut LogicCatalog) -> Result<Compiler> {

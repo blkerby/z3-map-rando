@@ -132,6 +132,10 @@ Apply entrance follower rules and reset room-local obstacles when leaving their 
 
 Add flute travel using the catalog's destinations and the active-flute capability. Keep save-and-quit behavior available to both traversers. Normal traversal returns to the start with persistent discoveries retained, follower and room obstacles reset, and resource preparation governed by the global refill-discovery bits and spawn-health rule. The simplified traverser can restart directly at the start because it has no resources or followers.
 
+The catalog builder's `build_flute_travel` function appends a synthetic `RoomKind::FluteHub` room containing one ordinary node and vertex, recorded as `LogicCatalog.flute_hub_vertex_idx`, and constructs its travel edges. Keep every vertex's `room_idx` and metadata's `node_idx` mandatory. Catalog rooms use `room_id: Option<SourceRoomId>`: authored rooms have `Some`, and the hub has `None`. The hub has no world, geometry, obstacles, authored strats, items, doors, or physical connection endpoints. It participates in ordinary room-boundary obstacle resets without a special missing-room case.
+
+The builder adds an active-flute edge from every ordinary Light World overworld vertex to the hub, then free edges from the hub to all catalog flute destinations, marking both with `EdgeOrigin::ImplicitFlute`. Exclude interior, Dark World, special-room, and event-entry/exit vertices from departure sources. Preserve resources across both edges and apply flute follower handling on departure during traversal, without treating the synthetic room as a cave entrance. The shared hub avoids constructing eight destination edges for every eligible source. The catalog hub and flute edges are implemented; physical connection expansion and traversal remain planned.
+
 Completion: both traversers can use the same directed world topology, including routes that leave and reenter a dungeon through another entrance.
 
 ### Step 4: Implement the simplified key-pass traversal

@@ -62,8 +62,9 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         }
     }
     for (index, door) in catalog.doors.iter().enumerate() {
+        // All doors belong to authored rooms; the synthetic flute hub has none.
         inputs.door_ids.push(DoorId {
-            room_id: catalog.room(door.room_idx).room_id,
+            room_id: catalog.room(door.room_idx).room_id.unwrap(),
             door_id: door.door_id,
         });
         if door.lock == LockKind::SmallKey {

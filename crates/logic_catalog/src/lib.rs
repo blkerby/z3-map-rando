@@ -130,6 +130,8 @@ pub struct LogicCatalog {
     pub teleports: Vec<Teleport>,
     pub whirlpools: Vec<Whirlpool>,
     pub flute_spots: Vec<FluteSpot>,
+    /// Shared travel hub in the synthetic FluteHub room, connected by ImplicitFlute edges.
+    pub flute_hub_vertex_idx: VertexIndex,
     pub vanilla_connections: Vec<Connection>,
     /// Extra vertices reached only by incoming connections carrying the event.
     pub event_entries: Vec<EventEndpoint>,
@@ -189,14 +191,15 @@ impl LogicCatalog {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Room {
-    pub room_id: SourceRoomId,
+    /// Authored identity; the synthetic flute-hub room has none.
+    pub room_id: Option<SourceRoomId>,
     pub name: String,
     pub kind: RoomKind,
-    /// Source overworld grid position and size; absent for interiors.
+    /// Source overworld grid position and size; absent for interiors and the flute hub.
     pub position: Option<[u8; 2]>,
     pub size: Option<[u16; 2]>,
     pub obstacles: Vec<Obstacle>,
-    /// Authored nodes, shared by Light and Dark World vertices in overworld rooms.
+    /// Room-local nodes, shared by Light and Dark World vertices in overworld rooms.
     pub nodes: Vec<NodeMetadata>,
     /// Source strats in authored order, including their names.
     pub strats: Vec<StratMetadata>,
@@ -223,6 +226,8 @@ pub enum RoomKind {
     Dungeon,
     House,
     Special,
+    /// Synthetic room owning the shared flute-travel vertex.
+    FluteHub,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -240,7 +245,7 @@ pub struct Vertex {
 pub struct VertexMetadata {
     /// Index into the vertex's room; event vertices share their endpoint's node.
     pub node_idx: NodeIndex,
-    /// Light/Dark for overworld nodes; `None` for all interior vertices.
+    /// Light/Dark for overworld nodes; `None` for interiors and the flute hub.
     pub world: Option<World>,
     pub origin: VertexOrigin,
 }
@@ -254,7 +259,7 @@ pub enum VertexOrigin {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct NodeMetadata {
-    /// Authored node ID, local to the source room.
+    /// Room-local node ID; authored except for the synthetic flute-hub node.
     pub node_id: u32,
     pub name: String,
     pub node_type: Option<NodeType>,
@@ -386,6 +391,8 @@ pub enum EdgeOrigin {
         strat_idx: StratIndex,
     },
     ImplicitMirror,
+    /// Departure to the flute hub or arrival at a flute destination.
+    ImplicitFlute,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

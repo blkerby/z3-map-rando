@@ -42,7 +42,7 @@ pub(super) fn compile_rooms(
             SourceRoomId::Underworld(source_room.id)
         };
         let mut room = Room {
-            room_id,
+            room_id: Some(room_id),
             name: source_room.name.clone(),
             kind: source_room.room_type,
             position: source_room.position,
@@ -83,7 +83,7 @@ pub(super) fn compile_rooms(
                 });
             }
         }
-        room_indices.insert(room.room_id, indices);
+        room_indices.insert(room_id, indices);
         catalog.rooms.push(room);
     }
     Ok(room_indices)
