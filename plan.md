@@ -9,6 +9,7 @@ Status: implementation plan. The placement strategy and the resource, fairy-exch
 - Save and quit is always available and returns to the catalog's starting vertex while retaining collected inventory and persistent progress. Do not require an escape route from a pickup.
 - Small and Big Key pickups stay in their vanilla locations. Each small key receives a persistent identity that unlocks exactly one same-dungeon small-key door. Assume the small-key pickup count matches the small-key door count; the updated Ganon's Tower source now has eight small-key pickups and eight small-key doors.
 - Represent rewards with a shared `Item` enum containing an explicit variant for every supported item. Store the reward directly in `ItemPlacement.item`; `Item::SmallKey { door_id: DoorId }` carries the assigned door identity. Persist key assignments within `SeedData.item_placements`, with no parallel assignment array.
+- Use one `Item::Sword` variant and one `Item::Shield` variant, with no tier payload. Each collected copy advances the corresponding equipment level by one, up to the game's maximum, regardless of collection order. Model these progressive grants in logic and defer their ROM behavior.
 - Assign small-key identities in a preliminary pass, processing one dungeon at a time. Traverse the whole world, following its directed connections, while treating other dungeons' locks and non-key requirements as free. Enforce the selected dungeon's small-key doors and Big Key requirements.
 - Assign all unassigned collectible small keys as a batch, so a candidate can open several doors before exposing another key. Do not demand progress from each individual key assignment.
 - If a dungeon's preliminary attempt fails, restart only that dungeon. Retain successfully completed assignments for other dungeons. Stop with failure after a bounded number of attempts on a given dungeon; use a constant of 1000.
@@ -37,7 +38,7 @@ Use [`MaxHealthBasedSpawnHP`](jpdasm/bank_09.asm:21348), indexed by maximum whol
 
 ### Fixed fairy exchanges and the all-items guarantee
 
-The current generator keeps the Waterfall and Pyramid fairy exchanges fixed. Preserve those placements and include their locations in the all-items guarantee. The Waterfall shield exchange currently compiles to `Never` because exact shield requirements and the free-upgrade helper are disabled. Compile `shieldExact: n` as the same minimum-level shield requirement as `shield: n` everywhere it appears. This makes the exchange's `shieldExact: 1` branch usable without a location-specific override; the upgraded shield is currently obtainable only through that exchange.
+The current generator keeps the Waterfall and Pyramid fairy exchanges fixed. Preserve those placements and include their locations in the all-items guarantee, converting any sword or shield reward to its progressive variant. The Waterfall shield exchange currently compiles to `Never` because exact shield requirements and the free-upgrade helper are disabled. Compile `shieldExact: n` as the same minimum-level shield requirement as `shield: n` everywhere it appears. This makes the exchange's `shieldExact: 1` branch usable without a location-specific override. Progressive shields supersede the earlier rationale that the upgraded shield was obtainable only from this exchange; retain the agreed minimum-level interpretation and revisit it if exact shield levels become necessary for an action.
 
 Retain the current conservative treatment of other exact equipment and negative-flag requirements. Document the general shield interpretation beside its compiler implementation and revisit it if fairy exchanges or shield availability are changed. Do not enable the free-upgrade helper globally or remove the exchange from the required-location set.
 
@@ -55,7 +56,7 @@ Implement the first version inside the generator crate, splitting graph preparat
 
 Use vanilla world connections initially. Keep connection expansion separate from traversal so future randomized maps can supply another connection set. Do not implement map randomization, multiple restart destinations, key receipt patches, or door-binding patches in this work.
 
-The logical model will use door-specific keys before the ROM does. Saved logical placements can be inspected and solved under that model, but the existing patcher will still produce vanilla key behavior. The eventual ROM-playability guarantee depends on the deferred key patches and any other gameplay changes assumed by the catalog.
+The logical model will use door-specific keys and progressive swords and shields before the ROM does. Saved logical placements can be inspected and solved under that model, but the existing patcher will still produce vanilla key behavior and does not implement progressive equipment receipts. The eventual ROM-playability guarantee depends on the deferred key and progressive-equipment patches and any other gameplay changes assumed by the catalog.
 
 ## Implementation steps
 
@@ -63,7 +64,7 @@ The logical model will use door-specific keys before the ROM does. Saved logical
 
 Prepare the existing location classification and pool expansion for logical generation. Every generated seed will use traversal and preliminary key assignment, producing typed item-placement records and the existing world layout. Replace the prototype shuffle when the logical generator is integrated in Step 11.
 
-Define `DoorId` and `Item` in `common_types`, shared by generation, saved seeds, and patching. `DoorId` consists of the source room ID and authored door ID; it does not contain catalog indices or ROM addresses. Give `Item` an explicit variant for every supported reward, matching the existing names in `items.json`. Use payloads where an item carries additional identity, initially the assigned door for a Small Key. Do not introduce a generic string variant or a separate generated key-number namespace; the assigned `DoorId` is the key's inventory identity.
+Define `DoorId` and `Item` in `common_types`, shared by generation, saved seeds, and patching. `DoorId` consists of the source room ID and authored door ID; it does not contain catalog indices or ROM addresses. Give `Item` an explicit variant for every supported reward, using the existing names in `items.json` except that all sword tiers become `Sword` and all shield tiers become `Shield`. Neither variant carries a tier; each represents one progressive upgrade. Use payloads where an item carries additional identity, initially the assigned door for a Small Key. Do not introduce a generic string variant or a separate generated key-number namespace; the assigned `DoorId` is the key's inventory identity.
 
 The final saved types have this shape; the enum excerpt shows representative variants, not the complete reward list:
 
@@ -75,6 +76,8 @@ pub struct DoorId {
 
 #[serde(tag = "name")]
 pub enum Item {
+    Sword,
+    Shield,
     Hookshot,
     Lamp,
     Map,
@@ -94,13 +97,15 @@ Keep `ItemPlacement` in `seed_data`. An ordinary reward serializes as `"item": {
 
 Define the shared identity types first. Migrate `ItemPlacement` and its generator and patcher consumers together in Step 11, after the preliminary phase can supply real door identities. Keep catalog `ItemIndex` and source item definitions distinct from the shared reward enum; source Small Key definitions remain anonymous until generation assigns a door. Resolve ordinary pool and fixed non-key reward names to typed `Item` values once when preparing generation, and resolve stable tech IDs to catalog indices. Construct each `Item::SmallKey` after its door assignment is settled.
 
+Normalize every source sword tier to `Item::Sword` and every source shield tier to `Item::Shield`, including fixed rewards. Sum their pool quantities without removing copies or changing the number of placement slots. Keep equipment requirements tiered: the reward supplies an upgrade, while a requirement still asks for the needed acquired level. Saved rewards serialize as `"item": { "name": "Sword" }` or `"item": { "name": "Shield" }`, without an expected collection order or fixed resulting tier. Postpone progressive receipt behavior in the ROM.
+
 Build each dungeon's fixed key pickup lists, small-key door list, Map/Compass pool, prize locations, ordinary locations, and fixed exchange locations. Derive dungeon ownership from the catalog's source room, which represents the whole authored dungeon. Retain the existing ordinary-pool count behavior and adjust bundled pool quantities if upstream changes make that necessary.
 
 Completion: logical generation has indexed inputs, shared reward and door identities, and a defined saved representation for later integration. Do not add backward-compatibility machinery.
 
 ### Step 2: Compile exact shield requirements as minimum levels
 
-Change the general requirement compiler so `shieldExact: n` uses the same minimum-level equipment requirement as `shield: n`. Do not special-case a room or exchange. Keep the Waterfall exchange's stable location identity and fixed reward, and leave other exact-equipment requirements, negative-flag requirements, and the free-upgrade helper unchanged. Document the current shield-availability assumption and the need to revisit this interpretation if fairy exchanges or shield availability change. Rebuild the logic catalog so normal traversal sees the approved monotonic requirement.
+Change the general requirement compiler so `shieldExact: n` uses the same minimum-level equipment requirement as `shield: n`. Do not special-case a room or exchange. Keep the Waterfall exchange's stable location identity and fixed progressive Shield reward, and leave other exact-equipment requirements, negative-flag requirements, and the free-upgrade helper unchanged. Document this agreed monotonic interpretation, including the progressive shield model, and revisit it if fairy exchanges or shield requirements change. Rebuild the logic catalog so normal traversal sees the approved monotonic requirement.
 
 Completion: all `shieldExact` conditions use the approved minimum-level interpretation, allowing the fixed exchange into the all-items solve.
 
@@ -140,7 +145,7 @@ Global state contains permanent item capabilities and equipment levels, health a
 
 Local state contains current health, magic, bombs, arrows, concrete bottle contents, the current follower, and the owning room's obstacle states. Represent bottles as a canonical multiset of contents and empty bottles so interchangeable bottle slots do not create duplicate states. At traversal initialization, construct possible fillings from globally known reusable sources within the owned bottle count; retain alternatives that can enable different routes. Omit rupees. Keep resource quantities and bottle contents together in actual route states rather than taking independent maxima.
 
-Implement reward grants through exhaustive matches on the shared `Item` enum. Equipment uses the highest acquired level, bow and silver-arrow capabilities remain distinct, flute activation supplies the active capability without removing the inactive capability, and capacities derive from acquired upgrades. Collect each location once. Grant a Small Key's persistent capability from its `Item::SmallKey` door payload, and resolve Big Key scope from the pickup's dungeon. Keep logic-catalog item requirements indexed rather than replacing them with placement-specific rewards.
+Implement reward grants through exhaustive matches on the shared `Item` enum. Each `Item::Sword` or `Item::Shield` increments its equipment level by one up to the game's maximum, independently of the source tier or pickup order. Other equipment uses the highest acquired level, bow and silver-arrow capabilities remain distinct, flute activation supplies the active capability without removing the inactive capability, and capacities derive from acquired upgrades. Collect each location once. Grant a Small Key's persistent capability from its `Item::SmallKey` door payload, and resolve Big Key scope from the pickup's dungeon. Keep logic-catalog item requirements indexed rather than replacing them with placement-specific rewards, evaluating sword and shield requirements against their acquired progressive levels.
 
 Use eighths of a heart for health and the catalog's normalized magic units. Account for potions and Fairy revival through concrete bottle contents. Consuming a Red Potion restores health, a Green Potion restores magic, and a Blue Potion restores both; each leaves an empty bottle. A stored Fairy can revive Link after a fatal hit with seven hearts, capped by health capacity, and also leaves an empty bottle. Distinguish a one-time filled-bottle reward from a reusable refill source; buying or finding one potion does not itself establish an unlimited supply.
 
@@ -208,6 +213,8 @@ Keep the existing seed format version during this prototype migration. Do not ad
 
 Update patching to resolve the shared `Item` variants to the current patch catalog's reward encodings. For now, `Item::SmallKey { .. }` uses the existing vanilla Small Key receipt encoding; carrying a door identity does not implement its ROM behavior. Keep patch-only operation driven by saved data and the current patch catalog, without requiring the logic catalog. Defer applying the generated door identities to the ROM.
 
+Defer progressive Sword and Shield receipt behavior in the ROM as well. Their saved variants do not specify a vanilla tier; do not turn an assumed logical collection order into fixed-tier rewards. Resolve their ROM receipt encoding when progressive equipment support is implemented.
+
 Update generator API comments and user-facing documentation to explain logical placement and the deferred ROM key behavior. Reconcile the older strategy in [plans/keys.md](plans/keys.md) and the traversal discussion in [plans/logic.md](plans/logic.md) when implementation lands.
 
 Completion: all generated seeds use logical placement and contain the decisions needed to reproduce the logical model.
@@ -218,4 +225,4 @@ Follow the repository's instruction against adding permanent tests, assertions, 
 
 Useful temporary probes include the two-collected-keys/two-doors case, a route that leaves and reenters a dungeon, a Big Key requirement on a chest or non-door action, a pickup with a collection requirement distinct from its vertex, sequential resource costs across an `Or`, a refill followed by a failing requirement, two concretely filled bottles used for different contents, a typed refill that cannot supply another content, necessary Fairy revival despite potion cost preference, Map/Compass priority across two waves and its forced-slot bottleneck, final filling after all locations become collectible, and reproducibility with the same seed. Inspect representative generated placements and their discovery histories after integration.
 
-Deferred: actual door-specific ROM key behavior; Thieves' Town's asymmetric reverse entrance lock beyond the current catalog model; randomized map connections; alternative restart destinations; reduced key-pass graphs; metric-limited traversal frontiers; placement balancing and progression pacing; and other gameplay patches assumed by the logic catalog.
+Deferred: actual door-specific ROM key behavior; progressive Sword and Shield ROM receipts; Thieves' Town's asymmetric reverse entrance lock beyond the current catalog model; randomized map connections; alternative restart destinations; reduced key-pass graphs; metric-limited traversal frontiers; placement balancing and progression pacing; and other gameplay patches assumed by the logic catalog.
