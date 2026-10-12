@@ -5,6 +5,7 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 use seed_data::{SeedData, SeedMetadata, Settings};
 use sha2::{Digest, Sha256};
 use std::{
+    borrow::Cow,
     fmt::Write as _,
     fs::{self, File},
     io::BufReader,
@@ -13,6 +14,21 @@ use std::{
 };
 
 const DEFAULT_SETTINGS: &str = include_str!("../../../data/settings.json");
+
+#[cfg(feature = "bundle-catalogs")]
+const BUNDLED_LOGIC_CATALOG: Option<&[u8]> = Some(include_bytes!(env!("Z3_LOGIC_CATALOG")));
+#[cfg(not(feature = "bundle-catalogs"))]
+const BUNDLED_LOGIC_CATALOG: Option<&[u8]> = None;
+
+#[cfg(feature = "bundle-catalogs")]
+const BUNDLED_RETILING_CATALOG: Option<&[u8]> = Some(include_bytes!(env!("Z3_RETILING_CATALOG")));
+#[cfg(not(feature = "bundle-catalogs"))]
+const BUNDLED_RETILING_CATALOG: Option<&[u8]> = None;
+
+// Consumed when patching is integrated; all three catalogs are built together.
+#[cfg(feature = "bundle-catalogs")]
+#[allow(dead_code)]
+const BUNDLED_PATCH_CATALOG: &[u8] = include_bytes!(env!("Z3_PATCH_CATALOG"));
 
 #[derive(Parser)]
 #[command(
@@ -36,12 +52,12 @@ struct Args {
     /// Zstd compression level for the output seed.
     #[arg(long, default_value_t = 3, allow_negative_numbers = true)]
     compression_level: i32,
-    /// Logic catalog used for generation.
-    #[arg(long, default_value = "build/logic_catalog.bin")]
-    logic_catalog: PathBuf,
-    /// Retiling catalog used for theme selection.
-    #[arg(long, default_value = "build/retiling_catalog.bin")]
-    retiling_catalog: PathBuf,
+    /// Logic catalog override; defaults to bundled data or build/logic_catalog.bin.
+    #[arg(long)]
+    logic_catalog: Option<PathBuf>,
+    /// Retiling catalog override; defaults to bundled data or build/retiling_catalog.bin.
+    #[arg(long)]
+    retiling_catalog: Option<PathBuf>,
 }
 
 fn main() -> Result<()> {
@@ -55,16 +71,20 @@ fn main() -> Result<()> {
 
 fn generate_seed(args: &Args) -> Result<SeedData> {
     let settings = load_settings(args.settings.as_deref())?;
-    let logic_bytes = fs::read(&args.logic_catalog)
-        .with_context(|| format!("reading logic catalog {}", args.logic_catalog.display()))?;
-    let logic_catalog = logic_catalog::decode_catalog(logic_bytes.as_slice())?;
-    let retiling_bytes = fs::read(&args.retiling_catalog).with_context(|| {
-        format!(
-            "reading retiling catalog {}",
-            args.retiling_catalog.display()
-        )
-    })?;
-    let retiling_catalog = retiling_catalog::decode_catalog(retiling_bytes.as_slice())?;
+    let logic_bytes = load_catalog(
+        args.logic_catalog.as_deref(),
+        "logic",
+        "build/logic_catalog.bin",
+        BUNDLED_LOGIC_CATALOG,
+    )?;
+    let logic_catalog = logic_catalog::decode_catalog(logic_bytes.as_ref())?;
+    let retiling_bytes = load_catalog(
+        args.retiling_catalog.as_deref(),
+        "retiling",
+        "build/retiling_catalog.bin",
+        BUNDLED_RETILING_CATALOG,
+    )?;
+    let retiling_catalog = retiling_catalog::decode_catalog(retiling_bytes.as_ref())?;
     let numeric_seed: u64 = args.rng.unwrap_or_else(rand::random);
     let metadata = create_metadata(numeric_seed, &logic_bytes, &retiling_bytes)?;
     let mut rng = StdRng::seed_from_u64(numeric_seed);
@@ -76,6 +96,24 @@ fn generate_seed(args: &Args) -> Result<SeedData> {
         metadata,
         &mut rng,
     )
+}
+
+fn load_catalog(
+    path: Option<&Path>,
+    kind: &str,
+    default_path: &str,
+    bundled: Option<&'static [u8]>,
+) -> Result<Cow<'static, [u8]>> {
+    let path = if let Some(path) = path {
+        path
+    } else if let Some(bytes) = bundled {
+        return Ok(Cow::Borrowed(bytes));
+    } else {
+        Path::new(default_path)
+    };
+    let bytes =
+        fs::read(path).with_context(|| format!("reading {kind} catalog {}", path.display()))?;
+    Ok(Cow::Owned(bytes))
 }
 
 fn load_settings(path: Option<&Path>) -> Result<Settings> {

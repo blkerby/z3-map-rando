@@ -201,6 +201,7 @@ name = "cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "catalog_builder",
  "chrono",
  "clap",
  "common_types",

@@ -7,6 +7,12 @@ edition = "2024"
 name = "z3-map-rando"
 path = "src/main.rs"
 
+[features]
+bundle-catalogs = ["dep:catalog_builder"]
+
+[build-dependencies]
+catalog_builder = { path = "../catalog_builder", optional = true }
+
 [dependencies]
 anyhow = "1"
 chrono = { version = "0.4", default-features = false, features = ["std"] }

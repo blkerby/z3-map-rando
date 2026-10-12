@@ -9,7 +9,7 @@ use std::{
 
 include!(concat!(env!("OUT_DIR"), "/code_inputs.rs"));
 
-/// Hold the shared artifact lock for updates and any subsequent snapshot copying.
+/// Hold the shared artifact lock throughout catalog updates.
 pub struct CatalogCache {
     config: BuildConfig,
     shared_fingerprint: Sha256,
