@@ -12,7 +12,8 @@
 
 # Rust style guidelines
 
-- Do not add permanent tests or validation unless the user explicitly requests them. This includes `assert!`, `debug_assert!`, `ensure!`, validation branches, schema checks, invariant checks, and new error paths, even when similar checks already exist nearby or the input comes from a file. Checks added temporarily while developing must be removed before completing the task. If a permanent check appears necessary for security or preventing data loss, ask the user before adding it.
+- Do not add permanent tests unless the user explicitly requests them. Tests added temporarily while developing must be removed before completing the task.
+- Avoid excessive validation checks. This includes `assert!`, `debug_assert!`, `ensure!`, validation branches, schema checks, invariant checks, and new error paths. Use these sparingly, only when needed to guard what would otherwise be a risky path.
 - Avoid iterator chains that combine operations such as mapping, filtering, and collecting. Prefer loops instead. Simple one-liners like `.into_iter().collect()` are ok.
 - Avoid creating helper functions that are only used in one place or which would be simpler to inline.
 - Likewise, avoid creating "wrapper" functions which do nothing other than call out to one other function.

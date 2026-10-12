@@ -70,7 +70,7 @@
       "count": 1
     },
     {
-      "name": "BlueBoomerang",
+      "name": "Boomerang",
       "count": 1
     },
     {
@@ -142,40 +142,24 @@
       "count": 1
     },
     {
-      "name": "L1Sword",
+      "name": "Sword",
+      "count": 3
+    },
+    {
+      "name": "Shield",
+      "count": 2
+    },
+    {
+      "name": "Ocarina",
       "count": 1
     },
     {
-      "name": "MasterSword",
-      "count": 1
+      "name": "Glove",
+      "count": 2
     },
     {
-      "name": "L3Sword",
-      "count": 1
-    },
-    {
-      "name": "MirrorShield",
-      "count": 1
-    },
-    {
-      "name": "OcarinaInactive",
-      "count": 1
-    },
-    {
-      "name": "PowerGlove",
-      "count": 1
-    },
-    {
-      "name": "TitansMitt",
-      "count": 1
-    },
-    {
-      "name": "BlueMail",
-      "count": 1
-    },
-    {
-      "name": "RedMail",
-      "count": 1
+      "name": "Mail",
+      "count": 2
     },
     {
       "name": "HalfMagic",
@@ -203,7 +187,7 @@
     },
     {
       "name": "TwentyRupees",
-      "count": 30
+      "count": 29
     },
     {
       "name": "FiftyRupees",

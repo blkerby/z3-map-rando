@@ -1,5 +1,9 @@
 //! Common domain types shared by catalogs, generation, and patching.
 
+mod item;
+
+pub use item::Item;
+
 use serde::{Deserialize, Serialize};
 use type_hash::TypeHash;
 
@@ -21,4 +25,11 @@ pub struct ItemLocationId {
     pub room_id: SourceRoomId,
     /// ID of the room's item entry, not its `itemLocation` logic node.
     pub item_id: u32,
+}
+
+/// Authored door identity, independent of catalog ordering and ROM addresses.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, TypeHash)]
+pub struct DoorId {
+    pub room_id: SourceRoomId,
+    pub door_id: u32,
 }

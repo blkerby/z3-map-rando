@@ -1,3 +1,4 @@
+use common_types::Item;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -27,8 +28,10 @@ pub struct TechSetting {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ItemPoolEntry {
-    /// Item identity from items.json.
-    pub name: String,
+    /// Ordinary reward to place; dungeon items and prizes use separate placement phases.
+    /// Flatten the tagged reward so JSON remains {"name": "Sword", "count": 3}.
+    #[serde(flatten)]
+    pub item: Item,
     /// Number of pickups to place.
     pub count: u32,
 }

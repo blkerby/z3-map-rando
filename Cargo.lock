@@ -312,6 +312,7 @@ name = "generator"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "common_types",
  "logic_catalog",
  "rand",
  "retiling_catalog",

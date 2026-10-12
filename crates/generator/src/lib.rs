@@ -1,9 +1,13 @@
 //! Uniform prototype generation without logical placement.
 
+pub mod inputs;
+
 pub use seed_data::{SeedData, Settings};
 
-use anyhow::{Result, ensure};
-use logic_catalog::{LogicCatalog, RoomIndex, SourceRoomId};
+use anyhow::{Result, bail};
+use common_types::Item;
+use inputs::prepare_inputs;
+use logic_catalog::{LogicCatalog, RoomIndex};
 use rand::{Rng, seq::SliceRandom};
 use retiling_catalog::RetilingCatalog;
 use seed_data::{AreaLayout, ItemPlacement, SEED_FORMAT_VERSION, SeedMetadata, WorldLayout};
@@ -21,66 +25,73 @@ pub fn generate(
     metadata: SeedMetadata,
     rng: &mut impl Rng,
 ) -> Result<SeedData> {
+    let inputs = prepare_inputs(logic_catalog, &settings)?;
     let mut item_placements = Vec::new();
     let mut locations_by_room = BTreeMap::<RoomIndex, Vec<usize>>::new();
     let mut dungeon_items_by_room = BTreeMap::<RoomIndex, Vec<String>>::new();
-    let mut prize_locations = Vec::new();
     let mut prizes = Vec::new();
-    let mut ordinary_location_count = 0;
     for location in &logic_catalog.item_locations {
         let item_name = &logic_catalog.item(location.vanilla_item_idx).name;
-        let placement_idx = item_placements.len();
         item_placements.push(ItemPlacement {
             item_location_id: location.id,
             item_name: item_name.clone(),
         });
-        // Waterfall and Pyramid fairy rewards stay in the vanilla exchange process.
-        if matches!(
-            (location.id.room_id, location.id.item_id),
-            (SourceRoomId::Underworld(12 | 69), 1 | 2)
-        ) {
-            continue;
-        }
+    }
+    for &location_idx in &inputs.ordinary_locations {
+        let location = logic_catalog.item_location(location_idx);
         let room_idx = logic_catalog.vertex(location.vertex_idx).room_idx;
-        match item_name.as_str() {
-            "SmallKey" | "BigKey" => continue,
-            "PendantOfCourage" | "PendantOfWisdom" | "PendantOfPower" | "Crystal1" | "Crystal2"
-            | "Crystal3" | "Crystal4" | "Crystal5" | "Crystal6" | "Crystal7" => {
-                prize_locations.push(placement_idx);
-                prizes.push(item_name.clone());
-                continue;
-            }
-            "Map" | "Compass" => {
-                // Items whose placement is constrained to stay within the same dungeon/room
-                dungeon_items_by_room
-                    .entry(room_idx)
-                    .or_default()
-                    .push(item_name.clone());
-            }
-            _ => ordinary_location_count += 1,
-        }
         locations_by_room
             .entry(room_idx)
             .or_default()
-            .push(placement_idx);
+            .push(location_idx.0 as usize);
+    }
+    for (&room_idx, dungeon) in &inputs.dungeons {
+        let mut items = Vec::new();
+        for item in &dungeon.map_compass_pool {
+            let name = match item {
+                Item::Map => "Map",
+                Item::Compass => "Compass",
+                _ => bail!("unexpected item {item:?} in Map/Compass pool for room {room_idx:?}"),
+            };
+            items.push(name.to_owned());
+        }
+        dungeon_items_by_room.insert(room_idx, items);
+    }
+    for &location_idx in &inputs.prize_locations {
+        let location = logic_catalog.item_location(location_idx);
+        prizes.push(logic_catalog.item(location.vanilla_item_idx).name.clone());
     }
 
-    let mut item_pool = Vec::new();
-    for entry in &settings.item_pool {
-        for _ in 0..entry.count {
-            item_pool.push(entry.name.clone());
+    // Keep the prototype's string output until the typed-placement migration in Step 11.
+    let mut receipt_names = BTreeMap::new();
+    for (definition, item) in logic_catalog.items.iter().zip(&inputs.items) {
+        if let Some(item) = item {
+            receipt_names
+                .entry(*item)
+                .or_insert(definition.name.as_str());
         }
     }
-    ensure!(
-        item_pool.len() == ordinary_location_count,
-        "item pool contains {} items, but {} ordinary locations are available",
-        item_pool.len(),
-        ordinary_location_count,
-    );
+    let mut item_pool = Vec::new();
+    for entry in &settings.item_pool {
+        let name = match entry.item {
+            Item::Sword => "ProgressiveSword",
+            Item::Shield => "ProgressiveShield",
+            Item::Glove => "ProgressiveGlove",
+            Item::Mail => "ProgressiveArmor",
+            // The catalog has no progressive boomerang receipt yet; retain the prototype encoding.
+            Item::Boomerang => "BlueBoomerang",
+            Item::SilverArrows => "SilverArrowUpgrade",
+            Item::Ocarina => "OcarinaInactive",
+            item => receipt_names[&item],
+        };
+        for _ in 0..entry.count {
+            item_pool.push(name.to_owned());
+        }
+    }
 
     prizes.shuffle(rng);
-    for (placement_idx, item_name) in prize_locations.into_iter().zip(prizes) {
-        item_placements[placement_idx].item_name = item_name;
+    for (location_idx, item_name) in inputs.prize_locations.into_iter().zip(prizes) {
+        item_placements[location_idx.0 as usize].item_name = item_name;
     }
 
     let mut ordinary_locations = Vec::new();

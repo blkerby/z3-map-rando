@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1"
+common_types = { path = "../common_types" }
 logic_catalog = { path = "../logic_catalog" }
 retiling_catalog = { path = "../retiling_catalog" }
 rand = { version = "0.9", default-features = false, features = ["std"] }
