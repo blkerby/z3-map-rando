@@ -113,3 +113,11 @@ Milestone 9A does not rearrange dungeon VRAM. BG1, BG2, their graphics, and OBJ 
 | Milestone 9A (current) | `$69` | `$61` | `$3C` | `$00` |
 
 `BG1SC`, `BG2SC`, and `BG3SC` select each tilemap's base and dimensions. `BG12NBA` selects the shared BG1/BG2 character base. Every overworld scene uses the milestone 9A layout. Dungeons retain `BG1SC=$13`, `BG2SC=$03`, `BG3SC=$60`, and `BG12NBA=$22`.
+
+## Randomized pickup graphics
+
+Randomized pickups reuse the existing OBJ graphics footprints without changing the gameplay VRAM layout or borrowing Link, equipment, or follower tiles. Dynamic pickups use the item-receipt slot: characters `$24/$25` at VRAM `$4240` and `$34/$35` at `$4340`. Heart-piece carriers retain their separate fixed slot: characters `$E0/$E1` at `$4E00` and `$F0/$F1` at `$4F00`. Each footprint holds four 8x8 4bpp tiles, totaling 128 bytes. This keeps the Spectacle Rock pickup independent of the falling Ether Tablet reward and of native item-receipt graphics.
+
+The item-placement patch caches converted heart-piece artwork in free WRAM and uploads it after the native dynamic OBJ transfers when that carrier is drawn. Native graphics loading restores the common sheet on scene changes; the next visible heart-piece draw supplies the assigned artwork again. The dynamic item buffer continues to serve ordinary previews and native receipts. Every native write to that buffer invalidates the preview cache, and loading a heart-piece image preserves the buffer and its cache identity. Three rupee animation frames are cached together so animation does not repeatedly decompress the sprite sheets. `$7FF180-$7FF47F` contains cache metadata and buffers, within the vanilla free range ending at `$7FF7FF`.
+
+Narrow item images use transparent right-hand tiles and fit the carriers’ existing OAM allocations. Equipment previews reindex the native sword/shield artwork into common item palettes so displaying a different equipment tier does not recolor Link’s equipped sword or shield. Native receipt rendering still uses its original equipment palettes. HalfMagic uses the existing small magic-jar image. This allocation follows the current vanilla locations; future layouts that place multiple distinct pickups sharing a footprint on screen together will need to provide separate graphics slots.

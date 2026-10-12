@@ -1,8 +1,8 @@
-; Randomized rewards use vanilla receipt behavior and carrier graphics.
+; Randomized rewards use vanilla receipt behavior and assigned pickup graphics.
 ; Chest bytes are patched directly. Other carriers retain their own identity
 ; and collection flag while reading a separate assigned reward.
 ;
-; All hooks enter with 8-bit A/X/Y. Helpers preserve X unless the displaced
+; Receipt hooks enter with 8-bit A/X/Y. Helpers preserve X unless the displaced
 ; vanilla receipt already clobbers it; no direct-page scratch is introduced.
 ; $7EF3D4-$7EF3D8 are unused bytes in the vanilla saved-game block.
 
@@ -533,5 +533,7 @@ FinishMagicReceipt:
     JML $88C4EA
 .not_magic
     JML $88C4F7
+
+incsrc "item_graphics.inc"
 
 assert pc() <= !free_space_bank_a0_end
