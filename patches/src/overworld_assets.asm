@@ -12,7 +12,6 @@ incsrc "symbols.inc"
 !free_space_bank_82_start = $82F5CC
 !free_space_bank_82_end = $82F5E7
 
-!OverworldAreaRecordVariantPointers = $A78000
 !OverworldAssetSchedule = $7EC906
 !CreditsFirstAssetKey = $A0
 !SpriteSeedAssetKey = $FE

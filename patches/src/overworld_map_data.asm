@@ -1,14 +1,9 @@
 ; Load flat Map16 overworld screen and overlay maps.
 lorom
 
+incsrc "symbols.inc"
+
 !OverworldScreenSize = $82F5F1
-!FlatMap16ScreenPointers = $BFE000
-!BG1FlatMap16ScreenPointers = $BFE200
-!Area80BG1FlatMap16Pointers = $BFE400
-!GeneratedBG1Enabled = $BFE406
-!LostWoodsClearBG1FlatMap16Pointers = $BFE410
-!RainContexts = $BFE430
-!RainFlatMap16Pointers = $BFE4D0
 
 !free_space_bank_a0_start = $A08700
 !free_space_bank_a0_end = $A08900

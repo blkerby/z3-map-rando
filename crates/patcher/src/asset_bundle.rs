@@ -1,23 +1,15 @@
 use crate::import::{OverworldAreaAssets, OverworldSpriteVariant};
 use anyhow::{Result, ensure};
+use patch_catalog::PatchSymbols;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 const BANK_SIZE: usize = 0x8000;
-const POINTER_TABLE_START: u32 = 0xa78000;
-const DATA_START: u32 = 0xaa8000;
-const AREA_POINTER_TABLE_SIZE: usize = 256 * 3;
 pub const DYNAMIC_TILE_GROUP_COUNT: usize = 22;
-const DYNAMIC_TILE_POINTER_TABLE_SIZE: usize = DYNAMIC_TILE_GROUP_COUNT * 3;
-const CUTSCENE_COUNT: usize = 5;
-const CUTSCENE_POINTER_TABLE_START: usize =
-    AREA_POINTER_TABLE_SIZE + DYNAMIC_TILE_POINTER_TABLE_SIZE;
-const OVERWORLD_OVERLAY_POINTER_TABLE_START: usize =
-    CUTSCENE_POINTER_TABLE_START + CUTSCENE_COUNT * 3;
-const POINTER_TABLE_SIZE: usize = OVERWORLD_OVERLAY_POINTER_TABLE_START + 0x80 * 3;
 pub const CREDITS_COOL_BACKGROUND_KEY: usize = 0xff;
 pub const CREDITS_FIRST_KEY: usize = 0xa0;
 pub const SPRITE_SEED_KEY: usize = 0xfe;
-const DATA_SIZE: usize = 14 * BANK_SIZE;
+const DATA_SIZE: usize = 48 * BANK_SIZE;
 // One unit is one 32-byte 4bpp tile; charge one unit per eight palette colors.
 const GRAPHICS_ROW_UNITS: usize = 16;
 const TRANSITION_BATCH_UNITS: usize = 8 * GRAPHICS_ROW_UNITS;
@@ -51,24 +43,11 @@ pub struct CompiledOverworldOverlay {
     pub writes: Vec<(u16, u16)>,
 }
 
-#[derive(Clone, Copy)]
-pub struct AssetLayout {
-    pub data_start: u32,
-    pub data_size: usize,
-}
-
-impl Default for AssetLayout {
-    fn default() -> Self {
-        Self {
-            data_start: DATA_START,
-            data_size: DATA_SIZE,
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum TransitionAssetPhase {
     PreScroll,
+    #[default]
     Scroll,
     PostScroll,
 }
@@ -124,9 +103,9 @@ pub fn build(
     cutscenes: &[CompiledCutscene],
     overworld_overlays: &[CompiledOverworldOverlay],
     transition_phase: TransitionAssetPhase,
-    layout: AssetLayout,
+    symbols: &PatchSymbols,
 ) -> Result<AssetBundle> {
-    let mut data = Region::new((layout.data_start >> 16) as u8, layout.data_size);
+    let mut data = Region::new((symbols.overworld_asset_data >> 16) as u8, DATA_SIZE);
     let mut empty_record = [0; 32];
     empty_record[24] = 0xff;
     let empty_record = data.intern(&empty_record)?;
@@ -168,7 +147,11 @@ pub fn build(
     let seed_record = data.intern(&seed_record)?;
     keys[SPRITE_SEED_KEY] = intern_variant_list(&mut data, &[(0xff, seed_record)])?;
 
-    let mut pointer_table = vec![0; POINTER_TABLE_SIZE];
+    let pointer_table_start = symbols.overworld_area_record_variant_pointers;
+    let dynamic_tile_offset = (symbols.dynamic_tile_group_pointers - pointer_table_start) as usize;
+    let cutscene_offset = (symbols.cutscene_pointers - pointer_table_start) as usize;
+    let overlay_offset = (symbols.overworld_overlay_pointers - pointer_table_start) as usize;
+    let mut pointer_table = vec![0; overlay_offset + 0x80 * 3];
     for (key, variants) in keys.into_iter().enumerate() {
         let offset = key * 3;
         pointer_table[offset..offset + 3].copy_from_slice(&little_endian_pointer(variants));
@@ -198,13 +181,13 @@ pub fn build(
             bytes.push(entry.y_offset.to_le_bytes()[0]);
             bytes.extend_from_slice(&little_endian_pointer(data.intern(&descriptor)?));
         }
-        let offset = AREA_POINTER_TABLE_SIZE + group_index * 3;
+        let offset = dynamic_tile_offset + group_index * 3;
         pointer_table[offset..offset + 3]
             .copy_from_slice(&little_endian_pointer(data.intern(&bytes)?));
     }
     for cutscene in cutscenes {
         let script = data.intern(&cutscene.script)?;
-        let offset = CUTSCENE_POINTER_TABLE_START + (usize::from(cutscene.trigger) - 1) * 3;
+        let offset = cutscene_offset + (usize::from(cutscene.trigger) - 1) * 3;
         pointer_table[offset..offset + 3].copy_from_slice(&little_endian_pointer(script));
     }
 
@@ -217,14 +200,14 @@ pub fn build(
         }
         let persistent = data.intern(&persistent)?;
         for &area in &overlay.areas {
-            let offset = OVERWORLD_OVERLAY_POINTER_TABLE_START + usize::from(area) * 3;
+            let offset = overlay_offset + usize::from(area) * 3;
             pointer_table[offset..offset + 3].copy_from_slice(&little_endian_pointer(persistent));
         }
     }
 
     Ok(AssetBundle {
-        pointer_table_start: POINTER_TABLE_START,
-        data_start: layout.data_start,
+        pointer_table_start,
+        data_start: symbols.overworld_asset_data,
         pointer_table,
         unique_blocks: data.offsets.len(),
         data: data.bytes,

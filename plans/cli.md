@@ -109,4 +109,4 @@ cargo build -p cli --release --features bundle-catalogs
 
 Gate embedding declarations and the builder dependency with the feature. Bundled builds, including `cargo check --all-features`, need the source data and Asar for any artifacts requiring generation. The existing cache handles source changes and configured paths whenever the bundled build invokes it. See [the implementation sequence](../plan.md).
 
-The CLI owns the embedded assets; the generator and patcher libraries accept data from callers. The current ROM-building flow in `theme_check` still needs to become a reusable patcher entry point that consumes seed data.
+The CLI owns the embedded assets; the generator and patcher libraries accept data from callers. `patcher::patch_rom` now consumes seed data and the current catalogs to build a retiled ROM. Patch-time `transition_asset_phase` defaults to `Scroll`. Item-placement writes and CLI patching integration remain subsequent steps; `theme_check` already uses the shared retiling operation.

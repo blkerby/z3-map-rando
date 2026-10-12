@@ -8,3 +8,5 @@ anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 patcher = { path = "../patcher" }
 retiling_catalog = { path = "../retiling_catalog" }
+patch_catalog = { path = "../patch_catalog" }
+seed_data = { path = "../seed_data" }

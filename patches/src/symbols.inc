@@ -6,6 +6,23 @@ macro export_symbol(internal_name, exported_name, value)
     export_<exported_name> = <value>
 endmacro
 
+; Generated flat Map16 maps and their screen, alternate-background, and rain
+; pointers. The patcher allocates map payloads in banks C0-C9.
+%export_symbol(ThemeFlatMap16Data, theme_flat_map16_data, $C08000)
+%export_symbol(FlatMap16ScreenPointers, flat_map16_screen_pointers, $BFE000)
+%export_symbol(BG1FlatMap16ScreenPointers, bg1_flat_map16_screen_pointers, $BFE200)
+%export_symbol(Area80BG1FlatMap16Pointers, area_80_bg1_flat_map16_pointers, $BFE400)
+%export_symbol(GeneratedBG1Enabled, generated_bg1_enabled, $BFE406)
+%export_symbol(LostWoodsClearBG1FlatMap16Pointers, lost_woods_clear_bg1_flat_map16_pointers, $BFE410)
+%export_symbol(RainContexts, rain_contexts, $BFE430)
+%export_symbol(RainFlatMap16Pointers, rain_flat_map16_pointers, $BFE4D0)
+
+; Generated background colors and asset payloads. Asset records and descriptor
+; lists are allocated by the patcher in banks D0-FF.
+%export_symbol(ThemeBackgroundColors, theme_background_colors, $A09E00)
+%export_symbol(OverworldAreaRecordVariantPointers, overworld_area_record_variant_pointers, $A78000)
+%export_symbol(OverworldAssetData, overworld_asset_data, $D08000)
+
 ; Four 16-bit 8x8 tilemap words make up each Map16 definition. Each table
 ; stores one quadrant, indexed by twice the Map16 ID.
 %export_symbol(Map16TopLeft, map16_top_left, $A18000)
@@ -26,7 +43,7 @@ endmacro
 !GetOverworldTileTypeIndependent = $80884E
 
 ; Twenty-two little-endian 24-bit pointers to generated dynamic-tile groups,
-; indexed by the stable replacement-type order in theme_check.
+; indexed by the stable replacement-type order in the patcher's compiler.
 %export_symbol(DynamicTileGroupPointers, dynamic_tile_group_pointers, $A78300)
 
 ; Five little-endian 24-bit pointers to generated dungeon-entrance cutscene

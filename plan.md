@@ -47,7 +47,7 @@ Dependency tracking supports only standalone, single-line `incsrc "literal/path"
 
 Define a runtime patch catalog and its encoder/decoder using the existing bincode envelope convention. Add a `patches` subcommand to the builder CLI and include it in `all`. The subcommand prepares Asar, assembles outdated patches, and packages the catalog. Bundle separate named IPS patches and their matching symbol manifest. Application order, phases, and optional patch selection stay in patcher code, including the initial `fastrom_base` transformation.
 
-Symbol manifest generation is implemented: `%export_symbol(InternalName, exported_name, $Value)` in `symbols.inc` defines an ASM symbol and an explicitly named `export_` label. The standalone `symbols.asm` entry point generates a cached symbol file alongside the IPS artifacts. Plain `PatchSymbols` and `PatchIps` structs use Serde's `Deserialize` derive and `deny_unknown_fields` to import in-memory entries, rejecting missing or extra exports and patches. `build_patches` returns typed IPS payloads read under the assembly cache lock and this typed manifest. Runtime consumers switch from their existing address constants to the catalog during the later patcher integration.
+Symbol manifest generation is implemented: `%export_symbol(InternalName, exported_name, $Value)` in `symbols.inc` defines an ASM symbol and an explicitly named `export_` label. The standalone `symbols.asm` entry point generates a cached symbol file alongside the IPS artifacts. Plain `PatchSymbols` and `PatchIps` structs use Serde's `Deserialize` derive and `deny_unknown_fields` to import in-memory entries, rejecting missing or extra exports and patches. `build_patches` returns typed IPS payloads read under the assembly cache lock and this typed manifest. Runtime consumers use these catalog fields in step 11, which also exports the flat-map tables, background colors, and asset storage addresses.
 
 Read `z3-json-data` directly to extract stable location mappings, ROM addresses, item receipt IDs, and prize encodings for the patch catalog. Share source-reading types with the logic builder, without depending on the generated logic catalog.
 
@@ -151,9 +151,11 @@ Implemented: bundled builds update all three catalogs and provide embedded logic
 
 Result: bundled builds automatically create or update their assets. Ordinary `cargo check` without the feature requires neither catalogs, source repos, nor Asar. External catalog arguments can override embedded catalogs.
 
-## 11. Extract retiling patching
+## 11. Extract retiling patching (implemented)
 
 Refactor the ROM-building flow in `theme_check` into a reusable patcher operation consuming a ROM, decoded seed, current retiling catalog, current patch catalog, and customization settings. Select area content using the saved `WorldLayout`; accept either a full or filtered `RetilingCatalog` through the same interface. The CLI passes its loaded catalog unchanged. Consume IPS bytes from the patch catalog instead of filesystem paths. Resolve vanilla graphics references from the ROM and compile the selected content into the current runtime layout using current symbols.
+
+Implemented: `patcher::patch_rom` verifies and copies the vanilla ROM, applies the saved `WorldLayout` using the current catalogs, and returns a 4 MiB ROM with its checksum and complement updated. `PatchSettings` is serializable and exposes `transition_asset_phase`, defaulting to `Scroll`. The shared `apply_retiling` operation returns development statistics and warnings without printing; `theme_check` constructs a layout for its selected theme, calls this operation, and finalizes the ROM. It reads the patch catalog through `--patch-catalog`, defaulting to `build/patch_catalog.bin`. IPS application reads in-memory payloads, and runtime table addresses come from `PatchSymbols`. Item placements remain unapplied until step 12.
 
 Result: native and future browser patchers share one interface accepting the current retiling catalog. The core does not need the logic catalog and has no filesystem, clock, network, or RNG dependency.
 

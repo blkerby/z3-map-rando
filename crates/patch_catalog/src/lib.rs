@@ -81,6 +81,17 @@ pub struct PatchIps {
 #[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
 #[serde(deny_unknown_fields)]
 pub struct PatchSymbols {
+    pub theme_flat_map16_data: u32,
+    pub flat_map16_screen_pointers: u32,
+    pub bg1_flat_map16_screen_pointers: u32,
+    pub area_80_bg1_flat_map16_pointers: u32,
+    pub generated_bg1_enabled: u32,
+    pub lost_woods_clear_bg1_flat_map16_pointers: u32,
+    pub rain_contexts: u32,
+    pub rain_flat_map16_pointers: u32,
+    pub theme_background_colors: u32,
+    pub overworld_area_record_variant_pointers: u32,
+    pub overworld_asset_data: u32,
     pub map16_top_left: u32,
     pub map16_top_right: u32,
     pub map16_bottom_left: u32,

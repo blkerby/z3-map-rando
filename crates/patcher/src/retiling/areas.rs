@@ -2,6 +2,7 @@ use super::{BackgroundSettings, TileKey, graphics::Palette};
 use crate::graphics::encode_bgr555;
 use anyhow::{Context, Result, ensure};
 use retiling_catalog::{Background, CutsceneAction, CutsceneEvent, PaletteId, RetilingCatalog};
+use seed_data::WorldLayout;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -55,20 +56,28 @@ pub(super) struct SelectedAreas {
     pub(super) cutscenes: Vec<ThemeCutscene>,
 }
 
-pub(super) fn select_areas(catalog: &RetilingCatalog, theme_name: &str) -> Result<SelectedAreas> {
+pub(super) fn select_areas(
+    catalog: &RetilingCatalog,
+    layout: &WorldLayout,
+) -> Result<SelectedAreas> {
     let mut result = Vec::new();
     let mut background_colors = [0x8000; 0xa0];
     let mut bg1_variants = Vec::new();
     let mut background_settings = BTreeMap::new();
     let mut cutscenes = Vec::new();
     let mut found_cutscenes = [false; 5];
+    let mut themes = BTreeMap::new();
+    for placement in &layout.areas {
+        themes.insert(placement.vanilla_map_id, placement.theme_name.as_str());
+    }
     for (name, source) in &catalog.areas {
         let Some(area_id) = source.vanilla_map_id else {
             continue;
         };
-        let Some(area) = source.themes.get(theme_name) else {
+        let Some(theme_name) = themes.get(&area_id) else {
             continue;
         };
+        let area = &source.themes[*theme_name];
         let area_id = usize::from(area_id);
         let mut source_scripts = Vec::new();
         let mut cutscene_layer_names = BTreeSet::new();
@@ -271,7 +280,7 @@ pub(super) fn select_areas(catalog: &RetilingCatalog, theme_name: &str) -> Resul
     for found in found_cutscenes {
         ensure!(
             found,
-            "theme {theme_name} must define all five dungeon entrance cutscenes",
+            "world layout must define all five dungeon entrance cutscenes",
         );
     }
     result.sort_by_key(|area| area.id);

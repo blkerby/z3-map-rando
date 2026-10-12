@@ -46,15 +46,16 @@ Install Rust and Cargo with [rustup](https://www.rust-lang.org/tools/install); f
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-Build the retiling catalog, then a test ROM:
+Build the retiling and patch catalogs, then a test ROM:
 
 ```sh
 mkdir -p build
 cargo run -p catalog_builder -- retiling
+cargo run -p catalog_builder -- patches
 cargo run -p theme_check -- path/to/vanilla.sfc path/to/output.sfc build/retiling_catalog.bin --theme Base
 ```
 
-The input must be the unheadered 1 MiB Japanese 1.0 ROM with SHA-256 digest `794e040b02c7591b59ad8843b51e7c619b88f87cddc6083a8e7a4027b96a2271`. `theme_check` reads the selected theme from the catalog and produces a 4 MiB ROM.
+The input must be the unheadered 1 MiB Japanese 1.0 ROM with SHA-256 digest `794e040b02c7591b59ad8843b51e7c619b88f87cddc6083a8e7a4027b96a2271`. `theme_check` reads the selected theme and current patch catalog, calls the shared patcher, and produces a 4 MiB ROM with an updated checksum. Its patch catalog defaults to `build/patch_catalog.bin`; use `--patch-catalog <PATH>` to override it. `--transition-asset-phase` accepts `pre-scroll`, `scroll`, and `post-scroll`, defaulting to `scroll`.
 
 If you notice any issue while testing or if you run into any trouble following these instructions, please reach out in the [Discord](https://discord.gg/Mxb5zYZeVj) to let us know. Even in this early phase of the project, playtesting is very helpful!
 
@@ -100,7 +101,7 @@ From the repository root:
 cargo run -p catalog_builder -- patches
 ```
 
-This writes `build/patch_catalog.bin`, reusing cached assembly artifacts. Settings in `catalog-build.toml` select the data source, ASM directory, Asar checkout or executable, artifact directory, and compression level. Changing compression does not invalidate assembly. Unchanged catalog packaging is skipped through the shared cache and configuration. Existing ROM tools still consume the tracked IPS files until their later integration with the patch catalog.
+This writes `build/patch_catalog.bin`, reusing cached assembly artifacts. Settings in `catalog-build.toml` select the data source, ASM directory, Asar checkout or executable, artifact directory, and compression level. Changing compression does not invalidate assembly. Unchanged catalog packaging is skipped through the shared cache and configuration. `theme_check` consumes these catalog bytes and symbols directly.
 
 # How to build the tile fingerprint index
 
@@ -116,7 +117,7 @@ See the [catalog plan](plans/README.md#retiling-catalog) for implementation deta
 
 # How to build the patches from source
 
-The instructions above use the IPS patches already checked into the repo. To build cached patches locally, install a C++ compiler and CMake; for example, on Ubuntu:
+The instructions above use the patch catalog built from ASM sources. To build cached patches locally, install a C++ compiler and CMake; for example, on Ubuntu:
 
 
 ```sh
@@ -140,6 +141,6 @@ The builder also caches `build/patches/symbols.sym`, exported independently from
 asar_executable = "path/to/patched/asar"
 ```
 
-We use a patched version of Asar with IPS output support; an upstream Asar executable will not work. The new command leaves tracked `patches/ips/` files unchanged. Existing ROM-building tools still use those tracked patches until the later patch-catalog integration; the old Python scripts remain available for that workflow.
+We use a patched version of Asar with IPS output support; an upstream Asar executable will not work. The new command leaves tracked `patches/ips/` files unchanged. `theme_check` uses the generated patch catalog. Removal of the tracked IPS files and retirement of the old Python scripts remain planned work.
 
 Dependency tracking supports only standalone, single-line `incsrc "literal/path"` directives. Paths are relative to the including file and followed recursively, including conditional branches. The scanner does not evaluate defines or macros, resolve include search paths, or track `incbin` or other file-reading directives. Extend it before adding any of these forms, or cached outputs could become stale.

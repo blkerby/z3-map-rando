@@ -6,6 +6,7 @@ use crate::{
 use anyhow::{Context, Result, ensure};
 pub use retiling_catalog::BackgroundLayering;
 use retiling_catalog::{PaletteId, RetilingCatalog};
+use seed_data::WorldLayout;
 use std::collections::{BTreeMap, BTreeSet};
 
 mod allocation;
@@ -64,6 +65,7 @@ pub struct CompiledTheme {
     pub map16_count: usize,
     pub fullest_palette_screen: usize,
     pub fullest_palette_half_slots: usize,
+    pub warnings: Vec<String>,
 }
 
 pub fn compile(
@@ -72,7 +74,7 @@ pub fn compile(
     vanilla_tiles: &[Tile16],
     vanilla_tile_types: &[u8],
     mut area_assets: Vec<OverworldAreaAssets>,
-    theme_name: &str,
+    layout: &WorldLayout,
 ) -> Result<CompiledTheme> {
     let mut graphics = TileGraphicResolver::create(importer);
     let mut palettes = resolve_palettes(catalog, &mut graphics)?;
@@ -101,7 +103,7 @@ pub fn compile(
         mut bg1_variants,
         background_settings,
         mut cutscenes,
-    } = select_areas(catalog, theme_name)?;
+    } = select_areas(catalog, layout)?;
     let rain_tiles = [
         add_rain_tiles(&mut palettes, &area_assets[0x2c], LIGHT_WORLD_RAIN_PALETTE),
         add_rain_tiles(&mut palettes, &area_assets[0x70], DARK_WORLD_RAIN_PALETTE),
@@ -227,7 +229,7 @@ pub fn compile(
         .map_or(0, |slot| slot + 1);
     ensure!(
         character_count <= CHARACTER_CAPACITY,
-        "{theme_name} needs {character_count} stable character slots, but the existing row ABI exposes {CHARACTER_CAPACITY}"
+        "world layout needs {character_count} stable character slots, but the existing row ABI exposes {CHARACTER_CAPACITY}"
     );
 
     let mut map16 = Map16Builder::create(
@@ -311,6 +313,7 @@ pub fn compile(
         &dynamic_tile_groups,
     )?);
     overworld_overlays.extend(build_overworld_overlays(&areas, &mut map16)?);
+    let mut warnings = Vec::new();
     for &(area_id, name) in &VANILLA_OVERWORLD_OVERLAYS {
         let mut found = false;
         for overlay in &overworld_overlays {
@@ -320,9 +323,9 @@ pub fn compile(
             }
         }
         if !found {
-            eprintln!(
-                "warning: {theme_name} has no generated {name} overlay for area ${area_id:02X}"
-            );
+            warnings.push(format!(
+                "no generated {name} overlay for area ${area_id:02X}"
+            ));
         }
     }
 
@@ -361,6 +364,7 @@ pub fn compile(
         map16_count: map16.definitions.len(),
         fullest_palette_screen: fullest_palette.0,
         fullest_palette_half_slots: fullest_palette.1,
+        warnings,
         screen_maps,
         bg1_variants: compiled_bg1_variants,
         background_settings,

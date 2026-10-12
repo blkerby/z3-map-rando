@@ -1,14 +1,18 @@
 pub use seed_data::SeedData;
 
-use anyhow::{Context, Result, ensure};
+use anyhow::{Result, ensure};
 use sha2::{Digest, Sha256};
-use std::{collections::BTreeMap, fmt::Write, io::Read, path::Path};
+use std::{collections::BTreeMap, fmt::Write, io::Read};
 
 pub mod asset_bundle;
 pub mod graphics;
 pub mod import;
 mod rain_tilemap;
 pub mod retiling;
+mod rom;
+
+pub use asset_bundle::TransitionAssetPhase;
+pub use rom::{PatchSettings, RetilingStats, apply_retiling, finalize_rom, patch_rom};
 
 pub const VANILLA_ROM_SHA256: &str =
     "794e040b02c7591b59ad8843b51e7c619b88f87cddc6083a8e7a4027b96a2271";
@@ -73,22 +77,11 @@ impl Patcher {
         PatchContext { id, rom: self }
     }
 
-    pub fn use_ips(&mut self, path: &Path) -> Result<()> {
-        let mut input = std::fs::File::open(path)
-            .with_context(|| format!("failed to open {}", path.display()))?;
+    pub fn use_ips(&mut self, name: &str, mut input: &[u8]) -> Result<()> {
         let mut header = [0; 5];
         input.read_exact(&mut header)?;
-        anyhow::ensure!(
-            &header == b"PATCH",
-            "invalid IPS header in {}",
-            path.display()
-        );
-
-        let filename = path
-            .file_name()
-            .unwrap_or(path.as_os_str())
-            .to_string_lossy();
-        let mut context = self.context(&filename);
+        anyhow::ensure!(&header == b"PATCH", "invalid IPS header in {name}");
+        let mut context = self.context(name);
         loop {
             let mut offset = [0; 3];
             input.read_exact(&mut offset)?;
@@ -229,26 +222,19 @@ mod tests {
 
     #[test]
     fn applies_ips_records() {
-        let path = std::env::temp_dir().join(format!("patcher-apply-{}.ips", std::process::id()));
-        std::fs::write(
-            &path,
-            b"PATCH\x00\x00\x10\x00\x02\xaa\xbb\x00\x00\x12\x00\x00\x00\x03\xccEOF",
-        )
-        .unwrap();
-
         let mut patcher = Patcher {
             contexts: Vec::new(),
             patches: BTreeMap::new(),
         };
 
-        let result = patcher.use_ips(&path);
-        std::fs::remove_file(&path).unwrap();
-        result.unwrap();
+        patcher
+            .use_ips(
+                "example.ips",
+                b"PATCH\x00\x00\x10\x00\x02\xaa\xbb\x00\x00\x12\x00\x00\x00\x03\xccEOF",
+            )
+            .unwrap();
 
-        assert_eq!(
-            patcher.contexts[0],
-            path.file_name().unwrap().to_string_lossy()
-        );
+        assert_eq!(patcher.contexts[0], "example.ips");
         assert_eq!(patcher.patches[&PcAddr(0x10)].1, [0xaa, 0xbb]);
         assert_eq!(patcher.patches[&PcAddr(0x12)].1, [0xcc; 3]);
 

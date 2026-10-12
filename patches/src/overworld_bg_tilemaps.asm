@@ -38,9 +38,6 @@ incsrc "symbols.inc"
 !BGMap16SourceOffset = $7EC900
 !BGVRAMBase = $7EC902
 !BGLogicalMask = $7EC904
-!GeneratedBG1Enabled = $BFE406
-!RainContexts = $BFE430
-!OverworldAreaRecordVariantPointers = $A78000
 !OverworldScreenSize = $82F5F1
 !BackgroundSettings = $7ECC72
 !BackgroundPositionX = $7ECC77

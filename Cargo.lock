@@ -467,6 +467,7 @@ name = "patcher"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "patch_catalog",
  "retiling_catalog",
  "seed_data",
  "serde",
@@ -738,8 +739,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "patch_catalog",
  "patcher",
  "retiling_catalog",
+ "seed_data",
 ]
 
 [[package]]

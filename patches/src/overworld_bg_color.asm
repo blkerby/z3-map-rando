@@ -8,9 +8,7 @@ incsrc "symbols.inc"
 !free_space_bank_a0_end = $A0A620
 
 ; Generated theme data and active background state.
-!ThemeBackgroundColors = $A09E00
 !AreaBackgroundSettingsOffset = 24
-!GeneratedBG1Enabled = $BFE406
 !BackgroundSettings = $7ECC72
 
 ; Replace the full background-color selector, retaining its vanilla tail for
