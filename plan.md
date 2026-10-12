@@ -155,17 +155,19 @@ Result: bundled builds automatically create or update their assets. Ordinary `ca
 
 Refactor the ROM-building flow in `theme_check` into a reusable patcher operation consuming a ROM, decoded seed, current retiling catalog, current patch catalog, and customization settings. Select area content using the saved `WorldLayout`; accept either a full or filtered `RetilingCatalog` through the same interface. The CLI passes its loaded catalog unchanged. Consume IPS bytes from the patch catalog instead of filesystem paths. Resolve vanilla graphics references from the ROM and compile the selected content into the current runtime layout using current symbols.
 
-Implemented: `patcher::patch_rom` verifies and copies the vanilla ROM, applies the saved `WorldLayout` using the current catalogs, and returns a 4 MiB ROM with its checksum and complement updated. `PatchSettings` is serializable and exposes `transition_asset_phase`, defaulting to `Scroll`. The shared `apply_retiling` operation returns development statistics and warnings without printing; `theme_check` constructs a layout for its selected theme, calls this operation, and finalizes the ROM. It reads the patch catalog through `--patch-catalog`, defaulting to `build/patch_catalog.bin`. IPS application reads in-memory payloads, and runtime table addresses come from `PatchSymbols`. Item placements remain unapplied until step 12.
+Implemented: `patcher::patch_rom` verifies and copies the vanilla ROM, applies the saved `WorldLayout` using the current catalogs, and returns a 4 MiB ROM with its checksum and complement updated. `PatchSettings` is serializable and exposes `transition_asset_phase`, defaulting to `Scroll`. The shared `apply_retiling` operation returns development statistics and warnings without printing; `theme_check` constructs a layout for its selected theme, calls this operation, and finalizes the ROM. It reads the patch catalog through `--patch-catalog`, defaulting to `build/patch_catalog.bin`. IPS application reads in-memory payloads, and runtime table addresses come from `PatchSymbols`.
 
 Result: native and future browser patchers share one interface accepting the current retiling catalog. The core does not need the logic catalog and has no filesystem, clock, network, or RNG dependency.
 
-## 12. Add item-placement patching
+## 12. Add item-placement patching (implemented)
 
 Use the patch catalog's source-derived location mappings and current item and prize encodings to translate saved identities. Extend this data where necessary for the patched pickup carriers. Implement the location-specific writes and hooks required by the prototype's randomized pickups.
 
 Leave the Waterfall and Pyramid fairies on their vanilla item-exchange paths. Their four rewards remain fixed in seed output and are excluded from the randomized settings pool. Do not patch the source addresses for those exchange entries, which refer to reused chest slots.
 
 Use the current patcher and matching patch catalog independently of the catalog versions used for generation; customization remains a patch-time input. Do not implement seed migrations or legacy readers during prototyping.
+
+Implemented: `patcher::patch_rom` translates each saved location/item identity through the current patch catalog. Item and retiling writes, including their IPS patches, are collected in one `Patcher` and applied together using the existing conflict detection. The FastROM base patch remains a separate initial stage because graphics import reads the ROM after that patch. Chest and NPC reward bytes are written directly; non-chest carriers read assigned rewards from ROM tables while preserving independent collection flags. Catfish and King Zora retain their vanilla sprite subtypes and use exported reward slots. NPCs whose vanilla completion checks depend on inventory now use saved location flags. Boss hearts, freestanding pickups, the Grove dig reward, tablets, and generous NPCs grant their assigned rewards. Prize ownership checks use the assigned pendant/crystal type, and maiden messages use the assigned crystal. Keys and the four fairy exchanges are left untouched. The default pool’s HalfMagic and MasterSword receipt IDs are supported, and equipment uses vanilla receipt behavior. Pickup graphics remain the vanilla carrier graphics as placeholders; replacement is tracked in step 14. CLI patching integration remains step 13.
 
 Result: the patcher applies saved placements without the original logic catalog or saved ROM-write addresses.
 
@@ -176,6 +178,12 @@ Wire `--seed` plus `--rom` to patching, and generation plus `--rom` to generatio
 Move remaining IPS consumers and development instructions to generated outputs or the patch catalog, then remove `patches/ips/` files from source control. Update or retire `scripts/build_patches.py` and `scripts/build_asar.py` so there is one assembly and caching implementation. Document the local configuration, source-directory overrides, and Asar prerequisites.
 
 Result: the CLI generates, patches, or does both based on its arguments, with no user-specified catalogs needed for a bundled binary.
+
+## 14. Show randomized rewards before collection
+
+Replace the prototype's placeholder pickup graphics with the graphics of the assigned item. Reuse the existing item artwork, connecting reward identities to the appropriate sprite graphics loading, palettes, OAM layouts, and animation. Include freestanding rewards, thrown NPC gifts, boss drops, and scripted rewards. Keep collection flags and vanilla receipt behavior independent of these visual changes.
+
+Result: players can recognize the assigned reward before collecting it.
 
 ## Verification during implementation
 

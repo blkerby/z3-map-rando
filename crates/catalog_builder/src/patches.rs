@@ -182,7 +182,7 @@ pub(crate) fn package_catalog(
     compression_level: i32,
 ) -> Result<()> {
     let items = read_item_encodings(source_directory)?;
-    let item_locations = read_item_locations(source_directory)?;
+    let item_locations = read_item_locations(source_directory, &built.symbols)?;
     let catalog = PatchCatalog {
         patches: built.patches,
         symbols: built.symbols,
@@ -233,7 +233,10 @@ fn read_item_encodings(source_directory: &Path) -> Result<BTreeMap<String, ItemE
     Ok(encodings)
 }
 
-fn read_item_locations(source_directory: &Path) -> Result<BTreeMap<ItemLocationId, ItemLocation>> {
+fn read_item_locations(
+    source_directory: &Path,
+    symbols: &PatchSymbols,
+) -> Result<BTreeMap<ItemLocationId, ItemLocation>> {
     let mut locations = BTreeMap::new();
     let mut room_paths = Vec::new();
     collect_source_files(&source_directory.join("rooms"), &mut room_paths)?;
@@ -259,6 +262,25 @@ fn read_item_locations(source_directory: &Path) -> Result<BTreeMap<ItemLocationI
                 if address != "unknown" {
                     rom_addresses.push(u32::from_str_radix(address.trim_start_matches("0x"), 16)?);
                 }
+            }
+            if item.item == "SmallKey"
+                || item.item == "BigKey"
+                || matches!(
+                    (room_id, item.id),
+                    (SourceRoomId::Underworld(12 | 69), 1 | 2)
+                )
+            {
+                rom_addresses.clear();
+            }
+            // These gifts keep their vanilla sprite subtype as a placeholder.
+            // Their reward IDs are read from separate data instead of that subtype.
+            let reward = match (room_id, item.id) {
+                (SourceRoomId::Overworld(7), 1) => Some(symbols.catfish_reward),
+                (SourceRoomId::Underworld(104), 1) => Some(symbols.king_zora_reward),
+                _ => None,
+            };
+            if let Some(address) = reward {
+                rom_addresses = vec![((address & 0x7f0000) >> 1) | (address & 0x7fff)];
             }
             locations.insert(
                 ItemLocationId {

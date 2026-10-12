@@ -8,6 +8,7 @@ use std::{collections::BTreeMap, fmt::Write, io::Read};
 pub mod asset_bundle;
 pub mod graphics;
 pub mod import;
+mod items;
 mod rain_tilemap;
 pub mod retiling;
 mod rom;

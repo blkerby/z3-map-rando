@@ -53,7 +53,6 @@ struct FlatMapTables {
 }
 
 /// Create a ROM from saved choices using the current catalogs.
-/// Item-placement writes are added separately; this currently applies retiling.
 pub fn patch_rom(
     rom: &[u8],
     seed: &SeedData,
@@ -63,7 +62,11 @@ pub fn patch_rom(
 ) -> Result<Vec<u8>> {
     verify_vanilla_rom(rom)?;
     let mut output = rom.to_vec();
-    apply_retiling(&mut output, &seed.world_layout, retiling, patches, settings)?;
+    let (mut patcher, _) =
+        prepare_retiling(&mut output, &seed.world_layout, retiling, patches, settings)?;
+    crate::items::apply_items(&mut patcher, &seed.item_placements, patches)?;
+    patcher.apply(&mut output)?;
+    output[0x7fd7] = 0x0c;
     finalize_rom(&mut output);
     Ok(output)
 }
@@ -77,6 +80,20 @@ pub fn apply_retiling(
     patches: &PatchCatalog,
     settings: &PatchSettings,
 ) -> Result<RetilingStats> {
+    let (patcher, stats) = prepare_retiling(rom, layout, catalog, patches, settings)?;
+    patcher.apply(rom)?;
+    rom[0x7fd7] = 0x0c;
+    Ok(stats)
+}
+
+/// Apply the FastROM base needed for import, then prepare the remaining writes.
+fn prepare_retiling(
+    rom: &mut Vec<u8>,
+    layout: &WorldLayout,
+    catalog: &RetilingCatalog,
+    patches: &PatchCatalog,
+    settings: &PatchSettings,
+) -> Result<(Patcher, RetilingStats)> {
     let mut fastrom_base = Patcher::default();
     fastrom_base.use_ips(&patches.patches.fastrom_base)?;
     fastrom_base.apply(rom)?;
@@ -257,10 +274,7 @@ pub fn apply_retiling(
     ] {
         patcher.use_ips(patch)?;
     }
-    patcher.apply(rom)?;
-    rom[0x7fd7] = 0x0c;
-
-    Ok(stats)
+    Ok((patcher, stats))
 }
 
 /// Update the checksum and complement after assembling the complete 4 MiB ROM.

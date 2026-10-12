@@ -66,6 +66,7 @@ pub struct PatchIps {
     pub bg3_tilemap: Ips,
     pub fastrom_base: Ips,
     pub fastrom_extra: Ips,
+    pub item_placements: Ips,
     pub mirror_bg1_hdma: Ips,
     pub nmi_optimize: Ips,
     pub overworld_animations: Ips,
@@ -88,6 +89,8 @@ pub struct PatchIps {
 #[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
 #[serde(deny_unknown_fields)]
 pub struct PatchSymbols {
+    pub catfish_reward: u32,
+    pub king_zora_reward: u32,
     pub theme_flat_map16_data: u32,
     pub flat_map16_screen_pointers: u32,
     pub bg1_flat_map16_screen_pointers: u32,
@@ -117,7 +120,8 @@ pub struct ItemLocation {
     /// Unheadered ROM file offsets extracted from the z3-json-data `itemAddress`.
     /// Ordinary pickups receive the item's receipt ID as a single address.
     /// Dungeon prizes have six offsets, in the same order as
-    /// `ItemEncoding::prize_patch_bytes`. Empty when the source address is unknown.
+    /// `ItemEncoding::prize_patch_bytes`. Empty for fixed keys and fairy exchanges.
+    /// Non-chest addresses may refer to data consumed by the item-placement ASM.
     pub rom_addresses: Vec<u32>,
 }
 

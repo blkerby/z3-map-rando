@@ -6,6 +6,10 @@ macro export_symbol(internal_name, exported_name, value)
     export_<exported_name> = <value>
 endmacro
 
+; Rewards for the vanilla thrown-gift sprites, whose subtype remains unchanged.
+%export_symbol(CatfishReward, catfish_reward, $B08040)
+%export_symbol(KingZoraReward, king_zora_reward, $B08041)
+
 ; Generated flat Map16 maps and their screen, alternate-background, and rain
 ; pointers. The patcher allocates map payloads in banks C0-C9.
 %export_symbol(ThemeFlatMap16Data, theme_flat_map16_data, $C08000)
