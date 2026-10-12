@@ -207,6 +207,8 @@ dependencies = [
  "common_types",
  "generator",
  "logic_catalog",
+ "patch_catalog",
+ "patcher",
  "rand",
  "retiling_catalog",
  "seed_data",

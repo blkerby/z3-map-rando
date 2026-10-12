@@ -25,21 +25,27 @@ const BUNDLED_RETILING_CATALOG: Option<&[u8]> = Some(include_bytes!(env!("Z3_RET
 #[cfg(not(feature = "bundle-catalogs"))]
 const BUNDLED_RETILING_CATALOG: Option<&[u8]> = None;
 
-// Consumed when patching is integrated; all three catalogs are built together.
 #[cfg(feature = "bundle-catalogs")]
-#[allow(dead_code)]
-const BUNDLED_PATCH_CATALOG: &[u8] = include_bytes!(env!("Z3_PATCH_CATALOG"));
+const BUNDLED_PATCH_CATALOG: Option<&[u8]> = Some(include_bytes!(env!("Z3_PATCH_CATALOG")));
+#[cfg(not(feature = "bundle-catalogs"))]
+const BUNDLED_PATCH_CATALOG: Option<&[u8]> = None;
 
 #[derive(Parser)]
 #[command(
     name = "z3-map-rando",
     version = common_types::VERSION,
-    about = "Generate a randomized seed"
+    about = "Generate a randomized seed, patch a ROM, or both"
 )]
 struct Args {
     /// Settings JSON; uses bundled defaults when omitted.
     #[arg(long)]
     settings: Option<PathBuf>,
+    /// Existing compressed seed to patch; reuses its saved seed name.
+    #[arg(long, requires = "rom", conflicts_with = "settings")]
+    seed: Option<PathBuf>,
+    /// Vanilla ROM to patch; omit to generate a seed file only.
+    #[arg(long)]
+    rom: Option<PathBuf>,
     /// Whole-game theme.
     #[arg(long, default_value = "Base")]
     theme: String,
@@ -49,6 +55,12 @@ struct Args {
     /// Output seed file; defaults to z3-map-rando-<SEED-NAME>.json.zst.
     #[arg(long)]
     output_seed: Option<PathBuf>,
+    /// Output ROM file; defaults to z3-map-rando-<SEED-NAME>.sfc.
+    #[arg(long)]
+    output_rom: Option<PathBuf>,
+    /// When to load transition assets while patching.
+    #[arg(long, value_enum, default_value = "scroll")]
+    transition_asset_phase: TransitionAssetPhase,
     /// Zstd compression level for the output seed.
     #[arg(long, default_value_t = 3, allow_negative_numbers = true)]
     compression_level: i32,
@@ -58,18 +70,68 @@ struct Args {
     /// Retiling catalog override; defaults to bundled data or build/retiling_catalog.bin.
     #[arg(long)]
     retiling_catalog: Option<PathBuf>,
+    /// Patch catalog override; defaults to bundled data or build/patch_catalog.bin.
+    #[arg(long)]
+    patch_catalog: Option<PathBuf>,
+}
+
+#[derive(Clone, Copy, clap::ValueEnum)]
+enum TransitionAssetPhase {
+    PreScroll,
+    Scroll,
+    PostScroll,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let seed = generate_seed(&args)?;
-    let output_path = args.output_seed.unwrap_or_else(|| {
-        PathBuf::from(format!("z3-map-rando-{}.json.zst", seed.metadata.seed_name))
-    });
-    write_seed(&seed, &output_path, args.compression_level)
+    let rom = if let Some(path) = &args.rom {
+        let rom = fs::read(path).with_context(|| format!("reading ROM {}", path.display()))?;
+        patcher::verify_vanilla_rom(&rom)
+            .with_context(|| format!("verifying ROM {}", path.display()))?;
+        Some(rom)
+    } else {
+        None
+    };
+    let retiling_bytes = load_catalog(
+        args.retiling_catalog.as_deref(),
+        "retiling",
+        "build/retiling_catalog.bin",
+        BUNDLED_RETILING_CATALOG,
+    )?;
+    let retiling_catalog = retiling_catalog::decode_catalog(retiling_bytes.as_ref())?;
+    let seed = if let Some(path) = &args.seed {
+        let file = File::open(path).with_context(|| format!("opening seed {}", path.display()))?;
+        SeedData::read(file).with_context(|| format!("reading seed {}", path.display()))?
+    } else {
+        let seed = generate_seed(&args, &retiling_catalog, &retiling_bytes)?;
+        let output_path = args.output_seed.clone().unwrap_or_else(|| {
+            PathBuf::from(format!("z3-map-rando-{}.json.zst", seed.metadata.seed_name))
+        });
+        write_seed(&seed, &output_path, args.compression_level)?;
+        if args.settings.is_none() && args.rom.is_none() {
+            eprintln!(
+                concat!(
+                    "\nTip: To patch this seed, run:\n\n",
+                    "  z3-map-rando --seed {} --rom path/to/vanilla.sfc\n\n",
+                    "You can also add --rom path/to/vanilla.sfc to the initial command ",
+                    "to generate and patch in one step.",
+                ),
+                output_path.display(),
+            );
+        }
+        seed
+    };
+    if let Some(rom) = &rom {
+        patch_seed(&args, &seed, &retiling_catalog, rom)?;
+    }
+    Ok(())
 }
 
-fn generate_seed(args: &Args) -> Result<SeedData> {
+fn generate_seed(
+    args: &Args,
+    retiling_catalog: &retiling_catalog::RetilingCatalog,
+    retiling_bytes: &[u8],
+) -> Result<SeedData> {
     let settings = load_settings(args.settings.as_deref())?;
     let logic_bytes = load_catalog(
         args.logic_catalog.as_deref(),
@@ -78,24 +140,52 @@ fn generate_seed(args: &Args) -> Result<SeedData> {
         BUNDLED_LOGIC_CATALOG,
     )?;
     let logic_catalog = logic_catalog::decode_catalog(logic_bytes.as_ref())?;
-    let retiling_bytes = load_catalog(
-        args.retiling_catalog.as_deref(),
-        "retiling",
-        "build/retiling_catalog.bin",
-        BUNDLED_RETILING_CATALOG,
-    )?;
-    let retiling_catalog = retiling_catalog::decode_catalog(retiling_bytes.as_ref())?;
     let numeric_seed: u64 = args.rng.unwrap_or_else(rand::random);
-    let metadata = create_metadata(numeric_seed, &logic_bytes, &retiling_bytes)?;
+    let metadata = create_metadata(numeric_seed, &logic_bytes, retiling_bytes)?;
     let mut rng = StdRng::seed_from_u64(numeric_seed);
     generator::generate(
         settings,
         &logic_catalog,
-        &retiling_catalog,
+        retiling_catalog,
         &args.theme,
         metadata,
         &mut rng,
     )
+}
+
+fn patch_seed(
+    args: &Args,
+    seed: &SeedData,
+    retiling_catalog: &retiling_catalog::RetilingCatalog,
+    rom: &[u8],
+) -> Result<()> {
+    let patch_bytes = load_catalog(
+        args.patch_catalog.as_deref(),
+        "patch",
+        "build/patch_catalog.bin",
+        BUNDLED_PATCH_CATALOG,
+    )?;
+    let patch_catalog = patch_catalog::decode_catalog(patch_bytes.as_ref())?;
+    let settings = patcher::PatchSettings {
+        transition_asset_phase: match args.transition_asset_phase {
+            TransitionAssetPhase::PreScroll => patcher::TransitionAssetPhase::PreScroll,
+            TransitionAssetPhase::Scroll => patcher::TransitionAssetPhase::Scroll,
+            TransitionAssetPhase::PostScroll => patcher::TransitionAssetPhase::PostScroll,
+        },
+    };
+    let output = patcher::patch_rom(rom, seed, retiling_catalog, &patch_catalog, &settings)?;
+    let output_path = args
+        .output_rom
+        .clone()
+        .unwrap_or_else(|| PathBuf::from(format!("z3-map-rando-{}.sfc", seed.metadata.seed_name)));
+    fs::write(&output_path, output)
+        .with_context(|| format!("writing ROM {}", output_path.display()))?;
+    eprintln!(
+        "Wrote ROM {} to {}",
+        seed.metadata.seed_name,
+        output_path.display()
+    );
+    Ok(())
 }
 
 fn load_catalog(
@@ -165,12 +255,10 @@ fn write_seed(seed: &SeedData, output_path: &Path, compression_level: i32) -> Re
     seed.write(file, compression_level)
         .with_context(|| format!("writing seed {}", output_path.display()))?;
     eprintln!(
-        "Wrote seed {} to {} (RNG {}, {} item placements, {} retiled areas)",
+        "Wrote seed {} to {} (RNG {})",
         seed.metadata.seed_name,
         output_path.display(),
         seed.metadata.rng_seed,
-        seed.item_placements.len(),
-        seed.world_layout.areas.len(),
     );
     Ok(())
 }

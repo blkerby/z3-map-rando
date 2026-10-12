@@ -46,7 +46,7 @@ Establish the minimum build and patching path needed to make playable engine cha
 
 ### Implemented
 
-- Add Asar as a submodule and scripts to build it and assemble each file in `patches/src` into a corresponding file in `patches/ips`. Assembly uses a dummy ROM with reads disabled, so building the IPS files does not require a vanilla ROM.
+- Use the patched Asar submodule and Rust catalog builder to assemble each patch file in `patches/src` into a corresponding local IPS file under `build/patches`, then bundle IPS payloads and symbols in the patch catalog. Assembly uses a dummy ROM with reads disabled, so building the IPS files does not require a vanilla ROM.
 - Add `rom_size.asm`, which changes the LoROM size byte at `$80FFD7` from 1 MiB to 2 MiB. The Rust tool explicitly resizes the output buffer to 2 MiB before applying patches.
 - Add a Cargo workspace containing the `patcher` library and the theme compiler CLI.
 - In `patcher`, support LoROM address conversion, contextual writes, overlap detection, IPS records including RLE records, and bounds checking when patches are applied.

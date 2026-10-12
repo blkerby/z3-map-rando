@@ -6,11 +6,11 @@ The goal of this project is to create a randomizer for generating randomized *A 
 
 An [overworld editor](https://github.com/blkerby/Z3OverworldEditor) exists, based around the ability to define and use custom palettes and tilesets with a degree of flexibility beyond what the vanilla game engine provides. The editor is functional enough to enable artists to create new themes (in progress [here](https://github.com/kjbranch/ALTTPRetiling)), but the work needed to translate this into a playable ROM is mostly still in a planning stage. The editor also still needs development, 1) to define structured variants of area perimeter/edge segments so they can connect cleanly with other areas after rearrangement, 2) to support customizing animations, including dungeon openings, 3) to support redrawing the Mode 7 overworld map. Currently the editor focuses on retiling the overworld BG2 layer and associated collision data, as this is primarily what is needed for the randomizer project; it may later be extended with support to customize other game elements such as enemies, entrances, secrets, items, and dungeons.
 
-A prototype generator and CLI now produce structured seeds with uniform item placement; logical item placement and the web service remain planned. A [design doc](https://docs.google.com/document/d/1skZsIxZLKbCC8C_-3b3TTZVwblzNkN2ZTXraZ4Zxzkc) describes the planned tier-based item placement logic along with several balance-oriented gameplay changes.
+A prototype generator and CLI now produce structured seeds and patched ROMs with uniform item placement; logical item placement and the web service remain planned. A [design doc](https://docs.google.com/document/d/1skZsIxZLKbCC8C_-3b3TTZVwblzNkN2ZTXraZ4Zxzkc) describes the planned tier-based item placement logic along with several balance-oriented gameplay changes.
 
 The current focus is on the technical foundation for the project, particularly the game engine changes needed to support the flexible palette and tileset system. For detailed plans, see the docs in [plans](plans/README.md).
 
-# How to generate a prototype seed
+# How to generate and patch a prototype seed
 
 From the repository root, build the generation catalogs and invoke the CLI:
 
@@ -20,7 +20,22 @@ cargo run -p catalog_builder -- retiling
 cargo run -p cli -- --rng 12345
 ```
 
-The CLI uses bundled default settings and catalogs from `build/`, and writes `z3-map-rando-<SEED-NAME>.json.zst` in the working directory. Omit `--rng` to choose a numeric seed randomly. Use `--settings settings.json`, `--theme Desert`, or `--output-seed seed.json.zst` to override generation inputs or the output path. Set `--compression-level 18` to use a higher Zstd compression level instead of the default `3`. If catalogs are stored elsewhere, specify `--logic-catalog` and `--retiling-catalog`. Run `cargo run -p cli -- --help` for the implemented arguments.
+The CLI uses bundled default settings and catalogs from `build/`, and writes `z3-map-rando-<SEED-NAME>.json.zst` in the working directory. Omit `--rng` to choose a numeric seed randomly. Use `--settings settings.json`, `--theme Desert`, or `--output-seed seed.json.zst` to override generation inputs or the output path. Set `--compression-level 18` to use a higher Zstd compression level instead of the default `3`. If catalogs are stored elsewhere, specify `--logic-catalog` and `--retiling-catalog`. Run `cargo run -p cli -- --help` for all arguments.
+
+To generate and patch together, build the patch catalog and supply a vanilla ROM:
+
+```sh
+cargo run -p catalog_builder -- patches
+cargo run -p cli -- --rom path/to/vanilla.sfc --rng 12345
+```
+
+This reads and verifies the vanilla ROM before generation, saves the seed before patching, then writes `z3-map-rando-<SEED-NAME>.sfc`. Use `--output-rom output.sfc` to override the ROM filename. To patch an existing seed without generating or rewriting it:
+
+```sh
+cargo run -p cli -- --seed seed.json.zst --rom path/to/vanilla.sfc
+```
+
+Patch-only operation uses the saved seed name and requires only the current retiling and patch catalogs. Use `--patch-catalog` to override the patch catalog path. Patch-time `--transition-asset-phase` accepts `pre-scroll`, `scroll`, and `post-scroll`, defaulting to `scroll`. The supported vanilla ROM is described below.
 
 To build a binary with catalogs bundled, run:
 
@@ -28,9 +43,9 @@ To build a binary with catalogs bundled, run:
 cargo build -p cli --release --features bundle-catalogs
 ```
 
-This invokes the existing cached builder for all three catalogs, including ASM assembly, and embeds catalog files from the configured output directory. The resulting `target/release/z3-map-rando` generates seeds without external catalog files. Explicit catalog paths still override bundled data. Bundled builds rebuild the CLI on every invocation but reuse unchanged catalog and assembly outputs. Avoid updating the shared catalog cache concurrently with compilation.
+This invokes the existing cached builder for all three catalogs, including ASM assembly, and embeds catalog files from the configured output directory. The resulting `target/release/z3-map-rando` generates seeds and patches ROMs without external catalog files. Explicit catalog paths still override bundled data. Bundled builds rebuild the CLI on every invocation but reuse unchanged catalog and assembly outputs. Avoid updating the shared catalog cache concurrently with compilation.
 
-The prototype shuffles ordinary items globally, maps and compasses within their dungeon, and pendants and crystals among prize locations. SmallKey and BigKey placements and the Waterfall/Pyramid fairy exchange rewards remain vanilla. It records the selected theme for each supported area with vanilla placement implicit. It does not check logical progression. The patcher library can apply the saved layout and item placements to a ROM, using placeholder pickup graphics and vanilla receipt behavior; CLI patching is the next implementation step. See [the CLI design](plans/cli.md) for bundled builds and planned patching.
+The prototype shuffles ordinary items globally, maps and compasses within their dungeon, and pendants and crystals among prize locations. SmallKey and BigKey placements and the Waterfall/Pyramid fairy exchange rewards remain vanilla. It records the selected theme for each supported area with vanilla placement implicit. It does not check logical progression. The CLI and patcher library apply the saved layout and item placements to a ROM, using placeholder pickup graphics and vanilla receipt behavior. See [the CLI design](plans/cli.md) for bundled builds and argument behavior.
 
 # How to test current engine changes
 
@@ -101,7 +116,7 @@ From the repository root:
 cargo run -p catalog_builder -- patches
 ```
 
-This writes `build/patch_catalog.bin`, reusing cached assembly artifacts. Settings in `catalog-build.toml` select the data source, ASM directory, Asar checkout or executable, artifact directory, and compression level. Changing compression does not invalidate assembly. Unchanged catalog packaging is skipped through the shared cache and configuration. `theme_check` consumes these catalog bytes and symbols directly.
+This writes `build/patch_catalog.bin`, reusing cached assembly artifacts. Settings in `catalog-build.toml` select the data source, ASM directory, Asar checkout or executable, artifact directory, and compression level. Changing compression does not invalidate assembly. Unchanged catalog packaging is skipped through the shared cache and configuration. The main CLI and `theme_check` consume these catalog bytes and symbols directly.
 
 # How to build the tile fingerprint index
 
@@ -141,6 +156,6 @@ The builder also caches `build/patches/symbols.sym`, exported independently from
 asar_executable = "path/to/patched/asar"
 ```
 
-We use a patched version of Asar with IPS output support; an upstream Asar executable will not work. The new command leaves tracked `patches/ips/` files unchanged. `theme_check` uses the generated patch catalog. Removal of the tracked IPS files and retirement of the old Python scripts remain planned work.
+We use a patched version of Asar with IPS output support; an upstream Asar executable will not work. IPS files are local artifacts under `build/patches/`, and are not checked into source control. Both the CLI and `theme_check` consume the generated patch catalog. The Rust catalog builder owns assembler building, assembly, and caching; the former Python builder scripts have been retired.
 
 Dependency tracking supports only standalone, single-line `incsrc "literal/path"` directives. Paths are relative to the including file and followed recursively, including conditional branches. The scanner does not evaluate defines or macros, resolve include search paths, or track `incbin` or other file-reading directives. Extend it before adding any of these forms, or cached outputs could become stale.
