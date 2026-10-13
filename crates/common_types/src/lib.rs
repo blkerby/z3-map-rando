@@ -10,6 +10,13 @@ use type_hash::TypeHash;
 /// Shared project release version:
 pub const VERSION: &str = include_str!("../../../VERSION").trim_ascii();
 
+/// Check Frog/Dwarf permission for an ordinary native ROM door entrance.
+/// IDs below $3C are the first 59 forbidden door-table entries. Drops and
+/// special overworld transitions bypass this check.
+pub fn allows_frog_dwarf(rom_entrance_id: u8) -> bool {
+    rom_entrance_id >= 0x3c
+}
+
 /// Authored room identity. Overworld IDs are separate from all interior room kinds.
 /// Existing IDs are permanent; removed IDs must not be reused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, TypeHash)]

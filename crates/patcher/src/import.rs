@@ -3,6 +3,7 @@
 
 use crate::graphics::{decode_3bpp_tiles, encode_4bpp_tile, encode_bgr555};
 use anyhow::{Result, bail, ensure};
+use common_types::allows_frog_dwarf;
 use std::{
     collections::HashMap,
     fmt::Display,
@@ -608,14 +609,15 @@ impl Importer {
                 self.rom
                     .read_u16((SnesAddr(0x1bb96f) + u32::try_from(index * 2)?).into())?,
             );
+            let entrance_id = self
+                .rom
+                .read_u8((SnesAddr(0x1bbb73) + u32::try_from(index)?).into())?;
             entrances[area].push(OverworldEntrance {
                 map16_offset: self
                     .rom
                     .read_u16((SnesAddr(0x1bba71) + u32::try_from(index * 2)?).into())?,
-                entrance_id: self
-                    .rom
-                    .read_u8((SnesAddr(0x1bbb73) + u32::try_from(index)?).into())?,
-                allows_frog_dwarf: index >= 59,
+                entrance_id,
+                allows_frog_dwarf: allows_frog_dwarf(entrance_id),
             });
         }
 

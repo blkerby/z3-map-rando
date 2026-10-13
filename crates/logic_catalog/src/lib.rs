@@ -290,6 +290,8 @@ pub struct Entrance {
     pub vertex_idx: VertexIndex,
     pub entrance_id: u32,
     pub name: String,
+    /// Native ROM entrance record; absent for special overworld transitions.
+    pub rom_entrance_id: Option<u8>,
 }
 
 /// Default endpoint pairings. Generation expands the selected connections into edges.

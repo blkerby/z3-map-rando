@@ -130,6 +130,7 @@ fn compile_room_nodes(
                         vertex_idx,
                         entrance_id: entrance.id,
                         name: entrance.name.clone(),
+                        rom_entrance_id: entrance.rom_entrance_id,
                     });
                 }
             }

@@ -140,7 +140,7 @@ pub struct Node {
     pub world: Option<NodeWorld>,
     pub spawn_point: Option<String>,
     #[serde(default)]
-    pub entrances: Vec<Endpoint>,
+    pub entrances: Vec<Entrance>,
     #[serde(default)]
     pub transitions: Vec<Transition>,
     #[serde(default)]
@@ -178,6 +178,15 @@ impl SourceNodeType {
             Self::Shop => NodeType::Shop,
         }
     }
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Entrance {
+    pub id: u32,
+    pub name: String,
+    pub world: SourceWorld,
+    pub rom_entrance_id: Option<u8>,
 }
 
 #[derive(Deserialize)]

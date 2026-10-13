@@ -470,6 +470,7 @@ name = "patcher"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "common_types",
  "patch_catalog",
  "retiling_catalog",
  "seed_data",

@@ -1,8 +1,9 @@
 //! Shared world topology for the preliminary key pass and normal traversal.
 
+use common_types::allows_frog_dwarf;
 use logic_catalog::{
     Connection, Edge, EdgeIndex, EntranceIndex, EntranceKind, EventEndpoint, Follower,
-    LogicCatalog, Requirement, RoomKind, SourceRoomId, VertexIndex,
+    LogicCatalog, NodeType, Requirement, VertexIndex,
 };
 
 #[derive(Debug)]
@@ -91,15 +92,15 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                 entrance_idx,
                 interior_vertex_idx,
             } => {
-                let room = catalog.room(catalog.vertex(*interior_vertex_idx).room_idx);
                 let requirement = match kind {
                     EntranceKind::Door => {
                         let mut lost =
                             vec![Follower::OldMan, Follower::Blind, Follower::PurpleChest];
                         // Discard followers that cannot enter; they can be lost whenever needed.
-                        // Link's House (authored interior 55) also loses the Dwarf on entry.
-                        if room.kind == RoomKind::Dungeon
-                            || room.room_id == Some(SourceRoomId::Underworld(55))
+                        if catalog
+                            .entrance(*entrance_idx)
+                            .rom_entrance_id
+                            .is_some_and(|id| !allows_frog_dwarf(id))
                         {
                             lost.push(Follower::Dwarf);
                         }
@@ -136,7 +137,17 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                     entrance_idx: None,
                 },
                 false,
-                Requirement::Free,
+                // Houlihan's door uses ordinary exit loading; the Agahnim event warps do not.
+                if catalog
+                    .room(catalog.vertex(*from_vertex_idx).room_idx)
+                    .node(catalog.vertex_metadata(*from_vertex_idx).node_idx)
+                    .node_type
+                    == Some(NodeType::Door)
+                {
+                    Requirement::LoseFollowers(Box::new([Follower::Blind]))
+                } else {
+                    Requirement::Free
+                },
             ),
             Connection::Whirlpool { endpoints } => (
                 ConnectionEndpoint {
@@ -163,9 +174,20 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                 Requirement::Free,
             ),
         };
+        let reverse_requirement = if matches!(
+            connection,
+            Connection::Entrance {
+                kind: EntranceKind::Door,
+                ..
+            }
+        ) {
+            Requirement::LoseFollowers(Box::new([Follower::Blind]))
+        } else {
+            Requirement::Free
+        };
         let directions = [
             (first, second, requirement),
-            (second, first, Requirement::Free),
+            (second, first, reverse_requirement),
         ];
         for (direction, (from, to, requirement)) in directions.into_iter().enumerate() {
             if direction == 1 && !bidirectional {
