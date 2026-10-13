@@ -1,5 +1,6 @@
 //! Uniform prototype generation without logical placement.
 
+pub mod graph;
 pub mod inputs;
 
 pub use seed_data::{SeedData, Settings};

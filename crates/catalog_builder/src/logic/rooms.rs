@@ -1,7 +1,4 @@
-use super::{
-    RoomIndices,
-    requirements::{Compiler, compose_requirements},
-};
+use super::{RoomIndices, requirements::Compiler};
 use crate::z3_json_data::{self, collect_source_files, read_source};
 use anyhow::{Context, Result};
 use logic_catalog::*;
@@ -321,7 +318,7 @@ fn compile_room_strats(
             catalog.edges.push(Edge {
                 from_vertex_idx,
                 to_vertex_idx,
-                requirement: compose_requirements(vec![bunny_requirement, requirement.clone()]),
+                requirement: Requirement::make_and(vec![bunny_requirement, requirement.clone()]),
                 effects: effects.clone().into_boxed_slice(),
             });
             catalog.edge_metadata.push(EdgeMetadata {

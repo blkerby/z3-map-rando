@@ -452,11 +452,34 @@ pub enum Requirement {
     Follower(Follower),
     /// Remove the current follower only if it appears in this list.
     LoseFollowers(Box<[Follower]>),
+    /// Replace local obstacle state with an uncleared state sized for this room.
+    /// Travel edges inject this after departure requirements when changing rooms.
+    ResetObstacles(RoomIndex),
     ObstacleCleared(ObstacleIndex),
     ObstacleNotCleared(ObstacleIndex),
     /// Requires the door to either be already unlocked (by an OpenDoor effect)
     /// or to be unlockable with a key.
     Door(DoorIndex),
+}
+
+impl Requirement {
+    /// Build an ordered conjunction, omitting Free inputs and flattening immediate Ands.
+    /// Keep stateful operations and Never in their original order.
+    pub fn make_and(requirements: Vec<Requirement>) -> Requirement {
+        let mut children = Vec::new();
+        for requirement in requirements {
+            match requirement {
+                Requirement::Free => {}
+                Requirement::And(nested) => children.extend(nested),
+                other => children.push(other),
+            }
+        }
+        match children.len() {
+            0 => Requirement::Free,
+            1 => children.pop().unwrap(),
+            _ => Requirement::And(children.into_boxed_slice()),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

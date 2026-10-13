@@ -14,23 +14,6 @@ pub struct Compiler {
     pub damage: BTreeMap<String, [u32; 3]>,
 }
 
-/// Flatten conjunctions without changing execution order or resource actions.
-pub fn compose_requirements(requirements: Vec<Requirement>) -> Requirement {
-    let mut children = Vec::new();
-    for requirement in requirements {
-        match requirement {
-            Requirement::Free => {}
-            Requirement::And(nested) => children.extend(nested),
-            other => children.push(other),
-        }
-    }
-    match children.len() {
-        0 => Requirement::Free,
-        1 => children.pop().unwrap(),
-        _ => Requirement::And(children.into_boxed_slice()),
-    }
-}
-
 impl Compiler {
     pub fn compile_requirements(
         &self,
@@ -41,7 +24,7 @@ impl Compiler {
         for requirement in source {
             requirements.push(self.compile_requirement(requirement, room));
         }
-        compose_requirements(requirements)
+        Requirement::make_and(requirements)
     }
 
     fn compile_magic_requirement(
@@ -50,13 +33,13 @@ impl Compiler {
         cost_per_use: u32,
         num_uses: u32,
     ) -> Requirement {
-        Requirement::And(Box::new([
+        Requirement::make_and(vec![
             Requirement::Item(self.items[item]),
             Requirement::UseMagic {
                 cost_per_use,
                 num_uses,
             },
-        ]))
+        ])
     }
 
     fn compile_requirement(
@@ -76,7 +59,7 @@ impl Compiler {
                     return self.compile_requirements(&helper.requires, room);
                 }
                 if let Some((tech_idx, tech)) = self.techs.get(name) {
-                    return compose_requirements(vec![
+                    return Requirement::make_and(vec![
                         Requirement::Tech(*tech_idx),
                         self.compile_requirements(&tech.tech_requires, room),
                         self.compile_requirements(&tech.other_requires, room),
@@ -119,7 +102,7 @@ impl Compiler {
                 kind: Ammo::SilverArrow,
                 count: *count,
             },
-            Op::Bombs(count) => compose_requirements(vec![
+            Op::Bombs(count) => Requirement::make_and(vec![
                 Requirement::LoseFollowers(Box::new([Follower::SuperBomb])),
                 Requirement::UseAmmo {
                     kind: Ammo::Bomb,
@@ -134,7 +117,7 @@ impl Compiler {
             Op::Lamp(num_uses) => self.compile_magic_requirement("Lamp", 4, *num_uses),
             Op::RedCane(num_uses) => self.compile_magic_requirement("CaneOfSomaria", 8, *num_uses),
             Op::Cape(num_uses) => self.compile_magic_requirement("Cape", 1, *num_uses),
-            Op::Rod(num_uses) => compose_requirements(vec![
+            Op::Rod(num_uses) => Requirement::make_and(vec![
                 Requirement::Or(Box::new([
                     Requirement::Item(self.items["FireRod"]),
                     Requirement::Item(self.items["IceRod"]),
@@ -144,21 +127,21 @@ impl Compiler {
                     num_uses: *num_uses,
                 },
             ]),
-            Op::Bombos(num_uses) => compose_requirements(vec![
+            Op::Bombos(num_uses) => Requirement::make_and(vec![
                 Requirement::Equipment {
                     equipment: Equipment::Sword,
                     minimum_level: 1,
                 },
                 self.compile_magic_requirement("Bombos", 32, *num_uses),
             ]),
-            Op::Ether(num_uses) => compose_requirements(vec![
+            Op::Ether(num_uses) => Requirement::make_and(vec![
                 Requirement::Equipment {
                     equipment: Equipment::Sword,
                     minimum_level: 1,
                 },
                 self.compile_magic_requirement("Ether", 32, *num_uses),
             ]),
-            Op::Quake(num_uses) => compose_requirements(vec![
+            Op::Quake(num_uses) => Requirement::make_and(vec![
                 Requirement::Equipment {
                     equipment: Equipment::Sword,
                     minimum_level: 1,
@@ -180,7 +163,7 @@ impl Compiler {
                         num_uses,
                     });
                 }
-                compose_requirements(requirements)
+                Requirement::make_and(requirements)
             }
             Op::Damage(damage) => {
                 let name = damage.attack.as_ref().unwrap_or(&damage.enemy);
@@ -249,7 +232,7 @@ impl Compiler {
                         _ => Requirement::ObstacleNotCleared(obstacle_idx),
                     });
                 }
-                compose_requirements(requirements)
+                Requirement::make_and(requirements)
             }
             Op::ResourceMissingAtMost(resources) => {
                 let mut requirements = Vec::new();
@@ -259,7 +242,7 @@ impl Compiler {
                         count: missing.count,
                     });
                 }
-                compose_requirements(requirements)
+                Requirement::make_and(requirements)
             }
         }
     }
