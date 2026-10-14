@@ -1,6 +1,6 @@
 # Logical item placement implementation plan
 
-Status: Steps 1 through 3 implemented; Steps 4 through 11 remain planned. The placement strategy and the resource, fairy-exchange, and retry policies below reflect the decisions made in discussion.
+Status: Steps 1 through 4 implemented; Steps 5 through 11 remain planned. The placement strategy and the resource, fairy-exchange, and retry policies below reflect the decisions made in discussion.
 
 ## Agreed behavior
 
@@ -144,17 +144,19 @@ Implemented in `generator::graph::build_graph`, taking an immutable catalog and 
 
 ### Step 4: Implement the simplified key-pass traversal
 
-Use a vertex work queue, a visited set for the current key inventory, and discoveries of the selected dungeon's key pickups and item collection actions. There is no resource, bottle, follower, or obstacle frontier in this mode.
+Use mutable traversal state containing visited vertices (`Vec<bool>`), available Small Key doors, Big Key availability, and collected item locations. Initialize an assignment attempt with only the world's start visited. Each traversal call expands the existing visited set using unchanged input inventory and returns only a set of newly collected item locations. The caller records accepted collections and applies inventory updates outside traversal. Initially enqueue every visited vertex and try all outgoing edges; keep the persistent state separate from the work queue so later calls can be optimized to retry only edges affected by new inventory. There is no resource, bottle, follower, or obstacle frontier in this mode.
 
 Evaluate requirement composition while treating non-key leaves as free. Enforce a selected-dungeon small-key door through its candidate assignment. Enforce all selected-dungeon Big Key requirements through collection of its vanilla Big Key, including door locks and bare `Item(BigKey)` requirements on chests or other actions. Treat other dungeons' small-key and Big Key requirements as free. Big chests need no special handling; retaining their Big Key check also supports future changes to key pickup locations. Ignore temporary-state effects; preserve collection discoveries. An unassigned small-key pickup is collectible but enables no door until a candidate assigns it an identity.
 
-Run to closure after discovering a usable key, restarting or extending traversal as needed. Report collected small-key locations, Big Key availability, and collectible item locations in the selected dungeon. Do not seed every dungeon entrance as independently reachable.
+Newly collected Small Keys remain unassigned and do not enable doors during traversal. The caller assigns already collected keys and adds their doors to the input state before the next call. The caller also grants the vanilla Big Key from its returned collection location and initiates another traversal to explore newly enabled routes. Traversal does not requeue vertices when it discovers a key and has no outer restart loop. Preserve visited vertices, inventory, and accepted collected item locations in the selected dungeon across calls. Do not seed every dungeon entrance as independently reachable.
 
 Completion: the key pass can ask which target-dungeon keys and items are collectible for a partial candidate assignment.
 
+Implemented in `generator::key_traversal::{KeyPassState, traverse_key_pass}`, using the shared `TraversalGraph`. `KeyPassState::initialize` seeds only the graph's start; callers can clone the state to isolate candidate trials. Traversal mutates only visited vertices, processes collection effects even on self-loops and already-visited destinations, and returns newly collected item locations in a `hashbrown` set. Collected location records and inventory remain caller-maintained. The Big Key item index is resolved before the work queue runs for bare Big Key requirement comparisons. Recursive `And`/`Or` requirements retain selected-dungeon key checks; other leaves, including `Never`, are free in this relaxed pass. Temporary and non-collection effects are ignored. Sort discoveries before using their iteration order to construct randomized candidates. Candidate assignment and generator integration remain in Steps 5 and 11.
+
 ### Step 5: Assign one dungeon's small-key identities at a time
 
-For the current dungeon, start with no assignments and run the simplified traverser. Gather its collectible, unassigned small-key pickups and sample a distinct unassigned door for each pickup in the candidate batch. Recompute closure with those assignments. Accept a candidate if another small key becomes collectible or every item location in that dungeon becomes collectible; otherwise discard the candidate without altering committed assignments.
+For the current dungeon, start with no assignments and initialized traversal state, then run the simplified traverser. Record returned collections, grant a collected vanilla Big Key outside traversal, and traverse again when that inventory update enables new routes. Gather collectible, unassigned small-key pickups and sample a distinct unassigned door for each pickup in the candidate batch. Clone the traversal state, add the candidate batch's doors to its available doors, and expand reachability, recording candidate collections and applying Big Key updates between calls until closure. Accept the candidate assignments and state if another small key becomes collectible or every item location in that dungeon becomes collectible; otherwise discard them without altering committed assignments or traversal state.
 
 Continue with the newly collectible unassigned keys. Once every dungeon item is collectible, randomly pair any remaining unassigned key pickups and doors. Those keys are already collectible without their new doors, so these final assignments cannot introduce a key-collection cycle. The result assigns an identity to every small-key pickup and door.
 
