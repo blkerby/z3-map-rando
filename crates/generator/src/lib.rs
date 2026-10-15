@@ -2,6 +2,7 @@
 
 pub mod graph;
 pub mod inputs;
+pub mod key_assignment;
 pub mod key_traversal;
 
 pub use seed_data::{SeedData, Settings};

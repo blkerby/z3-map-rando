@@ -1,6 +1,6 @@
 # Logical item placement implementation plan
 
-Status: Steps 1 through 4 implemented; Steps 5 through 11 remain planned. The placement strategy and the resource, fairy-exchange, and retry policies below reflect the decisions made in discussion.
+Status: Steps 1 through 5 implemented; Steps 6 through 11 remain planned. The placement strategy and the resource, fairy-exchange, and retry policies below reflect the decisions made in discussion.
 
 ## Agreed behavior
 
@@ -152,7 +152,7 @@ Newly collected Small Keys remain unassigned and do not enable doors during trav
 
 Completion: the key pass can ask which target-dungeon keys and items are collectible for a partial candidate assignment.
 
-Implemented in `generator::key_traversal::{KeyPassState, traverse_key_pass}`, using the shared `TraversalGraph`. `KeyPassState::initialize` seeds only the graph's start; callers can clone the state to isolate candidate trials. Traversal mutates only visited vertices, processes collection effects even on self-loops and already-visited destinations, and returns newly collected item locations in a `hashbrown` set. Collected location records and inventory remain caller-maintained. The Big Key item index is resolved before the work queue runs for bare Big Key requirement comparisons. Recursive `And`/`Or` requirements retain selected-dungeon key checks; other leaves, including `Never`, are free in this relaxed pass. Temporary and non-collection effects are ignored. Sort discoveries before using their iteration order to construct randomized candidates. Candidate assignment and generator integration remain in Steps 5 and 11.
+Implemented in `generator::key_traversal::{KeyPassState, traverse_key_pass}`, using the shared `TraversalGraph`. `KeyPassState::initialize` seeds only the graph's start; callers can clone the state to isolate candidate trials. Traversal mutates only visited vertices, processes collection effects even on self-loops and already-visited destinations, and returns newly collected item locations in a `hashbrown` set. Collected location records and inventory remain caller-maintained. The Big Key item index is resolved before the work queue runs for bare Big Key requirement comparisons. Recursive `And`/`Or` requirements retain selected-dungeon key checks; other leaves, including `Never`, are free in this relaxed pass. Temporary and non-collection effects are ignored. Sort discoveries before using their iteration order to construct randomized candidates. Candidate assignment is implemented in Step 5; generator integration remains in Step 11.
 
 ### Step 5: Assign one dungeon's small-key identities at a time
 
@@ -163,6 +163,10 @@ Continue with the newly collectible unassigned keys. Once every dungeon item is 
 If an attempt cannot continue, discard only the current dungeon's assignments and restart that dungeon within its attempt budget. Never discard successfully settled previous dungeons. Other dungeons' locks remain free regardless of their saved assignments. Freeze all successful assignments before main placement.
 
 Completion: every dungeon has a complete key assignment whose keys and item locations are collectible under the preliminary pass's relaxed requirements.
+
+Implemented in `generator::key_assignment::assign_small_keys`, returning a `hashbrown::HashMap<ItemLocationIndex, Item>` whose Small Key rewards carry stable `DoorId` payloads. Candidate batches clone traversal state, apply available doors, and record collections and Big Key updates outside traversal. Rejected candidates leave committed assignments and discoveries untouched. Dungeon retries retain previously settled dungeons. Candidate construction follows catalog order before shuffling; hash iteration does not influence RNG calls. The initial budgets are 100 candidates per wave and 1000 attempts per dungeon. Exhaustion reports the dungeon, budgets, last failure reason, and inaccessible locations without claiming that the layout is unsolvable. Generator integration remains in Step 11.
+
+Full-catalog validation identified three missing collection actions, now corrected in `z3-json-data`: Skull Woods' Final Section Bridge Room Chest (`Underworld(95)`, item 8), Desert of Mystery's West Ledge item (`Overworld(31)`, item 1), and Spectacle Rock Cave's Ledge item (`Underworld(5)`, item 1). The rebuilt catalog has collection actions for all 259 item locations. Temporary probes generated 100 seeds twice reproducibly and independently verified that every dungeon location was collectible with the assigned keys; these probes took about 7.7 seconds in the development test build. Synthetic probes also verified multi-door batch progress through a newly collected Big Key, final pairing of unneeded doors, and bounded failure diagnostics. All temporary probes were removed.
 
 ### Step 6: Define normal global and local state and item grants
 
