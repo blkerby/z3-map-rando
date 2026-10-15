@@ -53,6 +53,7 @@ impl Compiler {
                 match name.as_str() {
                     "free" | "h_MothulaVulnerableToGoldSword" => return Requirement::Free,
                     "never" => return Requirement::Never,
+                    "BigKey" => return Requirement::BigKey(room.dungeon_idx.unwrap()),
                     _ => {}
                 }
                 if let Some(helper) = self.helpers.get(name) {

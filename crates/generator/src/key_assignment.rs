@@ -8,7 +8,7 @@ use crate::{
 use anyhow::{Result, bail};
 use common_types::Item;
 use hashbrown::HashMap;
-use logic_catalog::{DoorIndex, ItemLocationIndex, LogicCatalog, RoomIndex};
+use logic_catalog::{DoorIndex, DungeonIndex, ItemLocationIndex, LogicCatalog};
 use rand::{Rng, seq::SliceRandom};
 
 const MAX_DUNGEON_ATTEMPTS: usize = 1000;
@@ -24,10 +24,12 @@ pub fn assign_small_keys(
     rng: &mut impl Rng,
 ) -> Result<HashMap<ItemLocationIndex, Item>> {
     let mut rewards = HashMap::new();
-    for (&dungeon_idx, dungeon) in &inputs.dungeons {
+    for (index, dungeon) in inputs.dungeons.iter().enumerate() {
+        let dungeon_idx = DungeonIndex(index as u32);
+        let room_idx = catalog.dungeons[index];
         let mut required_locations = Vec::new();
         for (index, location) in catalog.item_locations.iter().enumerate() {
-            if catalog.vertex(location.vertex_idx).room_idx == dungeon_idx {
+            if catalog.vertex(location.vertex_idx).room_idx == room_idx {
                 required_locations.push(ItemLocationIndex(index as u32));
             }
         }
@@ -56,7 +58,7 @@ pub fn assign_small_keys(
 fn assign_dungeon_keys(
     catalog: &LogicCatalog,
     graph: &TraversalGraph,
-    dungeon_idx: RoomIndex,
+    dungeon_idx: DungeonIndex,
     dungeon: &DungeonInputs,
     required_locations: &[ItemLocationIndex],
     rng: &mut impl Rng,
@@ -158,7 +160,7 @@ fn assign_dungeon_keys(
         let location = catalog.item_location(location_idx);
         inaccessible_names.push(format!("{} ({:?})", location.name, location.id));
     }
-    let dungeon = catalog.room(dungeon_idx);
+    let dungeon = catalog.room(catalog.dungeons[dungeon_idx.0 as usize]);
     bail!(
         "preliminary key assignment for {} ({:?}) exhausted {} dungeon attempts ({} candidates per wave); last attempt: {}; inaccessible locations: {}.",
         dungeon.name,
@@ -174,7 +176,7 @@ fn assign_dungeon_keys(
 fn collect_dungeon_items(
     catalog: &LogicCatalog,
     graph: &TraversalGraph,
-    dungeon_idx: RoomIndex,
+    dungeon_idx: DungeonIndex,
     dungeon: &DungeonInputs,
     state: &mut KeyPassState,
 ) {

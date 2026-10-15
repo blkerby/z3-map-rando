@@ -38,17 +38,28 @@ pub(super) fn compile_rooms(
         } else {
             SourceRoomId::Underworld(source_room.id)
         };
+        let dungeon_idx = if source_room.room_type == RoomKind::Dungeon {
+            let idx = DungeonIndex(catalog.dungeons.len() as u32);
+            catalog.dungeons.push(RoomIndex(catalog.rooms.len() as u32));
+            Some(idx)
+        } else {
+            None
+        };
         let mut room = Room {
             room_id: Some(room_id),
             name: source_room.name.clone(),
             kind: source_room.room_type,
+            dungeon_idx,
             position: source_room.position,
             size: source_room.size,
             obstacles: Vec::new(),
             nodes: Vec::new(),
             strats: Vec::new(),
         };
-        let mut indices = RoomIndices::default();
+        let mut indices = RoomIndices {
+            dungeon_idx,
+            ..RoomIndices::default()
+        };
         for obstacle in &source_room.obstacles {
             let obstacle_idx = ObstacleIndex(room.obstacles.len() as u32);
             indices.obstacles.insert(obstacle.id.clone(), obstacle_idx);

@@ -4,6 +4,7 @@ pub mod graph;
 pub mod inputs;
 pub mod key_assignment;
 pub mod key_traversal;
+pub mod state;
 
 pub use seed_data::{SeedData, Settings};
 
@@ -48,7 +49,8 @@ pub fn generate(
             .or_default()
             .push(location_idx.0 as usize);
     }
-    for (&room_idx, dungeon) in &inputs.dungeons {
+    for (index, dungeon) in inputs.dungeons.iter().enumerate() {
+        let room_idx = logic_catalog.dungeons[index];
         let mut items = Vec::new();
         for item in &dungeon.map_compass_pool {
             let name = match item {

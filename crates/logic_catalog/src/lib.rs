@@ -55,6 +55,10 @@ pub struct EdgeIndex(pub u32);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct RoomIndex(pub u32);
 
+/// Dense index into `LogicCatalog::dungeons`, independent of room indices.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct DungeonIndex(pub u32);
+
 /// Index into `Room::nodes`, local to a room.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct NodeIndex(pub u32);
@@ -119,6 +123,8 @@ pub struct LogicCatalog {
     /// Light World Link's House. Other restart destinations are deferred.
     pub start_vertex_idx: VertexIndex,
     pub rooms: Vec<Room>,
+    /// Source room for each dungeon, in catalog room order.
+    pub dungeons: Vec<RoomIndex>,
     pub items: Vec<ItemDefinition>,
     pub techs: Vec<TechDefinition>,
     pub flags: Vec<String>,
@@ -195,6 +201,8 @@ pub struct Room {
     pub room_id: Option<SourceRoomId>,
     pub name: String,
     pub kind: RoomKind,
+    /// Dense dungeon ownership; absent for non-dungeon rooms and the flute hub.
+    pub dungeon_idx: Option<DungeonIndex>,
     /// Source overworld grid position and size; absent for interiors and the flute hub.
     pub position: Option<[u8; 2]>,
     pub size: Option<[u16; 2]>,
@@ -406,6 +414,8 @@ pub enum Requirement {
     /// Each branch starts with the same input; retain its successful local states.
     Or(Box<[Requirement]>),
     Item(ItemIndex),
+    /// Ownership of a dungeon's Big Key, including non-door checks.
+    BigKey(DungeonIndex),
     Equipment {
         equipment: Equipment,
         minimum_level: u8,

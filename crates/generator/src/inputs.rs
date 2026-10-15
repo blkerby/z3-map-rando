@@ -1,6 +1,6 @@
 use anyhow::{Result, anyhow, bail, ensure};
 use common_types::{DoorId, Item};
-use logic_catalog::{DoorIndex, ItemLocationIndex, LockKind, LogicCatalog, RoomIndex, RoomKind};
+use logic_catalog::{DoorIndex, ItemLocationIndex, LockKind, LogicCatalog};
 use seed_data::Settings;
 use std::collections::BTreeMap;
 
@@ -13,7 +13,8 @@ pub struct GenerationInputs {
     pub items: Vec<Option<Item>>,
     /// Stable authored identities in catalog door order.
     pub door_ids: Vec<DoorId>,
-    pub dungeons: BTreeMap<RoomIndex, DungeonInputs>,
+    /// Indexed by catalog DungeonIndex, matching `LogicCatalog::dungeons`.
+    pub dungeons: Vec<DungeonInputs>,
     /// Eligible ordinary slots, including the slots originally holding Maps and Compasses.
     pub ordinary_locations: Vec<ItemLocationIndex>,
     pub ordinary_pool: Vec<Item>,
@@ -42,7 +43,7 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
     let mut inputs = GenerationInputs {
         items: Vec::new(),
         door_ids: Vec::new(),
-        dungeons: BTreeMap::new(),
+        dungeons: Vec::new(),
         ordinary_locations: Vec::new(),
         ordinary_pool: Vec::new(),
         fixed_items: BTreeMap::new(),
@@ -54,12 +55,8 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
     for item in &catalog.items {
         inputs.items.push(resolve_item(&item.name));
     }
-    for (index, room) in catalog.rooms.iter().enumerate() {
-        if room.kind == RoomKind::Dungeon {
-            inputs
-                .dungeons
-                .insert(RoomIndex(index as u32), DungeonInputs::default());
-        }
+    for _ in &catalog.dungeons {
+        inputs.dungeons.push(DungeonInputs::default());
     }
     for (index, door) in catalog.doors.iter().enumerate() {
         // All doors belong to authored rooms; the synthetic flute hub has none.
@@ -68,8 +65,10 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
             door_id: door.door_id,
         });
         if door.lock == LockKind::SmallKey {
-            if let Some(dungeon) = inputs.dungeons.get_mut(&door.room_idx) {
-                dungeon.small_key_doors.push(DoorIndex(index as u32));
+            if let Some(dungeon_idx) = catalog.room(door.room_idx).dungeon_idx {
+                inputs.dungeons[dungeon_idx.0 as usize]
+                    .small_key_doors
+                    .push(DoorIndex(index as u32));
             }
         }
     }
@@ -78,7 +77,10 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
     for (index, location) in catalog.item_locations.iter().enumerate() {
         let location_idx = ItemLocationIndex(index as u32);
         let room_idx = catalog.vertex(location.vertex_idx).room_idx;
-        let dungeon = inputs.dungeons.get_mut(&room_idx);
+        let dungeon = match catalog.room(room_idx).dungeon_idx {
+            Some(idx) => Some(&mut inputs.dungeons[idx.0 as usize]),
+            None => None,
+        };
         let item_name = &catalog.item(location.vanilla_item_idx).name;
         if item_name == "SmallKey" {
             if let Some(dungeon) = dungeon {

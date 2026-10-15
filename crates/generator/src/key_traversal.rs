@@ -3,8 +3,8 @@
 use crate::graph::TraversalGraph;
 use hashbrown::HashSet;
 use logic_catalog::{
-    DoorIndex, Effect, ItemIndex, ItemLocationIndex, LockKind, LogicCatalog, Requirement,
-    RoomIndex, VertexIndex,
+    DoorIndex, DungeonIndex, Effect, ItemLocationIndex, LockKind, LogicCatalog, Requirement,
+    VertexIndex,
 };
 use std::collections::VecDeque;
 
@@ -48,16 +48,9 @@ pub struct KeyPassResult {
 pub fn traverse_key_pass(
     catalog: &LogicCatalog,
     graph: &TraversalGraph,
-    dungeon_idx: RoomIndex,
+    dungeon_idx: DungeonIndex,
     state: &mut KeyPassState,
 ) -> KeyPassResult {
-    let big_key_item_idx = ItemIndex(
-        catalog
-            .items
-            .iter()
-            .position(|item| item.name == "BigKey")
-            .unwrap() as u32,
-    );
     let mut result = KeyPassResult::default();
     let mut queue = VecDeque::new();
     for (index, &visited) in state.visited_vertices.iter().enumerate() {
@@ -67,17 +60,9 @@ pub fn traverse_key_pass(
     }
 
     while let Some(vertex_idx) = queue.pop_front() {
-        let room_idx = catalog.vertex(vertex_idx).room_idx;
         for traversal_edge in &graph.outgoing[vertex_idx.0 as usize] {
             let edge = &traversal_edge.edge;
-            if !check_requirement(
-                catalog,
-                &edge.requirement,
-                room_idx,
-                dungeon_idx,
-                state,
-                big_key_item_idx,
-            ) {
+            if !check_requirement(catalog, &edge.requirement, dungeon_idx, state) {
                 continue;
             }
 
@@ -88,7 +73,8 @@ pub fn traverse_key_pass(
                     continue;
                 };
                 let location = catalog.item_location(location_idx);
-                if catalog.vertex(location.vertex_idx).room_idx != dungeon_idx
+                let room = catalog.room(catalog.vertex(location.vertex_idx).room_idx);
+                if room.dungeon_idx != Some(dungeon_idx)
                     || state.collected_item_locations.contains(&location_idx)
                 {
                     continue;
@@ -109,22 +95,13 @@ pub fn traverse_key_pass(
 fn check_requirement(
     catalog: &LogicCatalog,
     requirement: &Requirement,
-    room_idx: RoomIndex,
-    dungeon_idx: RoomIndex,
+    dungeon_idx: DungeonIndex,
     state: &KeyPassState,
-    big_key_item_idx: ItemIndex,
 ) -> bool {
     match requirement {
         Requirement::And(children) => {
             for child in children {
-                if !check_requirement(
-                    catalog,
-                    child,
-                    room_idx,
-                    dungeon_idx,
-                    state,
-                    big_key_item_idx,
-                ) {
+                if !check_requirement(catalog, child, dungeon_idx, state) {
                     return false;
                 }
             }
@@ -132,25 +109,18 @@ fn check_requirement(
         }
         Requirement::Or(children) => {
             for child in children {
-                if check_requirement(
-                    catalog,
-                    child,
-                    room_idx,
-                    dungeon_idx,
-                    state,
-                    big_key_item_idx,
-                ) {
+                if check_requirement(catalog, child, dungeon_idx, state) {
                     return true;
                 }
             }
             false
         }
-        Requirement::Item(item_idx) => {
-            room_idx != dungeon_idx || *item_idx != big_key_item_idx || state.has_big_key
+        Requirement::BigKey(required_dungeon_idx) => {
+            *required_dungeon_idx != dungeon_idx || state.has_big_key
         }
         Requirement::Door(door_idx) => {
             let door = catalog.door(*door_idx);
-            if door.room_idx != dungeon_idx {
+            if catalog.room(door.room_idx).dungeon_idx != Some(dungeon_idx) {
                 return true;
             }
             match door.lock {

@@ -15,6 +15,7 @@ use std::{
 
 #[derive(Default)]
 struct RoomIndices {
+    dungeon_idx: Option<DungeonIndex>,
     vertices: BTreeMap<(u32, Option<World>), VertexIndex>,
     entrances: BTreeMap<(u32, World), EntranceIndex>,
     teleports: BTreeMap<(u32, World), TeleportIndex>,
@@ -56,6 +57,7 @@ pub fn build_catalog(
         item_locations: Vec::new(),
         start_vertex_idx: VertexIndex(0),
         rooms: Vec::new(),
+        dungeons: Vec::new(),
         items: Vec::new(),
         techs: Vec::new(),
         flags: Vec::new(),
@@ -84,6 +86,7 @@ fn build_flute_travel(catalog: &mut LogicCatalog, active_flute_idx: ItemIndex) {
         room_id: None,
         name: "Flute travel".to_owned(),
         kind: RoomKind::FluteHub,
+        dungeon_idx: None,
         position: None,
         size: None,
         obstacles: Vec::new(),
