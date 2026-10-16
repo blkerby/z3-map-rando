@@ -75,6 +75,49 @@ pub struct ItemLocationIndex(pub u32);
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ItemIndex(pub u32);
 
+/// Unique items, modeled as boolean state in inventory; other items use dedicated state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UniqueItem {
+    FireRod,
+    IceRod,
+    Hammer,
+    Hookshot,
+    Bow,
+    SilverArrows,
+    MagicPowder,
+    Bombos,
+    Ether,
+    Quake,
+    Lamp,
+    Shovel,
+    CaneOfSomaria,
+    CaneOfByrna,
+    Cape,
+    MagicMirror,
+    BookOfMudora,
+    Flippers,
+    MoonPearl,
+    BugCatchingNet,
+    Mushroom,
+    PegasusBoots,
+    HalfMagic,
+    PendantOfCourage,
+    PendantOfWisdom,
+    PendantOfPower,
+    Crystal1,
+    Crystal2,
+    Crystal3,
+    Crystal4,
+    Crystal5,
+    Crystal6,
+    Crystal7,
+    Triforce,
+}
+
+impl UniqueItem {
+    pub const COUNT: usize = Self::Triforce as usize + 1;
+}
+
 /// Index into `LogicCatalog::techs`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct TechIndex(pub u32);
@@ -413,14 +456,17 @@ pub enum Requirement {
     And(Box<[Requirement]>),
     /// Each branch starts with the same input; retain its successful local states.
     Or(Box<[Requirement]>),
-    Item(ItemIndex),
+    Item(UniqueItem),
+    /// Minimum owned/activated Ocarina state.
+    Ocarina(OcarinaState),
+    /// Minimum number of owned bottles, regardless of contents.
+    Bottles(u8),
     /// Ownership of a dungeon's Big Key, including non-door checks.
     BigKey(DungeonIndex),
     Equipment {
         equipment: Equipment,
         minimum_level: u8,
     },
-    /// Expanding dependencies must not remove the named tech's enabled check.
     Tech(TechIndex),
     Proficiency {
         tech_idx: TechIndex,
@@ -462,8 +508,8 @@ pub enum Requirement {
         count: u32,
     },
     Follower(Follower),
-    /// Remove the current follower only if it appears in this list.
-    LoseFollowers(Box<[Follower]>),
+    /// Discard the follower possibilities selected by this mask.
+    LoseFollowers(FollowerMask),
     /// Replace local obstacle state with an uncleared state sized for this room.
     /// Travel edges inject this after departure requirements when changing rooms.
     ResetObstacles(RoomIndex),
@@ -476,12 +522,13 @@ pub enum Requirement {
 
 impl Requirement {
     /// Build an ordered conjunction, omitting Free inputs and flattening immediate Ands.
-    /// Keep stateful operations and Never in their original order.
+    /// A Never input makes the entire conjunction impossible.
     pub fn make_and(requirements: Vec<Requirement>) -> Requirement {
         let mut children = Vec::new();
         for requirement in requirements {
             match requirement {
                 Requirement::Free => {}
+                Requirement::Never => return Requirement::Never,
                 Requirement::And(nested) => children.extend(nested),
                 other => children.push(other),
             }
@@ -492,6 +539,24 @@ impl Requirement {
             _ => Requirement::And(children.into_boxed_slice()),
         }
     }
+
+    /// Build an ordered disjunction, omitting Never inputs and flattening immediate Ors.
+    /// Keep Free branches alongside alternatives that may change local state.
+    pub fn make_or(requirements: Vec<Requirement>) -> Requirement {
+        let mut children = Vec::new();
+        for requirement in requirements {
+            match requirement {
+                Requirement::Never => {}
+                Requirement::Or(nested) => children.extend(nested),
+                other => children.push(other),
+            }
+        }
+        match children.len() {
+            0 => Requirement::Never,
+            1 => children.pop().unwrap(),
+            _ => Requirement::Or(children.into_boxed_slice()),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -499,6 +564,14 @@ pub enum Equipment {
     Sword,
     Shield,
     Glove,
+    Boomerang,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum OcarinaState {
+    Missing,
+    Inactive,
+    Active,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -544,12 +617,27 @@ pub enum Follower {
     SuperBomb,
 }
 
+/// Bit (follower as u8) selects a follower; zero selects none.
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FollowerMask(pub u8);
+
+impl FollowerMask {
+    pub fn make(followers: impl IntoIterator<Item = Follower>) -> Self {
+        let mut mask = Self::default();
+        for follower in followers {
+            mask.0 |= 1 << follower as u8;
+        }
+        mask
+    }
+}
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum Effect {
     /// Generation supplies the item placed here; collect each location once.
     CollectItem(ItemLocationIndex),
-    /// Fixed event such as flute activation; not a randomized placement slot.
-    GrantItem(ItemIndex),
+    /// Fixed bird event; not a randomized placement slot.
+    ActivateOcarina,
     SetFlag(FlagIndex),
     ClearObstacle(ObstacleIndex),
     ResetObstacle(ObstacleIndex),
@@ -563,7 +651,7 @@ pub struct ItemLocation {
     /// Permanent authored room/item identity; independent of catalog ordering.
     pub id: ItemLocationId,
     pub name: String,
-    /// Authored pickup used for dungeon restrictions and fixed placements.
+    /// Vanilla item in this location, used for dungeon restrictions and fixed placements.
     pub vanilla_item_idx: ItemIndex,
     /// Source `itemLocation` node, resolved in the item's world for overworld items.
     /// Collection is performed by a strat's `CollectItem` effect.
@@ -635,7 +723,9 @@ pub fn compute_schema_hash() -> Result<u64> {
         tracer.trace_simple_type::<EntranceKind>()?;
         tracer.trace_simple_type::<EdgeOrigin>()?;
         tracer.trace_simple_type::<Requirement>()?;
+        tracer.trace_simple_type::<UniqueItem>()?;
         tracer.trace_simple_type::<Equipment>()?;
+        tracer.trace_simple_type::<OcarinaState>()?;
         tracer.trace_simple_type::<PrizeKind>()?;
         tracer.trace_simple_type::<Ammo>()?;
         tracer.trace_simple_type::<Resource>()?;

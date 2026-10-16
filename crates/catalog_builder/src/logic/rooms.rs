@@ -83,7 +83,7 @@ pub(super) fn compile_rooms(
                 catalog.edges.push(Edge {
                     from_vertex_idx: indices.vertices[&(node.id, Some(World::Dark))],
                     to_vertex_idx: indices.vertices[&(node.id, Some(World::Light))],
-                    requirement: Requirement::Item(compiler.items["MagicMirror"]),
+                    requirement: Requirement::Item(UniqueItem::MagicMirror),
                     effects: Box::new([]),
                 });
                 catalog.edge_metadata.push(EdgeMetadata {
@@ -204,9 +204,7 @@ fn compile_room_items(
 ) -> Result<()> {
     for item in &source_room.items {
         if item.item == "OcarinaActive" {
-            indices
-                .items
-                .insert(item.id, Effect::GrantItem(compiler.items[&item.item]));
+            indices.items.insert(item.id, Effect::ActivateOcarina);
             continue;
         }
         let item_location_idx = ItemLocationIndex(catalog.item_locations.len() as u32);
@@ -323,7 +321,7 @@ fn compile_room_strats(
             let bunny_requirement = match strat.is_bunny {
                 z3_json_data::Bunny::Yes => Requirement::Never,
                 z3_json_data::Bunny::No if from_world == Some(World::Dark) => {
-                    Requirement::Item(compiler.items["MoonPearl"])
+                    Requirement::Item(UniqueItem::MoonPearl)
                 }
                 _ => Requirement::Free,
             };

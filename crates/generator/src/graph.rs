@@ -3,7 +3,7 @@
 use common_types::allows_frog_dwarf;
 use logic_catalog::{
     Connection, Edge, EdgeIndex, EntranceIndex, EntranceKind, EventEndpoint, Follower,
-    LogicCatalog, NodeType, Requirement, VertexIndex,
+    FollowerMask, LogicCatalog, NodeType, Requirement, VertexIndex,
 };
 
 #[derive(Debug)]
@@ -94,21 +94,24 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
             } => {
                 let requirement = match kind {
                     EntranceKind::Door => {
-                        let mut lost =
-                            vec![Follower::OldMan, Follower::Blind, Follower::PurpleChest];
+                        let mut lost = FollowerMask::make([
+                            Follower::OldMan,
+                            Follower::Blind,
+                            Follower::PurpleChest,
+                            Follower::SuperBomb,
+                        ]);
                         // Discard followers that cannot enter; they can be lost whenever needed.
                         if catalog
                             .entrance(*entrance_idx)
                             .rom_entrance_id
                             .is_some_and(|id| !allows_frog_dwarf(id))
                         {
-                            lost.push(Follower::Dwarf);
+                            lost.0 |= 1 << Follower::Dwarf as u8;
                         }
-                        lost.push(Follower::SuperBomb);
-                        Requirement::LoseFollowers(lost.into_boxed_slice())
+                        Requirement::LoseFollowers(lost)
                     }
                     EntranceKind::Drop => {
-                        Requirement::LoseFollowers(Box::new([Follower::SuperBomb]))
+                        Requirement::LoseFollowers(FollowerMask::make([Follower::SuperBomb]))
                     }
                 };
                 (
@@ -144,7 +147,7 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                     .node_type
                     == Some(NodeType::Door)
                 {
-                    Requirement::LoseFollowers(Box::new([Follower::Blind]))
+                    Requirement::LoseFollowers(FollowerMask::make([Follower::Blind]))
                 } else {
                     Requirement::Free
                 },
@@ -181,7 +184,7 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                 ..
             }
         ) {
-            Requirement::LoseFollowers(Box::new([Follower::Blind]))
+            Requirement::LoseFollowers(FollowerMask::make([Follower::Blind]))
         } else {
             Requirement::Free
         };
@@ -234,7 +237,7 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
             Edge {
                 from_vertex_idx: VertexIndex(index as u32),
                 to_vertex_idx: catalog.start_vertex_idx,
-                requirement: Requirement::LoseFollowers(Box::new([
+                requirement: Requirement::LoseFollowers(FollowerMask::make([
                     Follower::Blind,
                     Follower::SuperBomb,
                 ])),

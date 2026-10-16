@@ -76,11 +76,11 @@ pub fn build_catalog(
     let compiler = load_definitions(source_directory, &mut catalog)?;
     let room_indices = rooms::compile_rooms(source_directory, &mut catalog, &compiler)?;
     connections::build_connections(source_directory, &room_indices, &mut catalog)?;
-    build_flute_travel(&mut catalog, compiler.items["OcarinaActive"]);
+    build_flute_travel(&mut catalog);
     write_catalog(&catalog, output_catalog, compression_level)
 }
 
-fn build_flute_travel(catalog: &mut LogicCatalog, active_flute_idx: ItemIndex) {
+fn build_flute_travel(catalog: &mut LogicCatalog) {
     let room_idx = RoomIndex(catalog.rooms.len() as u32);
     catalog.rooms.push(Room {
         room_id: None,
@@ -117,7 +117,7 @@ fn build_flute_travel(catalog: &mut LogicCatalog, active_flute_idx: ItemIndex) {
         catalog.edges.push(Edge {
             from_vertex_idx: vertex_idx,
             to_vertex_idx: catalog.flute_hub_vertex_idx,
-            requirement: Requirement::Item(active_flute_idx),
+            requirement: Requirement::Ocarina(OcarinaState::Active),
             effects: Box::new([]),
         });
         catalog.edge_metadata.push(EdgeMetadata {

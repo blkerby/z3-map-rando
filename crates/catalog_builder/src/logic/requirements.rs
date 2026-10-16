@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
 use logic_catalog::{
-    Ammo, Equipment, FlagIndex, Follower, ItemIndex, PrizeKind, Requirement, Resource, TechIndex,
+    Ammo, Equipment, FlagIndex, Follower, FollowerMask, ItemIndex, OcarinaState, PrizeKind,
+    Requirement, Resource, TechIndex, UniqueItem,
 };
 
 use super::{RoomIndices, z3_json_data};
@@ -29,12 +30,12 @@ impl Compiler {
 
     fn compile_magic_requirement(
         &self,
-        item: &str,
+        item: UniqueItem,
         cost_per_use: u32,
         num_uses: u32,
     ) -> Requirement {
         Requirement::make_and(vec![
-            Requirement::Item(self.items[item]),
+            Requirement::Item(item),
             Requirement::UseMagic {
                 cost_per_use,
                 num_uses,
@@ -54,6 +55,17 @@ impl Compiler {
                     "free" | "h_MothulaVulnerableToGoldSword" => return Requirement::Free,
                     "never" => return Requirement::Never,
                     "BigKey" => return Requirement::BigKey(room.dungeon_idx.unwrap()),
+                    "Bottle" => return Requirement::Bottles(1),
+                    "Ocarina" | "OcarinaInactive" => {
+                        return Requirement::Ocarina(OcarinaState::Inactive);
+                    }
+                    "OcarinaActive" => return Requirement::Ocarina(OcarinaState::Active),
+                    "BlueBoomerang" | "RedBoomerang" => {
+                        return Requirement::Equipment {
+                            equipment: Equipment::Boomerang,
+                            minimum_level: if name == "BlueBoomerang" { 1 } else { 2 },
+                        };
+                    }
                     _ => {}
                 }
                 if let Some(helper) = self.helpers.get(name) {
@@ -66,7 +78,44 @@ impl Compiler {
                         self.compile_requirements(&tech.other_requires, room),
                     ]);
                 }
-                return Requirement::Item(self.items[name]);
+                let item = match name.as_str() {
+                    "FireRod" => UniqueItem::FireRod,
+                    "IceRod" => UniqueItem::IceRod,
+                    "Hammer" => UniqueItem::Hammer,
+                    "Hookshot" => UniqueItem::Hookshot,
+                    "Bow" => UniqueItem::Bow,
+                    "SilverArrows" | "SilverArrowUpgrade" => UniqueItem::SilverArrows,
+                    "MagicPowder" => UniqueItem::MagicPowder,
+                    "Bombos" => UniqueItem::Bombos,
+                    "Ether" => UniqueItem::Ether,
+                    "Quake" => UniqueItem::Quake,
+                    "Lamp" => UniqueItem::Lamp,
+                    "Shovel" => UniqueItem::Shovel,
+                    "CaneOfSomaria" => UniqueItem::CaneOfSomaria,
+                    "CaneOfByrna" => UniqueItem::CaneOfByrna,
+                    "Cape" => UniqueItem::Cape,
+                    "MagicMirror" => UniqueItem::MagicMirror,
+                    "BookOfMudora" => UniqueItem::BookOfMudora,
+                    "Flippers" => UniqueItem::Flippers,
+                    "MoonPearl" => UniqueItem::MoonPearl,
+                    "BugCatchingNet" => UniqueItem::BugCatchingNet,
+                    "Mushroom" => UniqueItem::Mushroom,
+                    "PegasusBoots" => UniqueItem::PegasusBoots,
+                    "HalfMagic" => UniqueItem::HalfMagic,
+                    "PendantOfCourage" => UniqueItem::PendantOfCourage,
+                    "PendantOfWisdom" => UniqueItem::PendantOfWisdom,
+                    "PendantOfPower" => UniqueItem::PendantOfPower,
+                    "Crystal1" => UniqueItem::Crystal1,
+                    "Crystal2" => UniqueItem::Crystal2,
+                    "Crystal3" => UniqueItem::Crystal3,
+                    "Crystal4" => UniqueItem::Crystal4,
+                    "Crystal5" => UniqueItem::Crystal5,
+                    "Crystal6" => UniqueItem::Crystal6,
+                    "Crystal7" => UniqueItem::Crystal7,
+                    "Triforce" => UniqueItem::Triforce,
+                    _ => panic!("unknown requirement: {name}"),
+                };
+                return Requirement::Item(item);
             }
             z3_json_data::Requirement::Operation(operation) => operation,
         };
@@ -77,15 +126,15 @@ impl Compiler {
                 for child in children {
                     branches.push(self.compile_requirement(child, room));
                 }
-                Requirement::Or(branches.into_boxed_slice())
+                Requirement::make_or(branches)
             }
             Op::Sword(level) => Requirement::Equipment {
                 equipment: Equipment::Sword,
                 minimum_level: *level,
             },
-            // Progressive Shield rewards only raise the acquired level, so interpret
-            // shieldExact as a minimum too, including fixed fairy exchanges. Revisit
-            // this monotonic interpretation if fairy exchanges or shield requirements change.
+            // We intend to make the fairy upgrade to be applicable at any Shield level,
+            // so the `shieldExact` requirement (only used as a condition for the fairy shield upgrade)
+            // can be interpreted the same as a plain `shield` requirement.
             Op::Shield(level) | Op::ShieldExact(level) => Requirement::Equipment {
                 equipment: Equipment::Shield,
                 minimum_level: *level,
@@ -94,6 +143,10 @@ impl Compiler {
                 equipment: Equipment::Glove,
                 minimum_level: *level,
             },
+            // A `swordExact` level of 1 makes the Armos fight easier than level 2 sword.
+            // We intend to leave this vanilla quirk unchanged, so we treat `swordExact` as
+            // unsatisfiable, since we can't rule out that the player may have been
+            // able to obtain a level 2 sword.
             Op::SwordExact(_level) => Requirement::Never,
             Op::Arrows(count) => Requirement::UseAmmo {
                 kind: Ammo::Arrow,
@@ -104,25 +157,31 @@ impl Compiler {
                 count: *count,
             },
             Op::Bombs(count) => Requirement::make_and(vec![
-                Requirement::LoseFollowers(Box::new([Follower::SuperBomb])),
+                Requirement::LoseFollowers(FollowerMask::make([Follower::SuperBomb])),
                 Requirement::UseAmmo {
                     kind: Ammo::Bomb,
                     count: *count,
                 },
             ]),
             Op::MagicPowder(num_uses) => {
-                self.compile_magic_requirement("MagicPowder", 8, *num_uses)
+                self.compile_magic_requirement(UniqueItem::MagicPowder, 8, *num_uses)
             }
-            Op::FireRod(num_uses) => self.compile_magic_requirement("FireRod", 16, *num_uses),
-            Op::IceRod(num_uses) => self.compile_magic_requirement("IceRod", 16, *num_uses),
-            Op::Lamp(num_uses) => self.compile_magic_requirement("Lamp", 4, *num_uses),
-            Op::RedCane(num_uses) => self.compile_magic_requirement("CaneOfSomaria", 8, *num_uses),
-            Op::Cape(num_uses) => self.compile_magic_requirement("Cape", 1, *num_uses),
+            Op::FireRod(num_uses) => {
+                self.compile_magic_requirement(UniqueItem::FireRod, 16, *num_uses)
+            }
+            Op::IceRod(num_uses) => {
+                self.compile_magic_requirement(UniqueItem::IceRod, 16, *num_uses)
+            }
+            Op::Lamp(num_uses) => self.compile_magic_requirement(UniqueItem::Lamp, 4, *num_uses),
+            Op::RedCane(num_uses) => {
+                self.compile_magic_requirement(UniqueItem::CaneOfSomaria, 8, *num_uses)
+            }
+            Op::Cape(num_uses) => self.compile_magic_requirement(UniqueItem::Cape, 1, *num_uses),
             Op::Rod(num_uses) => Requirement::make_and(vec![
-                Requirement::Or(Box::new([
-                    Requirement::Item(self.items["FireRod"]),
-                    Requirement::Item(self.items["IceRod"]),
-                ])),
+                Requirement::make_or(vec![
+                    Requirement::Item(UniqueItem::FireRod),
+                    Requirement::Item(UniqueItem::IceRod),
+                ]),
                 Requirement::UseMagic {
                     cost_per_use: 16,
                     num_uses: *num_uses,
@@ -133,25 +192,25 @@ impl Compiler {
                     equipment: Equipment::Sword,
                     minimum_level: 1,
                 },
-                self.compile_magic_requirement("Bombos", 32, *num_uses),
+                self.compile_magic_requirement(UniqueItem::Bombos, 32, *num_uses),
             ]),
             Op::Ether(num_uses) => Requirement::make_and(vec![
                 Requirement::Equipment {
                     equipment: Equipment::Sword,
                     minimum_level: 1,
                 },
-                self.compile_magic_requirement("Ether", 32, *num_uses),
+                self.compile_magic_requirement(UniqueItem::Ether, 32, *num_uses),
             ]),
             Op::Quake(num_uses) => Requirement::make_and(vec![
                 Requirement::Equipment {
                     equipment: Equipment::Sword,
                     minimum_level: 1,
                 },
-                self.compile_magic_requirement("Quake", 32, *num_uses),
+                self.compile_magic_requirement(UniqueItem::Quake, 32, *num_uses),
             ]),
             Op::BlueCane(amount) => {
                 let mut requirements = vec![
-                    Requirement::Item(self.items["CaneOfByrna"]),
+                    Requirement::Item(UniqueItem::CaneOfByrna),
                     Requirement::UseMagic {
                         cost_per_use: 20,
                         num_uses: 1,
@@ -208,7 +267,7 @@ impl Compiler {
             Op::NotFlag(_name) => Requirement::Never,
             Op::Follower(follower) => match follower.get_follower() {
                 Some(follower) => Requirement::Follower(follower),
-                None => Requirement::LoseFollowers(Box::new([
+                None => Requirement::LoseFollowers(FollowerMask::make([
                     Follower::Zelda,
                     Follower::OldMan,
                     Follower::Blind,
@@ -218,11 +277,11 @@ impl Compiler {
                 ])),
             },
             Op::FollowerLost(followers) => {
-                let mut lost = Vec::new();
+                let mut lost = FollowerMask::default();
                 for follower in followers {
-                    lost.push(follower.get_follower().unwrap());
+                    lost.0 |= 1 << follower.get_follower().unwrap() as u8;
                 }
-                Requirement::LoseFollowers(lost.into_boxed_slice())
+                Requirement::LoseFollowers(lost)
             }
             Op::ObstaclesCleared(names) | Op::ObstaclesNotCleared(names) => {
                 let mut requirements = Vec::new();
