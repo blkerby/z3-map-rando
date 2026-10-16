@@ -482,7 +482,8 @@ pub enum Requirement {
         kind: Ammo,
         count: u32,
     },
-    /// Apply each use separately, allowing potions between uses.
+    /// Batch affordable uses, allowing potions between uses when magic is insufficient.
+    /// Half Magic halves cumulative usage within this requirement, rounding up.
     /// Item and equipment requirements are compiled separately.
     UseMagic {
         /// Base normalized magic points before magic-upgrade scaling.
@@ -496,10 +497,13 @@ pub enum Requirement {
         hits: u32,
     },
     Pay(u32),
+    /// Raise local availability to at least limit, capped by capacity, without adding to it.
+    /// Non-health sources also enable preparation in subsequent traversal waves;
+    /// bottle-content sources only establish preparation and do not restore used bottles.
     Refill {
         resource: Resource,
-        /// Health uses eighths of a heart; magic uses base normalized points
-        /// before magic-upgrade scaling. Other resources use individual units.
+        /// Health uses eighths of a heart; magic uses the game's 0..128 units.
+        /// Half Magic scales usage, not refill limits. Other resources use individual units.
         limit: u32,
     },
     ResourceMissingAtMost {
@@ -513,6 +517,8 @@ pub enum Requirement {
     /// Replace local obstacle state with an uncleared state sized for this room.
     /// Travel edges inject this after departure requirements when changing rooms.
     ResetObstacles(RoomIndex),
+    /// Set health to save-and-quit spawn health, preserving all other resource usage.
+    ResetHealthToSpawn,
     ObstacleCleared(ObstacleIndex),
     ObstacleNotCleared(ObstacleIndex),
     /// Requires the door to either be already unlocked (by an OpenDoor effect)
@@ -522,13 +528,12 @@ pub enum Requirement {
 
 impl Requirement {
     /// Build an ordered conjunction, omitting Free inputs and flattening immediate Ands.
-    /// A Never input makes the entire conjunction impossible.
+    /// Preserve Never in sequence so earlier operations can report global discoveries.
     pub fn make_and(requirements: Vec<Requirement>) -> Requirement {
         let mut children = Vec::new();
         for requirement in requirements {
             match requirement {
                 Requirement::Free => {}
-                Requirement::Never => return Requirement::Never,
                 Requirement::And(nested) => children.extend(nested),
                 other => children.push(other),
             }

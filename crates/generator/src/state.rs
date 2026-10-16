@@ -1,6 +1,7 @@
 //! Inventory and route-local state for normal logical traversal.
 
 use crate::inputs::GenerationInputs;
+use anyhow::{Result, bail};
 use common_types::Item;
 use logic_catalog::{FollowerMask, ItemLocationIndex, LogicCatalog, OcarinaState, UniqueItem};
 
@@ -35,10 +36,25 @@ pub struct GlobalState {
     pub unlocked_doors: Vec<bool>,
     /// Permanent progress flags, indexed by catalog FlagIndex.
     pub flags: Vec<bool>,
+    /// Locations with an executable collection action, indexed by ItemLocationIndex.
+    /// The normal traversal's closure loop records discoveries between waves,
+    /// including unfilled locations.
+    pub reachable_item_locations: Vec<bool>,
+    /// Locations whose placed rewards have been applied, indexed by ItemLocationIndex.
+    /// Reachable unfilled locations remain uncollected.
+    pub collected_item_locations: Vec<bool>,
 }
 
 impl GlobalState {
-    /// Collect a placed item into inventory. The caller must collect each location only once.
+    /// Vanilla save-and-quit health, in eighths of a heart (MaxHealthBasedSpawnHP).
+    pub fn get_spawn_health(&self) -> u8 {
+        const SPAWN_HEALTH: [u8; 21] = [
+            24, 24, 24, 24, 24, 32, 32, 40, 40, 48, 48, 56, 56, 56, 64, 64, 64, 72, 72, 72, 80,
+        ];
+        SPAWN_HEALTH[(self.health_capacity / 8) as usize].min(self.health_capacity)
+    }
+
+    /// Collect a placed item into inventory, returning an error for already-collected locations.
     /// The pickup location determines Big Key scope; Small Keys carry their door identity.
     /// One-time resource refills and initial bottle contents have no logical effect.
     pub fn collect_item(
@@ -47,7 +63,12 @@ impl GlobalState {
         inputs: &GenerationInputs,
         item: Item,
         location_idx: ItemLocationIndex,
-    ) {
+    ) -> Result<()> {
+        let collected = &mut self.collected_item_locations[location_idx.0 as usize];
+        if *collected {
+            bail!("item location {location_idx:?} has already been collected");
+        }
+        *collected = true;
         match item {
             Item::Sword => self.sword_level = (self.sword_level + 1).min(4),
             Item::Shield => self.shield_level = (self.shield_level + 1).min(3),
@@ -140,14 +161,14 @@ impl GlobalState {
             | Item::Map
             | Item::Compass => {}
         }
+        Ok(())
     }
 }
 
-/// Reusable sources discovered globally, enabling preparation in subsequent waves.
+/// Non-health sources discovered globally, enabling preparation in subsequent waves.
 /// Bottle sources never replenish the current route's bottle-use budget.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RefillFlags {
-    pub health: bool,
     pub magic: bool,
     pub bombs: bool,
     pub arrows: bool,

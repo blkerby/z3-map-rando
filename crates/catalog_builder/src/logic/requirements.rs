@@ -297,10 +297,13 @@ impl Compiler {
             Op::ResourceMissingAtMost(resources) => {
                 let mut requirements = Vec::new();
                 for missing in resources {
-                    requirements.push(Requirement::ResourceMissingAtMost {
-                        resource: missing.resource.get_resource(),
-                        count: missing.count,
-                    });
+                    let resource = missing.resource.get_resource();
+                    let count = if resource == Resource::Health {
+                        missing.count * 8
+                    } else {
+                        missing.count
+                    };
+                    requirements.push(Requirement::ResourceMissingAtMost { resource, count });
                 }
                 Requirement::make_and(requirements)
             }

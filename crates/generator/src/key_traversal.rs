@@ -8,16 +8,18 @@ use logic_catalog::{
 };
 use std::collections::VecDeque;
 
-/// Accumulated reachability and caller-maintained inventory for one dungeon's attempt.
+/// Accumulated reachability and inventory maintained by the key-assignment algorithm
+/// for one dungeon's attempt.
 /// Clone this state before trying a candidate so rejected discoveries can be discarded.
 #[derive(Clone, Debug)]
 pub struct KeyPassState {
     pub visited_vertices: Vec<bool>,
-    /// The caller adds doors when assigning previously collected Small Keys.
+    /// The key-assignment algorithm adds doors when assigning previously collected Small Keys.
     /// Traversal leaves inventory and collected locations unchanged.
     pub available_doors: HashSet<DoorIndex>,
     pub has_big_key: bool,
-    /// The caller records accepted collections, including keys, ordinary items, and prizes.
+    /// The key-assignment algorithm records accepted collections,
+    /// including keys, ordinary items, and prizes.
     pub collected_item_locations: HashSet<ItemLocationIndex>,
 }
 

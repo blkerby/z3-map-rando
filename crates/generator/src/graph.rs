@@ -24,9 +24,8 @@ pub enum TraversalEdgeOrigin {
     Catalog(EdgeIndex),
     /// Index into the selected connection slice, not necessarily vanilla connections.
     Connection(usize),
-    /// Normal traversal resets health to spawn health and retains magic, ammunition,
-    /// and concrete bottle contents. Prepared resources belong to wave initialization.
-    /// The key pass can return directly to the start. Neither loses permanent progress.
+    /// Return to the start with follower loss, obstacle reset, and spawn-health reset
+    /// expressed through requirements. Prepared resources belong to wave initialization.
     SaveAndQuit,
 }
 
@@ -237,10 +236,13 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
             Edge {
                 from_vertex_idx: VertexIndex(index as u32),
                 to_vertex_idx: catalog.start_vertex_idx,
-                requirement: Requirement::LoseFollowers(FollowerMask::make([
-                    Follower::Blind,
-                    Follower::SuperBomb,
-                ])),
+                requirement: Requirement::make_and(vec![
+                    Requirement::LoseFollowers(FollowerMask::make([
+                        Follower::Blind,
+                        Follower::SuperBomb,
+                    ])),
+                    Requirement::ResetHealthToSpawn,
+                ]),
                 effects: Box::new([]),
             },
             TraversalEdgeOrigin::SaveAndQuit,
