@@ -31,17 +31,17 @@ pub struct GlobalState {
     /// Owned Big Keys, indexed by catalog DungeonIndex.
     pub big_keys: Vec<bool>,
     /// Permanent door access, indexed by catalog DoorIndex, regardless of mechanism.
-    /// Small Key grants resolve their stable DoorId and set the same bit as OpenDoor.
+    /// Collecting a Small Key resolves its stable DoorId and sets the same bit as OpenDoor.
     pub unlocked_doors: Vec<bool>,
     /// Permanent progress flags, indexed by catalog FlagIndex.
     pub flags: Vec<bool>,
 }
 
 impl GlobalState {
-    /// Apply a placed reward. The caller is responsible for collecting each location once.
+    /// Collect a placed item into inventory. The caller must collect each location only once.
     /// The pickup location determines Big Key scope; Small Keys carry their door identity.
     /// One-time resource refills and initial bottle contents have no logical effect.
-    pub fn grant_item(
+    pub fn collect_item(
         &mut self,
         catalog: &LogicCatalog,
         inputs: &GenerationInputs,
