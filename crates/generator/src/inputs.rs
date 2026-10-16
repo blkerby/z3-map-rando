@@ -1,5 +1,6 @@
 use anyhow::{Result, anyhow, bail, ensure};
 use common_types::{DoorId, Item};
+use hashbrown::HashMap;
 use logic_catalog::{DoorIndex, ItemLocationIndex, LockKind, LogicCatalog};
 use seed_data::Settings;
 use std::collections::BTreeMap;
@@ -13,6 +14,8 @@ pub struct GenerationInputs {
     pub items: Vec<Option<Item>>,
     /// Stable authored identities in catalog door order.
     pub door_ids: Vec<DoorId>,
+    /// Reverse lookup for catalog doors, independent of Small Key assignments.
+    pub door_indices: HashMap<DoorId, DoorIndex>,
     /// Indexed by catalog DungeonIndex, matching `LogicCatalog::dungeons`.
     pub dungeons: Vec<DungeonInputs>,
     /// Eligible ordinary slots, including the slots originally holding Maps and Compasses.
@@ -43,6 +46,7 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
     let mut inputs = GenerationInputs {
         items: Vec::new(),
         door_ids: Vec::new(),
+        door_indices: HashMap::new(),
         dungeons: Vec::new(),
         ordinary_locations: Vec::new(),
         ordinary_pool: Vec::new(),
@@ -59,16 +63,19 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         inputs.dungeons.push(DungeonInputs::default());
     }
     for (index, door) in catalog.doors.iter().enumerate() {
+        let door_idx = DoorIndex(index as u32);
         // All doors belong to authored rooms; the synthetic flute hub has none.
-        inputs.door_ids.push(DoorId {
+        let door_id = DoorId {
             room_id: catalog.room(door.room_idx).room_id.unwrap(),
             door_id: door.door_id,
-        });
+        };
+        inputs.door_ids.push(door_id);
+        inputs.door_indices.insert(door_id, door_idx);
         if door.lock == LockKind::SmallKey {
             if let Some(dungeon_idx) = catalog.room(door.room_idx).dungeon_idx {
                 inputs.dungeons[dungeon_idx.0 as usize]
                     .small_key_doors
-                    .push(DoorIndex(index as u32));
+                    .push(door_idx);
             }
         }
     }

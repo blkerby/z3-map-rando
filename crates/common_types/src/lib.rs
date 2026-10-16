@@ -19,7 +19,9 @@ pub fn allows_frog_dwarf(rom_entrance_id: u8) -> bool {
 
 /// Authored room identity. Overworld IDs are separate from all interior room kinds.
 /// Existing IDs are permanent; removed IDs must not be reused.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, TypeHash)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, TypeHash,
+)]
 pub enum SourceRoomId {
     Overworld(u32),
     Underworld(u32),
@@ -35,7 +37,9 @@ pub struct ItemLocationId {
 }
 
 /// Authored door identity, independent of catalog ordering and ROM addresses.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, TypeHash)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, TypeHash,
+)]
 pub struct DoorId {
     pub room_id: SourceRoomId,
     pub door_id: u32,

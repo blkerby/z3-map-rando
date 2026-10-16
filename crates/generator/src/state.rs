@@ -80,12 +80,8 @@ impl GlobalState {
             | Item::GreenPotion
             | Item::BluePotion => self.bottles_owned = (self.bottles_owned + 1).min(4),
             Item::SmallKey { door_id } => {
-                let door_idx = inputs
-                    .door_ids
-                    .iter()
-                    .position(|&id| id == door_id)
-                    .unwrap();
-                self.unlocked_doors[door_idx] = true;
+                let door_idx = inputs.door_indices[&door_id];
+                self.unlocked_doors[door_idx.0 as usize] = true;
             }
             Item::BigKey => {
                 let location = catalog.item_location(location_idx);
