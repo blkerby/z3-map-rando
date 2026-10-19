@@ -199,6 +199,9 @@ impl Interpreter<'_> {
                 let divisor = if half_magic { 2 } else { 1 };
                 let cost_per_use = u64::from(*cost_per_use);
                 let total_cost = (cost_per_use * u64::from(*num_uses)).div_ceil(divisor);
+                if total_cost > 0 && state.magic_used == ResourceUsage::UNPREPARED {
+                    return Vec::new();
+                }
                 let mut states = vec![state];
                 let mut completed_cost = 0;
                 while !states.is_empty() {
@@ -373,6 +376,9 @@ impl Interpreter<'_> {
                 if missing <= *count {
                     return vec![state];
                 }
+                if *resource == Resource::Magic && state.magic_used == ResourceUsage::UNPREPARED {
+                    return Vec::new();
+                }
                 let contents: &[BottleContent] = match resource {
                     Resource::Health => &[BottleContent::BluePotion, BottleContent::RedPotion],
                     Resource::Magic => &[BottleContent::BluePotion, BottleContent::GreenPotion],
@@ -438,10 +444,18 @@ impl Interpreter<'_> {
         match content {
             BottleContent::BluePotion => {
                 refilled.health_used = 0;
-                refilled.magic_used = ResourceUsage(0);
+                refill_resource(
+                    &mut refilled.magic_used,
+                    self.global.magic_capacity,
+                    u32::from(self.global.magic_capacity),
+                );
             }
             BottleContent::RedPotion => refilled.health_used = 0,
-            BottleContent::GreenPotion => refilled.magic_used = ResourceUsage(0),
+            BottleContent::GreenPotion => refill_resource(
+                &mut refilled.magic_used,
+                self.global.magic_capacity,
+                u32::from(self.global.magic_capacity),
+            ),
             _ => return None,
         }
         refilled.bottles_used += 1;
@@ -466,11 +480,9 @@ fn push_distinct_state(states: &mut Vec<LocalState>, state: LocalState) {
 }
 
 fn refill_resource(usage: &mut ResourceUsage, capacity: u8, limit: u32) {
-    let used = if *usage == ResourceUsage::UNPREPARED {
-        capacity
-    } else {
-        usage.0
-    };
+    if *usage == ResourceUsage::UNPREPARED {
+        return;
+    }
     let target_used = capacity - limit.min(u32::from(capacity)) as u8;
-    usage.0 = used.min(target_used);
+    usage.0 = usage.0.min(target_used);
 }

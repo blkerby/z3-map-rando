@@ -197,14 +197,14 @@ pub struct LocalState {
     pub cleared_obstacles: u8,
 }
 
-/// Net resource depletion, with u8::MAX reserved for an initially-empty resource.
+/// Net resource depletion, with u8::MAX reserved for a resource unprepared for this wave.
 /// Ordinary values increase with spending and decrease with refills.
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ResourceUsage(pub u8);
 
 impl ResourceUsage {
-    /// No initial preparation: availability stays zero when capacity increases.
-    /// A refill replaces this with finite usage relative to the current capacity.
+    /// Availability stays zero throughout the traversal, including after refills.
+    /// A discovered refill permits starting the next traversal full.
     pub const UNPREPARED: Self = Self(u8::MAX);
 }

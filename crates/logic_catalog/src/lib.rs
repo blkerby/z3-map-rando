@@ -498,6 +498,7 @@ pub enum Requirement {
     },
     Pay(u32),
     /// Raise local availability to at least limit, capped by capacity, without adding to it.
+    /// Unprepared magic and ammunition remain empty for the current traversal wave.
     /// Non-health sources also enable preparation in subsequent traversal waves;
     /// bottle-content sources only establish preparation and do not restore used bottles.
     Refill {
