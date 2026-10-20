@@ -73,7 +73,39 @@
       "OneHundredRupees"
     ]
   },
+  "fairy_upgrades": {
+    "Sword": {
+      "sequence": ["L1Sword", "MasterSword", "L3Sword", "L4Sword"]
+    },
+    "Glove": {
+      "sequence": ["PowerGlove", "TitansMitt"]
+    },
+    "Shield": {
+      "sequence": ["BlueShield", "RedShield", "MirrorShield"]
+    },
+    "Mail": {
+      "sequence": ["BlueMail", "RedMail"]
+    },
+    "Boomerang": {
+      "sequence": ["BlueBoomerang", "RedBoomerang"]
+    },
+    "SilverArrows": {
+      "sequence": ["Bow", "SilverArrowUpgrade"]
+    }
+  },
   "location_overrides": [
+    {
+      "name": "Waterfall of Wishing - First Item",
+      "room_id": { "Underworld": 12 },
+      "item_id": 1,
+      "tier": "fairy_upgrade"
+    },
+    {
+      "name": "Pyramid Great Fairy - First Item",
+      "room_id": { "Underworld": 69 },
+      "item_id": 1,
+      "tier": "fairy_upgrade"
+    },
     {
       "name": "Ice Palace - Big Chest",
       "room_id": { "Underworld": 97 },

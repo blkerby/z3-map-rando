@@ -208,12 +208,20 @@
       "count": 1
     },
     {
+      "name": "BombCapacityUpgrade",
+      "count": 0
+    },
+    {
+      "name": "ArrowCapacityUpgrade",
+      "count": 0
+    },
+    {
       "name": "Arrow",
       "count": 1
     },
     {
       "name": "ThreeBombs",
-      "count": 17
+      "count": 15
     },
     {
       "name": "TenArrows",
@@ -255,5 +263,6 @@
       "name": "PieceOfHeart",
       "count": 24
     }
-  ]
+  ],
+  "excluded_locations": ["great_fairies"]
 }
