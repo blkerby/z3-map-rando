@@ -9,7 +9,7 @@
       "MagicMirror",
       "OcarinaInactive",
       "Bow",
-      "SilverArrowUpgrade",
+      "SilverArrows",
       "Hookshot",
       "PowerGlove",
       "TitansMitt",
@@ -48,15 +48,11 @@
     "Minor": [
       "PieceOfHeart",
       "ThreeHundredRupees",
-      "BombUpgrade5",
-      "BombUpgrade10",
-      "BombUpgrade50",
-      "ArrowUpgrade5",
-      "ArrowUpgrade10",
-      "ArrowUpgrade70"
+      "BombCapacityUpgrade",
+      "ArrowCapacityUpgrade"
     ],
     "Junk": [
-      "Arrow",
+      "OneArrow",
       "OneRupee",
       "ThreeBombs",
       "TenArrows",
