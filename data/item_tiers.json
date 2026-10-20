@@ -1,0 +1,183 @@
+{
+  "tiers": {
+    "Major": [
+      "Flippers",
+      "IceRod",
+      "PegasusBoots",
+      "BookOfMudora",
+      "Lamp",
+      "MagicMirror",
+      "OcarinaInactive",
+      "Bow",
+      "SilverArrows",
+      "Hookshot",
+      "PowerGlove",
+      "TitansMitt",
+      "MoonPearl",
+      "Hammer",
+      "CaneOfSomaria",
+      "FireRod",
+      "Ether",
+      "Quake"
+    ],
+    "High": [
+      "L1Sword",
+      "L2Sword",
+      "L3Sword",
+      "L4Sword",
+      "BlueMail",
+      "RedMail",
+      "RedShield",
+      "MirrorShield",
+      "BlueBoomerang",
+      "RedBoomerang",
+      "Shovel",
+      "MagicPowder",
+      "HalfMagic",
+      "BugCatchingNet",
+      "Mushroom",
+      "Cape",
+      "CaneOfByrna",
+      "Bombos"
+    ],
+    "Mid": [
+      "BossHeartContainer",
+      "SanctuaryHeartContainer",
+      "Bottle"
+    ],
+    "Minor": [
+      "PieceOfHeart",
+      "ThreeHundredRupees",
+      "BombCapacityUpgrade",
+      "ArrowCapacityUpgrade"
+    ],
+    "Junk": [
+      "OneArrow",
+      "OneRupee",
+      "ThreeBombs",
+      "TenArrows",
+      "FiveRupees",
+      "TwentyRupees",
+      "FiftyRupees",
+      "OneHundredRupees"
+    ]
+  },
+  "fairy_upgrades": {
+    "Sword": [
+      { "requires": "L1Sword", "item": "L2Sword" },
+      { "requires": "L2Sword", "item": "L3Sword" },
+      { "requires": "L3Sword", "item": "L4Sword" }
+    ],
+    "Glove": [
+      { "requires": "PowerGlove", "item": "TitansMitt" }
+    ],
+    "Shield": [
+      { "requires": "BlueShield", "item": "RedShield" },
+      { "requires": "RedShield", "item": "MirrorShield" }
+    ],
+    "Mail": [
+      { "requires": "GreenMail", "item": "BlueMail" },
+      { "requires": "BlueMail", "item": "RedMail" }
+    ],
+    "Boomerang": [
+      { "requires": "BlueBoomerang", "item": "RedBoomerang" }
+    ],
+    "SilverArrows": [
+      { "requires": "Bow", "item": "SilverArrows" }
+    ],
+    "BombCapacity": [
+      { "requires": "Bombs", "item": "BombCapacityUpgrade" }
+    ],
+    "ArrowCapacity": [
+      { "requires": "Bow", "item": "ArrowCapacityUpgrade" }
+    ]
+  },
+  "location_groups": {
+    "great_fairies": [
+      {
+        "name": "Waterfall of Wishing - Second Item",
+        "room_id": { "Underworld": 12 },
+        "item_id": 2
+      },
+      {
+        "name": "Pyramid Great Fairy - Second Item",
+        "room_id": { "Underworld": 69 },
+        "item_id": 2
+      }
+    ]
+  },
+  "location_overrides": [
+    {
+      "name": "Waterfall of Wishing - First Item",
+      "room_id": { "Underworld": 12 },
+      "item_id": 1,
+      "tier": "fairy_upgrade"
+    },
+    {
+      "name": "Pyramid Great Fairy - First Item",
+      "room_id": { "Underworld": 69 },
+      "item_id": 1,
+      "tier": "fairy_upgrade"
+    },
+    {
+      "name": "Ice Palace - Big Chest",
+      "room_id": { "Underworld": 97 },
+      "item_id": 5,
+      "tier": "Major"
+    },
+    {
+      "name": "Ganon's Tower - Big Chest",
+      "room_id": { "Underworld": 100 },
+      "item_id": 20,
+      "tier": "Major"
+    },
+    {
+      "name": "Turtle Rock - Big Chest",
+      "room_id": { "Underworld": 99 },
+      "item_id": 8,
+      "tier": "Major"
+    },
+    {
+      "name": "Grove Dig Spot",
+      "room_id": { "Overworld": 25 },
+      "item_id": 1,
+      "tier": "High"
+    },
+    {
+      "name": "Hyrule Castle Secret Entrance - Cellar Chest",
+      "room_id": { "Underworld": 49 },
+      "item_id": 2,
+      "tier": "Junk"
+    },
+    {
+      "name": "Hyrule Castle - Zelda's Prison Chest",
+      "room_id": { "Underworld": 57 },
+      "item_id": 6,
+      "tier": "Junk"
+    },
+    {
+      "name": "Chicken House - Secret Chest",
+      "room_id": { "Underworld": 41 },
+      "item_id": 1,
+      "tier": "Junk"
+    },
+    {
+      "name": "Ether Tablet",
+      "room_id": { "Overworld": 3 },
+      "item_id": 3,
+      "tier": "High"
+    },
+    {
+      "name": "Angry Catfish's Item",
+      "room_id": { "Overworld": 7 },
+      "item_id": 1,
+      "tier": "High"
+    },
+    {
+      "name": "Bombos Tablet",
+      "room_id": { "Overworld": 31 },
+      "item_id": 2,
+      "tier": "High"
+    }
+  ]
+}

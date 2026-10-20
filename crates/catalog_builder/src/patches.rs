@@ -202,15 +202,15 @@ fn read_item_encodings(source_directory: &Path) -> Result<BTreeMap<String, ItemE
     let items: z3_json_data::Items = read_source(&source_directory.join("items.json"))?;
     for category in [
         items.inventory,
+        items.health_upgrades,
+        items.non_vanilla,
         items.refills,
         items.bottle_contents,
         items.currency,
         items.dungeon_items,
         items.dungeon_prizes,
-        items.goal_items,
-        items.expansions,
     ] {
-        for item in category {
+        for item in category.items {
             let receipt_id = u8::from_str_radix(item.item_receipt_id.trim_start_matches("0x"), 16)?;
             let prize_patch_bytes = if let Some(source_bytes) = item.prize_patch_bytes {
                 let mut bytes = [0; 6];

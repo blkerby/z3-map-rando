@@ -219,8 +219,7 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
 
 fn resolve_item(name: &str) -> Option<Item> {
     Some(match name {
-        "Sword" | "L1Sword" | "L2Sword" | "MasterSword" | "L3Sword" | "L4Sword"
-        | "ProgressiveSword" => Item::Sword,
+        "Sword" | "L1Sword" | "L2Sword" | "L3Sword" | "L4Sword" | "ProgressiveSword" => Item::Sword,
         "Shield" | "BlueShield" | "RedShield" | "MirrorShield" | "ProgressiveShield" => {
             Item::Shield
         }
@@ -232,6 +231,7 @@ fn resolve_item(name: &str) -> Option<Item> {
         "Hammer" => Item::Hammer,
         "Hookshot" => Item::Hookshot,
         "Bow" => Item::Bow,
+        "BowAndSilverArrows" => Item::BowAndSilverArrows,
         "MagicPowder" => Item::MagicPowder,
         "Bombos" => Item::Bombos,
         "Ether" => Item::Ether,
@@ -249,11 +249,11 @@ fn resolve_item(name: &str) -> Option<Item> {
         "Mushroom" => Item::Mushroom,
         "Bottle" => Item::Bottle,
         "PegasusBoots" => Item::PegasusBoots,
-        "SilverArrows" | "SilverArrowUpgrade" => Item::SilverArrows,
+        "SilverArrows" => Item::SilverArrows,
         "Ocarina" | "OcarinaInactive" => Item::Ocarina,
         "HalfMagic" => Item::HalfMagic,
-        "Arrow" => Item::Arrow,
-        "Bomb" => Item::Bomb,
+        "OneArrow" => Item::OneArrow,
+        "OneBomb" => Item::OneBomb,
         "Heart" => Item::Heart,
         "SmallMagic" => Item::SmallMagic,
         "ThreeBombs" => Item::ThreeBombs,
@@ -288,12 +288,8 @@ fn resolve_item(name: &str) -> Option<Item> {
         "BossHeartContainer" => Item::BossHeartContainer,
         "SanctuaryHeartContainer" => Item::SanctuaryHeartContainer,
         "PieceOfHeart" => Item::PieceOfHeart,
-        "BombUpgrade5" => Item::BombUpgrade5,
-        "BombUpgrade10" => Item::BombUpgrade10,
-        "BombUpgrade50" => Item::BombUpgrade50,
-        "ArrowUpgrade5" => Item::ArrowUpgrade5,
-        "ArrowUpgrade10" => Item::ArrowUpgrade10,
-        "ArrowUpgrade70" => Item::ArrowUpgrade70,
+        "BombCapacityUpgrade" => Item::BombCapacityUpgrade,
+        "ArrowCapacityUpgrade" => Item::ArrowCapacityUpgrade,
         _ => return None,
     })
 }

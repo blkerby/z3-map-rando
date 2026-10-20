@@ -89,7 +89,7 @@ pub fn generate(
             Item::Mail => "ProgressiveArmor",
             // The catalog has no progressive boomerang receipt yet; retain the prototype encoding.
             Item::Boomerang => "BlueBoomerang",
-            Item::SilverArrows => "SilverArrowUpgrade",
+            Item::SilverArrows => "SilverArrows",
             Item::Ocarina => "OcarinaInactive",
             item => receipt_names[&item],
         };

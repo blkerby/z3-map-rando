@@ -84,7 +84,7 @@ impl Compiler {
                     "Hammer" => UniqueItem::Hammer,
                     "Hookshot" => UniqueItem::Hookshot,
                     "Bow" => UniqueItem::Bow,
-                    "SilverArrows" | "SilverArrowUpgrade" => UniqueItem::SilverArrows,
+                    "SilverArrows" => UniqueItem::SilverArrows,
                     "MagicPowder" => UniqueItem::MagicPowder,
                     "Bombos" => UniqueItem::Bombos,
                     "Ether" => UniqueItem::Ether,
