@@ -104,6 +104,8 @@ pub struct Room {
     pub locked_doors: Vec<Door>,
     #[serde(default)]
     pub obstacles: Vec<Obstacle>,
+    #[serde(default)]
+    pub notables: Vec<Notable>,
     pub strats: Vec<Strat>,
 }
 
@@ -272,6 +274,12 @@ pub struct Obstacle {
     pub id: String,
 }
 
+#[derive(Deserialize)]
+pub struct Notable {
+    pub id: u32,
+    pub name: String,
+}
+
 #[derive(Clone, Copy, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum StratWorld {
@@ -436,6 +444,7 @@ pub enum Requirement {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Operation {
+    Notable(String),
     And(Vec<Requirement>),
     Or(Vec<Requirement>),
     Sword(u8),
@@ -446,6 +455,7 @@ pub enum Operation {
     Arrows(u32),
     SilverArrows(u32),
     Bombs(u32),
+    UpgradeCapacity(serde::de::IgnoredAny),
     MagicPowder(u32),
     FireRod(u32),
     IceRod(u32),

@@ -27,6 +27,8 @@ pub struct GenerationInputs {
     pub prize_pool: Vec<Item>,
     /// Settings resolved by stable tech ID, stored in catalog tech order.
     pub tech_enabled: Vec<bool>,
+    /// Settings resolved by room identity and notable ID, in catalog notable order.
+    pub notable_enabled: Vec<bool>,
     pub proficiency_levels: Vec<u32>,
 }
 
@@ -54,6 +56,7 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         prize_locations: Vec::new(),
         prize_pool: Vec::new(),
         tech_enabled: vec![false; catalog.techs.len()],
+        notable_enabled: vec![false; catalog.notables.len()],
         proficiency_levels: vec![0; catalog.techs.len()],
     };
     for item in &catalog.items {
@@ -187,6 +190,23 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
             .get(&setting.tech_id)
             .ok_or_else(|| anyhow!("unknown tech ID: {}", setting.tech_id))?;
         inputs.tech_enabled[*index] = setting.enabled;
+    }
+    let mut notable_indices = HashMap::new();
+    for (index, notable) in catalog.notables.iter().enumerate() {
+        let room_id = catalog.room(notable.room_idx).room_id.unwrap();
+        notable_indices.insert((room_id, notable.notable_id), index);
+    }
+    for setting in &settings.notables {
+        let index = notable_indices
+            .get(&(setting.room_id, setting.notable_id))
+            .ok_or_else(|| {
+                anyhow!(
+                    "unknown notable ID {} in room {:?}",
+                    setting.notable_id,
+                    setting.room_id,
+                )
+            })?;
+        inputs.notable_enabled[*index] = setting.enabled;
     }
     for setting in &settings.proficiencies {
         let index = tech_indices

@@ -22,6 +22,8 @@ cargo run -p cli -- --rng 12345
 
 The CLI uses bundled default settings and catalogs from `build/`, and writes `z3-map-rando-<SEED-NAME>.json.zst` in the working directory. Omit `--rng` to choose a numeric seed randomly. Use `--settings settings.json`, `--theme Desert`, or `--output-seed seed.json.zst` to override generation inputs or the output path. Set `--compression-level 18` to use a higher Zstd compression level instead of the default `3`. If catalogs are stored elsewhere, specify `--logic-catalog` and `--retiling-catalog`. Run `cargo run -p cli -- --help` for all arguments.
 
+Settings include a `notables` array for room-specific technique toggles. Each entry identifies a technique by `room_id` and `notable_id`, with an informational `name` and an `enabled` Boolean. The bundled settings list every current notable as disabled; an empty array leaves all notables disabled. Global tech toggles and room-specific notables are independent.
+
 To generate and patch together, build the patch catalog and supply a vanilla ROM:
 
 ```sh

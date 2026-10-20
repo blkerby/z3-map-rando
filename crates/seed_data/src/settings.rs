@@ -1,10 +1,11 @@
-use common_types::Item;
+use common_types::{Item, SourceRoomId};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Settings {
     pub proficiencies: Vec<ProficiencySetting>,
     pub tech: Vec<TechSetting>,
+    pub notables: Vec<NotableSetting>,
     pub item_pool: Vec<ItemPoolEntry>,
 }
 
@@ -21,6 +22,16 @@ pub struct ProficiencySetting {
 pub struct TechSetting {
     /// Stable ID from z3-json-data tech.json.
     pub tech_id: u32,
+    /// Informational; does not determine identity or affect logic.
+    pub name: String,
+    pub enabled: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct NotableSetting {
+    /// Stable room identity; notable IDs and names are scoped to this room.
+    pub room_id: SourceRoomId,
+    pub notable_id: u32,
     /// Informational; does not determine identity or affect logic.
     pub name: String,
     pub enabled: bool,

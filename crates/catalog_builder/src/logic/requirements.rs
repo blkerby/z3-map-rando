@@ -120,6 +120,9 @@ impl Compiler {
             z3_json_data::Requirement::Operation(operation) => operation,
         };
         match operation {
+            Op::Notable(name) => Requirement::Notable(room.notables[name]),
+            // Vanilla capacity purchases will be replaced by randomizer-specific behavior.
+            Op::UpgradeCapacity(_) => Requirement::Never,
             Op::And(children) => self.compile_requirements(children, room),
             Op::Or(children) => {
                 let mut branches = Vec::new();

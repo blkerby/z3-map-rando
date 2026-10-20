@@ -67,6 +67,15 @@ pub(super) fn compile_rooms(
                 name: obstacle.id.clone(),
             });
         }
+        for notable in &source_room.notables {
+            let notable_idx = NotableIndex(catalog.notables.len() as u32);
+            indices.notables.insert(notable.name.clone(), notable_idx);
+            catalog.notables.push(NotableDefinition {
+                room_idx: RoomIndex(catalog.rooms.len() as u32),
+                notable_id: notable.id,
+                name: notable.name.clone(),
+            });
+        }
         compile_room_nodes(&source_room, &mut room, &mut indices, catalog);
         compile_room_items(&source_room, room_id, &mut indices, catalog, compiler)?;
         compile_room_doors(&source_room, &mut indices, catalog);
@@ -401,6 +410,7 @@ fn collect_strat_effects(
     if strat.follower_complete.is_some() {
         effects.push(Effect::SetFollower(None));
     }
+    // shortcut: grantsItems shield purchases are ignored; add fixed-level grants when modeled.
     effects
 }
 

@@ -133,6 +133,7 @@ impl Interpreter<'_> {
                 level >= *minimum_level
             }
             Requirement::Tech(idx) => self.inputs.tech_enabled[idx.0 as usize],
+            Requirement::Notable(idx) => self.inputs.notable_enabled[idx.0 as usize],
             Requirement::Proficiency { tech_idx, minimum } => {
                 self.inputs.proficiency_levels[tech_idx.0 as usize] >= *minimum
             }

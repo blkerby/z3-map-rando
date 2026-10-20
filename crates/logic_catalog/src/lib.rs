@@ -122,6 +122,10 @@ impl UniqueItem {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct TechIndex(pub u32);
 
+/// Index into `LogicCatalog::notables`, unique across all rooms.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct NotableIndex(pub u32);
+
 /// Index into `LogicCatalog::flags`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct FlagIndex(pub u32);
@@ -170,6 +174,7 @@ pub struct LogicCatalog {
     pub dungeons: Vec<RoomIndex>,
     pub items: Vec<ItemDefinition>,
     pub techs: Vec<TechDefinition>,
+    pub notables: Vec<NotableDefinition>,
     pub flags: Vec<String>,
     pub doors: Vec<Door>,
     /// Names used to match event-exit and event-entry endpoints across connections.
@@ -468,6 +473,7 @@ pub enum Requirement {
         minimum_level: u8,
     },
     Tech(TechIndex),
+    Notable(NotableIndex),
     Proficiency {
         tech_idx: TechIndex,
         minimum: u32,
@@ -676,6 +682,14 @@ pub struct TechDefinition {
     pub name: String,
     /// Empty for techs controlled by a Boolean setting.
     pub tiers: Vec<ProficiencyTier>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct NotableDefinition {
+    pub room_idx: RoomIndex,
+    /// Stable source ID, unique within the owning room.
+    pub notable_id: u32,
+    pub name: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

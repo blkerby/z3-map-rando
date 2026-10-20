@@ -6,4 +6,4 @@ pub mod settings;
 pub use output::{
     AreaLayout, ItemPlacement, SEED_FORMAT_VERSION, SeedData, SeedMetadata, WorldLayout,
 };
-pub use settings::{ItemPoolEntry, ProficiencySetting, Settings, TechSetting};
+pub use settings::{ItemPoolEntry, NotableSetting, ProficiencySetting, Settings, TechSetting};

@@ -48,6 +48,48 @@
       "enabled": false
     }
   ],
+  "notables": [
+    {
+      "room_id": {
+        "Underworld": 58
+      },
+      "notable_id": 1,
+      "name": "Anti-Fairy Pot Grab",
+      "enabled": false
+    },
+    {
+      "room_id": {
+        "Underworld": 60
+      },
+      "notable_id": 1,
+      "name": "Hera Pot Clip",
+      "enabled": false
+    },
+    {
+      "room_id": {
+        "Underworld": 94
+      },
+      "notable_id": 1,
+      "name": "Specky Clip",
+      "enabled": false
+    },
+    {
+      "room_id": {
+        "Underworld": 97
+      },
+      "notable_id": 1,
+      "name": "Icebreaker",
+      "enabled": false
+    },
+    {
+      "room_id": {
+        "Underworld": 97
+      },
+      "notable_id": 2,
+      "name": "Precise Multi-Hit Fire Rod Kill",
+      "enabled": false
+    }
+  ],
   "item_pool": [
     {
       "name": "FireRod",

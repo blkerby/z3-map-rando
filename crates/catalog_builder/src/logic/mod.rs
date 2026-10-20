@@ -23,6 +23,7 @@ struct RoomIndices {
     items: BTreeMap<u32, Effect>,
     doors: BTreeMap<u32, DoorIndex>,
     obstacles: BTreeMap<String, ObstacleIndex>,
+    notables: BTreeMap<String, NotableIndex>,
 }
 
 fn collect_techs(
@@ -60,6 +61,7 @@ pub fn build_catalog(
         dungeons: Vec::new(),
         items: Vec::new(),
         techs: Vec::new(),
+        notables: Vec::new(),
         flags: Vec::new(),
         doors: Vec::new(),
         events: Vec::new(),
