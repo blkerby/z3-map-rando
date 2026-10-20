@@ -1,6 +1,6 @@
 # Logical item placement implementation plan
 
-Status: Steps 1 through 8 implemented. Steps 9 through 11 remain planned. The placement strategy and the resource, fairy-exchange, and retry policies below reflect the decisions made in discussion.
+Status: Steps 1 through 9 implemented. Steps 10 and 11 remain planned. The placement strategy and the resource, fairy-exchange, and retry policies below reflect the decisions made in discussion.
 
 ## Agreed behavior
 
@@ -247,6 +247,10 @@ Treat these forced dungeon-item placements and the sampled ordinary rewards as t
 Preserve the hard Map/Compass priority even when it consumes every currently available slot in a dungeon. If it prevents progress, use the agreed retry policy and report the forced-placement bottleneck; do not silently relax the rule.
 
 Completion: candidate construction honors Map/Compass priority, fixed-key locations, and prize-only placement restrictions.
+
+Implemented in `generator::placement`: `MainPlacementState::initialize` copies the frozen Small Key assignments and fixed rewards, shuffles prizes only among prize slots, restores the ordinary and dungeon-item pools, and computes normal collection closure from a fresh global state. Prize assignment does not grant inventory without an executable collection action. The caller clones the committed state and calls `place_dungeon_items` to place outstanding Maps and Compasses into randomly chosen collectible dungeon slots. Unplaced dungeon items stay in their pools without reserving inaccessible slots. Forced placements remain uncollected until the complete candidate is evaluated. Step 10 will sample ordinary rewards into the remaining collectible empty slots and derive bottleneck diagnostics from the committed and candidate states. Ordinary sampling and bounded retries remain in Step 10, and the prototype generator remains unchanged until Step 11.
+
+Temporary probes passed for full-catalog attempt setup and pool counts, fixed rewards and keys, prize-only placement and delayed collection, Map/Compass priority across two waves, a forced-slot bottleneck, candidate isolation, fresh-attempt pool restoration, and reproducibility across ten RNG seeds. The probes were removed.
 
 ### Step 10: Sample, accept, and retry placement waves
 
