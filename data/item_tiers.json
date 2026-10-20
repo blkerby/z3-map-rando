@@ -1,0 +1,138 @@
+{
+  "definitions": {
+    "MiseryMireMedallion": "Ether",
+    "TurtleRockMedallion": "Quake",
+    "UnusedMedallion1": "Bombos",
+    "UnusedMedallion2": null
+  },
+  "tiers": {
+    "Major": [
+      "Flippers",
+      "IceRod",
+      "PegasusBoots",
+      "BookOfMudora",
+      "Lamp",
+      "MagicMirror",
+      "OcarinaInactive",
+      "Bow",
+      "SilverArrowUpgrade",
+      "Hookshot",
+      "PowerGlove",
+      "TitansMitt",
+      "MoonPearl",
+      "Hammer",
+      "CaneOfSomaria",
+      "FireRod",
+      { "definition": "MiseryMireMedallion" },
+      { "definition": "TurtleRockMedallion" },
+      { "definition": "UnusedMedallion2" }
+    ],
+    "High": [
+      "L1Sword",
+      "MasterSword",
+      "L3Sword",
+      "L4Sword",
+      "BlueMail",
+      "RedMail",
+      "RedShield",
+      "MirrorShield",
+      "BlueBoomerang",
+      "RedBoomerang",
+      "Shovel",
+      "MagicPowder",
+      "HalfMagic",
+      "BugCatchingNet",
+      "Mushroom",
+      "Cape",
+      "CaneOfByrna",
+      { "definition": "UnusedMedallion1" }
+    ],
+    "Mid": [
+      "BossHeartContainer",
+      "SanctuaryHeartContainer",
+      "Bottle"
+    ],
+    "Minor": [
+      "PieceOfHeart",
+      "ThreeHundredRupees",
+      "BombUpgrade5",
+      "BombUpgrade10",
+      "BombUpgrade50",
+      "ArrowUpgrade5",
+      "ArrowUpgrade10",
+      "ArrowUpgrade70"
+    ],
+    "Junk": [
+      "Arrow",
+      "OneRupee",
+      "ThreeBombs",
+      "TenArrows",
+      "FiveRupees",
+      "TwentyRupees",
+      "FiftyRupees",
+      "OneHundredRupees"
+    ]
+  },
+  "location_overrides": [
+    {
+      "name": "Ice Palace - Big Chest",
+      "room_id": { "Underworld": 97 },
+      "item_id": 5,
+      "tier": "Major"
+    },
+    {
+      "name": "Ganon's Tower - Big Chest",
+      "room_id": { "Underworld": 100 },
+      "item_id": 20,
+      "tier": "Major"
+    },
+    {
+      "name": "Turtle Rock - Big Chest",
+      "room_id": { "Underworld": 99 },
+      "item_id": 8,
+      "tier": "Major"
+    },
+    {
+      "name": "Grove Dig Spot",
+      "room_id": { "Overworld": 25 },
+      "item_id": 1,
+      "tier": "High"
+    },
+    {
+      "name": "Hyrule Castle Secret Entrance - Cellar Chest",
+      "room_id": { "Underworld": 49 },
+      "item_id": 2,
+      "tier": "Junk"
+    },
+    {
+      "name": "Hyrule Castle - Zelda's Prison Chest",
+      "room_id": { "Underworld": 57 },
+      "item_id": 6,
+      "tier": "Junk"
+    },
+    {
+      "name": "Chicken House - Secret Chest",
+      "room_id": { "Underworld": 41 },
+      "item_id": 1,
+      "tier": "Junk"
+    },
+    {
+      "name": "Ether Tablet",
+      "room_id": { "Overworld": 3 },
+      "item_id": 3,
+      "tier": "High"
+    },
+    {
+      "name": "Angry Catfish's Item",
+      "room_id": { "Overworld": 7 },
+      "item_id": 1,
+      "tier": "High"
+    },
+    {
+      "name": "Bombos Tablet",
+      "room_id": { "Overworld": 31 },
+      "item_id": 2,
+      "tier": "High"
+    }
+  ]
+}
