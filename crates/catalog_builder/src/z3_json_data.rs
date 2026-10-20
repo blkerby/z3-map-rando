@@ -364,15 +364,20 @@ pub struct Event {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Items {
-    pub inventory: Vec<Item>,
-    pub refills: Vec<Item>,
-    pub bottle_contents: Vec<Item>,
-    pub currency: Vec<Item>,
-    pub dungeon_items: Vec<Item>,
-    pub dungeon_prizes: Vec<Item>,
-    pub goal_items: Vec<Item>,
-    pub expansions: Vec<Item>,
-    pub flags: Vec<String>,
+    pub inventory: ItemCategory<Item>,
+    pub health_upgrades: ItemCategory<Item>,
+    pub non_vanilla: ItemCategory<Item>,
+    pub refills: ItemCategory<Item>,
+    pub bottle_contents: ItemCategory<Item>,
+    pub currency: ItemCategory<Item>,
+    pub dungeon_items: ItemCategory<Item>,
+    pub dungeon_prizes: ItemCategory<Item>,
+    pub flags: ItemCategory<String>,
+}
+
+#[derive(Deserialize)]
+pub struct ItemCategory<T> {
+    pub items: Vec<T>,
 }
 
 #[derive(Deserialize)]

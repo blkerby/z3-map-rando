@@ -111,12 +111,8 @@ impl GlobalState {
                     self.health_capacity = (self.health_capacity + 8).min(160);
                 }
             }
-            Item::BombUpgrade5 => self.bomb_capacity = (self.bomb_capacity + 5).min(50),
-            Item::BombUpgrade10 => self.bomb_capacity = (self.bomb_capacity + 10).min(50),
-            Item::BombUpgrade50 => self.bomb_capacity = 50,
-            Item::ArrowUpgrade5 => self.arrow_capacity = (self.arrow_capacity + 5).min(70),
-            Item::ArrowUpgrade10 => self.arrow_capacity = (self.arrow_capacity + 10).min(70),
-            Item::ArrowUpgrade70 => self.arrow_capacity = 70,
+            Item::BombCapacityUpgrade => self.bomb_capacity = (self.bomb_capacity + 5).min(50),
+            Item::ArrowCapacityUpgrade => self.arrow_capacity = (self.arrow_capacity + 5).min(70),
             // These receipts all create a bottle, including the filled-bottle rewards.
             Item::Bottle
             | Item::Bee
@@ -139,6 +135,10 @@ impl GlobalState {
             Item::Hammer => self.unique_items[UniqueItem::Hammer as usize] = true,
             Item::Hookshot => self.unique_items[UniqueItem::Hookshot as usize] = true,
             Item::Bow => self.unique_items[UniqueItem::Bow as usize] = true,
+            Item::BowAndSilverArrows => {
+                self.unique_items[UniqueItem::Bow as usize] = true;
+                self.unique_items[UniqueItem::SilverArrows as usize] = true;
+            }
             Item::SilverArrows => self.unique_items[UniqueItem::SilverArrows as usize] = true,
             Item::MagicPowder => self.unique_items[UniqueItem::MagicPowder as usize] = true,
             Item::Bombos => self.unique_items[UniqueItem::Bombos as usize] = true,
@@ -170,9 +170,9 @@ impl GlobalState {
             Item::Crystal6 => self.unique_items[UniqueItem::Crystal6 as usize] = true,
             Item::Crystal7 => self.unique_items[UniqueItem::Crystal7 as usize] = true,
             Item::Triforce => self.unique_items[UniqueItem::Triforce as usize] = true,
-            Item::Arrow
+            Item::OneArrow
             | Item::TenArrows
-            | Item::Bomb
+            | Item::OneBomb
             | Item::ThreeBombs
             | Item::TenBombs
             | Item::Heart
