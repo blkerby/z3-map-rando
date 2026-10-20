@@ -46,6 +46,31 @@ pub struct GlobalState {
 }
 
 impl GlobalState {
+    /// Begin with vanilla capacities, no equipment, and no permanent discoveries.
+    pub fn initialize(catalog: &LogicCatalog) -> Self {
+        Self {
+            unique_items: [false; UniqueItem::COUNT],
+            sword_level: 0,
+            shield_level: 0,
+            glove_level: 0,
+            mail_level: 0,
+            boomerang_level: 0,
+            ocarina: OcarinaState::Missing,
+            health_capacity: 24,
+            magic_capacity: 128,
+            bomb_capacity: 10,
+            arrow_capacity: 30,
+            heart_pieces: 0,
+            bottles_owned: 0,
+            refills: RefillFlags::default(),
+            big_keys: vec![false; catalog.dungeons.len()],
+            unlocked_doors: vec![false; catalog.doors.len()],
+            flags: vec![false; catalog.flags.len()],
+            reachable_item_locations: vec![false; catalog.item_locations.len()],
+            collected_item_locations: vec![false; catalog.item_locations.len()],
+        }
+    }
+
     /// Vanilla save-and-quit health, in eighths of a heart (MaxHealthBasedSpawnHP).
     pub fn get_spawn_health(&self) -> u8 {
         const SPAWN_HEALTH: [u8; 21] = [
@@ -176,6 +201,19 @@ pub struct RefillFlags {
     pub green_potion: bool,
     pub blue_potion: bool,
     pub fairy: bool,
+}
+
+impl RefillFlags {
+    /// Retain all preparation sources known by either set of flags.
+    pub fn merge(&mut self, other: Self) {
+        self.magic |= other.magic;
+        self.bombs |= other.bombs;
+        self.arrows |= other.arrows;
+        self.red_potion |= other.red_potion;
+        self.green_potion |= other.green_potion;
+        self.blue_potion |= other.blue_potion;
+        self.fairy |= other.fairy;
+    }
 }
 
 /// Route-local resource usage and temporary state, including alternative followers.

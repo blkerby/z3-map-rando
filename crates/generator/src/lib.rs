@@ -8,6 +8,7 @@ pub mod key_assignment;
 pub mod key_traversal;
 pub mod local_state_reducer;
 pub mod state;
+pub mod traversal;
 
 pub use seed_data::{SeedData, Settings};
 

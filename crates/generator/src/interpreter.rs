@@ -27,13 +27,6 @@ pub struct GlobalDiscoveries {
     pub refills: RefillFlags,
 }
 
-/// Metric-selected successful states and discoveries from evaluated requirement paths.
-#[derive(Debug, Default)]
-pub struct EdgeResult {
-    pub local_states: LocalStateReducer,
-    pub discoveries: GlobalDiscoveries,
-}
-
 pub struct Interpreter<'a> {
     pub catalog: &'a LogicCatalog,
     pub inputs: &'a GenerationInputs,
@@ -43,31 +36,36 @@ pub struct Interpreter<'a> {
 impl Interpreter<'_> {
     /// Evaluate an edge for a batch of local states at its source vertex.
     /// Report global discoveries as a requirement prefix succeeds, even if a later part fails.
-    /// Returned local states and strat effects require the whole requirement to succeed.
-    pub fn evaluate_edge(&self, edge: &TraversalEdge, states: LocalStateReducer) -> EdgeResult {
-        let mut result = EdgeResult::default();
-        let states =
-            self.evaluate_requirement(&edge.edge.requirement, states, &mut result.discoveries);
+    /// Insert successful states directly into to_states; return whether its metrics improved.
+    /// Strat effects require the whole requirement to succeed.
+    pub fn evaluate_edge(
+        &self,
+        edge: &TraversalEdge,
+        states: LocalStateReducer,
+        discoveries: &mut GlobalDiscoveries,
+        to_states: &mut LocalStateReducer,
+    ) -> bool {
+        let states = self.evaluate_requirement(&edge.edge.requirement, states, discoveries);
+        let mut improved = false;
         for mut state in states.into_states() {
             for effect in &edge.edge.effects {
                 match *effect {
                     Effect::CollectItem(idx) => {
                         if !self.global.reachable_item_locations[idx.0 as usize] {
-                            result.discoveries.item_locations.insert(idx);
+                            discoveries.item_locations.insert(idx);
                         }
                     }
                     Effect::ActivateOcarina => {
-                        result.discoveries.activate_ocarina =
-                            self.global.ocarina != OcarinaState::Active;
+                        discoveries.activate_ocarina = self.global.ocarina != OcarinaState::Active;
                     }
                     Effect::SetFlag(idx) => {
                         if !self.global.flags[idx.0 as usize] {
-                            result.discoveries.flags.insert(idx);
+                            discoveries.flags.insert(idx);
                         }
                     }
                     Effect::OpenDoor(idx) => {
                         if !self.global.unlocked_doors[idx.0 as usize] {
-                            result.discoveries.unlocked_doors.insert(idx);
+                            discoveries.unlocked_doors.insert(idx);
                         }
                     }
                     Effect::ClearObstacle(idx) => state.cleared_obstacles |= 1 << idx.0,
@@ -80,9 +78,9 @@ impl Interpreter<'_> {
                     }
                 }
             }
-            result.local_states.insert(state);
+            improved |= to_states.insert(state);
         }
-        result
+        improved
     }
 
     fn evaluate_requirement(
