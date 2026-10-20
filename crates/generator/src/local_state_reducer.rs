@@ -7,7 +7,7 @@ use crate::{
 
 /// Retain at most METRIC_COUNT distinct states, keeping the incumbent on ties.
 /// Compare states only at the same vertex or requirement position within one traversal wave.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct LocalStateReducer {
     states: Vec<LocalState>,
     best_costs: [i32; METRIC_COUNT],
@@ -60,5 +60,10 @@ impl LocalStateReducer {
     /// Return the retained states without exposing mutable access to the metric winners.
     pub fn get_states(&self) -> &[LocalState] {
         &self.states
+    }
+
+    /// Consume the reducer to process its states without keeping stale metric scores.
+    pub fn into_states(self) -> Vec<LocalState> {
+        self.states
     }
 }

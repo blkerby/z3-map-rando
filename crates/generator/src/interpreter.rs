@@ -3,6 +3,7 @@
 use crate::{
     graph::TraversalEdge,
     inputs::GenerationInputs,
+    local_state_reducer::LocalStateReducer,
     state::{GlobalState, LocalState, RefillFlags, ResourceUsage},
 };
 use hashbrown::HashSet;
@@ -26,9 +27,10 @@ pub struct GlobalDiscoveries {
     pub refills: RefillFlags,
 }
 
+/// Metric-selected successful states and discoveries from evaluated requirement paths.
 #[derive(Debug, Default)]
 pub struct EdgeResult {
-    pub local_states: Vec<LocalState>,
+    pub local_states: LocalStateReducer,
     pub discoveries: GlobalDiscoveries,
 }
 
@@ -39,16 +41,14 @@ pub struct Interpreter<'a> {
 }
 
 impl Interpreter<'_> {
+    /// Evaluate an edge for a batch of local states at its source vertex.
     /// Report global discoveries as a requirement prefix succeeds, even if a later part fails.
     /// Returned local states and strat effects require the whole requirement to succeed.
-    pub fn evaluate_edge(&self, edge: &TraversalEdge, local: &LocalState) -> EdgeResult {
+    pub fn evaluate_edge(&self, edge: &TraversalEdge, states: LocalStateReducer) -> EdgeResult {
         let mut result = EdgeResult::default();
-        let states = self.evaluate_requirement(
-            &edge.edge.requirement,
-            local.clone(),
-            &mut result.discoveries,
-        );
-        for mut state in states {
+        let states =
+            self.evaluate_requirement(&edge.edge.requirement, states, &mut result.discoveries);
+        for mut state in states.into_states() {
             for effect in &edge.edge.effects {
                 match *effect {
                     Effect::CollectItem(idx) => {
@@ -80,9 +80,7 @@ impl Interpreter<'_> {
                     }
                 }
             }
-            if !result.local_states.contains(&state) {
-                result.local_states.push(state);
-            }
+            result.local_states.insert(state);
         }
         result
     }
@@ -90,36 +88,35 @@ impl Interpreter<'_> {
     fn evaluate_requirement(
         &self,
         requirement: &Requirement,
-        mut state: LocalState,
+        mut states: LocalStateReducer,
         discoveries: &mut GlobalDiscoveries,
-    ) -> Vec<LocalState> {
+    ) -> LocalStateReducer {
+        if states.get_states().is_empty() {
+            return states;
+        }
         let succeeds = match requirement {
             Requirement::Free | Requirement::Pay(_) => true,
             Requirement::Never => false,
             Requirement::And(children) => {
-                let mut states = vec![state];
                 for child in children {
-                    let mut next = Vec::new();
-                    for state in states {
-                        for output in self.evaluate_requirement(child, state, discoveries) {
-                            push_distinct_state(&mut next, output);
-                        }
-                    }
-                    states = next;
-                    if states.is_empty() {
+                    states = self.evaluate_requirement(child, states, discoveries);
+                    if states.get_states().is_empty() {
                         break;
                     }
                 }
                 return states;
             }
             Requirement::Or(children) => {
-                let mut states = Vec::new();
+                let mut result = LocalStateReducer::default();
                 for child in children {
-                    for output in self.evaluate_requirement(child, state.clone(), discoveries) {
-                        push_distinct_state(&mut states, output);
+                    for output in self
+                        .evaluate_requirement(child, states.clone(), discoveries)
+                        .into_states()
+                    {
+                        result.insert(output);
                     }
                 }
-                return states;
+                return result;
             }
             Requirement::Item(item) => self.global.unique_items[*item as usize],
             Requirement::Ocarina(minimum) => self.global.ocarina >= *minimum,
@@ -167,6 +164,56 @@ impl Interpreter<'_> {
                 }
                 count >= *minimum
             }
+            Requirement::Door(idx) => {
+                if self.global.unlocked_doors[idx.0 as usize] {
+                    true
+                } else {
+                    let door = self.catalog.door(*idx);
+                    if door.lock == LockKind::BigKey
+                        && self.global.big_keys
+                            [self.catalog.room(door.room_idx).dungeon_idx.unwrap().0 as usize]
+                    {
+                        discoveries.unlocked_doors.insert(*idx);
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }
+            Requirement::UseAmmo { .. }
+            | Requirement::UseMagic { .. }
+            | Requirement::Damage { .. }
+            | Requirement::Refill { .. }
+            | Requirement::ResourceMissingAtMost { .. }
+            | Requirement::Follower(_)
+            | Requirement::LoseFollowers(_)
+            | Requirement::ResetObstacles(_)
+            | Requirement::ResetHealthToSpawn
+            | Requirement::ObstacleCleared(_)
+            | Requirement::ObstacleNotCleared(_) => {
+                let mut result = LocalStateReducer::default();
+                for state in states.into_states() {
+                    self.evaluate_local_requirement(requirement, state, discoveries, &mut result);
+                }
+                return result;
+            }
+        };
+        if succeeds {
+            states
+        } else {
+            LocalStateReducer::default()
+        }
+    }
+
+    /// Evaluate a local requirement for one input, inserting successes into the shared output.
+    fn evaluate_local_requirement(
+        &self,
+        requirement: &Requirement,
+        mut state: LocalState,
+        discoveries: &mut GlobalDiscoveries,
+        result: &mut LocalStateReducer,
+    ) {
+        let succeeds = match requirement {
             Requirement::UseAmmo { kind, count } => {
                 let (usage, capacity) = match kind {
                     Ammo::Arrow | Ammo::SilverArrow => {
@@ -174,7 +221,7 @@ impl Interpreter<'_> {
                             || (*kind == Ammo::SilverArrow
                                 && !self.global.unique_items[UniqueItem::SilverArrows as usize])
                         {
-                            return Vec::new();
+                            return;
                         }
                         (&mut state.arrows_used, self.global.arrow_capacity)
                     }
@@ -200,13 +247,14 @@ impl Interpreter<'_> {
                 let cost_per_use = u64::from(*cost_per_use);
                 let total_cost = (cost_per_use * u64::from(*num_uses)).div_ceil(divisor);
                 if total_cost > 0 && state.magic_used == ResourceUsage::UNPREPARED {
-                    return Vec::new();
+                    return;
                 }
-                let mut states = vec![state];
+                let mut states = LocalStateReducer::default();
+                states.insert(state);
                 let mut completed_cost = 0;
-                while !states.is_empty() {
+                while !states.get_states().is_empty() {
                     // Batch all affordable uses up to the next required potion.
-                    let usage = states[0].magic_used;
+                    let usage = states.get_states()[0].magic_used;
                     let available = if usage == ResourceUsage::UNPREPARED {
                         0
                     } else {
@@ -214,12 +262,13 @@ impl Interpreter<'_> {
                     };
                     let remaining_cost = total_cost - completed_cost;
                     if remaining_cost <= available {
-                        if remaining_cost > 0 {
-                            for state in &mut states {
+                        for mut state in states.into_states() {
+                            if remaining_cost > 0 {
                                 state.magic_used.0 += remaining_cost as u8;
                             }
+                            result.insert(state);
                         }
-                        return states;
+                        return;
                     }
 
                     // Invert the rounded cumulative cost to find the last affordable use.
@@ -228,40 +277,41 @@ impl Interpreter<'_> {
                     let next_cost = (cost_per_use * (completed_uses + 1)).div_ceil(divisor);
                     let cost = next_cost - affordable_cost;
                     if cost > u64::from(self.global.magic_capacity) {
-                        return Vec::new();
+                        return;
                     }
                     completed_cost = next_cost;
-                    let mut next = Vec::new();
-                    for state in states {
+                    let mut next = LocalStateReducer::default();
+                    for state in states.into_states() {
                         for content in [BottleContent::BluePotion, BottleContent::GreenPotion] {
                             if let Some(mut refilled) = self.use_potion(&state, content) {
                                 refilled.magic_used = ResourceUsage(cost as u8);
-                                push_distinct_state(&mut next, refilled);
+                                next.insert(refilled);
                                 break;
                             }
                         }
                     }
                     states = next;
                 }
-                return states;
+                return;
             }
             Requirement::Damage { per_mail, hits } => {
                 let damage = per_mail[self.global.mail_level as usize];
-                let mut states = vec![state];
+                let mut states = LocalStateReducer::default();
+                states.insert(state);
                 for _ in 0..*hits {
-                    let mut next = Vec::new();
-                    for mut state in states {
+                    let mut next = LocalStateReducer::default();
+                    for mut state in states.into_states() {
                         let remaining = self.global.health_capacity - state.health_used;
                         if damage < u32::from(remaining) {
                             state.health_used += damage as u8;
-                            push_distinct_state(&mut next, state);
+                            next.insert(state);
                         } else {
                             if damage < u32::from(self.global.health_capacity) {
                                 for content in [BottleContent::BluePotion, BottleContent::RedPotion]
                                 {
                                     if let Some(mut healed) = self.use_potion(&state, content) {
                                         healed.health_used = damage as u8;
-                                        push_distinct_state(&mut next, healed);
+                                        next.insert(healed);
                                         break;
                                     }
                                 }
@@ -272,20 +322,24 @@ impl Interpreter<'_> {
                                 state.bottles_used += 1;
                                 state.health_used = self.global.health_capacity
                                     - self.global.health_capacity.min(56);
-                                push_distinct_state(&mut next, state);
+                                next.insert(state);
                             }
                         }
                     }
                     states = next;
-                    if states.is_empty() {
+                    if states.get_states().is_empty() {
                         break;
                     }
                 }
-                return states;
+                for output in states.into_states() {
+                    result.insert(output);
+                }
+                return;
             }
             Requirement::Refill { resource, limit } => {
                 if *limit == 0 {
-                    return vec![state];
+                    result.insert(state);
+                    return;
                 }
                 match resource {
                     Resource::Health => {
@@ -320,7 +374,7 @@ impl Interpreter<'_> {
                     }
                     Resource::BottleContent(content) => {
                         if self.global.bottles_owned == 0 {
-                            return Vec::new();
+                            return;
                         }
                         match content {
                             BottleContent::RedPotion => {
@@ -374,23 +428,23 @@ impl Interpreter<'_> {
                     }
                 };
                 if missing <= *count {
-                    return vec![state];
+                    result.insert(state);
+                    return;
                 }
                 if *resource == Resource::Magic && state.magic_used == ResourceUsage::UNPREPARED {
-                    return Vec::new();
+                    return;
                 }
                 let contents: &[BottleContent] = match resource {
                     Resource::Health => &[BottleContent::BluePotion, BottleContent::RedPotion],
                     Resource::Magic => &[BottleContent::BluePotion, BottleContent::GreenPotion],
-                    _ => return Vec::new(),
+                    _ => return,
                 };
-                let mut states = Vec::new();
                 for &content in contents {
                     if let Some(refilled) = self.use_potion(&state, content) {
-                        push_distinct_state(&mut states, refilled);
+                        result.insert(refilled);
                     }
                 }
-                return states;
+                return;
             }
             Requirement::Follower(follower) => {
                 let bit = 1 << *follower as u8;
@@ -415,24 +469,13 @@ impl Interpreter<'_> {
             }
             Requirement::ObstacleCleared(idx) => state.cleared_obstacles & (1 << idx.0) != 0,
             Requirement::ObstacleNotCleared(idx) => state.cleared_obstacles & (1 << idx.0) == 0,
-            Requirement::Door(idx) => {
-                if self.global.unlocked_doors[idx.0 as usize] {
-                    true
-                } else {
-                    let door = self.catalog.door(*idx);
-                    if door.lock == LockKind::BigKey
-                        && self.global.big_keys
-                            [self.catalog.room(door.room_idx).dungeon_idx.unwrap().0 as usize]
-                    {
-                        discoveries.unlocked_doors.insert(*idx);
-                        true
-                    } else {
-                        false
-                    }
-                }
-            }
+            _ => unreachable!(
+                "state-independent and composite requirements are evaluated as a batch"
+            ),
         };
-        if succeeds { vec![state] } else { Vec::new() }
+        if succeeds {
+            result.insert(state);
+        }
     }
 
     /// Called only when a health or magic requirement cannot succeed without a refill.
@@ -470,12 +513,6 @@ impl Interpreter<'_> {
             BottleContent::Fairy => self.global.refills.fairy,
             BottleContent::Bee | BottleContent::GoldBee => false,
         }
-    }
-}
-
-fn push_distinct_state(states: &mut Vec<LocalState>, state: LocalState) {
-    if !states.contains(&state) {
-        states.push(state);
     }
 }
 

@@ -82,10 +82,10 @@ Door-specific keys behave as ordinary persistent items. There is no key-alternat
 
 Identical local states can merge. Resource dominance only compares compatible temporary states; independent maxima must not create invented states. Cleared obstacles are not universally preferable because the source also tests uncleared obstacles.
 
-One proposed approximation keeps the actual state winning each of a finite set of cost metrics, bounding the stored frontier by the number of metrics. Dropping logical routes sacrifices completeness; every accepted route must remain a valid witness. Metric choice and tie handling are traversal decisions, not catalog data.
+The interpreter keeps the actual state winning each of 18 fixed cost metrics, bounding its intermediate and output local-state collections. Dropping logical routes sacrifices completeness; every accepted route must remain a valid witness. Metric choice and tie handling are traversal decisions, not catalog data.
 
 ## Deferred work
 
 - Generation assigns unique key pickups to logical doors; the catalog retains door identities and lock types, not generated key assignments. Big-key scope and logical-door-to-ROM-door associations still need definition.
 
-The traversers, metric implementation, item filler, and ROM key patches are later work. The shared generation graph is implemented; save-and-quit edges identify where normal traversal must reset health while retaining other resources and bottle contents. Resource preparation from permanent discoveries remains part of traversal-wave initialization.
+The normal traverser, item filler, and ROM key patches are later work. The shared generation graph is implemented; save-and-quit edges identify where normal traversal must reset health while retaining other resources and bottle contents. Resource preparation from permanent discoveries remains part of traversal-wave initialization.
