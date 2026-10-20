@@ -1,10 +1,4 @@
 {
-  "definitions": {
-    "MiseryMireMedallion": "Ether",
-    "TurtleRockMedallion": "Quake",
-    "UnusedMedallion1": "Bombos",
-    "UnusedMedallion2": null
-  },
   "tiers": {
     "Major": [
       "Flippers",
@@ -23,13 +17,12 @@
       "Hammer",
       "CaneOfSomaria",
       "FireRod",
-      { "definition": "MiseryMireMedallion" },
-      { "definition": "TurtleRockMedallion" },
-      { "definition": "UnusedMedallion2" }
+      "Ether",
+      "Quake"
     ],
     "High": [
       "L1Sword",
-      "MasterSword",
+      "L2Sword",
       "L3Sword",
       "L4Sword",
       "BlueMail",
@@ -45,7 +38,7 @@
       "Mushroom",
       "Cape",
       "CaneOfByrna",
-      { "definition": "UnusedMedallion1" }
+      "Bombos"
     ],
     "Mid": [
       "BossHeartContainer",
@@ -74,24 +67,48 @@
     ]
   },
   "fairy_upgrades": {
-    "Sword": {
-      "sequence": ["L1Sword", "MasterSword", "L3Sword", "L4Sword"]
-    },
-    "Glove": {
-      "sequence": ["PowerGlove", "TitansMitt"]
-    },
-    "Shield": {
-      "sequence": ["BlueShield", "RedShield", "MirrorShield"]
-    },
-    "Mail": {
-      "sequence": ["BlueMail", "RedMail"]
-    },
-    "Boomerang": {
-      "sequence": ["BlueBoomerang", "RedBoomerang"]
-    },
-    "SilverArrows": {
-      "sequence": ["Bow", "SilverArrowUpgrade"]
-    }
+    "Sword": [
+      { "requires": "L1Sword", "item": "L2Sword" },
+      { "requires": "L2Sword", "item": "L3Sword" },
+      { "requires": "L3Sword", "item": "L4Sword" }
+    ],
+    "Glove": [
+      { "requires": "PowerGlove", "item": "TitansMitt" }
+    ],
+    "Shield": [
+      { "requires": "BlueShield", "item": "RedShield" },
+      { "requires": "RedShield", "item": "MirrorShield" }
+    ],
+    "Mail": [
+      { "requires": "GreenMail", "item": "BlueMail" },
+      { "requires": "BlueMail", "item": "RedMail" }
+    ],
+    "Boomerang": [
+      { "requires": "BlueBoomerang", "item": "RedBoomerang" }
+    ],
+    "SilverArrows": [
+      { "requires": "Bow", "item": "SilverArrows" }
+    ],
+    "BombCapacity": [
+      { "requires": "Bombs", "item": "BombCapacityUpgrade" }
+    ],
+    "ArrowCapacity": [
+      { "requires": "Bow", "item": "ArrowCapacityUpgrade" }
+    ]
+  },
+  "location_groups": {
+    "great_fairies": [
+      {
+        "name": "Waterfall of Wishing - Second Item",
+        "room_id": { "Underworld": 12 },
+        "item_id": 2
+      },
+      {
+        "name": "Pyramid Great Fairy - Second Item",
+        "room_id": { "Underworld": 69 },
+        "item_id": 2
+      }
+    ]
   },
   "location_overrides": [
     {
