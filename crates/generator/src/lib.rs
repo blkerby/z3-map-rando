@@ -1,5 +1,6 @@
 //! Uniform prototype generation without logical placement.
 
+pub mod cost_metrics;
 pub mod graph;
 pub mod inputs;
 pub mod interpreter;
