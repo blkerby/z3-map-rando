@@ -39,8 +39,8 @@ pub struct NotableSetting {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ItemPoolEntry {
-    /// Ordinary reward to place; dungeon items and prizes use separate placement phases.
-    /// Flatten the tagged reward so JSON remains {"name": "Sword", "count": 3}.
+    /// Ordinary item to place; dungeon items and prizes use separate placement phases.
+    /// Flatten the tagged item so JSON remains {"name": "Sword", "count": 3}.
     #[serde(flatten)]
     pub item: Item,
     /// Number of pickups to place.

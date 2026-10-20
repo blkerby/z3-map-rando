@@ -538,12 +538,12 @@ Milestone 11 is complete when all relocated gameplay data follow logical areas r
 
 ## Milestone 12: generated Mode 7 world map
 
-Generate the Mode 7 tilemap, graphics, edge art, and Link, dungeon-reward, portal, objective, and flute markers from the final topology and milestone 11 gameplay data. Keep these assets separate from the playable-overworld tileset: bank 0A and bank 18 use a distinct presentation path and VRAM mode. Derive them from the authoritative JSON rather than creating a second representation of the world layout.
+Generate the Mode 7 tilemap, graphics, edge art, and Link, dungeon-item, portal, objective, and flute markers from the final topology and milestone 11 gameplay data. Keep these assets separate from the playable-overworld tileset: bank 0A and bank 18 use a distinct presentation path and VRAM mode. Derive them from the authoritative JSON rather than creating a second representation of the world layout.
 
 ### Validation and exit criteria
 
 1. Verify that the Light World and Dark World maps match the generated topology and selected edge art.
-2. Verify every Link, reward, portal, objective, and flute marker against its generated world coordinate.
+2. Verify every Link, item, portal, objective, and flute marker against its generated world coordinate.
 3. Test map zooming and panning, flute selection and landing, menu exit, and restoration of the playable-overworld graphics and palettes.
 4. Run a final completion playthrough to catch map, flute, or restoration regressions.
 

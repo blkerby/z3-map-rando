@@ -73,7 +73,7 @@ pub fn traverse(graph: &TraversalGraph, interpreter: &Interpreter<'_>) -> Traver
     result
 }
 
-/// Apply discoveries and reachable placed rewards between fresh traversal waves.
+/// Apply discoveries and reachable placed items between fresh traversal waves.
 /// Placements have one entry per catalog item location, indexed by ItemLocationIndex.
 /// None denotes an unfilled location.
 /// Global state retains reachable and collected locations, including earlier waves.

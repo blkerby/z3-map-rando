@@ -89,8 +89,8 @@ pub struct PatchIps {
 #[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
 #[serde(deny_unknown_fields)]
 pub struct PatchSymbols {
-    pub catfish_reward: u32,
-    pub king_zora_reward: u32,
+    pub catfish_item: u32,
+    pub king_zora_item: u32,
     pub theme_flat_map16_data: u32,
     pub flat_map16_screen_pointers: u32,
     pub bg1_flat_map16_screen_pointers: u32,

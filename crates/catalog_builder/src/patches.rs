@@ -273,13 +273,13 @@ fn read_item_locations(
                 rom_addresses.clear();
             }
             // These gifts keep their vanilla sprite subtype as a placeholder.
-            // Their reward IDs are read from separate data instead of that subtype.
-            let reward = match (room_id, item.id) {
-                (SourceRoomId::Overworld(7), 1) => Some(symbols.catfish_reward),
-                (SourceRoomId::Underworld(104), 1) => Some(symbols.king_zora_reward),
+            // Their item IDs are read from separate data instead of that subtype.
+            let item_address = match (room_id, item.id) {
+                (SourceRoomId::Overworld(7), 1) => Some(symbols.catfish_item),
+                (SourceRoomId::Underworld(104), 1) => Some(symbols.king_zora_item),
                 _ => None,
             };
-            if let Some(address) = reward {
+            if let Some(address) = item_address {
                 rom_addresses = vec![((address & 0x7f0000) >> 1) | (address & 0x7fff)];
             }
             locations.insert(

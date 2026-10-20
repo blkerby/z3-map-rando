@@ -22,7 +22,7 @@ pub struct PlacementState {
 
 impl PlacementState {
     /// Start a fresh attempt with frozen keys and newly shuffled prizes.
-    /// Assigned rewards enter inventory only through normal collection closure.
+    /// Assigned items enter inventory only through normal collection closure.
     pub fn initialize(
         catalog: &LogicCatalog,
         graph: &TraversalGraph,
@@ -59,8 +59,8 @@ impl PlacementState {
     }
 
     /// Place outstanding Maps and Compasses into collectible empty dungeon slots.
-    /// Call on a clone of committed closure state before sampling ordinary rewards.
-    /// Rewards are collected when the complete candidate is evaluated.
+    /// Call on a clone of committed closure state before sampling ordinary items.
+    /// Items are collected when the complete candidate is evaluated.
     pub fn place_dungeon_items(&mut self, inputs: &GenerationInputs, rng: &mut impl Rng) {
         for (index, dungeon) in inputs.dungeons.iter().enumerate() {
             let pool = &mut self.dungeon_pools[index];

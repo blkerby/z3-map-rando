@@ -1,6 +1,6 @@
 ; Reuse the vanilla item slot ($24/$34) for dynamic pickups and the vanilla
 ; heart-piece slot ($E0/$F0) for heart-piece carriers. Keeping those independent
-; lets the Spectacle Rock pickup coexist with the falling Ether Tablet reward.
+; lets the Spectacle Rock pickup coexist with the falling Ether Tablet item.
 ; No equipment/follower slots are borrowed. Native receipt IDs and carrier
 ; subtypes stay unchanged; only their displayed artwork is selected here.
 ;
@@ -50,36 +50,36 @@ hook_upload_heart_pickup:
     NOP #2
 
 org $85EE78
-hook_draw_mushroom_reward:
-    JSL DrawMushroomReward
+hook_draw_mushroom_item:
+    JSL DrawMushroomItem
 org $85EF79
-hook_draw_heart_container_reward:
-    JSL DrawHeartContainerReward
+hook_draw_heart_container_item:
+    JSL DrawHeartContainerItem
 org $85F030
-hook_draw_heart_piece_reward:
-    JSL DrawHeartPieceReward
+hook_draw_heart_piece_item:
+    JSL DrawHeartPieceItem
 org $85FC9E
-hook_draw_book_reward:
-    JSL DrawBookReward
+hook_draw_book_item:
+    JSL DrawBookItem
 org $9DDF81
-hook_draw_water_reward:
-    JSL DrawWaterReward
+hook_draw_water_item:
+    JSL DrawWaterItem
 
 ; These callers use JSR. Their helpers return through the original bank's RTS.
 org $85F67B
-hook_draw_powder_reward:
-    JML DrawPowderReward
+hook_draw_powder_item:
+    JML DrawPowderItem
 org $858DA8
-hook_draw_pedestal_reward:
-    JML DrawPedestalReward
+hook_draw_pedestal_item:
+    JML DrawPedestalItem
 
 ; The Grove carrier already uses the shared item image and one 16x16 OBJ.
 org $88D045
-hook_draw_grove_reward:
-    JSL DrawGroveReward
+hook_draw_grove_item:
+    JSL DrawGroveItem
 org $88D04A
-hook_color_grove_reward:
-    JSL ColorGroveReward
+hook_color_grove_item:
+    JSL ColorGroveItem
 
 ; Select a visual receipt ID for tablets without changing their dispatch ID.
 ; All other uses of this native drawer, including prizes/fairies, stay native.
@@ -545,39 +545,39 @@ DrawSharedPickup:
     JSR WritePickupBody
     RTL
 
-macro draw_reward(name, reward)
-Draw<name>Reward:
+macro draw_item(name, item)
+Draw<name>Item:
     JSL $86DBF8
     LDY.b #$01
     LDA.b ($90),Y
     CMP.b #$F0
     BEQ .done
-    LDA.l <reward>
+    LDA.l <item>
     JSL DrawSharedPickup
 .done
     RTL
 endmacro
-%draw_reward(Mushroom, !MushroomReward)
-%draw_reward(Book, !BookReward)
+%draw_item(Mushroom, !MushroomItem)
+%draw_item(Book, !BookItem)
 
-DrawHeartContainerReward:
+DrawHeartContainerItem:
     JSL $86DBF8
     LDY.b #$01
     LDA.b ($90),Y
     CMP.b #$F0
     BEQ .done
-    JSL ReadHeartReward
+    JSL ReadHeartItem
     JSL DrawSharedPickup
 .done
     RTL
 
-DrawHeartPieceReward:
+DrawHeartPieceItem:
     JSL $86DBF8
     LDY.b #$01
     LDA.b ($90),Y
     CMP.b #$F0
     BEQ .done
-    JSL ReadHeartReward
+    JSL ReadHeartItem
     JSL SelectPickupReceipt
     JSL PrepareHeartPickupGraphics
     LDA.b #$01
@@ -587,7 +587,7 @@ DrawHeartPieceReward:
 .done
     RTL
 
-DrawWaterReward:
+DrawWaterItem:
     JSL $86DBF8
     LDY.b #$01
     LDA.b ($90),Y
@@ -595,33 +595,33 @@ DrawWaterReward:
     BEQ .done
     LDA.w $0EE0,X
     BEQ .catfish
-    LDA.l !KingZoraReward
+    LDA.l !KingZoraItem
     BRA .draw
 .catfish
-    LDA.l !CatfishReward
+    LDA.l !CatfishItem
 .draw
     JSL DrawSharedPickup
 .done
     RTL
 
-DrawPowderReward:
+DrawPowderItem:
     JSL DrawPickupWithoutShadow
     LDY.b #$01
     LDA.b ($90),Y
     CMP.b #$F0
     BEQ .done
-    LDA.l !PowderReward
+    LDA.l !PowderItem
     JSL DrawSharedPickup
 .done
     JML $85F68D
 
-DrawPedestalReward:
+DrawPedestalItem:
     JSL DrawPickupWithoutShadow
     LDY.b #$01
     LDA.b ($90),Y
     CMP.b #$F0
     BEQ .done
-    ; Retain the pedestal's bottom two 8x8 tiles, underneath the reward image.
+    ; Retain the pedestal's bottom two 8x8 tiles, underneath the item image.
     LDY.b #$04
     LDA.b $00
     SEC
@@ -697,10 +697,10 @@ DrawPickupWithoutShadow:
     STA.w $0E60,X
     RTL
 
-DrawGroveReward:
+DrawGroveItem:
     PHX
     PHY
-    LDA.l !GroveReward
+    LDA.l !GroveItem
     JSL SelectPickupReceipt
     JSL PreparePickupGraphics
     LDA.l !PickupReceipt
@@ -728,7 +728,7 @@ DrawGroveReward:
     STA.b ($90),Y
     RTL
 
-ColorGroveReward:
+ColorGroveItem:
     JSL ReadPickupPalette
     ASL A
     ORA.b $65 ; Run hi-jacked instruction
@@ -747,10 +747,10 @@ SelectMilestoneGraphics:
     BEQ .ether
     CMP.b #$0F
     BNE .native
-    LDA.l !BombosReward
+    LDA.l !BombosItem
     BRA .assigned
 .ether
-    LDA.l !EtherReward
+    LDA.l !EtherItem
 .assigned
     JSL SelectPickupReceipt
     JSL PreparePickupGraphics

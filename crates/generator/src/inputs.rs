@@ -8,9 +8,9 @@ use std::collections::BTreeMap;
 /// Indexed inputs for traversal and placement, prepared without changing the catalog.
 #[derive(Debug)]
 pub struct GenerationInputs {
-    /// Reward interpretations of catalog definitions; anonymous Small Keys, activation
+    /// Item interpretations of catalog definitions; anonymous Small Keys, activation
     /// events such as OcarinaActive, and unsupported receipts are `None`.
-    /// Only names used by catalog placements need reward identities here.
+    /// Only names used by catalog placements need item identities here.
     pub items: Vec<Option<Item>>,
     /// Stable authored identities in catalog door order.
     pub door_ids: Vec<DoorId>,
@@ -21,7 +21,7 @@ pub struct GenerationInputs {
     /// Eligible ordinary slots, including the slots originally holding Maps and Compasses.
     pub ordinary_locations: Vec<ItemLocationIndex>,
     pub ordinary_pool: Vec<Item>,
-    /// Vanilla Big Keys and fairy-exchange rewards. Small Keys are assigned later.
+    /// Vanilla Big Keys and fairy-exchange items. Small Keys are assigned later.
     pub fixed_items: BTreeMap<ItemLocationIndex, Item>,
     pub prize_locations: Vec<ItemLocationIndex>,
     pub prize_pool: Vec<Item>,
@@ -42,7 +42,7 @@ pub struct DungeonInputs {
     pub ordinary_locations: Vec<ItemLocationIndex>,
 }
 
-/// Resolve reward names and player settings, and classify locations by source dungeon.
+/// Resolve item names and player settings, and classify locations by source dungeon.
 /// Small Key identities are constructed by the later preliminary assignment pass.
 pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<GenerationInputs> {
     let mut inputs = GenerationInputs {
@@ -99,8 +99,8 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
             continue;
         }
         let item = inputs.items[location.vanilla_item_idx.0 as usize]
-            .ok_or_else(|| anyhow!("unknown reward identity: {item_name}"))?;
-        // Waterfall and Pyramid exchanges remain fixed, including progressive equipment rewards.
+            .ok_or_else(|| anyhow!("unknown item identity: {item_name}"))?;
+        // Waterfall and Pyramid exchanges remain fixed, including progressive equipment items.
         if matches!(
             (location.id.room_id, location.id.item_id),
             (common_types::SourceRoomId::Underworld(12 | 69), 1 | 2)

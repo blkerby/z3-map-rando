@@ -13,9 +13,9 @@ pub struct SeedData {
     pub metadata: SeedMetadata,
     pub settings: Settings,
     pub world_layout: WorldLayout,
-    /// Final placements of all pickups, including maps, compasses, keys, prizes, and fairy rewards.
+    /// Final placements of all pickups, including maps, compasses, keys, prizes, and fairy-exchange items.
     /// Maps and compasses are shuffled within their own dungeon.
-    /// Keys and fairy exchanges keep their vanilla rewards;
+    /// Keys and fairy exchanges keep their vanilla items;
     /// pendants and crystals shuffle among prize locations.
     pub item_placements: Vec<ItemPlacement>,
 }

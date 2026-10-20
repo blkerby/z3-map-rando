@@ -1,6 +1,6 @@
-; Randomized rewards use vanilla receipt behavior and assigned pickup graphics.
+; Randomized items use vanilla receipt behavior and assigned pickup graphics.
 ; Chest bytes are patched directly. Other carriers retain their own identity
-; and collection flag while reading a separate assigned reward.
+; and collection flag while reading a separate assigned item.
 ;
 ; Receipt hooks enter with 8-bit A/X/Y. Helpers preserve X unless the displaced
 ; vanilla receipt already clobbers it; no direct-page scratch is introduced.
@@ -16,21 +16,21 @@ incsrc "symbols.inc"
 !SmithSword = $7EF3D7
 !HalfMagicReceipt = $7EF3D8
 
-; Source itemAddress slots reserved for the non-chest reward tables.
-!CaveRewards = $B08000
-!MiniMoldormReward = $B08010
-!HypeCaveReward = $B08011
-!BookReward = $B08012
-!MushroomReward = $B08013
-!PowderReward = $B08014
-!BatReward = $B08015
-!EtherReward = $B08016
-!BombosReward = $B08017
-!SmithReward = $B0802A
+; Source itemAddress slots reserved for the non-chest item tables.
+!CaveItems = $B08000
+!MiniMoldormItem = $B08010
+!HypeCaveItem = $B08011
+!BookItem = $B08012
+!MushroomItem = $B08013
+!PowderItem = $B08014
+!BatItem = $B08015
+!EtherItem = $B08016
+!BombosItem = $B08017
+!SmithItem = $B0802A
 !DungeonPrizeTypes = $B08050
-!OverworldRewards = $B08140
-!GroveReward = $B0814A
-!BossRewards = $B08150
+!OverworldItems = $B08140
+!GroveItem = $B0814A
+!BossItems = $B08150
 
 ; Replacing a long inventory load with a long flag read leaves X/Y and carry
 ; unchanged. Each reader returns the value expected by its vanilla comparison.
@@ -57,23 +57,23 @@ hook_check_catfish_gift:
 %hook_flag($86B489, Smith)
 
 org $86B062
-hook_check_stumpy_reward:
+hook_check_stumpy_item:
     JSL ReadStumpyPhase
 
-; These vanilla LDY instructions remain intact so their immediate reward
+; These vanilla LDY instructions remain intact so their immediate item
 ; bytes can still be written using the source catalog's itemAddress.
 org $86B9D4
-hook_receive_sick_kid_reward:
-    JSL GrantSickKidReward
+hook_receive_sick_kid_item:
+    JSL GrantSickKidItem
 org $85F200
-hook_receive_sahasrahla_reward:
-    JSL GrantSahasrahlaReward
+hook_receive_sahasrahla_item:
+    JSL GrantSahasrahlaItem
 org $9EE9FE
-hook_receive_old_man_reward:
-    JSL GrantOldManReward
+hook_receive_old_man_item:
+    JSL GrantOldManItem
 org $86B0C9
-hook_receive_stumpy_reward:
-    JSL GrantStumpyReward
+hook_receive_stumpy_item:
+    JSL GrantStumpyItem
 org $9DDF71
 hook_receive_water_gift:
     JSL GrantWaterGift
@@ -81,7 +81,7 @@ hook_receive_water_gift:
 macro hook_prepare(address, name)
 org <address>
 hook_prepare_<name>:
-    JSL Prepare<name>Reward
+    JSL Prepare<name>Item
     NOP
 endmacro
 %hook_prepare($85FD3F, Book)
@@ -95,7 +95,7 @@ hook_take_smith_sword:
     BRA +
 +
 
-; The receipt displays the assigned reward message; do not unconditionally
+; The receipt displays the assigned item message; do not unconditionally
 ; announce HalfMagic when the Bat gives something else.
 org $85FBBE
 hook_skip_magic_bat_message:
@@ -104,36 +104,36 @@ org $85FBC6
 return_restore_magic_bat_palette:
 
 org $85FBD1
-hook_receive_magic_bat_reward:
-    JSL GrantBatReward
+hook_receive_magic_bat_item:
+    JSL GrantBatItem
     BRA +
 +
 
 org $9EF063
 hook_receive_generous_gift:
-    JML PrepareGenerousReward
+    JML PrepareGenerousItem
     NOP
 
 org $85EFCE
-hook_receive_boss_reward:
-    JSL GrantHeartReward
+hook_receive_boss_item:
+    JSL GrantHeartItem
 org $85EFEE
-hook_receive_heart_container_reward:
-    JSL GrantHeartReward
+hook_receive_heart_container_item:
+    JSL GrantHeartItem
 org $85F08A
-hook_receive_heart_piece_reward:
-    JML ReceiveHeartPieceReward
+hook_receive_heart_piece_item:
+    JML ReceiveHeartPieceItem
 
 org $87A379
-hook_spawn_grove_reward:
-    JSL SpawnGroveReward
+hook_spawn_grove_item:
+    JSL SpawnGroveItem
 org $88D01B
-hook_receive_grove_reward:
-    JSL GrantGroveReward
+hook_receive_grove_item:
+    JSL GrantGroveItem
 
 org $88CB6A
-hook_receive_milestone_reward:
-    JSL GrantMilestoneReward
+hook_receive_milestone_item:
+    JSL GrantMilestoneItem
 org $81C715
 hook_check_dungeon_prize:
     JSL ReadDungeonPrizeType
@@ -144,13 +144,13 @@ hook_choose_crystal_speech:
 ; Two default pool IDs extend the vanilla receipt table: $4E is HalfMagic,
 ; $50 is a regular Master Sword without the pedestal-only cutscene.
 org $87B57D
-hook_check_chest_reward_replacement:
-    JML ReadChestRewardReplacement
+hook_check_chest_item_replacement:
+    JML ReadChestItemReplacement
     NOP
 org $87B582
-return_check_chest_reward_replacement:
+return_check_chest_item_replacement:
 org $87B59F
-return_receive_chest_reward:
+return_receive_chest_item:
 
 org $87999D
 hook_grant_item:
@@ -211,7 +211,7 @@ ReadStumpyPhase:
     RTL
 
 macro grant_flag(name, flags, mask)
-Grant<name>Reward:
+Grant<name>Item:
     LDA.l <flags>
     ORA.b #<mask>
     STA.l <flags>
@@ -230,30 +230,30 @@ GrantWaterGift:
     LDA.l !NpcFlags
     ORA.b #$08
     STA.l !NpcFlags
-    LDA.l !KingZoraReward
+    LDA.l !KingZoraItem
     TAY
     JML $87999D
 .catfish
     LDA.l !NpcFlags
     ORA.b #$10
     STA.l !NpcFlags
-    LDA.l !CatfishReward
+    LDA.l !CatfishItem
     TAY
     JML $87999D
 
-macro prepare_reward(name, flags, mask, reward)
-Prepare<name>Reward:
+macro prepare_item(name, flags, mask, item)
+Prepare<name>Item:
     LDA.l <flags>
     ORA.b #<mask>
     STA.l <flags>
-    LDA.l <reward>
+    LDA.l <item>
     TAY
     STZ.w $02E9 ; Run hi-jacked instruction
     RTL
 endmacro
-%prepare_reward(Book, !NpcFlags, $80, !BookReward)
-%prepare_reward(Mushroom, !NpcFlags, $40, !MushroomReward)
-%prepare_reward(Powder, !EventFlags, $02, !PowderReward)
+%prepare_item(Book, !NpcFlags, $80, !BookItem)
+%prepare_item(Mushroom, !NpcFlags, $40, !MushroomItem)
+%prepare_item(Powder, !EventFlags, $02, !PowderItem)
 
 SaveSmithSword:
     LDA.l $7EF359
@@ -263,32 +263,32 @@ SaveSmithSword:
     STA.l $7EF359
     RTL
 
-PrepareSmithReward:
-    ; Restore the sword taken for forging before granting the reward. A
-    ; non-sword reward must not leave the player in the swordless forging state.
+PrepareSmithItem:
+    ; Restore the sword taken for forging before granting the item. A
+    ; non-sword item must not leave the player in the swordless forging state.
     LDA.l !SmithSword
     STA.l $7EF359
     LDA.l !EventFlags
     ORA.b #$04
     STA.l !EventFlags
-    LDA.l !SmithReward
+    LDA.l !SmithItem
     TAY
     STZ.w $02E9 ; Run hi-jacked instruction
     RTL
 
-GrantBatReward:
+GrantBatItem:
     LDA.l !EventFlags
     ORA.b #$01
     STA.l !EventFlags
     PHX
-    LDA.l !BatReward
+    LDA.l !BatItem
     TAY
     STZ.w $02E9
     JSL $87999D
     PLX
     RTL
 
-PrepareGenerousReward:
+PrepareGenerousItem:
     ; The caller has a bank-$1E JSR return on the stack. Tail-jump back to
     ; its original receipt routine; that routine's RTS consumes the return.
     PHP
@@ -297,33 +297,33 @@ PrepareGenerousReward:
     CMP.w #$0123
     SEP #$20
     BEQ .mini_moldorm
-    LDA.l !HypeCaveReward
+    LDA.l !HypeCaveItem
     BRA .prepare
 .mini_moldorm
-    LDA.l !MiniMoldormReward
+    LDA.l !MiniMoldormItem
 .prepare
     TAY
     PLP
     JML $9EF35A
 
-GrantHeartReward:
-    JSL ReadHeartReward
+GrantHeartItem:
+    JSL ReadHeartItem
     TAY
     STZ.w $02E9
     JML $87999D
 
-ReceiveHeartPieceReward:
+ReceiveHeartPieceItem:
     ; The sprite main routine was entered with JSR, not JSL. Resume in its
     ; original bank after granting so the vanilla flag setters return via RTS.
     PHX
-    JSL ReadHeartReward
+    JSL ReadHeartItem
     TAY
     STZ.w $02E9
     JSL $87999D
     PLX
     JML $85F0C0
 
-ReadHeartReward:
+ReadHeartItem:
     PHX
     ; Boss drops are marked independently of the room's freestanding pickups.
     LDA.w $0D90,X
@@ -353,64 +353,64 @@ ReadHeartReward:
     BRA .finish
 .cave_0
     PLP
-    LDA.l !CaveRewards
+    LDA.l !CaveItems
     BRA .finish
 .cave_1
     PLP
-    LDA.l !CaveRewards+1
+    LDA.l !CaveItems+1
     BRA .finish
 .cave_2
     PLP
-    LDA.l !CaveRewards+2
+    LDA.l !CaveItems+2
     BRA .finish
 .two_caves
     PLP
     LDA.w $0D30,X
     AND.b #$01
     BEQ .graveyard
-    LDA.l !CaveRewards+3
+    LDA.l !CaveItems+3
     BRA .finish
 .graveyard
-    LDA.l !CaveRewards+4
+    LDA.l !CaveItems+4
     BRA .finish
 .cave_5
     PLP
-    LDA.l !CaveRewards+5
+    LDA.l !CaveItems+5
     BRA .finish
 .cave_6
     PLP
-    LDA.l !CaveRewards+6
+    LDA.l !CaveItems+6
     BRA .finish
 .boss
     LDA.w $040C
     LSR A
     TAX
-    LDA.l ChooseBossReward,X
+    LDA.l ChooseBossItem,X
     TAX
-    LDA.l !BossRewards,X
+    LDA.l !BossItems,X
     BRA .finish
 .outdoors
     LDA.b $8A
     LDX.b #$09
 .next_screen
-    CMP.l HeartRewardScreens,X
+    CMP.l HeartItemScreens,X
     BEQ .read_screen
     DEX
     BPL .next_screen
     LDA.b #$17
     BRA .finish
 .read_screen
-    LDA.l !OverworldRewards,X
+    LDA.l !OverworldItems,X
 .finish
     PLX
     RTL
 
-HeartRewardScreens:
+HeartItemScreens:
     db $03,$05,$28,$30,$35,$3B,$4A,$5B,$68,$81
-ChooseBossReward:
+ChooseBossItem:
     db $00,$00,$00,$01,$00,$04,$03,$08,$05,$07,$02,$06,$09
 
-SpawnGroveReward:
+SpawnGroveItem:
     LDA.l $7EF2AA
     AND.b #$40
     BNE .collected
@@ -421,15 +421,15 @@ SpawnGroveReward:
 .collected
     RTL
 
-GrantGroveReward:
+GrantGroveItem:
     LDA.l $7EF2AA
     ORA.b #$40
     STA.l $7EF2AA
-    LDA.l !GroveReward
+    LDA.l !GroveItem
     TAY
     JML $87999D
 
-GrantMilestoneReward:
+GrantMilestoneItem:
     LDA.b $1B
     BNE .dungeon_prize
     CPY.b #$10
@@ -439,13 +439,13 @@ GrantMilestoneReward:
     LDA.l !EventFlags
     ORA.b #$40
     STA.l !EventFlags
-    LDA.l !BombosReward
+    LDA.l !BombosItem
     BRA .tablet
 .ether
     LDA.l !EventFlags
     ORA.b #$20
     STA.l !EventFlags
-    LDA.l !EtherReward
+    LDA.l !EtherItem
 .tablet
     TAY
     STZ.w $02E9
@@ -545,20 +545,20 @@ FinishMagicReceipt:
 
 incsrc "item_graphics.inc"
 
-ReadChestRewardReplacement:
+ReadChestItemReplacement:
     ; Entry is A8/X8/Y8 with DB=$87. Preserve X/Y and use only the original
     ; $03 scratch write. Custom IDs have no entries in the vanilla tables.
     CPY.b #$50
-    BEQ .custom_reward
+    BEQ .custom_item
     CPY.b #$4E
-    BEQ .custom_reward
+    BEQ .custom_item
 
     ; Run hi-jacked instructions:
     LDA.w $B511,Y
     STA.b $03
 
-    JML return_check_chest_reward_replacement
-.custom_reward
-    JML return_receive_chest_reward
+    JML return_check_chest_item_replacement
+.custom_item
+    JML return_receive_chest_item
 
 assert pc() <= !free_space_bank_a0_end

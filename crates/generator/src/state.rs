@@ -40,7 +40,7 @@ pub struct GlobalState {
     /// The normal traversal's closure loop records discoveries between waves,
     /// including unfilled locations.
     pub reachable_item_locations: Vec<bool>,
-    /// Locations whose placed rewards have been applied, indexed by ItemLocationIndex.
+    /// Locations whose placed items have been applied, indexed by ItemLocationIndex.
     /// Reachable unfilled locations remain uncollected.
     pub collected_item_locations: Vec<bool>,
 }
@@ -117,7 +117,7 @@ impl GlobalState {
             Item::ArrowUpgrade5 => self.arrow_capacity = (self.arrow_capacity + 5).min(70),
             Item::ArrowUpgrade10 => self.arrow_capacity = (self.arrow_capacity + 10).min(70),
             Item::ArrowUpgrade70 => self.arrow_capacity = 70,
-            // These receipts all create a bottle, including the filled-bottle rewards.
+            // These receipts all create a bottle, including the filled-bottle items.
             Item::Bottle
             | Item::Bee
             | Item::Fairy

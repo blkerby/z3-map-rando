@@ -19,7 +19,7 @@ use logic_catalog::{
 #[derive(Debug, Default)]
 pub struct GlobalDiscoveries {
     /// Newly reachable collection actions, including unfilled locations.
-    /// Applying their rewards is tracked separately by GlobalState::collected_item_locations.
+    /// Collecting their placed items is tracked separately by GlobalState::collected_item_locations.
     pub item_locations: HashSet<ItemLocationIndex>,
     pub flags: HashSet<FlagIndex>,
     pub unlocked_doors: HashSet<DoorIndex>,

@@ -15,7 +15,7 @@ const MAX_DUNGEON_ATTEMPTS: usize = 1000;
 const MAX_CANDIDATE_ATTEMPTS: usize = 100;
 
 /// Assign every dungeon's vanilla Small Key pickups to distinct same-dungeon doors.
-/// Completed dungeons remain settled while a later dungeon retries. Returned rewards
+/// Completed dungeons remain settled while a later dungeon retries. Returned items
 /// carry stable door identities, ready for the later logical placement phases.
 pub fn assign_small_keys(
     catalog: &LogicCatalog,
@@ -23,7 +23,7 @@ pub fn assign_small_keys(
     inputs: &GenerationInputs,
     rng: &mut impl Rng,
 ) -> Result<HashMap<ItemLocationIndex, Item>> {
-    let mut rewards = HashMap::new();
+    let mut items = HashMap::new();
     for (index, dungeon) in inputs.dungeons.iter().enumerate() {
         let dungeon_idx = DungeonIndex(index as u32);
         let room_idx = catalog.dungeons[index];
@@ -41,10 +41,10 @@ pub fn assign_small_keys(
             &required_locations,
             rng,
         )?;
-        // Catalog order keeps even reward construction independent of hash iteration.
+        // Catalog order keeps even item construction independent of hash iteration.
         for &location_idx in &dungeon.small_key_locations {
             let door_idx = assignments[&location_idx];
-            rewards.insert(
+            items.insert(
                 location_idx,
                 Item::SmallKey {
                     door_id: inputs.door_ids[door_idx.0 as usize],
@@ -52,7 +52,7 @@ pub fn assign_small_keys(
             );
         }
     }
-    Ok(rewards)
+    Ok(items)
 }
 
 fn assign_dungeon_keys(

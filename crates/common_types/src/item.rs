@@ -2,9 +2,9 @@ use crate::DoorId;
 use serde::{Deserialize, Serialize};
 use type_hash::TypeHash;
 
-/// A reward shared by logical generation, saved placements, and patching.
+/// An item shared by logical generation, saved placements, and patching.
 /// Progressive equipment grants one upgrade per pickup, independent of pickup order.
-/// Inventory activation events and internal receipts are not placed rewards.
+/// Inventory activation events and internal receipts are not placed items.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, TypeHash)]
 #[serde(tag = "name")]
 pub enum Item {

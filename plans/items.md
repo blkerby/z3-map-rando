@@ -1,6 +1,6 @@
 # Collectible items
 
-The game does not have one unified item or item-location structure. Permanent rewards normally converge on the item-receipt system, while ordinary drops, pots, overworld secrets, shops, minigames, and several upgrades use related but separate data. This document describes both the reward identities and the structures which place and persist them.
+The game does not have one unified item or item-location structure. Permanent items normally converge on the item-receipt system, while ordinary drops, pots, overworld secrets, shops, minigames, and several upgrades use related but separate data. This document describes both the item identities and the structures which place and persist them.
 
 ## Item-receipt IDs
 
@@ -13,7 +13,7 @@ The game does not have one unified item or item-location structure. Permanent re
 | `$02` | Dropped boss heart or upgrade-fairy return |
 | `$03` | Falling dungeon milestone |
 
-[`AncillaAdd_ItemReceipt`](../jpdasm/bank_09.asm#L1335) grants the reward and initializes its presentation. IDs `$00-$4B` index seven parallel tables beginning at [`$098366`](../jpdasm/bank_09.asm#L753):
+[`AncillaAdd_ItemReceipt`](../jpdasm/bank_09.asm#L1335) grants the item and initializes its presentation. IDs `$00-$4B` index seven parallel tables beginning at [`$098366`](../jpdasm/bank_09.asm#L753):
 
 | Table | Address | Entry size | Purpose |
 | --- | --- | --- | --- |
@@ -29,7 +29,7 @@ The item-receipt ancilla has another parallel table at [`$08C301`](../jpdasm/ban
 
 The complete receipt-ID namespace is:
 
-| ID | Reward | Saved state or effect |
+| ID | Item | Saved state or effect |
 | --- | --- | --- |
 | `$00` | Fighter Sword | Sword level `$7EF359 = 1`; this grant also writes the Fighter Shield, and vanilla uses it for the uncle's equipment bundle. |
 | `$01` | Master Sword | Sword level `$7EF359 = 2` |
@@ -112,10 +112,10 @@ The red and blue pendant comments are inconsistent inside jpdasm. The authoritat
 
 ### Special receipt handling
 
-- [`ItemReceipt_GiveBottledItem`](../jpdasm/bank_09.asm#L2104) maps the seven new-bottle IDs to bottle values `2-8`, and separately maps potion/bee refill IDs to values `3-5` and `7`. New-bottle rewards require an unused slot (`0` or `1`); refills require an existing empty bottle (`2`).
+- [`ItemReceipt_GiveBottledItem`](../jpdasm/bank_09.asm#L2104) maps the seven new-bottle IDs to bottle values `2-8`, and separately maps potion/bee refill IDs to values `3-5` and `7`. New-bottle items require an unused slot (`0` or `1`); refills require an existing empty bottle (`2`).
 - [`Ancilla_AddRupees`](../jpdasm/bank_09.asm#L9164) handles the seven rupee receipt IDs rather than using their generic `sram_value` entries.
 - Compass, big-key, and map receipts OR a dungeon mask into their two-byte bitfields. Small keys instead update the current key count, which is later mirrored to the per-dungeon key bytes at `$7EF37C-$7EF389`.
-- Chests substitute an overflow reward only for an already-owned blue boomerang (ten arrows), lamp (five rupees), or red boomerang (300 rupees), using [`PerformOpenChest.overflow_replacement`](../jpdasm/bank_07.asm#L10977).
+- Chests substitute an overflow item only for an already-owned blue boomerang (ten arrows), lamp (five rupees), or red boomerang (300 rupees), using [`PerformOpenChest.overflow_replacement`](../jpdasm/bank_07.asm#L10977).
 - `$7EF340-$7EF389` is part of the save-file mirror beginning at [`$7EF000`](../jpdasm/symbols_wram.asm#L5937). The detailed inventory field values are documented in [`symbols_sram.asm`](../jpdasm/symbols_sram.asm#L565).
 
 ## Permanent upgrades outside the receipt-ID namespace
@@ -169,7 +169,7 @@ Bit 15 of the room word marks a big chest. There is no coordinate in this table.
 
 Chest persistence uses the six chest bits in the room flag word. The live `TAKEN` byte at `$0403` is saved into the two-byte room record at `$7EF000 + 2 * room_id`; its layout is documented in [`symbols_sram.asm`](../jpdasm/symbols_sram.asm#L48). Chests therefore have an implicit identity of `(room ID, chest ordinal)`, not a globally stored location ID.
 
-Chest-game chests are separate. Their rewards come from [`VoOChestGamePrizes`](../jpdasm/bank_01.asm#L20332) and [`OtherChestGamePrizes`](../jpdasm/bank_01.asm#L20558), selected with random and game-specific state rather than `RoomData_ChestItems`.
+Chest-game chests are separate. Their items come from [`VoOChestGamePrizes`](../jpdasm/bank_01.asm#L20332) and [`OtherChestGamePrizes`](../jpdasm/bank_01.asm#L20558), selected with random and game-specific state rather than `RoomData_ChestItems`.
 
 ### Underworld pots and liftable secrets
 
@@ -217,7 +217,7 @@ Heart containers and pieces use sprites `$EA` and `$EB`. [`SpritePrep_HeartConta
 
 Boss pendants and crystals use the falling-prize system rather than ordinary sprite placement. A per-dungeon table in [`RoomTag_GetHeartForPrize`](../jpdasm/bank_01.asm#L13257) selects one of seven prize indexes. [`AncillaAdd_FallingPrize`](../jpdasm/bank_09.asm#L2555) maps those indexes to Ether, the three pendants, a heart container, Bombos, or a crystal and supplies fixed fall coordinates, heights, and timers. Pendant and crystal ownership bitfields prevent the prize from respawning.
 
-Other freestanding equipment and NPC rewards are implemented by their owning sprite or script and normally contain a hard-coded receipt ID. Their location persistence is likewise bespoke: a room bit, overworld screen bit, progression flag, or inventory check. There is no ROM table enumerating all such locations.
+Other freestanding equipment and NPC items are implemented by their owning sprite or script and normally contain a hard-coded receipt ID. Their location persistence is likewise bespoke: a room bit, overworld screen bit, progression flag, or inventory check. There is no ROM table enumerating all such locations.
 
 ### Shops and minigames
 
@@ -229,12 +229,12 @@ Minigames also use their own structures. Chest games use the receipt-ID arrays d
 
 Saved seed placements identify each location by its authored `(room_id, item_id)` pair in `z3-json-data`. These are source room and item-entry IDs, not vanilla ROM room numbers, logic-node IDs, catalog indices, or item addresses. Existing IDs must remain unchanged and removed IDs must not be reused. Names and addresses can change independently. The current patch catalog maps these stable identities to the instructions for patching each carrier.
 
-The receipt ID is a useful common reward representation, but it is not a location representation. A complete item randomizer must give each eligible location its own stable identity and adapt each carrier separately:
+The receipt ID is a useful common item representation, but it is not a location representation. A complete item randomizer must give each eligible location its own stable identity and adapt each carrier separately:
 
 - chest records can directly hold receipt IDs;
-- freestanding/NPC/shop rewards need their hard-coded grants redirected;
+- freestanding/NPC/shop items need their hard-coded grants redirected;
 - dungeon milestones need their prize-index mapping replaced or bypassed;
 - pot, secret, and ordinary drop IDs belong to the sprite/secret namespace and need conversion if they are promoted to permanent item locations;
-- each converted location needs a persistent collected flag independent of the inventory field changed by its reward.
+- each converted location needs a persistent collected flag independent of the inventory field changed by its item.
 
 This separation also permits transient resources and repeatable purchases to remain outside the randomized location pool without inventing a second item identity for them.
