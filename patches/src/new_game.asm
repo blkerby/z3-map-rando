@@ -19,6 +19,19 @@ return_check_save_progress:
 org $828118
 return_load_initial_house:
 
+; Keep the receipt/dialogue accumulator and flags, but skip progress rewrites.
+org $85DF67
+hook_receive_uncle_equipment:
+    BRA return_finish_uncle_equipment
+org $85DF6B
+return_finish_uncle_equipment:
+
+org $85EDE1
+hook_complete_zelda_rescue:
+    BRA return_finish_zelda_rescue
+org $85EDE5
+return_finish_zelda_rescue:
+
 org !free_space_bank_a0_start
 InitializeGameState:
     SEP #$20
