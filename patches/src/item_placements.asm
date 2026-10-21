@@ -56,6 +56,14 @@ hook_check_catfish_gift:
 %hook_flag($85F285, Ether)
 %hook_flag($86B489, Smith)
 
+org $86908D
+hook_prepare_stumpy:
+    JML PrepareStumpy
+org $869091
+return_check_stumpy_tree:
+org $8690B0
+return_position_stumpy:
+
 org $86B062
 hook_check_stumpy_item:
     JSL ReadStumpyPhase
@@ -193,6 +201,16 @@ endmacro
 %read_flag(Bombos, !EventFlags, $40, $01)
 %read_flag(Ether, !EventFlags, $20, $01)
 %read_flag(Smith, !EventFlags, $04, $03)
+
+PrepareStumpy:
+    ; An uncollected gift must bypass both vanilla tree-state checks.
+    LDA.l !NpcFlags
+    AND.b #$20
+    BEQ .uncollected
+    LDA.l $7EF3C9 ; Run hi-jacked instruction
+    JML return_check_stumpy_tree
+.uncollected
+    JML return_position_stumpy
 
 ReadStumpyPhase:
     LDA.l !NpcFlags
