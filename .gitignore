@@ -1,3 +1,5 @@
 /target
 /build/
 /catalog-build.toml
+/seeds
+*.sfc

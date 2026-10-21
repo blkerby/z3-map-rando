@@ -1,6 +1,6 @@
 use crate::settings::Settings;
 use anyhow::Result;
-use common_types::ItemLocationId;
+use common_types::{Item, ItemLocationId};
 use serde::{Deserialize, Serialize};
 use std::io::{BufReader, BufWriter, Read, Write};
 
@@ -14,9 +14,6 @@ pub struct SeedData {
     pub settings: Settings,
     pub world_layout: WorldLayout,
     /// Final placements of all pickups, including maps, compasses, keys, prizes, and fairy-exchange items.
-    /// Maps and compasses are shuffled within their own dungeon.
-    /// Keys and fairy exchanges keep their vanilla items;
-    /// pendants and crystals shuffle among prize locations.
     pub item_placements: Vec<ItemPlacement>,
 }
 
@@ -44,8 +41,8 @@ pub struct SeedMetadata {
 pub struct ItemPlacement {
     /// Permanent authored identity, independent of catalog ordering.
     pub item_location_id: ItemLocationId,
-    /// Item identity from items.json.
-    pub item_name: String,
+    /// Logical item identity, including the assigned door for a Small Key.
+    pub item: Item,
 }
 
 /// Persisted area choices, independent of catalog ordering and graphical content.

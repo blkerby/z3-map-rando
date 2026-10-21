@@ -1,4 +1,4 @@
-//! Uniform prototype generation without logical placement.
+//! Logical item generation on the vanilla world graph.
 
 pub mod cost_metrics;
 pub mod graph;
@@ -14,18 +14,21 @@ pub mod traversal;
 pub use seed_data::{SeedData, Settings};
 
 use anyhow::{Result, bail};
-use common_types::Item;
-use inputs::prepare_inputs;
-use logic_catalog::{LogicCatalog, RoomIndex};
-use rand::{Rng, seq::SliceRandom};
+use graph::{TraversalGraph, build_graph};
+use inputs::{GenerationInputs, prepare_inputs};
+use key_assignment::assign_small_keys;
+use logic_catalog::LogicCatalog;
+use placement::{PlacementState, PlacementStep};
+use rand::Rng;
 use retiling_catalog::RetilingCatalog;
 use seed_data::{AreaLayout, ItemPlacement, SEED_FORMAT_VERSION, SeedMetadata, WorldLayout};
-use std::collections::BTreeMap;
 
-/// Shuffle ordinary items globally and maps/compasses within their source dungeon.
-/// Keys and fairy exchanges remain vanilla; pendants and crystals shuffle among prize locations.
-/// The caller supplies RNG state and metadata;
-/// tech and proficiency settings are saved but do not constrain placement yet.
+const MAX_GENERATION_ATTEMPTS: usize = 1000;
+const MAX_CANDIDATE_ATTEMPTS: usize = 100;
+
+/// Generate fully collectible placements using player settings and vanilla connections.
+/// Each complete attempt assigns fresh Small Keys and prizes before placing items.
+/// The caller supplies RNG state and metadata; generation needs no ROM or filesystem.
 pub fn generate(
     settings: Settings,
     logic_catalog: &LogicCatalog,
@@ -35,91 +38,8 @@ pub fn generate(
     rng: &mut impl Rng,
 ) -> Result<SeedData> {
     let inputs = prepare_inputs(logic_catalog, &settings)?;
-    let mut item_placements = Vec::new();
-    let mut locations_by_room = BTreeMap::<RoomIndex, Vec<usize>>::new();
-    let mut dungeon_items_by_room = BTreeMap::<RoomIndex, Vec<String>>::new();
-    let mut prizes = Vec::new();
-    for location in &logic_catalog.item_locations {
-        let item_name = &logic_catalog.item(location.vanilla_item_idx).name;
-        item_placements.push(ItemPlacement {
-            item_location_id: location.id,
-            item_name: item_name.clone(),
-        });
-    }
-    for &location_idx in &inputs.ordinary_locations {
-        let location = logic_catalog.item_location(location_idx);
-        let room_idx = logic_catalog.vertex(location.vertex_idx).room_idx;
-        locations_by_room
-            .entry(room_idx)
-            .or_default()
-            .push(location_idx.0 as usize);
-    }
-    for (index, dungeon) in inputs.dungeons.iter().enumerate() {
-        let room_idx = logic_catalog.dungeons[index];
-        let mut items = Vec::new();
-        for item in &dungeon.map_compass_pool {
-            let name = match item {
-                Item::Map => "Map",
-                Item::Compass => "Compass",
-                _ => bail!("unexpected item {item:?} in Map/Compass pool for room {room_idx:?}"),
-            };
-            items.push(name.to_owned());
-        }
-        dungeon_items_by_room.insert(room_idx, items);
-    }
-    for &location_idx in &inputs.prize_locations {
-        let location = logic_catalog.item_location(location_idx);
-        prizes.push(logic_catalog.item(location.vanilla_item_idx).name.clone());
-    }
-
-    // Keep the prototype's string output until the typed-placement migration in Step 11.
-    let mut receipt_names = BTreeMap::new();
-    for (definition, item) in logic_catalog.items.iter().zip(&inputs.items) {
-        if let Some(item) = item {
-            receipt_names
-                .entry(*item)
-                .or_insert(definition.name.as_str());
-        }
-    }
-    let mut item_pool = Vec::new();
-    for entry in &settings.item_pool {
-        let name = match entry.item {
-            Item::Sword => "ProgressiveSword",
-            Item::Shield => "ProgressiveShield",
-            Item::Glove => "ProgressiveGlove",
-            Item::Mail => "ProgressiveArmor",
-            // The catalog has no progressive boomerang receipt yet; retain the prototype encoding.
-            Item::Boomerang => "BlueBoomerang",
-            Item::SilverArrows => "SilverArrowUpgrade",
-            Item::Ocarina => "OcarinaInactive",
-            item => receipt_names[&item],
-        };
-        for _ in 0..entry.count {
-            item_pool.push(name.to_owned());
-        }
-    }
-
-    prizes.shuffle(rng);
-    for (location_idx, item_name) in inputs.prize_locations.into_iter().zip(prizes) {
-        item_placements[location_idx.0 as usize].item_name = item_name;
-    }
-
-    let mut ordinary_locations = Vec::new();
-    for (room_idx, mut dungeon_locations) in locations_by_room {
-        let room_dungeon_items = dungeon_items_by_room.remove(&room_idx).unwrap_or_default();
-        dungeon_locations.shuffle(rng);
-        for (offset, placement_idx) in dungeon_locations.into_iter().enumerate() {
-            if offset < room_dungeon_items.len() {
-                item_placements[placement_idx].item_name = room_dungeon_items[offset].clone();
-            } else {
-                ordinary_locations.push(placement_idx);
-            }
-        }
-    }
-    item_pool.shuffle(rng);
-    for (placement_idx, item_name) in ordinary_locations.into_iter().zip(item_pool) {
-        item_placements[placement_idx].item_name = item_name;
-    }
+    let graph = build_graph(logic_catalog, &logic_catalog.vanilla_connections);
+    let item_placements = generate_items(logic_catalog, &graph, &inputs, rng)?;
 
     let mut areas = Vec::new();
     for area in retiling_catalog.areas.values() {
@@ -140,4 +60,43 @@ pub fn generate(
         world_layout: WorldLayout { areas },
         item_placements,
     })
+}
+
+/// Retry complete attempts, including their Small Key assignments.
+fn generate_items(
+    catalog: &LogicCatalog,
+    graph: &TraversalGraph,
+    inputs: &GenerationInputs,
+    rng: &mut impl Rng,
+) -> Result<Vec<ItemPlacement>> {
+    'attempts: for _ in 0..MAX_GENERATION_ATTEMPTS {
+        let small_keys = assign_small_keys(catalog, graph, inputs, rng)?;
+        let mut state = PlacementState::initialize(catalog, graph, inputs, &small_keys, rng)?;
+        while state.placements.contains(&None) {
+            let mut accepted = false;
+            for _ in 0..MAX_CANDIDATE_ATTEMPTS {
+                if let PlacementStep::Accepted = state.place_items(catalog, graph, inputs, rng)? {
+                    accepted = true;
+                    break;
+                }
+            }
+            if !accepted {
+                continue 'attempts;
+            }
+        }
+        if state.global.collected_item_locations.contains(&false) {
+            continue;
+        }
+        let mut placements = Vec::new();
+        for (location, item) in catalog.item_locations.iter().zip(state.placements) {
+            placements.push(ItemPlacement {
+                item_location_id: location.id,
+                item: item.unwrap(),
+            });
+        }
+        return Ok(placements);
+    }
+    bail!(
+        "logical item placement exhausted {MAX_GENERATION_ATTEMPTS} complete attempts ({MAX_CANDIDATE_ATTEMPTS} candidates per wave)",
+    )
 }
