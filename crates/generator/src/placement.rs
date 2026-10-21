@@ -76,9 +76,20 @@ impl PlacementState {
             }
             locations.shuffle(rng);
             let count = pool.len().min(locations.len());
-            for (item, location_idx) in pool.drain(..count).zip(locations) {
+            for (item, location_idx) in sample_items(pool, count, rng).into_iter().zip(locations) {
                 self.placements[location_idx.0 as usize] = Some(item);
             }
         }
     }
+}
+
+/// Sample `count` items without replacement and remove them from the pool.
+/// Requires `count <= pool.len()`; the remaining items may be reordered.
+fn sample_items(pool: &mut Vec<Item>, count: usize, rng: &mut impl Rng) -> Vec<Item> {
+    let mut items = Vec::with_capacity(count);
+    for _ in 0..count {
+        let index = rng.random_range(0..pool.len());
+        items.push(pool.swap_remove(index));
+    }
+    items
 }
