@@ -37,6 +37,8 @@ This reads and verifies the vanilla ROM before generation, saves the seed before
 cargo run -p cli -- --seed seed.json.zst --rom path/to/vanilla.sfc
 ```
 
+When using `--seed`, the default output ROM is saved in the same directory as the input seed. Use `--output-rom` to override the output path.
+
 Patch-only operation uses the saved seed name and requires only the current retiling and patch catalogs. Use `--patch-catalog` to override the patch catalog path. Patch-time `--transition-asset-phase` accepts `pre-scroll`, `scroll`, and `post-scroll`, defaulting to `scroll`. The supported vanilla ROM is described below.
 
 To build a binary with catalogs bundled, run:

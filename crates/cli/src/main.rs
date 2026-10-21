@@ -55,7 +55,7 @@ struct Args {
     /// Output seed file; defaults to z3-map-rando-<SEED-NAME>.json.zst.
     #[arg(long)]
     output_seed: Option<PathBuf>,
-    /// Output ROM file; defaults to z3-map-rando-<SEED-NAME>.sfc.
+    /// Output ROM file; defaults to z3-map-rando-<SEED-NAME>.sfc beside the input seed, or in the current directory.
     #[arg(long)]
     output_rom: Option<PathBuf>,
     /// When to load transition assets while patching.
@@ -174,10 +174,14 @@ fn patch_seed(
         },
     };
     let output = patcher::patch_rom(rom, seed, retiling_catalog, &patch_catalog, &settings)?;
-    let output_path = args
-        .output_rom
-        .clone()
-        .unwrap_or_else(|| PathBuf::from(format!("z3-map-rando-{}.sfc", seed.metadata.seed_name)));
+    let output_path = args.output_rom.clone().unwrap_or_else(|| {
+        let filename = format!("z3-map-rando-{}.sfc", seed.metadata.seed_name);
+        if let Some(path) = &args.seed {
+            path.with_file_name(filename)
+        } else {
+            PathBuf::from(filename)
+        }
+    });
     fs::write(&output_path, output)
         .with_context(|| format!("writing ROM {}", output_path.display()))?;
     eprintln!(
