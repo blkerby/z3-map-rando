@@ -47,7 +47,7 @@ pub struct PatchCatalog {
     pub patches: PatchIps,
     pub symbols: PatchSymbols,
     pub item_locations: BTreeMap<ItemLocationId, ItemLocation>,
-    /// Keys are stable item names from `z3-json-data/items.json`.
+    /// Keys are item names from `z3-json-data/items.json` plus project-local receipts.
     pub items: BTreeMap<String, ItemEncoding>,
 }
 

@@ -16,13 +16,12 @@ pub(crate) fn apply_items(
         if location.rom_addresses.is_empty() {
             continue;
         }
-        // shortcut: progressive equipment uses representative vanilla receipts until ROM support lands.
         let item_name = match placement.item {
-            Item::Sword => "MasterSword",
-            Item::Shield => "RedShield",
-            Item::Glove => "TitansMitt",
-            Item::Mail => "BlueMail",
-            Item::Boomerang => "BlueBoomerang",
+            Item::Sword => "ProgressiveSword",
+            Item::Shield => "ProgressiveShield",
+            Item::Glove => "ProgressiveGlove",
+            Item::Mail => "ProgressiveArmor",
+            Item::Boomerang => "ProgressiveBoomerang",
             Item::FireRod => "FireRod",
             Item::IceRod => "IceRod",
             Item::Hammer => "Hammer",

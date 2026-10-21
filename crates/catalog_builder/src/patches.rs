@@ -230,6 +230,14 @@ fn read_item_encodings(source_directory: &Path) -> Result<BTreeMap<String, ItemE
             );
         }
     }
+    // The source catalog has no progressive boomerang receipt.
+    encodings.insert(
+        "ProgressiveBoomerang".to_owned(),
+        ItemEncoding {
+            receipt_id: 0x62,
+            prize_patch_bytes: None,
+        },
+    );
     Ok(encodings)
 }
 

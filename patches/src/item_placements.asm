@@ -260,10 +260,13 @@ SaveSmithSword:
     RTL
 
 PrepareSmithItem:
-    ; Restore the sword taken for forging before granting the item. A
-    ; non-sword item must not leave the player in the swordless forging state.
+    ; A sword collected during forging has already restored and upgraded it.
+    LDA.l $7EF359
+    CMP.b #$FF
+    BNE .restored
     LDA.l !SmithSword
     STA.l $7EF359
+.restored
     LDA.l !EventFlags
     ORA.b #$04
     STA.l !EventFlags
@@ -497,6 +500,9 @@ CrystalMessageIds:
     db $35,$30,$34,$36,$31,$33,$32
 
 GrantAssignedItem:
+    TYA
+    JSL ResolveProgressiveItem
+    TAY
     CPY.b #$50
     BNE .not_master_sword
     LDY.b #$01
@@ -523,6 +529,73 @@ GrantNativeItem:
     PLB
     LDA.b $4D
     JML $8799A2
+
+; Resolve without granting so previews and collection select the same tier.
+; Entry is A8/X8/Y8. Preserve X/Y/DB and leave direct-page scratch untouched.
+; $5E-$61 match the source catalog; $62 is the local progressive boomerang.
+ResolveProgressiveItem:
+    CMP.b #$5E
+    BNE .not_sword
+    LDA.l $7EF359
+    CMP.b #$FF
+    BNE .read_sword
+    LDA.l !SmithSword
+.read_sword
+    PHX
+    TAX
+    LDA.l ProgressiveSwordReceipts,X
+    PLX
+    RTL
+.not_sword
+    CMP.b #$5F
+    BNE .not_shield
+    PHX
+    LDA.l $7EF35A
+    TAX
+    LDA.l ProgressiveShieldReceipts,X
+    PLX
+    RTL
+.not_shield
+    CMP.b #$60
+    BNE .not_mail
+    PHX
+    LDA.l $7EF35B
+    TAX
+    LDA.l ProgressiveMailReceipts,X
+    PLX
+    RTL
+.not_mail
+    CMP.b #$61
+    BNE .not_glove
+    PHX
+    LDA.l $7EF354
+    TAX
+    LDA.l ProgressiveGloveReceipts,X
+    PLX
+    RTL
+.not_glove
+    CMP.b #$62
+    BNE .done
+    PHX
+    LDA.l $7EF341
+    TAX
+    LDA.l ProgressiveBoomerangReceipts,X
+    PLX
+.done
+    RTL
+
+; Index by the owned level; repeat the final receipt to cap each sequence.
+; Sword-only $49 avoids the Fighter Sword receipt's bundled shield.
+ProgressiveSwordReceipts:
+    db $49,$01,$02,$03,$03
+ProgressiveShieldReceipts:
+    db $04,$05,$06,$06
+ProgressiveMailReceipts:
+    db $22,$23,$23
+ProgressiveGloveReceipts:
+    db $1B,$1C,$1C
+ProgressiveBoomerangReceipts:
+    db $0C,$2A,$2A
 
 FinishMagicReceipt:
     CMP.b #$45 ; Run hi-jacked instruction

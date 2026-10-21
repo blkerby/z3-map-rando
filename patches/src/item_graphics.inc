@@ -169,11 +169,15 @@ UploadHeartPickup:
     LDA.w $0AF4 ; Run hi-jacked instruction
     RTL
 
-; A contains the assigned receipt. The two extended IDs use existing artwork.
+; Resolve the next tier before comparing cached artwork. Previewing never grants.
 SelectPickupReceipt:
+    JSL ResolveProgressiveItem
     CMP.b #$50
     BNE +
     LDA.b #$01
++   CMP.b #$49
+    BNE +
+    LDA.b #$00 ; Use the Fighter Sword preview's common palette and color remap.
 +   CMP.b #$4E
     BNE +
     LDA.b #$45
