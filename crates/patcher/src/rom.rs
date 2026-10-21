@@ -256,6 +256,7 @@ fn prepare_retiling(
     for patch in [
         &patches.patches.fastrom_extra,
         &patches.patches.rom_size,
+        &patches.patches.new_game,
         &patches.patches.overworld_map_data,
         &patches.patches.overworld_map16_graphics,
         &patches.patches.overworld_map16_properties,

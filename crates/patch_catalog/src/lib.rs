@@ -69,6 +69,7 @@ pub struct PatchIps {
     pub item_placements: Ips,
     pub mirror_bg1_hdma: Ips,
     pub nmi_optimize: Ips,
+    pub new_game: Ips,
     pub overworld_animations: Ips,
     pub overworld_assets: Ips,
     pub overworld_bg_color: Ips,

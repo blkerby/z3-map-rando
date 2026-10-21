@@ -46,8 +46,12 @@ pub struct GlobalState {
 }
 
 impl GlobalState {
-    /// Begin with vanilla capacities, no equipment, and no permanent discoveries.
+    /// Begin with vanilla capacities, no equipment, and Zelda already rescued.
     pub fn initialize(catalog: &LogicCatalog) -> Self {
+        let mut flags = Vec::with_capacity(catalog.flags.len());
+        for flag in &catalog.flags {
+            flags.push(flag == "GameStateZelda");
+        }
         Self {
             unique_items: [false; UniqueItem::COUNT],
             sword_level: 0,
@@ -65,7 +69,7 @@ impl GlobalState {
             refills: RefillFlags::default(),
             big_keys: vec![false; catalog.dungeons.len()],
             unlocked_doors: vec![false; catalog.doors.len()],
-            flags: vec![false; catalog.flags.len()],
+            flags,
             reachable_item_locations: vec![false; catalog.item_locations.len()],
             collected_item_locations: vec![false; catalog.item_locations.len()],
         }
