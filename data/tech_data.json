@@ -30,18 +30,6 @@
         "difficulty": "Expert"
     },
     {
-        "tech_id": 1,
-        "name": "combatProficiency",
-        "level": 6,
-        "difficulty": "Extreme"
-    },
-    {
-        "tech_id": 1,
-        "name": "combatProficiency",
-        "level": 7,
-        "difficulty": "Insane"
-    },
-    {
         "tech_id": 2,
         "name": "bossProficiency",
         "level": 1,
@@ -70,18 +58,6 @@
         "name": "bossProficiency",
         "level": 5,
         "difficulty": "Expert"
-    },
-    {
-        "tech_id": 2,
-        "name": "bossProficiency",
-        "level": 6,
-        "difficulty": "Extreme"
-    },
-    {
-        "tech_id": 2,
-        "name": "bossProficiency",
-        "level": 7,
-        "difficulty": "Insane"
     },
     {
         "tech_id": 3,
@@ -112,18 +88,6 @@
         "name": "darkProficiency",
         "level": 4,
         "difficulty": "Expert"
-    },
-    {
-        "tech_id": 3,
-        "name": "darkProficiency",
-        "level": 5,
-        "difficulty": "Extreme"
-    },
-    {
-        "tech_id": 3,
-        "name": "darkProficiency",
-        "level": 6,
-        "difficulty": "Insane"
     },
     {
         "tech_id": 4,
