@@ -1,0 +1,30 @@
+[
+    {
+        "room_id": { "Underworld": 60 },
+        "room_name": "Tower of Hera",
+        "notable_id": 1,
+        "name": "Hera Pot Clip",
+        "difficulty": "Very Hard"
+    },
+    {
+        "room_id": { "Underworld": 94 },
+        "room_name": "Swamp Palace",
+        "notable_id": 1,
+        "name": "Specky Clip",
+        "difficulty": "Very Hard"
+    },
+    {
+        "room_id": { "Underworld": 97 },
+        "room_name": "Ice Palace",
+        "notable_id": 1,
+        "name": "Icebreaker",
+        "difficulty": "Very Hard"
+    },
+    {
+        "room_id": { "Underworld": 97 },
+        "room_name": "Ice Palace",
+        "notable_id": 2,
+        "name": "Precise Multi-Hit Fire Rod Kill",
+        "difficulty": "Very Hard"
+    }
+]
