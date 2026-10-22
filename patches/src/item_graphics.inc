@@ -597,8 +597,9 @@ DrawWaterItem:
     LDA.b ($90),Y
     CMP.b #$F0
     BEQ .done
-    LDA.w $0EE0,X
-    BEQ .catfish
+    LDA.w $0D90,X
+    CMP.b #$1E
+    BNE .catfish
     LDA.l !KingZoraItem
     BRA .draw
 .catfish

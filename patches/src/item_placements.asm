@@ -237,10 +237,9 @@ endmacro
 %grant_flag(Stumpy, !NpcFlags, $20)
 
 GrantWaterGift:
-    ; $0EE0 is the vanilla gift's Zora/Catfish discriminator. Keep $0D90
-    ; unchanged: zero there dispatches to the parent Catfish rather than a gift.
-    LDA.w $0EE0,X
-    BEQ .catfish
+    LDA.w $0D90,X
+    CMP.b #$1E
+    BNE .catfish
     LDA.l !NpcFlags
     ORA.b #$08
     STA.l !NpcFlags
