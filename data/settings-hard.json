@@ -1,0 +1,251 @@
+{
+  "proficiencies": [
+    {
+      "tech_id": 1,
+      "name": "combatProficiency",
+      "level": 3
+    },
+    {
+      "tech_id": 2,
+      "name": "bossProficiency",
+      "level": 3
+    },
+    {
+      "tech_id": 3,
+      "name": "darkProficiency",
+      "level": 2
+    }
+  ],
+  "tech": [
+    {
+      "tech_id": 4,
+      "name": "canBonkBoost",
+      "enabled": true
+    },
+    {
+      "tech_id": 5,
+      "name": "canBombBoost",
+      "enabled": true
+    },
+    {
+      "tech_id": 7,
+      "name": "canPreciseBombBoost",
+      "enabled": false
+    },
+    {
+      "tech_id": 6,
+      "name": "canPushBlockClip",
+      "enabled": true
+    },
+    {
+      "tech_id": 8,
+      "name": "canBreakDashableWall",
+      "enabled": true
+    },
+    {
+      "tech_id": 9,
+      "name": "canRiskPermanentLossOfAccess",
+      "enabled": false
+    }
+  ],
+  "notables": [
+    {
+      "room_id": {
+        "Underworld": 60
+      },
+      "notable_id": 1,
+      "name": "Hera Pot Clip",
+      "enabled": false
+    },
+    {
+      "room_id": {
+        "Underworld": 94
+      },
+      "notable_id": 1,
+      "name": "Specky Clip",
+      "enabled": false
+    },
+    {
+      "room_id": {
+        "Underworld": 97
+      },
+      "notable_id": 1,
+      "name": "Icebreaker",
+      "enabled": false
+    },
+    {
+      "room_id": {
+        "Underworld": 97
+      },
+      "notable_id": 2,
+      "name": "Precise Multi-Hit Fire Rod Kill",
+      "enabled": false
+    }
+  ],
+  "item_pool": [
+    {
+      "name": "FireRod",
+      "count": 1
+    },
+    {
+      "name": "IceRod",
+      "count": 1
+    },
+    {
+      "name": "Hammer",
+      "count": 1
+    },
+    {
+      "name": "Hookshot",
+      "count": 1
+    },
+    {
+      "name": "Bow",
+      "count": 1
+    },
+    {
+      "name": "Boomerang",
+      "count": 1
+    },
+    {
+      "name": "MagicPowder",
+      "count": 1
+    },
+    {
+      "name": "Bombos",
+      "count": 1
+    },
+    {
+      "name": "Ether",
+      "count": 1
+    },
+    {
+      "name": "Quake",
+      "count": 1
+    },
+    {
+      "name": "Lamp",
+      "count": 1
+    },
+    {
+      "name": "Shovel",
+      "count": 1
+    },
+    {
+      "name": "CaneOfSomaria",
+      "count": 1
+    },
+    {
+      "name": "CaneOfByrna",
+      "count": 1
+    },
+    {
+      "name": "Cape",
+      "count": 1
+    },
+    {
+      "name": "MagicMirror",
+      "count": 1
+    },
+    {
+      "name": "BookOfMudora",
+      "count": 1
+    },
+    {
+      "name": "Flippers",
+      "count": 1
+    },
+    {
+      "name": "MoonPearl",
+      "count": 1
+    },
+    {
+      "name": "BugCatchingNet",
+      "count": 1
+    },
+    {
+      "name": "Mushroom",
+      "count": 1
+    },
+    {
+      "name": "Bottle",
+      "count": 4
+    },
+    {
+      "name": "PegasusBoots",
+      "count": 1
+    },
+    {
+      "name": "Sword",
+      "count": 3
+    },
+    {
+      "name": "Shield",
+      "count": 2
+    },
+    {
+      "name": "Ocarina",
+      "count": 1
+    },
+    {
+      "name": "Glove",
+      "count": 2
+    },
+    {
+      "name": "Mail",
+      "count": 2
+    },
+    {
+      "name": "HalfMagic",
+      "count": 1
+    },
+    {
+      "name": "Arrow",
+      "count": 1
+    },
+    {
+      "name": "ThreeBombs",
+      "count": 17
+    },
+    {
+      "name": "TenArrows",
+      "count": 11
+    },
+    {
+      "name": "OneRupee",
+      "count": 2
+    },
+    {
+      "name": "FiveRupees",
+      "count": 4
+    },
+    {
+      "name": "TwentyRupees",
+      "count": 29
+    },
+    {
+      "name": "FiftyRupees",
+      "count": 7
+    },
+    {
+      "name": "OneHundredRupees",
+      "count": 1
+    },
+    {
+      "name": "ThreeHundredRupees",
+      "count": 5
+    },
+    {
+      "name": "BossHeartContainer",
+      "count": 10
+    },
+    {
+      "name": "SanctuaryHeartContainer",
+      "count": 1
+    },
+    {
+      "name": "PieceOfHeart",
+      "count": 24
+    }
+  ]
+}
