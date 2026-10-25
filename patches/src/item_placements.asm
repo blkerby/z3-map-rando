@@ -145,6 +145,13 @@ hook_receive_milestone_item:
 org $81C715
 hook_check_dungeon_prize:
     JSL ReadDungeonPrizeType
+org $80F9BF
+hook_choose_boss_victory:
+    JML ChooseBossVictorySequence
+org $80F9C3
+return_crystal_boss_victory:
+org $80F9CF
+return_pendant_boss_victory:
 org $829790
 hook_choose_crystal_backdrop:
     JML ChooseCrystalBackdrop
@@ -476,6 +483,20 @@ GrantMilestoneItem:
 ReadDungeonPrizeType:
     LDA.l !DungeonPrizeTypes,X
     RTL
+
+ChooseBossVictorySequence:
+    ; Agahnim's exits branch before this hook; preserve the boss-room index.
+    PHX
+    LDA.w $040C
+    LSR A
+    TAX
+    LDA.l !DungeonPrizeTypes,X
+    PLX
+    CMP.b #$40
+    BEQ .crystal
+    JML return_pendant_boss_victory
+.crystal
+    JML return_crystal_boss_victory
 
 ChooseCrystalBackdrop:
     ; Match vanilla's 16-bit A / 8-bit X/Y contract; only scratch $08 is written.

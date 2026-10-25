@@ -102,6 +102,8 @@ The vanilla encoding lookup above uses green pendant tile `$60` and crystal prop
 
 Crystal cutscene backdrop setup also needs all ten prize boss rooms. Vanilla searches only the seven original crystal rooms without an exit for an unmatched room, so crystals in Eastern, Desert, or Hera otherwise freeze before the maiden appears. `item_placements.asm` replaces this lookup, retaining the seven vanilla backdrop offsets and adding Eastern `$1658`, Desert `$1618`, and Hera `$0EBA`. Hera's offset accounts for its prize falling at the center of the full room rather than a quadrant center. The separate maiden-dialogue hook selects messages by the assigned crystal's ownership bit.
 
+Post-boss victory sequences also follow the assigned prize type rather than the vanilla boss-room group. This ensures crystals in Light World dungeons run the crystal sequence's palette-layout cleanup before returning outdoors; otherwise `$0ABD` remains set and the shield uses the wrong palette row. Pendants use the pendant sequence, and Agahnim's special exits branch before this selection.
+
 ### Symbol manifest
 
 `patches/src/symbols.inc` defines the shared ASM interface. Use `%export_symbol(InternalName, exported_name, $Value)` for symbols consumed by Rust; this defines both `!InternalName` for ASM and the assigned label `export_exported_name` for Asar's symbol output. The exported name matches its Rust field directly, for example `%export_symbol(Map16TopLeft, map16_top_left, $A18000)`. Symbols shared only between ASM files retain ordinary `!Name = $Value` definitions. Routine labels and their address anchors need no extra export labels.
