@@ -1,6 +1,6 @@
 # Resource preparation and incremental traversal
 
-Status: implementation plan; no generator changes have been made. Implement and verify the resource changes first, using the existing fresh traversals, then add traversal-state reuse and dependency-based scheduling.
+Status: Phase 1 resource handling is implemented with fresh traversals. Focused checks, workspace tests, and the logic catalog rebuild passed. Additional timing runs are deferred at the user's request. Phases 2 and 3 remain unimplemented.
 
 This plan supersedes the resource initialization, environmental refill, and fresh-wave policies in [the item-placement plan](../plan.md) and [the logic plan](logic.md). Their unrelated placement, key-assignment, follower, and progression policies continue to apply. Update their descriptions when implementing each phase so they describe the resulting behavior.
 
@@ -20,11 +20,11 @@ Save-and-quit returns to the starting vertex and includes this implicit healing,
 
 ### Global usable capacities
 
-Keep physical capacities in `GlobalState` and add `magic_usable_capacity`, `bomb_usable_capacity`, and `arrow_usable_capacity`. Each usable capacity is zero until an environmental preparation source is discovered, and then equals its physical capacity. These fields replace the corresponding global preparedness booleans rather than duplicating them.
+Keep physical capacities in `GlobalState` and add `magic_usable_capacity`, `bomb_usable_capacity`, and `arrow_usable_capacity`. Track obtained preparation independently in `GlobalState::refills`, even when physical capacity is zero. Usable capacity is derived as physical capacity when the corresponding refill flag is set, or zero otherwise. A zero usable capacity must never be used to infer whether a source has been obtained.
 
 Local magic, bomb, and arrow usage becomes ordinary unsigned consumption, initialized to zero. Remove `ResourceUsage::UNPREPARED` and its sentinel handling; remove the wrapper if it has no remaining purpose. Available resources are calculated as `usable_capacity - used`. Health availability depends on its representation: current capacity minus consumption, or an explicit remaining amount.
 
-Preparation updates global usable capacity between waves, without rewriting local states. A capacity upgrade updates usable capacity too if already prepared; an unprepared resource keeps usable capacity zero. Use this distinction consistently for ammunition, magic spending, potion effects, and resource checks. A full-resource check requires the resource to be prepared before interpreting its usage as depletion from full; an unprepared resource with zero consumption is not full. Health is always prepared.
+Preparation updates global usable capacity between waves, without rewriting local states. Recompute usable capacities from physical capacities and obtained refill flags after preparation discovery or capacity changes. A source obtained at zero capacity remains recorded, so a later upgrade immediately makes that capacity usable; an unobtained source leaves usable capacity zero. Use this distinction consistently for ammunition, magic spending, potion effects, and resource checks. A full-resource check requires the resource to be prepared before interpreting its usage as depletion from full; an unprepared resource with zero consumption is not full. Health is always prepared.
 
 Keep magic, ammo, and bottle scoring based on the existing local consumption counters and fixed metric weights. Use the capacity-independent health mapping described below. Preparation and capacity increases do not change cached metric scores. Preserve the other metric definitions and avoid unrelated tuning.
 
@@ -87,11 +87,15 @@ Keep `PlacementState` and the traversal queue behavior unchanged in this phase. 
 
 ### Phase 1 verification and completion
 
-Use temporary focused checks for full starting/save-and-quit health, empty resources before preparation, preparation without rewriting existing local states, upgrades before and after preparation, and resource checks on unprepared resources. Exercise environmental health/magic/ammo refills with both small and full limits and verify that they discover preparation where appropriate but never restore local availability. Check potion budgets, sequential damage/magic handling, survival and repeated Fairy revivals in both health modes, and switching back to `Consumed(0)` after a full heal. Verify that a cached `Remaining` amount does not increase with capacity and never satisfies a full-relative health check. Check that both health representations have unchanged scores across capacity increases, including `Remaining(56)` scoring as effective usage 104 at every capacity where it can occur.
+Use temporary focused checks for full starting/save-and-quit health, empty resources before preparation, preparation without rewriting existing local states, upgrades before and after preparation, preparation discovery at zero capacity followed by a later upgrade, closure termination when a known source still has zero capacity, and resource checks on unprepared resources. Exercise environmental health/magic/ammo refills with both small and full limits and verify that they discover preparation where appropriate but never restore local availability. Check potion budgets, sequential damage/magic handling, survival and repeated Fairy revivals in both health modes, and switching back to `Consumed(0)` after a full heal. Verify that a cached `Remaining` amount does not increase with capacity and never satisfies a full-relative health check. Check that both health representations have unchanged scores across capacity increases, including `Remaining(56)` scoring as effective usage 104 at every capacity where it can occur.
 
-Run the applicable Cargo checks and rebuild the logic catalog. Run a bounded set of default- and hard-settings release generations with outputs outside the worktree. Record success or retry-budget exhaustion and elapsed time; reduced reachability can change results, so old placements are not an equivalence target. Investigate material regressions before proceeding.
+Run the applicable Cargo checks and rebuild the logic catalog. A bounded set of default- and hard-settings release generations was exercised during Phase 1, with outputs outside the worktree. Further timing runs are deferred at the user's request. Reduced reachability can change results, so old placements are not an equivalence target. Investigate material regressions before proceeding.
 
-Remove temporary checks and instrumentation before completing the phase, following repository instructions. Capture a fresh-traversal timing baseline under the new semantics for comparison with later phases. Phase 1 is complete when the resource model works independently of traversal reuse.
+Remove temporary checks and instrumentation before completing the phase, following repository instructions. Capture a fresh-traversal timing baseline under the new semantics when performance comparison is resumed. Phase 1 is complete when the resource model works independently of traversal reuse.
+
+### Phase 1 verification results
+
+The workspace check and tests passed, and the logic catalog was rebuilt after renaming the health-reset requirement. Eight temporary integration checks covered resource preparation, capacity upgrades, one-time receipts, ignored environmental restoration, bottle sources and budgets, both health representations, full-health checks, sequential healing/damage, and save-and-quit. The checks included 4,320 batched-magic cases compared with a per-use reference and 1,920 damage/Fairy cases compared with sequential evaluation. Full-inventory closure reached all 259 catalog item locations with every reducer bounded by 18 states. A further temporary check verified independent source discovery with all three capacities zero, termination without repeated discovery at zero capacity, preserved local states, later capacity upgrades enabling prepared resources, and upgrades leaving resources unusable when no source was obtained. Workspace tests passed again after this refinement. Temporary test sources were removed after passing.
 
 ## Phase 2: retain traversal state
 
@@ -116,7 +120,7 @@ Walk nested `And` and `Or` requirements and index every mutable global value the
 | Unique item or equipment level | Direct item/equipment requirements and indirect capability checks, including Bow/Silver Arrows for ammo, Half Magic for magic cost, Mail for damage, and Net for fairy-source discovery |
 | Flag, door, Big Key, Ocarina, or prize ownership | Corresponding requirements, including Big Key checks inside door evaluation and individual prize changes feeding prize-count checks |
 | Health capacity | Damage/survival and health-dependent resource or consumable checks |
-| Magic/ammo usable capacity | Spending and resource checks for that resource, including newly prepared resources |
+| Magic/ammo usable capacity or obtained refill flags | Spending and resource checks for that resource, including newly prepared resources; source-discovery checks also depend on obtained refill flags when usable capacity remains zero |
 | Bottles owned or prepared content availability | Bottle-count/content checks and potion-dependent damage, magic, and missing-resource evaluation; include source-discovery requirements that read bottles or Net |
 
 Derive changes from actual old/new global values at the collection/discovery boundary. Keep change tracking small and specific to the interpreter; do not add a generic event system. Include changes observed through edge effects as well as requirements when determining dependencies.

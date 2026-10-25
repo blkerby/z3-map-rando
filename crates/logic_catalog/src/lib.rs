@@ -503,10 +503,9 @@ pub enum Requirement {
         hits: u32,
     },
     Pay(u32),
-    /// Raise local availability to at least limit, capped by capacity, without adding to it.
-    /// Unprepared magic and ammunition remain empty for the current traversal wave.
-    /// Non-health sources also enable preparation in subsequent traversal waves;
-    /// bottle-content sources only establish preparation and do not restore used bottles.
+    /// Discover an environmental preparation source for subsequent traversal waves.
+    /// No environmental source restores local resources during a route.
+    /// Health sources are ignored; starting health includes healing at Link's House.
     Refill {
         resource: Resource,
         /// Health uses eighths of a heart; magic uses the game's 0..128 units.
@@ -524,8 +523,8 @@ pub enum Requirement {
     /// Replace local obstacle state with an uncleared state sized for this room.
     /// Travel edges inject this after departure requirements when changing rooms.
     ResetObstacles(RoomIndex),
-    /// Set health to save-and-quit spawn health, preserving all other resource usage.
-    ResetHealthToSpawn,
+    /// Restore full health at the start, preserving all other resource usage.
+    ResetHealthToFull,
     ObstacleCleared(ObstacleIndex),
     ObstacleNotCleared(ObstacleIndex),
     /// Requires the door to either be already unlocked (by an OpenDoor effect)

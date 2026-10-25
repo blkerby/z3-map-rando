@@ -24,8 +24,8 @@ pub enum TraversalEdgeOrigin {
     Catalog(EdgeIndex),
     /// Index into the selected connection slice, not necessarily vanilla connections.
     Connection(usize),
-    /// Return to the start with follower loss, obstacle reset, and spawn-health reset
-    /// expressed through requirements. Prepared resources belong to wave initialization.
+    /// Return to the start with follower loss, obstacle reset, and full health
+    /// expressed through requirements. Other resource usage is preserved.
     SaveAndQuit,
 }
 
@@ -241,7 +241,7 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                         Follower::Blind,
                         Follower::SuperBomb,
                     ])),
-                    Requirement::ResetHealthToSpawn,
+                    Requirement::ResetHealthToFull,
                 ]),
                 effects: Box::new([]),
             },

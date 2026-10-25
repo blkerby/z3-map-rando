@@ -5,7 +5,7 @@ use crate::{
     inputs::GenerationInputs,
     interpreter::{GlobalDiscoveries, Interpreter},
     local_state_reducer::LocalStateReducer,
-    state::{GlobalState, LocalState, RefillFlags, ResourceUsage},
+    state::{GlobalState, HealthState, LocalState, RefillFlags},
 };
 use anyhow::Result;
 use common_types::Item;
@@ -22,28 +22,15 @@ pub struct TraversalResult {
 
 /// Start at the graph's starting vertex and expand routes without applying discoveries.
 pub fn traverse(graph: &TraversalGraph, interpreter: &Interpreter<'_>) -> TraversalResult {
-    let global = interpreter.global;
     let mut result = TraversalResult {
         local_states: vec![LocalStateReducer::default(); graph.outgoing.len()],
         discoveries: GlobalDiscoveries::default(),
     };
     result.local_states[graph.start_vertex_idx.0 as usize].insert(LocalState {
-        health_used: global.health_capacity - global.get_spawn_health(),
-        magic_used: if global.refills.magic {
-            ResourceUsage(0)
-        } else {
-            ResourceUsage::UNPREPARED
-        },
-        bombs_used: if global.refills.bombs {
-            ResourceUsage(0)
-        } else {
-            ResourceUsage::UNPREPARED
-        },
-        arrows_used: if global.refills.arrows {
-            ResourceUsage(0)
-        } else {
-            ResourceUsage::UNPREPARED
-        },
+        health: HealthState::Consumed(0),
+        magic_used: 0,
+        bombs_used: 0,
+        arrows_used: 0,
         bottles_used: 0,
         possible_followers: FollowerMask(0),
         cleared_obstacles: 0,
@@ -114,6 +101,7 @@ pub fn compute_closure(
             global.ocarina = OcarinaState::Active;
         }
         global.refills.merge(discoveries.refills);
+        global.update_usable_capacities();
         changed |= collect_reachable_items(catalog, inputs, global, placements)?;
         if !changed {
             return Ok(result.local_states);

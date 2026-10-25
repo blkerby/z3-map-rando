@@ -24,6 +24,10 @@ pub struct GlobalState {
     pub magic_capacity: u8,
     pub bomb_capacity: u8,
     pub arrow_capacity: u8,
+    /// Derived from physical capacity and the independently obtained refill flags.
+    pub magic_usable_capacity: u8,
+    pub bomb_usable_capacity: u8,
+    pub arrow_usable_capacity: u8,
     /// Pieces toward the next heart container, 0..=3.
     pub heart_pieces: u8,
     pub bottles_owned: u8,
@@ -64,6 +68,9 @@ impl GlobalState {
             magic_capacity: 128,
             bomb_capacity: 10,
             arrow_capacity: 30,
+            magic_usable_capacity: 0,
+            bomb_usable_capacity: 0,
+            arrow_usable_capacity: 0,
             heart_pieces: 0,
             bottles_owned: 0,
             refills: RefillFlags::default(),
@@ -73,14 +80,6 @@ impl GlobalState {
             reachable_item_locations: vec![false; catalog.item_locations.len()],
             collected_item_locations: vec![false; catalog.item_locations.len()],
         }
-    }
-
-    /// Vanilla save-and-quit health, in eighths of a heart (MaxHealthBasedSpawnHP).
-    pub fn get_spawn_health(&self) -> u8 {
-        const SPAWN_HEALTH: [u8; 21] = [
-            24, 24, 24, 24, 24, 32, 32, 40, 40, 48, 48, 56, 56, 56, 64, 64, 64, 72, 72, 72, 80,
-        ];
-        SPAWN_HEALTH[(self.health_capacity / 8) as usize].min(self.health_capacity)
     }
 
     /// Collect a placed item into inventory, returning an error for already-collected locations.
@@ -190,11 +189,31 @@ impl GlobalState {
             | Item::Map
             | Item::Compass => {}
         }
+        self.update_usable_capacities();
         Ok(())
+    }
+
+    /// Obtaining a source remains meaningful even when the physical capacity is zero.
+    pub fn update_usable_capacities(&mut self) {
+        self.magic_usable_capacity = if self.refills.magic {
+            self.magic_capacity
+        } else {
+            0
+        };
+        self.bomb_usable_capacity = if self.refills.bombs {
+            self.bomb_capacity
+        } else {
+            0
+        };
+        self.arrow_usable_capacity = if self.refills.arrows {
+            self.arrow_capacity
+        } else {
+            0
+        };
     }
 }
 
-/// Non-health sources discovered globally, enabling preparation in subsequent waves.
+/// Obtained preparation sources, independent of current resource capacities.
 /// Bottle sources never replenish the current route's bottle-use budget.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RefillFlags {
@@ -208,7 +227,7 @@ pub struct RefillFlags {
 }
 
 impl RefillFlags {
-    /// Retain all preparation sources known by either set of flags.
+    /// Retain sources obtained in either set, including those with zero usable capacity.
     pub fn merge(&mut self, other: Self) {
         self.magic |= other.magic;
         self.bombs |= other.bombs;
@@ -223,11 +242,10 @@ impl RefillFlags {
 /// Route-local resource usage and temporary state, including alternative followers.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LocalState {
-    /// Net health depletion in eighths of a heart; full health has zero used.
-    pub health_used: u8,
-    pub magic_used: ResourceUsage,
-    pub bombs_used: ResourceUsage,
-    pub arrows_used: ResourceUsage,
+    pub health: HealthState,
+    pub magic_used: u8,
+    pub bombs_used: u8,
+    pub arrows_used: u8,
     /// Each use may choose any globally known content. Never reduced along a route.
     pub bottles_used: u8,
     /// Bit (follower as u8) represents a possible catalog Follower.
@@ -239,14 +257,9 @@ pub struct LocalState {
     pub cleared_obstacles: u8,
 }
 
-/// Net resource depletion, with u8::MAX reserved for a resource unprepared for this wave.
-/// Ordinary values increase with spending and decrease with refills.
-#[repr(transparent)]
+/// Health in eighths of a heart, preserving the fixed amount from a Fairy revival.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ResourceUsage(pub u8);
-
-impl ResourceUsage {
-    /// Availability stays zero throughout the traversal, including after refills.
-    /// A discovered refill permits starting the next traversal full.
-    pub const UNPREPARED: Self = Self(u8::MAX);
+pub enum HealthState {
+    Consumed(u8),
+    Remaining(u8),
 }

@@ -4,7 +4,7 @@ use crate::{
     graph::TraversalEdge,
     inputs::GenerationInputs,
     local_state_reducer::LocalStateReducer,
-    state::{GlobalState, LocalState, RefillFlags, ResourceUsage},
+    state::{GlobalState, HealthState, LocalState, RefillFlags},
 };
 use hashbrown::HashSet;
 use logic_catalog::{
@@ -187,7 +187,7 @@ impl Interpreter<'_> {
             | Requirement::Follower(_)
             | Requirement::LoseFollowers(_)
             | Requirement::ResetObstacles(_)
-            | Requirement::ResetHealthToSpawn
+            | Requirement::ResetHealthToFull
             | Requirement::ObstacleCleared(_)
             | Requirement::ObstacleNotCleared(_) => {
                 let mut result = LocalStateReducer::default();
@@ -222,18 +222,14 @@ impl Interpreter<'_> {
                         {
                             return;
                         }
-                        (&mut state.arrows_used, self.global.arrow_capacity)
+                        (&mut state.arrows_used, self.global.arrow_usable_capacity)
                     }
-                    Ammo::Bomb => (&mut state.bombs_used, self.global.bomb_capacity),
+                    Ammo::Bomb => (&mut state.bombs_used, self.global.bomb_usable_capacity),
                 };
-                if *count == 0 {
-                    true
-                } else if *usage == ResourceUsage::UNPREPARED
-                    || *count > u32::from(capacity.saturating_sub(usage.0))
-                {
+                if *count > u32::from(capacity - *usage) {
                     false
                 } else {
-                    usage.0 += *count as u8;
+                    *usage += *count as u8;
                     true
                 }
             }
@@ -245,7 +241,7 @@ impl Interpreter<'_> {
                 let divisor = if half_magic { 2 } else { 1 };
                 let cost_per_use = u64::from(*cost_per_use);
                 let total_cost = (cost_per_use * u64::from(*num_uses)).div_ceil(divisor);
-                if total_cost > 0 && state.magic_used == ResourceUsage::UNPREPARED {
+                if total_cost > 0 && self.global.magic_usable_capacity == 0 {
                     return;
                 }
                 let mut states = LocalStateReducer::default();
@@ -254,16 +250,12 @@ impl Interpreter<'_> {
                 while !states.get_states().is_empty() {
                     // Batch all affordable uses up to the next required potion.
                     let usage = states.get_states()[0].magic_used;
-                    let available = if usage == ResourceUsage::UNPREPARED {
-                        0
-                    } else {
-                        u64::from(self.global.magic_capacity.saturating_sub(usage.0))
-                    };
+                    let available = u64::from(self.global.magic_usable_capacity - usage);
                     let remaining_cost = total_cost - completed_cost;
                     if remaining_cost <= available {
                         for mut state in states.into_states() {
                             if remaining_cost > 0 {
-                                state.magic_used.0 += remaining_cost as u8;
+                                state.magic_used += remaining_cost as u8;
                             }
                             result.insert(state);
                         }
@@ -275,7 +267,7 @@ impl Interpreter<'_> {
                     let affordable_cost = (cost_per_use * completed_uses).div_ceil(divisor);
                     let next_cost = (cost_per_use * (completed_uses + 1)).div_ceil(divisor);
                     let cost = next_cost - affordable_cost;
-                    if cost > u64::from(self.global.magic_capacity) {
+                    if cost > u64::from(self.global.magic_usable_capacity) {
                         return;
                     }
                     completed_cost = next_cost;
@@ -283,7 +275,7 @@ impl Interpreter<'_> {
                     for state in states.into_states() {
                         for content in [BottleContent::BluePotion, BottleContent::GreenPotion] {
                             if let Some(mut refilled) = self.use_potion(&state, content) {
-                                refilled.magic_used = ResourceUsage(cost as u8);
+                                refilled.magic_used = cost as u8;
                                 next.insert(refilled);
                                 break;
                             }
@@ -300,16 +292,22 @@ impl Interpreter<'_> {
                 for _ in 0..*hits {
                     let mut next = LocalStateReducer::default();
                     for mut state in states.into_states() {
-                        let remaining = self.global.health_capacity - state.health_used;
+                        let remaining = match state.health {
+                            HealthState::Consumed(used) => self.global.health_capacity - used,
+                            HealthState::Remaining(remaining) => remaining,
+                        };
                         if damage < u32::from(remaining) {
-                            state.health_used += damage as u8;
+                            match &mut state.health {
+                                HealthState::Consumed(used) => *used += damage as u8,
+                                HealthState::Remaining(remaining) => *remaining -= damage as u8,
+                            }
                             next.insert(state);
                         } else {
                             if damage < u32::from(self.global.health_capacity) {
                                 for content in [BottleContent::BluePotion, BottleContent::RedPotion]
                                 {
                                     if let Some(mut healed) = self.use_potion(&state, content) {
-                                        healed.health_used = damage as u8;
+                                        healed.health = HealthState::Consumed(damage as u8);
                                         next.insert(healed);
                                         break;
                                     }
@@ -319,8 +317,8 @@ impl Interpreter<'_> {
                                 && state.bottles_used < self.global.bottles_owned
                             {
                                 state.bottles_used += 1;
-                                state.health_used = self.global.health_capacity
-                                    - self.global.health_capacity.min(56);
+                                state.health =
+                                    HealthState::Remaining(self.global.health_capacity.min(56));
                                 next.insert(state);
                             }
                         }
@@ -341,30 +339,19 @@ impl Interpreter<'_> {
                     return;
                 }
                 match resource {
-                    Resource::Health => {
-                        let target_used = self.global.health_capacity
-                            - (*limit).min(u32::from(self.global.health_capacity)) as u8;
-                        state.health_used = state.health_used.min(target_used);
-                    }
+                    // TODO: environmental sources only enable preparation; model route refills once repeatability is identified.
+                    Resource::Health | Resource::Rupees => {}
                     Resource::Magic => {
-                        refill_resource(&mut state.magic_used, self.global.magic_capacity, *limit);
                         discoveries.refills.magic = !self.global.refills.magic;
                     }
                     Resource::Bombs => {
-                        refill_resource(&mut state.bombs_used, self.global.bomb_capacity, *limit);
                         discoveries.refills.bombs = !self.global.refills.bombs;
                     }
                     Resource::Arrows => {
-                        refill_resource(&mut state.arrows_used, self.global.arrow_capacity, *limit);
                         discoveries.refills.arrows = !self.global.refills.arrows;
                     }
-                    Resource::Rupees => {}
                     Resource::BottleContent(BottleContent::Bee | BottleContent::GoldBee) => {}
                     Resource::BottleContent(BottleContent::Fairy) => {
-                        let healing = u64::from(*limit) * 56;
-                        let target_used = self.global.health_capacity
-                            - healing.min(u64::from(self.global.health_capacity)) as u8;
-                        state.health_used = state.health_used.min(target_used);
                         if self.global.bottles_owned > 0
                             && self.global.unique_items[UniqueItem::BugCatchingNet as usize]
                         {
@@ -393,44 +380,36 @@ impl Interpreter<'_> {
                 true
             }
             Requirement::ResourceMissingAtMost { resource, count } => {
-                let missing = match resource {
-                    Resource::Health => u32::from(state.health_used),
+                let satisfied = match resource {
+                    Resource::Health => match state.health {
+                        HealthState::Consumed(used) => u32::from(used) <= *count,
+                        HealthState::Remaining(_) => false,
+                    },
                     Resource::Magic => {
-                        if state.magic_used == ResourceUsage::UNPREPARED {
-                            u32::from(self.global.magic_capacity)
-                        } else {
-                            u32::from(state.magic_used.0)
-                        }
+                        self.global.refills.magic && u32::from(state.magic_used) <= *count
                     }
                     Resource::Bombs => {
-                        if state.bombs_used == ResourceUsage::UNPREPARED {
-                            u32::from(self.global.bomb_capacity)
-                        } else {
-                            u32::from(state.bombs_used.0)
-                        }
+                        self.global.refills.bombs && u32::from(state.bombs_used) <= *count
                     }
                     Resource::Arrows => {
-                        if state.arrows_used == ResourceUsage::UNPREPARED {
-                            u32::from(self.global.arrow_capacity)
-                        } else {
-                            u32::from(state.arrows_used.0)
-                        }
+                        self.global.refills.arrows && u32::from(state.arrows_used) <= *count
                     }
-                    Resource::Rupees => 0,
-                    Resource::BottleContent(BottleContent::Bee | BottleContent::GoldBee) => 0,
+                    Resource::Rupees => true,
+                    Resource::BottleContent(BottleContent::Bee | BottleContent::GoldBee) => true,
                     Resource::BottleContent(content) => {
-                        if self.have_bottle_content(*content) {
+                        let missing = if self.have_bottle_content(*content) {
                             u32::from(state.bottles_used)
                         } else {
                             u32::from(self.global.bottles_owned)
-                        }
+                        };
+                        missing <= *count
                     }
                 };
-                if missing <= *count {
+                if satisfied {
                     result.insert(state);
                     return;
                 }
-                if *resource == Resource::Magic && state.magic_used == ResourceUsage::UNPREPARED {
+                if *resource == Resource::Magic && self.global.magic_usable_capacity == 0 {
                     return;
                 }
                 let contents: &[BottleContent] = match resource {
@@ -462,8 +441,8 @@ impl Interpreter<'_> {
                 state.cleared_obstacles = 0;
                 true
             }
-            Requirement::ResetHealthToSpawn => {
-                state.health_used = self.global.health_capacity - self.global.get_spawn_health();
+            Requirement::ResetHealthToFull => {
+                state.health = HealthState::Consumed(0);
                 true
             }
             Requirement::ObstacleCleared(idx) => state.cleared_obstacles & (1 << idx.0) != 0,
@@ -485,19 +464,11 @@ impl Interpreter<'_> {
         let mut refilled = state.clone();
         match content {
             BottleContent::BluePotion => {
-                refilled.health_used = 0;
-                refill_resource(
-                    &mut refilled.magic_used,
-                    self.global.magic_capacity,
-                    u32::from(self.global.magic_capacity),
-                );
+                refilled.health = HealthState::Consumed(0);
+                refilled.magic_used = 0;
             }
-            BottleContent::RedPotion => refilled.health_used = 0,
-            BottleContent::GreenPotion => refill_resource(
-                &mut refilled.magic_used,
-                self.global.magic_capacity,
-                u32::from(self.global.magic_capacity),
-            ),
+            BottleContent::RedPotion => refilled.health = HealthState::Consumed(0),
+            BottleContent::GreenPotion => refilled.magic_used = 0,
             _ => return None,
         }
         refilled.bottles_used += 1;
@@ -513,12 +484,4 @@ impl Interpreter<'_> {
             BottleContent::Bee | BottleContent::GoldBee => false,
         }
     }
-}
-
-fn refill_resource(usage: &mut ResourceUsage, capacity: u8, limit: u32) {
-    if *usage == ResourceUsage::UNPREPARED {
-        return;
-    }
-    let target_used = capacity - limit.min(u32::from(capacity)) as u8;
-    usage.0 = usage.0.min(target_used);
 }

@@ -1,6 +1,6 @@
 //! Fixed cost metrics for selecting representative route-local states.
 
-use crate::state::LocalState;
+use crate::state::{HealthState, LocalState};
 use logic_catalog::Follower;
 
 // Each row defines a different way to score a LocalState. Keeping the best state
@@ -111,7 +111,6 @@ const fn compute_exp(exponent: f64) -> f64 {
 // For B = WEIGHT_RANGE_RATIO, L = NUM_RESOURCE_LEVELS, target level t, and finite usage u,
 // store round(SCORE_SCALE * B^(-t/(L - 1)) * (B^(u/scale) - 1)).
 // Subtracting the constant term leaves every metric's ordering unchanged.
-// UNPREPARED contributes zero: it is constant across states within a traversal wave.
 static RESOURCE_COSTS: [[[i32; 256]; NUM_RESOURCE_LEVELS]; 5] = {
     let mut costs = [[[0; 256]; NUM_RESOURCE_LEVELS]; 5];
     let weight_step = compute_exp(-LN_WEIGHT_RANGE_RATIO / (NUM_RESOURCE_LEVELS - 1) as f64);
@@ -171,10 +170,14 @@ static BINARY_COSTS: [[i32; 10]; METRIC_COUNT] = {
 /// With the current weight range, scores omit constants and stay within [-66.5, 59.5] * 2^24.
 pub fn compute_costs(state: &LocalState) -> [i32; METRIC_COUNT] {
     let usages = [
-        state.health_used,
-        state.magic_used.0,
-        state.bombs_used.0,
-        state.arrows_used.0,
+        match state.health {
+            HealthState::Consumed(used) => used,
+            // Score fixed health pessimistically against the maximum capacity.
+            HealthState::Remaining(remaining) => 160 - remaining,
+        },
+        state.magic_used,
+        state.bombs_used,
+        state.arrows_used,
         state.bottles_used,
     ];
     let mut costs = [0; METRIC_COUNT];
