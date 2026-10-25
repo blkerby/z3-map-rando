@@ -13,6 +13,7 @@ Implemented: generation, patching saved seeds, and generation followed by patchi
 | `--rom <PATH>` | Vanilla ROM to patch | Generate a seed file only |
 | `--theme <NAME>` | Whole-game theme selected during generation | `Base` |
 | `--rng <U64>` | Numeric seed for item randomization | Choose randomly |
+| `--output-dir <DIR>` | Existing directory for default seed and ROM output paths | Current directory; beside the input seed for patch-only ROM output |
 | `--output-seed <PATH>` | Output path for Zstd-compressed seed JSON | `z3-map-rando-<SEED-NAME>.json.zst` |
 | `--compression-level <I32>` | Zstd compression level for the seed output | `3` |
 | `--output-rom <PATH>` | Output path for the patched ROM | `z3-map-rando-<SEED-NAME>.sfc` |
@@ -27,7 +28,7 @@ Implemented: generation, patching saved seeds, and generation followed by patchi
 | Settings or defaults | Yes | Generate, then patch | Seed file and ROM |
 | Existing seed | Yes | Patch | ROM |
 
-Output path arguments override filenames for the selected operation. Default paths are relative to the current working directory. Explicit paths do not change the stored seed name. Seed output and compression options apply only to generation; patch-only operation does not rewrite the saved seed. Write seed JSON with indentation through a Zstd encoder using `--compression-level` (default `3`), and progress and diagnostics to stderr. When `--rom` is supplied, read and verify it before loading catalogs or generating a seed. In combined operation, save the seed file before patching. Generation-only runs without `--settings` end with a tip showing how to patch the saved seed and how to add `--rom` to the initial command to generate and patch together. Read saved seeds through a buffered Zstd decoder and `serde_json::from_reader`, without buffering the complete decompressed JSON.
+`--output-dir` selects the directory for default output filenames. Explicit `--output-seed` and `--output-rom` paths take precedence and are used as supplied. Without `--output-dir`, default outputs go in the current working directory, except a patch-only ROM goes beside the input seed. Explicit paths do not change the stored seed name. Seed output and compression options apply only to generation; patch-only operation does not rewrite the saved seed. Write seed JSON with indentation through a Zstd encoder using `--compression-level` (default `3`), and progress and diagnostics to stderr. When `--rom` is supplied, read and verify it before loading catalogs or generating a seed. In combined operation, save the seed file before patching. Generation-only runs without `--settings` end with a tip showing how to patch the saved seed and how to add `--rom` to the initial command to generate and patch together. Read saved seeds through a buffered Zstd decoder and `serde_json::from_reader`, without buffering the complete decompressed JSON.
 
 ```sh
 # Generate a compressed seed file using default settings.

@@ -52,10 +52,13 @@ struct Args {
     /// Numeric RNG seed; chooses randomly when omitted.
     #[arg(long)]
     rng: Option<u64>,
-    /// Output seed file; defaults to z3-map-rando-<SEED-NAME>.json.zst.
+    /// Directory for default output seed and ROM paths.
+    #[arg(long)]
+    output_dir: Option<PathBuf>,
+    /// Output seed file; overrides --output-dir. Defaults to z3-map-rando-<SEED-NAME>.json.zst.
     #[arg(long)]
     output_seed: Option<PathBuf>,
-    /// Output ROM file; defaults to z3-map-rando-<SEED-NAME>.sfc beside the input seed, or in the current directory.
+    /// Output ROM file; overrides --output-dir. Defaults to z3-map-rando-<SEED-NAME>.sfc beside the input seed, or in the current directory.
     #[arg(long)]
     output_rom: Option<PathBuf>,
     /// When to load transition assets while patching.
@@ -105,7 +108,10 @@ fn main() -> Result<()> {
     } else {
         let seed = generate_seed(&args, &retiling_catalog, &retiling_bytes)?;
         let output_path = args.output_seed.clone().unwrap_or_else(|| {
-            PathBuf::from(format!("z3-map-rando-{}.json.zst", seed.metadata.seed_name))
+            args.output_dir
+                .as_deref()
+                .unwrap_or_else(|| Path::new(""))
+                .join(format!("z3-map-rando-{}.json.zst", seed.metadata.seed_name))
         });
         write_seed(&seed, &output_path, args.compression_level)?;
         if args.settings.is_none() && args.rom.is_none() {
@@ -176,7 +182,9 @@ fn patch_seed(
     let output = patcher::patch_rom(rom, seed, retiling_catalog, &patch_catalog, &settings)?;
     let output_path = args.output_rom.clone().unwrap_or_else(|| {
         let filename = format!("z3-map-rando-{}.sfc", seed.metadata.seed_name);
-        if let Some(path) = &args.seed {
+        if let Some(dir) = &args.output_dir {
+            dir.join(filename)
+        } else if let Some(path) = &args.seed {
             path.with_file_name(filename)
         } else {
             PathBuf::from(filename)
