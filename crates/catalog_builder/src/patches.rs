@@ -182,7 +182,7 @@ pub(crate) fn package_catalog(
     compression_level: i32,
 ) -> Result<()> {
     let items = read_item_encodings(source_directory)?;
-    let item_locations = read_item_locations(source_directory, &built.symbols)?;
+    let item_locations = read_item_locations(source_directory, &built.symbols, &items)?;
     let catalog = PatchCatalog {
         patches: built.patches,
         symbols: built.symbols,
@@ -207,19 +207,25 @@ fn read_item_encodings(source_directory: &Path) -> Result<BTreeMap<String, ItemE
         items.currency,
         items.dungeon_items,
         items.dungeon_prizes,
-        items.goal_items,
-        items.expansions,
+        items.health_upgrades,
+        items.non_vanilla,
     ] {
-        for item in category {
+        for item in category.items {
             let receipt_id = u8::from_str_radix(item.item_receipt_id.trim_start_matches("0x"), 16)?;
-            let prize_patch_bytes = if let Some(source_bytes) = item.prize_patch_bytes {
-                let mut bytes = [0; 6];
-                for (i, byte) in source_bytes.iter().enumerate() {
-                    bytes[i] = u8::from_str_radix(byte.trim_start_matches("0x"), 16)?;
-                }
-                Some(bytes)
-            } else {
-                None
+            // Mask, map properties/tile, prize type, number tile, falling-prize ID.
+            // See plans/patches.md for the vanilla encodings and custom table layout.
+            let prize_patch_bytes = match item.name.as_str() {
+                "PendantOfCourage" => Some([0x04, 0x38, 0x60, 0x00, 0x69, 0x01]),
+                "PendantOfWisdom" => Some([0x01, 0x32, 0x60, 0x00, 0x69, 0x03]),
+                "PendantOfPower" => Some([0x02, 0x34, 0x60, 0x00, 0x69, 0x02]),
+                "Crystal1" => Some([0x02, 0x34, 0x64, 0x40, 0x7F, 0x06]),
+                "Crystal2" => Some([0x10, 0x34, 0x64, 0x40, 0x79, 0x06]),
+                "Crystal3" => Some([0x40, 0x34, 0x64, 0x40, 0x6C, 0x06]),
+                "Crystal4" => Some([0x20, 0x34, 0x64, 0x40, 0x6D, 0x06]),
+                "Crystal5" => Some([0x04, 0x34, 0x64, 0x40, 0x6E, 0x06]),
+                "Crystal6" => Some([0x01, 0x34, 0x64, 0x40, 0x6F, 0x06]),
+                "Crystal7" => Some([0x08, 0x34, 0x64, 0x40, 0x7C, 0x06]),
+                _ => None,
             };
             encodings.insert(
                 item.name,
@@ -230,20 +236,32 @@ fn read_item_encodings(source_directory: &Path) -> Result<BTreeMap<String, ItemE
             );
         }
     }
-    // The source catalog has no progressive boomerang receipt.
-    encodings.insert(
-        "ProgressiveBoomerang".to_owned(),
-        ItemEncoding {
-            receipt_id: 0x62,
-            prize_patch_bytes: None,
-        },
-    );
+    // These specific randomizer receipts are not individual shared-data records.
+    for (name, receipt_id) in [
+        ("ProgressiveBoomerang", 0x62),
+        ("BombUpgrade5", 0x51),
+        ("BombUpgrade10", 0x52),
+        ("BombUpgrade50", 0x4C),
+        ("ArrowUpgrade5", 0x53),
+        ("ArrowUpgrade10", 0x54),
+        ("ArrowUpgrade70", 0x4D),
+        ("Triforce", 0x6A),
+    ] {
+        encodings.insert(
+            name.to_owned(),
+            ItemEncoding {
+                receipt_id,
+                prize_patch_bytes: None,
+            },
+        );
+    }
     Ok(encodings)
 }
 
 fn read_item_locations(
     source_directory: &Path,
     symbols: &PatchSymbols,
+    encodings: &BTreeMap<String, ItemEncoding>,
 ) -> Result<BTreeMap<ItemLocationId, ItemLocation>> {
     let mut locations = BTreeMap::new();
     let mut room_paths = Vec::new();
@@ -261,15 +279,35 @@ fn read_item_locations(
             if item.item == "OcarinaActive" {
                 continue;
             }
-            let addresses = match &item.item_address {
-                z3_json_data::Addresses::One(address) => std::slice::from_ref(address),
-                z3_json_data::Addresses::Many(addresses) => addresses.as_slice(),
-            };
             let mut rom_addresses = Vec::new();
-            for address in addresses {
-                if address != "unknown" {
-                    rom_addresses.push(u32::from_str_radix(address.trim_start_matches("0x"), 16)?);
-                }
+            if let Some(address) = &item.item_address {
+                rom_addresses.push(u32::from_str_radix(address.trim_start_matches("0x"), 16)?);
+            }
+            if encodings[&item.item].prize_patch_bytes.is_some() {
+                let dungeon_id = room.dungeon_id.context("prize dungeon has no dungeonId")?;
+                let index = dungeon_id / 2;
+                let (slot, phase, world) = match dungeon_id {
+                    0x04 => (0, 3, 0), // Eastern Palace
+                    0x06 => (2, 3, 0), // Desert Palace
+                    0x14 => (1, 3, 0), // Tower of Hera
+                    0x0C => (0, 7, 1), // Palace of Darkness
+                    0x10 => (1, 7, 1), // Skull Woods
+                    0x18 => (2, 7, 1), // Turtle Rock
+                    0x16 => (3, 7, 1), // Thieves' Town
+                    0x0E => (4, 7, 1), // Misery Mire
+                    0x12 => (5, 7, 1), // Ice Palace
+                    0x0A => (6, 7, 1), // Swamp Palace
+                    _ => bail!("unsupported prize dungeonId: {dungeon_id:#04X}"),
+                };
+                let map_properties = 0x53EF2 + 0x12 * slot + 2 * phase;
+                rom_addresses = vec![
+                    0x1209B + index,
+                    map_properties,
+                    map_properties + 1,
+                    0x180050 + index,
+                    0x18007C - 2 * slot + world,
+                    0xC6FC + index,
+                ];
             }
             if item.item == "SmallKey"
                 || item.item == "BigKey"

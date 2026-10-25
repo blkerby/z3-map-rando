@@ -95,6 +95,7 @@ pub struct Room {
     pub id: u32,
     pub name: String,
     pub room_type: RoomKind,
+    pub dungeon_id: Option<u32>,
     pub position: Option<[u8; 2]>,
     pub size: Option<[u16; 2]>,
     pub nodes: Vec<Node>,
@@ -233,15 +234,8 @@ pub struct ItemLocation {
     pub location_name: String,
     pub item_location: u32,
     pub item: String,
-    pub item_address: Addresses,
+    pub item_address: Option<String>,
     pub world: Option<SourceWorld>,
-}
-
-#[derive(Deserialize)]
-#[serde(untagged)]
-pub enum Addresses {
-    One(String),
-    Many(Vec<String>),
 }
 
 #[derive(Clone, Copy, Deserialize)]
@@ -364,15 +358,20 @@ pub struct Event {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Items {
-    pub inventory: Vec<Item>,
-    pub refills: Vec<Item>,
-    pub bottle_contents: Vec<Item>,
-    pub currency: Vec<Item>,
-    pub dungeon_items: Vec<Item>,
-    pub dungeon_prizes: Vec<Item>,
-    pub goal_items: Vec<Item>,
-    pub expansions: Vec<Item>,
-    pub flags: Vec<String>,
+    pub inventory: ItemCategory<Item>,
+    pub refills: ItemCategory<Item>,
+    pub bottle_contents: ItemCategory<Item>,
+    pub currency: ItemCategory<Item>,
+    pub dungeon_items: ItemCategory<Item>,
+    pub dungeon_prizes: ItemCategory<Item>,
+    pub health_upgrades: ItemCategory<Item>,
+    pub non_vanilla: ItemCategory<Item>,
+    pub flags: ItemCategory<String>,
+}
+
+#[derive(Deserialize)]
+pub struct ItemCategory<T> {
+    pub items: Vec<T>,
 }
 
 #[derive(Deserialize)]
@@ -380,7 +379,6 @@ pub struct Items {
 pub struct Item {
     pub name: String,
     pub item_receipt_id: String,
-    pub prize_patch_bytes: Option<[String; 6]>,
 }
 
 #[derive(Deserialize)]

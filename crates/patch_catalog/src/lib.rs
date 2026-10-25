@@ -118,10 +118,11 @@ pub struct PatchSymbols {
 
 #[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
 pub struct ItemLocation {
-    /// Unheadered ROM file offsets extracted from the z3-json-data `itemAddress`.
+    /// Unheadered ROM file offsets read from `itemAddress` or derived for prizes.
     /// Ordinary pickups receive the item's receipt ID as a single address.
     /// Dungeon prizes have six offsets, in the same order as
-    /// `ItemEncoding::prize_patch_bytes`. Empty for fixed keys and fairy exchanges.
+    /// `ItemEncoding::prize_patch_bytes`. Empty when no address is supplied,
+    /// or for fixed keys and fairy exchanges.
     /// Non-chest addresses may refer to data consumed by the item-placement ASM.
     pub rom_addresses: Vec<u32>,
 }
@@ -129,6 +130,6 @@ pub struct ItemLocation {
 #[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
 pub struct ItemEncoding {
     pub receipt_id: u8,
-    /// Dungeon-prize bytes in source order, paired with the location's six offsets.
+    /// Locally derived dungeon-prize bytes, paired with the location's six offsets.
     pub prize_patch_bytes: Option<[u8; 6]>,
 }

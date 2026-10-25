@@ -155,16 +155,16 @@ fn load_definitions(source_directory: &Path, catalog: &mut LogicCatalog) -> Resu
         items.currency,
         items.dungeon_items,
         items.dungeon_prizes,
-        items.goal_items,
-        items.expansions,
+        items.health_upgrades,
+        items.non_vanilla,
     ] {
-        for item in category {
+        for item in category.items {
             let item_idx = ItemIndex(catalog.items.len() as u32);
             compiler.items.insert(item.name.clone(), item_idx);
             catalog.items.push(ItemDefinition { name: item.name });
         }
     }
-    for name in items.flags {
+    for name in items.flags.items {
         let flag_idx = FlagIndex(catalog.flags.len() as u32);
         compiler.flags.insert(name.clone(), flag_idx);
         catalog.flags.push(name);

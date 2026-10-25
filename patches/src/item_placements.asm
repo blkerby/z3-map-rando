@@ -145,6 +145,11 @@ hook_receive_milestone_item:
 org $81C715
 hook_check_dungeon_prize:
     JSL ReadDungeonPrizeType
+org $829790
+hook_choose_crystal_backdrop:
+    JML ChooseCrystalBackdrop
+org $8297A4
+return_build_crystal_backdrop:
 org $9ECEC8
 hook_choose_crystal_speech:
     JML ShowCrystalSpeech
@@ -471,6 +476,28 @@ GrantMilestoneItem:
 ReadDungeonPrizeType:
     LDA.l !DungeonPrizeTypes,X
     RTL
+
+ChooseCrystalBackdrop:
+    ; Match vanilla's 16-bit A / 8-bit X/Y contract; only scratch $08 is written.
+    REP #$20 ; Run hi-jacked instruction
+    LDX.b #$14
+    LDA.b $A0 ; Run hi-jacked instruction
+.next_room
+    DEX
+    DEX
+    CMP.l .rooms,X
+    BNE .next_room
+    LDA.l .tilemap_offsets,X
+    STA.b $08 ; Run hi-jacked instruction
+    JML return_build_crystal_backdrop
+
+.rooms
+    dw $0006,$005A,$0029,$0090,$00DE,$00A4,$00AC
+    dw $00C8,$0033,$0007
+.tilemap_offsets
+    dw $1618,$1658,$1658,$1618,$0658,$1618,$1658
+    ; Eastern/Desert use quadrant centers; Hera's prize falls at room center.
+    dw $1658,$1618,$0EBA
 
 ShowCrystalSpeech:
     ; Vanilla indexes maiden messages by the dungeon, which is invalid when
