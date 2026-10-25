@@ -1,0 +1,159 @@
+# Resource preparation and incremental traversal
+
+Status: implementation plan; no generator changes have been made. Implement and verify the resource changes first, using the existing fresh traversals, then add traversal-state reuse and dependency-based scheduling.
+
+This plan supersedes the resource initialization, environmental refill, and fresh-wave policies in [the item-placement plan](../plan.md) and [the logic plan](logic.md). Their unrelated placement, key-assignment, follower, and progression policies continue to apply. Update their descriptions when implementing each phase so they describe the resulting behavior.
+
+## Purpose
+
+Avoid repeatedly evaluating unchanged routes during item placement. Profiling the optimized generator with default and hard settings attributed approximately 53–54% of sampled CPU time to resource scoring and another 20–23% to reducer bookkeeping. A temporary default-settings trace evaluated 18,760 candidates and performed 14,877 traversals in approximately 97 seconds without completing generation. Reducing repeated traversal work should avoid much of this scoring without retuning unrelated metrics.
+
+Separate the intentional resource-policy changes from the traversal optimization. Compare the incremental traverser with a fresh traverser using the new resource policies, rather than requiring equivalent results to the old resource model.
+
+## Agreed resource model
+
+### Full starting health
+
+Assume Link can repeatedly collect the three heart pots at Link's House until fully healed. Every route starts with zero health consumption relative to the current full health capacity. There is no starting-health baseline or starting-versus-full scoring preference. Health uses the two representations described below so Fairy revival can retain a fixed remaining amount.
+
+Save-and-quit returns to the starting vertex and includes this implicit healing, selecting the full-relative representation with zero consumed. Keep its existing follower loss and obstacle reset. Preserve magic, bomb, arrow, and bottle-use counters across this in-route transition; it does not create another preparation opportunity or replenish the bottle budget.
+
+### Global usable capacities
+
+Keep physical capacities in `GlobalState` and add `magic_usable_capacity`, `bomb_usable_capacity`, and `arrow_usable_capacity`. Each usable capacity is zero until an environmental preparation source is discovered, and then equals its physical capacity. These fields replace the corresponding global preparedness booleans rather than duplicating them.
+
+Local magic, bomb, and arrow usage becomes ordinary unsigned consumption, initialized to zero. Remove `ResourceUsage::UNPREPARED` and its sentinel handling; remove the wrapper if it has no remaining purpose. Available resources are calculated as `usable_capacity - used`. Health availability depends on its representation: current capacity minus consumption, or an explicit remaining amount.
+
+Preparation updates global usable capacity between waves, without rewriting local states. A capacity upgrade updates usable capacity too if already prepared; an unprepared resource keeps usable capacity zero. Use this distinction consistently for ammunition, magic spending, potion effects, and resource checks. A full-resource check requires the resource to be prepared before interpreting its usage as depletion from full; an unprepared resource with zero consumption is not full. Health is always prepared.
+
+Keep magic, ammo, and bottle scoring based on the existing local consumption counters and fixed metric weights. Use the capacity-independent health mapping described below. Preparation and capacity increases do not change cached metric scores. Preserve the other metric definitions and avoid unrelated tuning.
+
+### Environmental refills establish preparation only
+
+Retain preparation discoveries from partial and full environmental sources. The agreed reasoning is that a source first reached while its resource is unprepared was reached without spending that resource; repeated visits with save-and-quit between them permit stocking up before a subsequent route.
+
+For now, assume no environmental source is repeatable during a route. Every environmental `Refill` requirement leaves local consumption unchanged, regardless of its limit. This includes full magic pots, partial health supplies, Great Fairy heals, and direct healing from loose fairies. Link's House is covered implicitly by starting health and save-and-quit, without a location-specific refill exception in the interpreter.
+
+Continue discovering eligible bottle-content preparation sources, including the existing bottle/net requirements for catching fairies. These sources do not replenish `bottles_used` or provide additional bottle uses during a route. Preserve the current distinction between direct magic preparation and bottle-content preparation; a potion does not implicitly prepare an otherwise unprepared magic resource.
+
+One-time refill item placements continue to have no logical resource-restoring effect. Their locations and actual placed items remain present. Retain existing handling of permanent capacity upgrades, free rupee costs, and ignored Bee/Gold Bee contents.
+
+Do not add repeatability annotations or edit `z3-json-data` in this implementation. Preserve refill limits in the catalog for later work. The conservative policy can exclude valid routes and change generated placements or generation success rates; never compensate by silently treating an unclassified source as repeatable.
+
+### Health after bottled Fairy revival
+
+Red and Blue Potions restore full health and spend a local bottle use. Green and Blue Potions restore prepared magic and spend a bottle use. These are explicit consumable actions, distinct from environmental refills; keep their existing bottle budget and sequential-use behavior.
+
+Retain bottled Fairy revival using two explicit health representations, for example `HealthState::Consumed(u8)` and `HealthState::Remaining(u8)`. Only Fairy revival selects `Remaining`; ordinary route initialization, save-and-quit, and full-healing potions select `Consumed`. There is no general partial-refill expression or additional baseline system.
+
+| Operation | Full-relative consumption | Explicit remaining health |
+| --- | --- | --- |
+| Read available health | `health_capacity - consumed` | Stored `remaining` |
+| Survive a damage hit | Increase `consumed` by the damage | Decrease `remaining` by the damage |
+| Bottled Fairy revival | Spend one bottle use and switch to `Remaining(min(health_capacity, 56))` | Spend one bottle use and reset to `Remaining(min(health_capacity, 56))` |
+| Full heal or save-and-quit | Set `Consumed(0)` | Switch to `Consumed(0)` |
+| Capacity increase | Keep consumption unchanged; availability increases | Keep the stored remaining amount unchanged |
+
+All health amounts remain in eighths of a heart. Apply damage hit by hit and retain the current survival condition: remaining health must exceed the hit's damage to survive without a revival. The revival amount is capped and stored when the revival occurs; do not recompute it against a later capacity. Further hits continue using the explicit remaining amount until another revival or full heal changes it.
+
+Keep `ResourceMissingAtMost` conservative: a health check requires the full-relative representation and compares `consumed` with the permitted missing amount. A `Remaining` state does not qualify, even if it happens to equal the current maximum. This avoids a capacity increase invalidating an earlier successful full-health check.
+
+### Capacity-independent health scoring
+
+Score ordinary resource states using their consumption counters. Favor lower consumption; this can be expressed as a negative resource value, but retain the existing lower-is-better cost convention and lookup tables rather than changing signs throughout the reducer.
+
+For health scoring, map `Consumed(u)` to effective usage `u`, and map `Remaining(r)` to effective usage `160 - r`, using the maximum health capacity of 20 hearts in eighth-heart units. Feed this effective usage into the existing health cost tables. For example, seven remaining hearts map to 13 hearts consumed for scoring, regardless of the player's actual current capacity. Never convert the stored remaining amount to consumption using the current capacity.
+
+This is intentionally pessimistic for remaining-health states below maximum capacity. It can cause the bounded reducer to discard useful alternatives and therefore sacrifice completeness; it never changes actual health availability or grants extra health. Keep actual survival checks separate from scoring. Preserve the 18-metric bound and tie policy, with no additional baseline bonus or separate reducer banks.
+
+### Cached revival paths after capacity or armor improves
+
+Retain cached revival paths when an improved global state lets Link survive the hit that formerly triggered a Fairy. The survivor retains an additional unused bottle/Fairy. If later damage makes the lower immediate health matter, that Fairy can revive Link at the later lethal hit instead. If no such hit occurs, the saved Fairy was unnecessary. Later revival restores at least the amount established by the earlier revival, since capacity has not decreased.
+
+For example, compare a cached state with seven hearts after spending a Fairy against a survivor with one heart and that Fairy still available. A subsequent six-heart hit leaves the cached route with one heart, while the survivor revives with seven. Continue applying damage hit by hit so this delayed-revival behavior is preserved.
+
+Treat the cached state as a conservative summary of achievable continuation, rather than requiring its exact earlier death and revival to occur again. This reasoning relies on retaining the extra bottle use in the real continuation and on remaining-health states being ineligible for `ResourceMissingAtMost` health checks; such a state cannot require a full-health action before a later revival. Full heals and save-and-quit merge the health representations back into `Consumed(0)`, with the surviving route retaining any saved bottle use. No proactive Fairy-use action or capacity-triggered invalidation is needed for this case. Verify this relation explicitly against the fresh traversal during implementation.
+
+## Phase 1: resource handling with fresh traversals
+
+1. Update `state.rs` to hold usable capacities, maintain them when permanent capacities increase, store plain magic/ammo/bottle usage counters, and introduce the two health representations. Keep preparation discoveries separate from the global state they update so a newly found source becomes available in the next wave.
+2. Update `traversal.rs` to initialize health as `Consumed(0)`, initialize the other local usage counters to zero, and apply preparation discoveries to usable capacities between otherwise unchanged fresh waves. Remove the spawn-health table and its callers once unused.
+3. Update `interpreter.rs` to use usable capacities for spending and checks, remove environmental restoration, and retain preparation discovery. Preserve effects discovered in successful requirement prefixes even when a later requirement fails. Handle both health representations in damage, Fairy revival, full-health checks, and potions, retaining the existing bottle-use budget.
+4. Rename `Requirement::ResetHealthToSpawn` to `ResetHealthToFull` and update its interpreter and generated save-and-quit edges. Update the catalog comments describing refill behavior. Rebuild the logic catalog because the serialized requirement schema changes; do not add compatibility machinery.
+5. Update `cost_metrics.rs` to read plain counters, map `Remaining(r)` to `160 - r` for health scoring, and remove sentinel-specific explanations. Keep existing cost tables, weights, reducer bounds, and tie policy unchanged.
+6. Update the existing resource and save-and-quit documentation in `plan.md` and `plans/logic.md` to match the implemented model.
+
+Keep `PlacementState` and the traversal queue behavior unchanged in this phase. No retained graph state, reverse dependency index, new configuration, or source-data schema is needed yet.
+
+### Phase 1 verification and completion
+
+Use temporary focused checks for full starting/save-and-quit health, empty resources before preparation, preparation without rewriting existing local states, upgrades before and after preparation, and resource checks on unprepared resources. Exercise environmental health/magic/ammo refills with both small and full limits and verify that they discover preparation where appropriate but never restore local availability. Check potion budgets, sequential damage/magic handling, survival and repeated Fairy revivals in both health modes, and switching back to `Consumed(0)` after a full heal. Verify that a cached `Remaining` amount does not increase with capacity and never satisfies a full-relative health check. Check that both health representations have unchanged scores across capacity increases, including `Remaining(56)` scoring as effective usage 104 at every capacity where it can occur.
+
+Run the applicable Cargo checks and rebuild the logic catalog. Run a bounded set of default- and hard-settings release generations with outputs outside the worktree. Record success or retry-budget exhaustion and elapsed time; reduced reachability can change results, so old placements are not an equivalence target. Investigate material regressions before proceeding.
+
+Remove temporary checks and instrumentation before completing the phase, following repository instructions. Capture a fresh-traversal timing baseline under the new semantics for comparison with later phases. Phase 1 is complete when the resource model works independently of traversal reuse.
+
+## Phase 2: retain traversal state
+
+Store the per-vertex `LocalStateReducer` collection with committed `PlacementState`, alongside `global`. Initialize it from the starting vertex only for a new complete generation attempt. Extend it across closure waves and accepted placement candidates instead of rebuilding it.
+
+Use the existing candidate cloning boundary first: each candidate receives the committed global and traversal state; acceptance commits both, rejection discards both. Rejected candidates must not leak inventory, discoveries, or reducers into later candidates. A new complete generation attempt starts fresh because its keys and prizes change. Do not share this cache between attempts or generation requests.
+
+Refactor `traverse`/`compute_closure` to operate on retained reducers and an explicit initial work set. Continue collecting newly placed items at already-reachable locations before evaluating edges. Keep discoveries separate from the global snapshot used for the current wave, apply discoveries and collections between waves, and stop when no relevant global changes remain. Junk items that change no traversal capability should not trigger a traversal.
+
+During development, use an all-reached-vertices seed pass as a simple reference for state reuse before adding selective scheduling. This is a staging aid, not an additional supported traversal mode. Do not introduce copy-on-write state or other clone optimizations unless measurements identify candidate cloning as a material new bottleneck.
+
+Verify that preparation and capacity changes leave cached local values and metric scores intact. Continue reevaluating resource-consuming edges when capacities or cost modifiers improve; unchanged counters do not imply unchanged edge outcomes. Previously retained states must remain conservative summaries of achievable continuations under the updated global state. Exercise delayed Fairy revival when an old Fairy-triggering hit becomes survivable, without requiring the exact old revival state to be reproduced.
+
+## Phase 3: seed only affected edges
+
+Build a reverse dependency index once with the expanded `TraversalGraph`, including catalog edges, room connections, and generated save-and-quit edges. Refer to edges by their existing outgoing-list position or a comparably small runtime identifier; avoid changing the catalog solely to assign runtime edge IDs.
+
+Walk nested `And` and `Or` requirements and index every mutable global value their evaluation reads, including implicit reads inside primitive requirements. Static player settings need no change notifications during generation.
+
+| Global change | Edge evaluations that must be reconsidered |
+| --- | --- |
+| Unique item or equipment level | Direct item/equipment requirements and indirect capability checks, including Bow/Silver Arrows for ammo, Half Magic for magic cost, Mail for damage, and Net for fairy-source discovery |
+| Flag, door, Big Key, Ocarina, or prize ownership | Corresponding requirements, including Big Key checks inside door evaluation and individual prize changes feeding prize-count checks |
+| Health capacity | Damage/survival and health-dependent resource or consumable checks |
+| Magic/ammo usable capacity | Spending and resource checks for that resource, including newly prepared resources |
+| Bottles owned or prepared content availability | Bottle-count/content checks and potion-dependent damage, magic, and missing-resource evaluation; include source-discovery requirements that read bottles or Net |
+
+Derive changes from actual old/new global values at the collection/discovery boundary. Keep change tracking small and specific to the interpreter; do not add a generic event system. Include changes observed through edge effects as well as requirements when determining dependencies.
+
+At the start of a wave, enqueue affected edges only when their source vertex has retained states. Deduplicate queued work and preserve a deterministic ordering based on existing graph order. A global change must force affected edges to run even if no source reducer improved. Successful requirement prefixes must still report discoveries when an edge fails or its destination reducer does not improve.
+
+When an evaluated edge improves its destination reducer, enqueue all outgoing edges of that destination so ordinary local-state propagation continues. Preserve self-loop behavior. Newly reached vertices expand normally, so edges whose source was unreachable at notification time need no separate pending-change mechanism. The first traversal still begins at the starting vertex.
+
+## Incremental verification and performance comparison
+
+Keep a temporary fresh-traversal reference using Phase 1 semantics. Compare reachable and collected locations, flags, unlocked doors, preparation, and inventory at closure boundaries for selected generation attempts. Exercise multiple discoveries in one wave, unchanged source reducers with newly enabled edges, self-loops, nested alternatives, cost reductions from Mail/Half Magic, capacity changes in both health modes, formerly lethal hits becoming survivable, bottle preparation, rejected candidates, and complete-attempt restarts.
+
+Do not require identical reducer ordering or byte-identical seeds: metric tie handling and queue order may choose different witnesses. Investigate reachability/discovery discrepancies as blockers before claiming equivalence; do not hide them by changing the reducer policy or widening the optimization scope.
+
+Measure fresh versus incremental generation using the same optimized build settings, catalog contents, player settings, numeric seeds, and time bounds. Include several default and hard seeds and record completed generations separately from timed-out or exhausted runs. Use temporary counts for traversals/edge evaluations and reducer insertions to explain the timing changes. Measure memory and candidate-clone overhead now that candidates carry graph state. Remove temporary references and instrumentation after verification.
+
+## Files and interfaces affected
+
+| Area | Planned changes |
+| --- | --- |
+| `crates/generator/src/state.rs` | Usable capacities, two health representations, plain magic/ammo/bottle counters, capacity upgrades, preparedness state |
+| `crates/generator/src/interpreter.rs` | Resource checks/spending, preparation-only environmental sources, full-health reset, consumables, dependency reads |
+| `crates/generator/src/traversal.rs` | Full-health initialization, preparation application, global deltas, retained reducers, work scheduling |
+| `crates/generator/src/cost_metrics.rs` | Plain-counter access and comparison of health representations; retain unrelated metric definitions |
+| `crates/generator/src/local_state_reducer.rs` | Update wave-only documentation for cache reuse; retain reduction and tie behavior |
+| `crates/generator/src/graph.rs` | Full-health save-and-quit requirement and runtime reverse dependency index |
+| `crates/generator/src/placement.rs` | Cache ownership, initialization, candidate clone/commit boundaries, closure callers |
+| `crates/generator/src/lib.rs` | Update affected callers if needed; keep complete-attempt and candidate retry policies |
+| `crates/logic_catalog/src/lib.rs` | Rename the full-health reset variant and update resource semantics documentation; rebuild the catalog |
+| `plan.md`, `plans/logic.md` | Replace superseded resource and traversal descriptions as each phase lands |
+
+Search all callers and matches of `ResourceUsage`, `UNPREPARED`, `ResetHealthToSpawn`, `get_spawn_health`, `traverse`, and `compute_closure` before editing. The current closure callers are placement initialization and candidate evaluation. Verify compilation across consumers after changing public requirement or traversal interfaces.
+
+The preliminary key-assignment traversal relaxes resource requirements and does not need incremental traversal for this work. Do not change its behavior, item-placement policy, CLI/settings/seed format, ROM patches, or submodules. No new dependencies, permanent tests, fixtures, runtime switches, or telemetry are planned.
+
+## Deferred work
+
+Repeatable-refill classification belongs in later source-data work. Future annotations must distinguish safe repeated route restoration from sources that reset only between routes. Adding route refills later must preserve valid cached witnesses and explicitly reconsider capacity-dependent refill representations.
+
+Keep resource-model changes, state reuse, and selective scheduling reviewable and measurable as separate phases. Proceed to the next phase only after the preceding phase's semantics and verification are settled.
