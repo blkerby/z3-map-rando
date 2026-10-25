@@ -26,6 +26,18 @@ hook_receive_uncle_equipment:
 org $85DF6B
 return_finish_uncle_equipment:
 
+; Keep Zelda available regardless of sword level.
+org $85EBCF
+hook_initialize_zelda_spawn:
+    BRA return_initialize_zelda_spawn
+org $85EBD7
+return_initialize_zelda_spawn:
+
+; The preceding follower check still suppresses a duplicate castle Zelda.
+org $85EC40
+hook_check_castle_zelda_spawn:
+    RTS
+
 org $85EDE1
 hook_complete_zelda_rescue:
     BRA return_finish_zelda_rescue
