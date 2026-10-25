@@ -5,51 +5,41 @@ use crate::{
     inputs::GenerationInputs,
     interpreter::{GlobalDiscoveries, Interpreter},
     local_state_reducer::LocalStateReducer,
-    state::{GlobalState, HealthState, LocalState, RefillFlags},
+    state::{GlobalState, RefillFlags},
 };
 use anyhow::Result;
 use common_types::Item;
-use logic_catalog::{FollowerMask, ItemLocationIndex, LogicCatalog, OcarinaState};
+use logic_catalog::{ItemLocationIndex, LogicCatalog, OcarinaState, VertexIndex};
 use std::collections::VecDeque;
 
-/// Metric-selected states at each vertex and discoveries from one fixed-inventory wave.
-#[derive(Debug)]
-pub struct TraversalResult {
-    /// Indexed by VertexIndex; an empty reducer means no route reaches the vertex.
-    pub local_states: Vec<LocalStateReducer>,
-    pub discoveries: GlobalDiscoveries,
-}
-
-/// Start at the graph's starting vertex and expand routes without applying discoveries.
-pub fn traverse(graph: &TraversalGraph, interpreter: &Interpreter<'_>) -> TraversalResult {
-    let mut result = TraversalResult {
-        local_states: vec![LocalStateReducer::default(); graph.outgoing.len()],
-        discoveries: GlobalDiscoveries::default(),
-    };
-    result.local_states[graph.start_vertex_idx.0 as usize].insert(LocalState {
-        health: HealthState::Consumed(0),
-        magic_used: 0,
-        bombs_used: 0,
-        arrows_used: 0,
-        bottles_used: 0,
-        possible_followers: FollowerMask(0),
-        cleared_obstacles: 0,
-    });
-    let mut queue = VecDeque::from([graph.start_vertex_idx]);
+/// Extend retained routes from the supplied work set without applying discoveries.
+pub fn traverse(
+    graph: &TraversalGraph,
+    interpreter: &Interpreter<'_>,
+    local_states: &mut [LocalStateReducer],
+    initial_work: &[VertexIndex],
+) -> GlobalDiscoveries {
+    let mut discoveries = GlobalDiscoveries::default();
+    let mut queue = VecDeque::new();
     let mut queued = vec![false; graph.outgoing.len()];
-    queued[graph.start_vertex_idx.0 as usize] = true;
+    for &vertex_idx in initial_work {
+        if !queued[vertex_idx.0 as usize] {
+            queue.push_back(vertex_idx);
+            queued[vertex_idx.0 as usize] = true;
+        }
+    }
 
     while let Some(vertex_idx) = queue.pop_front() {
         queued[vertex_idx.0 as usize] = false;
         // Self-loops may improve the stored reducer and schedule another expansion.
-        let states = result.local_states[vertex_idx.0 as usize].clone();
+        let states = local_states[vertex_idx.0 as usize].clone();
         for edge in &graph.outgoing[vertex_idx.0 as usize] {
             let destination = edge.edge.to_vertex_idx;
             let improved = interpreter.evaluate_edge(
                 edge,
                 states.clone(),
-                &mut result.discoveries,
-                &mut result.local_states[destination.0 as usize],
+                &mut discoveries,
+                &mut local_states[destination.0 as usize],
             );
             if improved && !queued[destination.0 as usize] {
                 queue.push_back(destination);
@@ -57,34 +47,49 @@ pub fn traverse(graph: &TraversalGraph, interpreter: &Interpreter<'_>) -> Traver
             }
         }
     }
-    result
+    discoveries
 }
 
-/// Apply discoveries and reachable placed items between fresh traversal waves.
+/// Extend retained routes, applying discoveries and reachable placed items between waves.
 /// Placements have one entry per catalog item location, indexed by ItemLocationIndex.
 /// None denotes an unfilled location.
 /// Global state retains reachable and collected locations, including earlier waves.
-/// Return the final wave's per-vertex reducers; reaching an unfilled location grants no item.
+/// Reevaluate all reached vertices when capabilities change; junk collection needs no wave.
 pub fn compute_closure(
     catalog: &LogicCatalog,
     graph: &TraversalGraph,
     inputs: &GenerationInputs,
     global: &mut GlobalState,
+    local_states: &mut [LocalStateReducer],
     placements: &[Option<Item>],
-) -> Result<Vec<LocalStateReducer>> {
+    mut initial_work: Vec<VertexIndex>,
+) -> Result<()> {
     // A new placement may occupy a slot already found by an earlier closure.
-    collect_reachable_items(catalog, inputs, global, placements)?;
+    let mut changed = collect_reachable_items(catalog, inputs, global, placements)?;
     loop {
-        let result = traverse(
+        if changed {
+            initial_work.clear();
+            for (index, states) in local_states.iter().enumerate() {
+                if !states.get_states().is_empty() {
+                    initial_work.push(VertexIndex(index as u32));
+                }
+            }
+        }
+        if initial_work.is_empty() {
+            return Ok(());
+        }
+        let discoveries = traverse(
             graph,
             &Interpreter {
                 catalog,
                 inputs,
                 global,
             },
+            local_states,
+            &initial_work,
         );
-        let discoveries = result.discoveries;
-        let mut changed = !discoveries.flags.is_empty()
+        initial_work.clear();
+        changed = !discoveries.flags.is_empty()
             || !discoveries.unlocked_doors.is_empty()
             || discoveries.activate_ocarina
             || discoveries.refills != RefillFlags::default();
@@ -103,9 +108,6 @@ pub fn compute_closure(
         global.refills.merge(discoveries.refills);
         global.update_usable_capacities();
         changed |= collect_reachable_items(catalog, inputs, global, placements)?;
-        if !changed {
-            return Ok(result.local_states);
-        }
     }
 }
 
@@ -115,14 +117,27 @@ fn collect_reachable_items(
     global: &mut GlobalState,
     placements: &[Option<Item>],
 ) -> Result<bool> {
-    let mut collected = false;
+    let previous = global.clone();
     for (index, &item) in placements.iter().enumerate() {
         if global.reachable_item_locations[index] && !global.collected_item_locations[index] {
             if let Some(item) = item {
                 global.collect_item(catalog, inputs, item, ItemLocationIndex(index as u32))?;
-                collected = true;
             }
         }
     }
-    Ok(collected)
+    // Collection records and partial heart pieces do not change route capabilities.
+    Ok(global.unique_items != previous.unique_items
+        || global.sword_level != previous.sword_level
+        || global.shield_level != previous.shield_level
+        || global.glove_level != previous.glove_level
+        || global.mail_level != previous.mail_level
+        || global.boomerang_level != previous.boomerang_level
+        || global.ocarina != previous.ocarina
+        || global.health_capacity != previous.health_capacity
+        || global.magic_usable_capacity != previous.magic_usable_capacity
+        || global.bomb_usable_capacity != previous.bomb_usable_capacity
+        || global.arrow_usable_capacity != previous.arrow_usable_capacity
+        || global.bottles_owned != previous.bottles_owned
+        || global.big_keys != previous.big_keys
+        || global.unlocked_doors != previous.unlocked_doors)
 }

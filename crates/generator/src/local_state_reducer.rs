@@ -6,7 +6,8 @@ use crate::{
 };
 
 /// Retain at most METRIC_COUNT distinct states, keeping the incumbent on ties.
-/// Compare states only at the same vertex or requirement position within one traversal wave.
+/// Compare states only at the same vertex or requirement position. Cached metric scores
+/// remain valid across waves as inventory, preparation, and capacities improve.
 #[derive(Clone, Debug, Default)]
 pub struct LocalStateReducer {
     states: Vec<LocalState>,

@@ -166,7 +166,7 @@ static BINARY_COSTS: [[i32; 10]; METRIC_COUNT] = {
 };
 
 /// Compute all metric scores; lower is better, with each score scaled by 2^24.
-/// Compare states at the same vertex or requirement position within one traversal wave.
+/// Compare states at the same vertex or requirement position, including across waves.
 /// With the current weight range, scores omit constants and stay within [-66.5, 59.5] * 2^24.
 pub fn compute_costs(state: &LocalState) -> [i32; METRIC_COUNT] {
     let usages = [

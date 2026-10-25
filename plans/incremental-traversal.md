@@ -1,6 +1,6 @@
 # Resource preparation and incremental traversal
 
-Status: Phase 1 resource handling is implemented with fresh traversals. Focused checks, workspace tests, and the logic catalog rebuild passed. Additional timing runs are deferred at the user's request. Phases 2 and 3 remain unimplemented.
+Status: Phases 1 and 2 are implemented. Placement candidates retain traversal reducers alongside global state, and capability changes reevaluate all reached vertices. Focused fresh-reference comparisons and workspace checks passed. Phase 3 selective edge scheduling remains unimplemented. Additional generation timing runs remain deferred at the user's request.
 
 This plan supersedes the resource initialization, environmental refill, and fresh-wave policies in [the item-placement plan](../plan.md) and [the logic plan](logic.md). Their unrelated placement, key-assignment, follower, and progression policies continue to apply. Update their descriptions when implementing each phase so they describe the resulting behavior.
 
@@ -108,6 +108,14 @@ Refactor `traverse`/`compute_closure` to operate on retained reducers and an exp
 During development, use an all-reached-vertices seed pass as a simple reference for state reuse before adding selective scheduling. This is a staging aid, not an additional supported traversal mode. Do not introduce copy-on-write state or other clone optimizations unless measurements identify candidate cloning as a material new bottleneck.
 
 Verify that preparation and capacity changes leave cached local values and metric scores intact. Continue reevaluating resource-consuming edges when capacities or cost modifiers improve; unchanged counters do not imply unchanged edge outcomes. Previously retained states must remain conservative summaries of achievable continuations under the updated global state. Exercise delayed Fairy revival when an old Fairy-triggering hit becomes survivable, without requiring the exact old revival state to be reproduced.
+
+### Phase 2 verification results
+
+Seven temporary release checks passed against the Phase 1 fresh-traversal reference. They covered fixed global snapshots, multiple discoveries in a wave, discoveries from failed prefixes and unchanged destinations, nested alternatives, self-loop requeueing, preparation at zero capacity, later prepared capacity upgrades, Mail/Half Magic improvements, health-capacity changes, unchanged cached values and metric scores in both health representations, junk collection without traversal, and candidate acceptance/rejection isolation. Eighteen Fairy scenarios checked delayed revival after capacity or Mail improves, including retained continuations without rerunning the formerly lethal prefix and rejection of remaining-health states by full-health checks.
+
+Default and hard settings with numeric seeds 0, 1, and 2 exercised 240 candidates across six attempts: 30 accepted and 210 rejected. Initial closures and every accepted candidate matched fresh traversal for reachable/collected locations, inventory, flags, doors, activation, and preparation. Rejections preserved the committed state, including reducers. Reinitializing each attempt reproduced fresh starting state without inheriting candidate traversal. These bounded attempts did not complete generation; they are semantic comparisons, not generation-success or timing claims. Full-inventory closures under both settings reached all 259 item locations and matched fresh traversal; every reducer stayed within 18 states.
+
+The sampled partial-attempt reducer payload was approximately 97–99 KiB per candidate, excluding spare vector capacity and allocator overhead. Cloning the entire candidate averaged approximately 11–14 microseconds over 1,000 clones per sample in the optimized build. These samples do not justify clone optimizations. Additional full-generation timing comparisons remain deferred. Temporary checks and the fresh reference were removed after verification; no runtime reference mode, instrumentation, dependencies, or catalog changes remain.
 
 ## Phase 3: seed only affected edges
 

@@ -1,12 +1,16 @@
 //! One candidate of logical item placement, with Map/Compass priority.
 
 use crate::{
-    graph::TraversalGraph, inputs::GenerationInputs, state::GlobalState, traversal::compute_closure,
+    graph::TraversalGraph,
+    inputs::GenerationInputs,
+    local_state_reducer::LocalStateReducer,
+    state::{GlobalState, HealthState, LocalState},
+    traversal::compute_closure,
 };
 use anyhow::Result;
 use common_types::Item;
 use hashbrown::HashMap;
-use logic_catalog::{ItemLocationIndex, LogicCatalog};
+use logic_catalog::{FollowerMask, ItemLocationIndex, LogicCatalog};
 use rand::{Rng, seq::SliceRandom};
 
 /// An accepted candidate updates the state; rejection leaves it unchanged.
@@ -24,6 +28,8 @@ pub struct PlacementState {
     /// Outstanding dungeon items (maps/compasses), indexed by DungeonIndex.
     pub dungeon_pools: Vec<Vec<Item>>,
     pub global: GlobalState,
+    /// Retained routes indexed by VertexIndex, cloned and committed with inventory.
+    pub local_states: Vec<LocalStateReducer>,
 }
 
 impl PlacementState {
@@ -55,12 +61,31 @@ impl PlacementState {
             map_compass_pools.push(dungeon.map_compass_pool.clone());
         }
         let mut global = GlobalState::initialize(catalog);
-        compute_closure(catalog, graph, inputs, &mut global, &placements)?;
+        let mut local_states = vec![LocalStateReducer::default(); graph.outgoing.len()];
+        local_states[graph.start_vertex_idx.0 as usize].insert(LocalState {
+            health: HealthState::Consumed(0),
+            magic_used: 0,
+            bombs_used: 0,
+            arrows_used: 0,
+            bottles_used: 0,
+            possible_followers: FollowerMask(0),
+            cleared_obstacles: 0,
+        });
+        compute_closure(
+            catalog,
+            graph,
+            inputs,
+            &mut global,
+            &mut local_states,
+            &placements,
+            vec![graph.start_vertex_idx],
+        )?;
         Ok(Self {
             placements,
             ordinary_pool: inputs.ordinary_pool.clone(),
             dungeon_pools: map_compass_pools,
             global,
+            local_states,
         })
     }
 
@@ -86,7 +111,9 @@ impl PlacementState {
             graph,
             inputs,
             &mut candidate.global,
+            &mut candidate.local_states,
             &candidate.placements,
+            Vec::new(),
         )?;
         if check_candidate_progression(self, &candidate) {
             *self = candidate;
