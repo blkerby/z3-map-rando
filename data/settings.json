@@ -51,14 +51,6 @@
   "notables": [
     {
       "room_id": {
-        "Underworld": 58
-      },
-      "notable_id": 1,
-      "name": "Anti-Fairy Pot Grab",
-      "enabled": false
-    },
-    {
-      "room_id": {
         "Underworld": 60
       },
       "notable_id": 1,
