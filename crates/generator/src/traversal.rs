@@ -65,6 +65,7 @@ pub fn traverse(
 /// None denotes an unfilled location.
 /// Global state retains reachable and collected locations, including earlier waves.
 /// Global changes seed only dependent edges with retained source states.
+/// Initial changes report capabilities granted before this call.
 pub fn compute_closure(
     catalog: &LogicCatalog,
     graph: &TraversalGraph,
@@ -73,6 +74,7 @@ pub fn compute_closure(
     local_states: &mut [LocalStateReducer],
     placements: &[Option<Item>],
     initial_vertices: Vec<VertexIndex>,
+    mut changes: HashSet<GlobalDependency>,
 ) -> Result<()> {
     let mut initial_work = Vec::new();
     for vertex_idx in initial_vertices {
@@ -84,7 +86,6 @@ pub fn compute_closure(
         }
     }
     // A new placement may occupy a slot already found by an earlier closure.
-    let mut changes = HashSet::new();
     collect_reachable_items(catalog, inputs, global, placements, &mut changes)?;
     loop {
         for dependency in changes.drain() {

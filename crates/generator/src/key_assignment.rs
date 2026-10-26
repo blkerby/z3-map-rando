@@ -6,44 +6,74 @@ use crate::{
     graph::TraversalGraph,
     inputs::GenerationInputs,
     local_state_reducer::LocalStateReducer,
-    state::{GlobalState, LocalState},
+    state::{GlobalDependency, GlobalState, LocalState},
     traversal::compute_closure,
 };
 use anyhow::{Result, bail};
 use common_types::Item;
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use logic_catalog::{DoorIndex, DungeonIndex, ItemLocationIndex, LockKind, LogicCatalog};
 use rand::{Rng, seq::SliceRandom};
 
 const MAX_DUNGEON_ATTEMPTS: usize = 1000;
 const MAX_CANDIDATE_ATTEMPTS: usize = 100;
 
+/// Retained routes and placements, including the shared no-key baseline.
 #[derive(Clone)]
-struct KeyPlacementState {
+pub struct KeyPlacementState {
     global: GlobalState,
     local_states: Vec<LocalStateReducer>,
     placements: Vec<Option<Item>>,
 }
 
+impl KeyPlacementState {
+    /// Build the shared full-inventory closure without dungeon keys or placed items.
+    pub fn initialize(
+        catalog: &LogicCatalog,
+        graph: &TraversalGraph,
+        inputs: &GenerationInputs,
+    ) -> Result<Self> {
+        let mut global = GlobalState::initialize(catalog);
+        for &item in &inputs.ordinary_pool {
+            global.grant_non_key_item(item);
+        }
+        for &item in inputs.fixed_items.values() {
+            global.grant_non_key_item(item);
+        }
+        for &item in &inputs.prize_pool {
+            global.grant_non_key_item(item);
+        }
+        let mut initial = Self {
+            global,
+            local_states: vec![LocalStateReducer::default(); graph.outgoing.len()],
+            placements: vec![None; catalog.item_locations.len()],
+        };
+        initial.local_states[graph.start_vertex_idx.0 as usize].insert(LocalState::initialize());
+        compute_closure(
+            catalog,
+            graph,
+            inputs,
+            &mut initial.global,
+            &mut initial.local_states,
+            &initial.placements,
+            vec![graph.start_vertex_idx],
+            HashSet::new(),
+        )?;
+        Ok(initial)
+    }
+}
+
 /// Assign every dungeon's vanilla Small Key pickups to distinct same-dungeon doors.
 /// Completed dungeons remain settled while a later dungeon retries. Returned items
 /// carry stable door identities, ready for the later logical placement phases.
+/// Reuse the baseline initialized for this catalog, graph, and inputs across attempts.
 pub fn assign_small_keys(
     catalog: &LogicCatalog,
     graph: &TraversalGraph,
     inputs: &GenerationInputs,
+    baseline: &KeyPlacementState,
     rng: &mut impl Rng,
 ) -> Result<HashMap<ItemLocationIndex, Item>> {
-    let mut inventory = GlobalState::initialize(catalog);
-    for &item in &inputs.ordinary_pool {
-        inventory.grant_non_key_item(item);
-    }
-    for &item in inputs.fixed_items.values() {
-        inventory.grant_non_key_item(item);
-    }
-    for &item in &inputs.prize_pool {
-        inventory.grant_non_key_item(item);
-    }
     let mut items = HashMap::new();
     for (index, dungeon) in inputs.dungeons.iter().enumerate() {
         let dungeon_idx = DungeonIndex(index as u32);
@@ -60,7 +90,7 @@ pub fn assign_small_keys(
             inputs,
             dungeon_idx,
             &required_locations,
-            &inventory,
+            baseline,
             rng,
         )?;
         // Catalog order keeps even item construction independent of hash iteration.
@@ -83,31 +113,33 @@ fn assign_dungeon_keys(
     inputs: &GenerationInputs,
     dungeon_idx: DungeonIndex,
     required_locations: &[ItemLocationIndex],
-    inventory: &GlobalState,
+    baseline: &KeyPlacementState,
     rng: &mut impl Rng,
 ) -> Result<HashMap<ItemLocationIndex, DoorIndex>> {
     let dungeon = &inputs.dungeons[dungeon_idx.0 as usize];
-    let mut initial = KeyPlacementState {
-        global: inventory.clone(),
-        local_states: vec![LocalStateReducer::default(); graph.outgoing.len()],
-        placements: vec![None; catalog.item_locations.len()],
-    };
+    let mut initial = baseline.clone();
+    let mut changes = HashSet::new();
 
     // Assume having all big and small keys except for the given dungeon.
-    initial.global.big_keys.fill(true);
-    initial.global.big_keys[dungeon_idx.0 as usize] = false;
+    for index in 0..catalog.dungeons.len() {
+        let other_dungeon_idx = DungeonIndex(index as u32);
+        if other_dungeon_idx != dungeon_idx {
+            initial.global.big_keys[index] = true;
+            changes.insert(GlobalDependency::BigKey(other_dungeon_idx));
+        }
+    }
     for (index, door) in catalog.doors.iter().enumerate() {
         if door.lock == LockKind::SmallKey
             && catalog.room(door.room_idx).dungeon_idx != Some(dungeon_idx)
+            && !initial.global.unlocked_doors[index]
         {
             initial.global.unlocked_doors[index] = true;
+            changes.insert(GlobalDependency::Door(DoorIndex(index as u32)));
         }
     }
     for &location_idx in &dungeon.big_key_locations {
         initial.placements[location_idx.0 as usize] = Some(Item::BigKey);
     }
-    
-    initial.local_states[graph.start_vertex_idx.0 as usize].insert(LocalState::initialize());
     compute_closure(
         catalog,
         graph,
@@ -115,7 +147,8 @@ fn assign_dungeon_keys(
         &mut initial.global,
         &mut initial.local_states,
         &initial.placements,
-        vec![graph.start_vertex_idx],
+        Vec::new(),
+        changes,
     )?;
     let mut inaccessible_locations = Vec::new();
     let mut failure_reason = "";
@@ -164,6 +197,7 @@ fn assign_dungeon_keys(
                     &mut candidate.local_states,
                     &candidate.placements,
                     Vec::new(),
+                    HashSet::new(),
                 )?;
 
                 let mut found_new_key = false;

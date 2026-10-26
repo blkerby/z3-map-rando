@@ -15,7 +15,7 @@ pub use seed_data::{SeedData, Settings};
 use anyhow::{Result, bail};
 use graph::{TraversalGraph, build_graph};
 use inputs::{GenerationInputs, prepare_inputs};
-use key_assignment::assign_small_keys;
+use key_assignment::{KeyPlacementState, assign_small_keys};
 use logic_catalog::LogicCatalog;
 use placement::{PlacementState, PlacementStep};
 use rand::Rng;
@@ -68,9 +68,10 @@ fn generate_items(
     inputs: &GenerationInputs,
     rng: &mut impl Rng,
 ) -> Result<Vec<ItemPlacement>> {
+    let key_baseline = KeyPlacementState::initialize(catalog, graph, inputs)?;
     'attempts: for attempt in 1..=MAX_GENERATION_ATTEMPTS {
         eprintln!("Starting generation attempt {attempt}/{MAX_GENERATION_ATTEMPTS}");
-        let small_keys = assign_small_keys(catalog, graph, inputs, rng)?;
+        let small_keys = assign_small_keys(catalog, graph, inputs, &key_baseline, rng)?;
         let mut state = PlacementState::initialize(catalog, graph, inputs, &small_keys, rng)?;
         let mut wave = 0;
         while state.placements.contains(&None) {

@@ -9,7 +9,7 @@ use crate::{
 };
 use anyhow::Result;
 use common_types::Item;
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use logic_catalog::{ItemLocationIndex, LogicCatalog};
 use rand::{Rng, seq::SliceRandom};
 
@@ -71,6 +71,7 @@ impl PlacementState {
             &mut local_states,
             &placements,
             vec![graph.start_vertex_idx],
+            HashSet::new(),
         )?;
         Ok(Self {
             placements,
@@ -106,6 +107,7 @@ impl PlacementState {
             &mut candidate.local_states,
             &candidate.placements,
             Vec::new(),
+            HashSet::new(),
         )?;
         if check_candidate_progression(self, &candidate) {
             *self = candidate;

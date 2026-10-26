@@ -10,7 +10,7 @@ use logic_catalog::{
 
 /// Mutable global reads that can change an edge's results or discoveries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum GlobalDependency {
+pub enum GlobalDependency {
     Item(usize),
     Sword,
     Shield,
