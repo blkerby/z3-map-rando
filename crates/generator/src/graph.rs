@@ -1,8 +1,10 @@
 //! Shared world topology for the preliminary key pass and normal traversal.
 
+use crate::interpreter::{GlobalDependency, collect_requirement_dependencies};
 use common_types::allows_frog_dwarf;
+use hashbrown::{HashMap, HashSet};
 use logic_catalog::{
-    Connection, Edge, EdgeIndex, EntranceIndex, EntranceKind, EventEndpoint, Follower,
+    Connection, Edge, EdgeIndex, Effect, EntranceIndex, EntranceKind, EventEndpoint, Follower,
     FollowerMask, LogicCatalog, NodeType, Requirement, VertexIndex,
 };
 
@@ -11,6 +13,15 @@ pub struct TraversalGraph {
     /// Catalog vertices only; outgoing edges retain catalog/connection order.
     pub outgoing: Vec<Vec<TraversalEdge>>,
     pub start_vertex_idx: VertexIndex,
+    /// Reverse global-read index over the final adjacency, shared across candidates.
+    pub(crate) dependencies: HashMap<GlobalDependency, Vec<TraversalEdgeIndex>>,
+}
+
+/// An edge's position in the expanded outgoing adjacency, independent of catalog IDs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TraversalEdgeIndex {
+    pub from_vertex_idx: VertexIndex,
+    pub outgoing_idx: usize,
 }
 
 #[derive(Debug)]
@@ -69,6 +80,7 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
     let mut graph = TraversalGraph {
         outgoing: Vec::new(),
         start_vertex_idx: catalog.start_vertex_idx,
+        dependencies: HashMap::new(),
     };
     for _ in &catalog.vertices {
         graph.outgoing.push(Vec::new());
@@ -247,6 +259,34 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
             },
             TraversalEdgeOrigin::SaveAndQuit,
         );
+    }
+    for (vertex_idx, outgoing) in graph.outgoing.iter().enumerate() {
+        for (outgoing_idx, edge) in outgoing.iter().enumerate() {
+            let mut dependencies = HashSet::new();
+            collect_requirement_dependencies(catalog, &edge.edge.requirement, &mut dependencies);
+            for effect in &edge.edge.effects {
+                let dependency = match *effect {
+                    Effect::CollectItem(idx) => GlobalDependency::ItemLocation(idx),
+                    Effect::SetFlag(idx) => GlobalDependency::Flag(idx),
+                    Effect::OpenDoor(idx) => GlobalDependency::Door(idx),
+                    Effect::ActivateOcarina => GlobalDependency::Ocarina,
+                    Effect::ClearObstacle(_)
+                    | Effect::ResetObstacle(_)
+                    | Effect::SetFollower(_) => continue,
+                };
+                dependencies.insert(dependency);
+            }
+            for dependency in dependencies {
+                graph
+                    .dependencies
+                    .entry(dependency)
+                    .or_default()
+                    .push(TraversalEdgeIndex {
+                        from_vertex_idx: VertexIndex(vertex_idx as u32),
+                        outgoing_idx,
+                    });
+            }
+        }
     }
     graph
 }

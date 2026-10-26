@@ -1,6 +1,6 @@
 # Resource preparation and incremental traversal
 
-Status: Phases 1 and 2 are implemented. Placement candidates retain traversal reducers alongside global state, and capability changes reevaluate all reached vertices. Focused fresh-reference comparisons and workspace checks passed. Phase 3 selective edge scheduling remains unimplemented. Additional generation timing runs remain deferred at the user's request.
+Status: Phases 1–3 are implemented. Placement candidates retain traversal reducers alongside global state, and actual global changes schedule dependent edges through a reverse index built once with the expanded graph. Focused comparisons against fresh traversal and the Phase 2 all-reached reference passed. Additional generation timing runs remain deferred at the user's request.
 
 This plan supersedes the resource initialization, environmental refill, and fresh-wave policies in [the item-placement plan](../plan.md) and [the logic plan](logic.md). Their unrelated placement, key-assignment, follower, and progression policies continue to apply. Update their descriptions when implementing each phase so they describe the resulting behavior.
 
@@ -34,7 +34,7 @@ Retain preparation discoveries from partial and full environmental sources. The 
 
 For now, assume no environmental source is repeatable during a route. Every environmental `Refill` requirement leaves local consumption unchanged, regardless of its limit. This includes full magic pots, partial health supplies, Great Fairy heals, and direct healing from loose fairies. Link's House is covered implicitly by starting health and save-and-quit, without a location-specific refill exception in the interpreter.
 
-Continue discovering eligible bottle-content preparation sources, including the existing bottle/net requirements for catching fairies. These sources do not replenish `bottles_used` or provide additional bottle uses during a route. Preserve the current distinction between direct magic preparation and bottle-content preparation; a potion does not implicitly prepare an otherwise unprepared magic resource.
+Discover bottle-content preparation sources independently of bottle ownership. Fairy-source discovery still requires the Bug-Catching Net; actual potion use or Fairy revival requires an unused owned bottle. These sources do not replenish `bottles_used` or provide additional bottle uses during a route. Preserve the current distinction between direct magic preparation and bottle-content preparation; a potion does not implicitly prepare an otherwise unprepared magic resource.
 
 One-time refill item placements continue to have no logical resource-restoring effect. Their locations and actual placed items remain present. Retain existing handling of permanent capacity upgrades, free rupee costs, and ignored Bee/Gold Bee contents.
 
@@ -121,21 +121,34 @@ The sampled partial-attempt reducer payload was approximately 97–99 KiB per ca
 
 Build a reverse dependency index once with the expanded `TraversalGraph`, including catalog edges, room connections, and generated save-and-quit edges. Refer to edges by their existing outgoing-list position or a comparably small runtime identifier; avoid changing the catalog solely to assign runtime edge IDs.
 
-Walk nested `And` and `Or` requirements and index every mutable global value their evaluation reads, including implicit reads inside primitive requirements. Static player settings need no change notifications during generation.
+Walk nested `And` and `Or` requirements and index mutable global values that can enable an edge outcome or a new discovery, including implicit reads inside primitive requirements. Static player settings need no change notifications during generation. `Refill` reads of already-known source flags only suppress duplicate discoveries and need no scheduling dependency; the Fairy Net check is its only dependency.
 
 | Global change | Edge evaluations that must be reconsidered |
 | --- | --- |
 | Unique item or equipment level | Direct item/equipment requirements and indirect capability checks, including Bow/Silver Arrows for ammo, Half Magic for magic cost, Mail for damage, and Net for fairy-source discovery |
 | Flag, door, Big Key, Ocarina, or prize ownership | Corresponding requirements, including Big Key checks inside door evaluation and individual prize changes feeding prize-count checks |
 | Health capacity | Damage/survival and health-dependent resource or consumable checks |
-| Magic/ammo usable capacity or obtained refill flags | Spending and resource checks for that resource, including newly prepared resources; source-discovery checks also depend on obtained refill flags when usable capacity remains zero |
-| Bottles owned or prepared content availability | Bottle-count/content checks and potion-dependent damage, magic, and missing-resource evaluation; include source-discovery requirements that read bottles or Net |
+| Magic/ammo usable capacity or obtained refill flags | Spending and resource checks for that resource, including newly prepared resources and checks enabled by an obtained source even when usable capacity remains zero |
+| Bottles owned or prepared content availability | Bottle-count/content checks and potion-dependent damage, magic, and missing-resource evaluation; source discovery is independent of bottle ownership, with Fairy Net discovery indexed under unique items |
+| Reachable item location | Collection effects that read its reachability to filter discoveries; collected-location bookkeeping itself does not schedule edges |
 
 Derive changes from actual old/new global values at the collection/discovery boundary. Keep change tracking small and specific to the interpreter; do not add a generic event system. Include changes observed through edge effects as well as requirements when determining dependencies.
 
 At the start of a wave, enqueue affected edges only when their source vertex has retained states. Deduplicate queued work and preserve a deterministic ordering based on existing graph order. A global change must force affected edges to run even if no source reducer improved. Successful requirement prefixes must still report discoveries when an edge fails or its destination reducer does not improve.
 
 When an evaluated edge improves its destination reducer, enqueue all outgoing edges of that destination so ordinary local-state propagation continues. Preserve self-loop behavior. Newly reached vertices expand normally, so edges whose source was unreachable at notification time need no separate pending-change mechanism. The first traversal still begins at the starting vertex.
+
+### Phase 3 verification results
+
+Six temporary release checks passed against both the Phase 1 fresh-traversal reference and the Phase 2 retained all-reached reference. Focused cases covered every equipment kind and individual prize, direct and implicit Bow/Silver Arrows requirements, capacity upgrades, Half Magic, Mail, Big Key checks inside doors, Small Key door updates, flags, activation, nested alternatives, discoveries from failed prefixes and unchanged destinations, self-loop propagation, newly reached sources, preparation at zero capacity, bottle counts and all four prepared contents, health/magic potion checks, and eighteen delayed-Fairy scenarios. A reached source with 100 unrelated outgoing edges verified that a new capability evaluates only dependent edges even when the source reducer is unchanged. Junk collection scheduled zero edge evaluations. A rejected candidate that improved its private reducers left committed inventory and reducers unchanged.
+
+Default and hard settings with numeric seeds 0, 1, and 2 exercised 600 candidates across six attempts: 34 accepted and 566 rejected. Initial closures matched fresh traversal, and every accepted closure matched both references for reachable/collected locations, inventory, flags, doors, activation, and preparation. Reinitialization reproduced each fresh attempt without retaining candidate state. Full-inventory closures under both settings matched both references and reached all 259 item locations; every reducer remained bounded by 18 states. These bounded attempts did not complete generation.
+
+Temporary counters measured paired work for the 34 accepted closures with identical placements and initial global snapshots (Phase 2 also started from the same retained reducers as selective scheduling): selective scheduling evaluated 11,636 edges and attempted 47,782 reducer insertions, compared with 126,440 edges / 372,443 insertions for Phase 2 and 197,199 edges / 541,730 insertions for fresh traversal. These are closure-work counts, not full-generation timing or success-rate comparisons. Generation timing remains deferred at the user's request. The dependency index is shared with the graph and is not cloned with candidates; the Phase 2 candidate-memory and clone samples remain the available measurements. Temporary checks, counters, and both references were removed after verification. No dependency, catalog, settings, seed-format, key-pass behavior, or runtime traversal-mode changes were needed.
+
+### Follow-up: bottle-independent source discovery
+
+Bottle-content sources are now recorded before a bottle is owned, with only the Fairy Net check retained as a `Refill` scheduling dependency. Three temporary focused checks passed, including 264 resource/limit/Net/bottle/known-source cases, unchanged local counters, successful refill prefixes and discoveries before failed suffixes, delayed availability between waves, consumption requiring an unused owned bottle, exhausted bottle budgets, and incremental Fairy discovery when the Net is collected before a bottle. The temporary checks were removed after verification.
 
 ## Incremental verification and performance comparison
 

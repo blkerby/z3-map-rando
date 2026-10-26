@@ -69,10 +69,14 @@ fn generate_items(
     inputs: &GenerationInputs,
     rng: &mut impl Rng,
 ) -> Result<Vec<ItemPlacement>> {
-    'attempts: for _ in 0..MAX_GENERATION_ATTEMPTS {
+    'attempts: for attempt in 1..=MAX_GENERATION_ATTEMPTS {
+        eprintln!("Starting generation attempt {attempt}/{MAX_GENERATION_ATTEMPTS}");
         let small_keys = assign_small_keys(catalog, graph, inputs, rng)?;
         let mut state = PlacementState::initialize(catalog, graph, inputs, &small_keys, rng)?;
+        let mut wave = 0;
         while state.placements.contains(&None) {
+            wave += 1;
+            eprintln!("Starting placement wave {wave} of attempt {attempt}");
             let mut accepted = false;
             for _ in 0..MAX_CANDIDATE_ATTEMPTS {
                 if let PlacementStep::Accepted = state.place_items(catalog, graph, inputs, rng)? {

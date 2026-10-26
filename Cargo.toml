@@ -1,3 +1,7 @@
 [workspace]
 resolver = "3"
 members = ["crates/*"]
+
+[profile.profiling]
+inherits = "release"
+debug = true

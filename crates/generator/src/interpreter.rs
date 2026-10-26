@@ -8,9 +8,221 @@ use crate::{
 };
 use hashbrown::HashSet;
 use logic_catalog::{
-    Ammo, BottleContent, DoorIndex, Effect, Equipment, FlagIndex, ItemLocationIndex, LockKind,
-    LogicCatalog, OcarinaState, PrizeKind, Requirement, Resource, UniqueItem,
+    Ammo, BottleContent, DoorIndex, DungeonIndex, Effect, Equipment, FlagIndex, ItemLocationIndex,
+    LockKind, LogicCatalog, OcarinaState, PrizeKind, Requirement, Resource, UniqueItem,
 };
+
+/// Mutable global reads that can change an edge's results or discoveries.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum GlobalDependency {
+    Item(usize),
+    Sword,
+    Shield,
+    Glove,
+    Mail,
+    Boomerang,
+    Ocarina,
+    BigKey(DungeonIndex),
+    Door(DoorIndex),
+    Flag(FlagIndex),
+    ItemLocation(ItemLocationIndex),
+    Health,
+    Magic,
+    Bombs,
+    Arrows,
+    Bottles,
+    RedPotion,
+    GreenPotion,
+    BluePotion,
+    Fairy,
+}
+
+impl GlobalDependency {
+    pub(crate) fn has_changed(self, previous: &GlobalState, current: &GlobalState) -> bool {
+        match self {
+            Self::Item(idx) => previous.unique_items[idx] != current.unique_items[idx],
+            Self::Sword => previous.sword_level != current.sword_level,
+            Self::Shield => previous.shield_level != current.shield_level,
+            Self::Glove => previous.glove_level != current.glove_level,
+            Self::Mail => previous.mail_level != current.mail_level,
+            Self::Boomerang => previous.boomerang_level != current.boomerang_level,
+            Self::Ocarina => previous.ocarina != current.ocarina,
+            Self::BigKey(idx) => {
+                previous.big_keys[idx.0 as usize] != current.big_keys[idx.0 as usize]
+            }
+            Self::Door(idx) => {
+                previous.unlocked_doors[idx.0 as usize] != current.unlocked_doors[idx.0 as usize]
+            }
+            Self::Flag(idx) => previous.flags[idx.0 as usize] != current.flags[idx.0 as usize],
+            Self::ItemLocation(idx) => {
+                previous.reachable_item_locations[idx.0 as usize]
+                    != current.reachable_item_locations[idx.0 as usize]
+            }
+            Self::Health => previous.health_capacity != current.health_capacity,
+            Self::Magic => {
+                previous.magic_usable_capacity != current.magic_usable_capacity
+                    || previous.refills.magic != current.refills.magic
+            }
+            Self::Bombs => {
+                previous.bomb_usable_capacity != current.bomb_usable_capacity
+                    || previous.refills.bombs != current.refills.bombs
+            }
+            Self::Arrows => {
+                previous.arrow_usable_capacity != current.arrow_usable_capacity
+                    || previous.refills.arrows != current.refills.arrows
+            }
+            Self::Bottles => previous.bottles_owned != current.bottles_owned,
+            Self::RedPotion => previous.refills.red_potion != current.refills.red_potion,
+            Self::GreenPotion => previous.refills.green_potion != current.refills.green_potion,
+            Self::BluePotion => previous.refills.blue_potion != current.refills.blue_potion,
+            Self::Fairy => previous.refills.fairy != current.refills.fairy,
+        }
+    }
+}
+
+/// Include implicit reads in consumables, ammunition, and source discovery.
+pub(crate) fn collect_requirement_dependencies(
+    catalog: &LogicCatalog,
+    requirement: &Requirement,
+    dependencies: &mut HashSet<GlobalDependency>,
+) {
+    use GlobalDependency as D;
+    match requirement {
+        Requirement::And(children) | Requirement::Or(children) => {
+            for child in children {
+                collect_requirement_dependencies(catalog, child, dependencies);
+            }
+        }
+        Requirement::Item(item) => {
+            dependencies.insert(D::Item(*item as usize));
+        }
+        Requirement::Equipment { equipment, .. } => {
+            dependencies.insert(match equipment {
+                Equipment::Sword => D::Sword,
+                Equipment::Shield => D::Shield,
+                Equipment::Glove => D::Glove,
+                Equipment::Boomerang => D::Boomerang,
+            });
+        }
+        Requirement::Ocarina(_) => {
+            dependencies.insert(D::Ocarina);
+        }
+        Requirement::Bottles(_) => {
+            dependencies.insert(D::Bottles);
+        }
+        Requirement::BigKey(idx) => {
+            dependencies.insert(D::BigKey(*idx));
+        }
+        Requirement::Flag(idx) => {
+            dependencies.insert(D::Flag(*idx));
+        }
+        Requirement::Door(idx) => {
+            dependencies.insert(D::Door(*idx));
+            let door = catalog.door(*idx);
+            if door.lock == LockKind::BigKey {
+                dependencies.insert(D::BigKey(catalog.room(door.room_idx).dungeon_idx.unwrap()));
+            }
+        }
+        Requirement::PrizeCount { kind, .. } => {
+            let items: &[UniqueItem] = match kind {
+                PrizeKind::Pendant => &[
+                    UniqueItem::PendantOfCourage,
+                    UniqueItem::PendantOfWisdom,
+                    UniqueItem::PendantOfPower,
+                ],
+                PrizeKind::Crystal => &[
+                    UniqueItem::Crystal1,
+                    UniqueItem::Crystal2,
+                    UniqueItem::Crystal3,
+                    UniqueItem::Crystal4,
+                    UniqueItem::Crystal5,
+                    UniqueItem::Crystal6,
+                    UniqueItem::Crystal7,
+                ],
+            };
+            for &item in items {
+                dependencies.insert(D::Item(item as usize));
+            }
+        }
+        Requirement::UseAmmo { kind, .. } => match kind {
+            Ammo::Bomb => {
+                dependencies.insert(D::Bombs);
+            }
+            Ammo::Arrow | Ammo::SilverArrow => {
+                dependencies.insert(D::Arrows);
+                dependencies.insert(D::Item(UniqueItem::Bow as usize));
+                if *kind == Ammo::SilverArrow {
+                    dependencies.insert(D::Item(UniqueItem::SilverArrows as usize));
+                }
+            }
+        },
+        Requirement::UseMagic { .. } => {
+            dependencies.extend([
+                D::Magic,
+                D::Item(UniqueItem::HalfMagic as usize),
+                D::Bottles,
+                D::BluePotion,
+                D::GreenPotion,
+            ]);
+        }
+        Requirement::Damage { .. } => {
+            dependencies.extend([
+                D::Health,
+                D::Mail,
+                D::Bottles,
+                D::BluePotion,
+                D::RedPotion,
+                D::Fairy,
+            ]);
+        }
+        Requirement::Refill { resource, limit } => {
+            // Known-source flags only suppress duplicate discoveries.
+            if *limit > 0 && *resource == Resource::BottleContent(BottleContent::Fairy) {
+                dependencies.insert(D::Item(UniqueItem::BugCatchingNet as usize));
+            }
+        }
+        Requirement::ResourceMissingAtMost { resource, .. } => match resource {
+            Resource::Health => {
+                dependencies.extend([D::Health, D::Bottles, D::BluePotion, D::RedPotion]);
+            }
+            Resource::Magic => {
+                dependencies.extend([D::Magic, D::Bottles, D::BluePotion, D::GreenPotion]);
+            }
+            Resource::Bombs => {
+                dependencies.insert(D::Bombs);
+            }
+            Resource::Arrows => {
+                dependencies.insert(D::Arrows);
+            }
+            Resource::BottleContent(BottleContent::Fairy) => {
+                dependencies.extend([D::Bottles, D::Fairy]);
+            }
+            Resource::BottleContent(BottleContent::RedPotion) => {
+                dependencies.extend([D::Bottles, D::RedPotion]);
+            }
+            Resource::BottleContent(BottleContent::GreenPotion) => {
+                dependencies.extend([D::Bottles, D::GreenPotion]);
+            }
+            Resource::BottleContent(BottleContent::BluePotion) => {
+                dependencies.extend([D::Bottles, D::BluePotion]);
+            }
+            Resource::Rupees
+            | Resource::BottleContent(BottleContent::Bee | BottleContent::GoldBee) => {}
+        },
+        Requirement::Free
+        | Requirement::Never
+        | Requirement::Pay(_)
+        | Requirement::Tech(_)
+        | Requirement::Notable(_)
+        | Requirement::Proficiency { .. }
+        | Requirement::Follower(_)
+        | Requirement::LoseFollowers(_)
+        | Requirement::ResetObstacles(_)
+        | Requirement::ResetHealthToFull
+        | Requirement::ObstacleCleared(_)
+        | Requirement::ObstacleNotCleared(_) => {}
+    }
+}
 
 /// Newly reachable item locations and permanent progress relative to the input snapshot.
 /// The normal traversal's closure loop applies them between waves;
@@ -352,30 +564,22 @@ impl Interpreter<'_> {
                     }
                     Resource::BottleContent(BottleContent::Bee | BottleContent::GoldBee) => {}
                     Resource::BottleContent(BottleContent::Fairy) => {
-                        if self.global.bottles_owned > 0
-                            && self.global.unique_items[UniqueItem::BugCatchingNet as usize]
-                        {
+                        if self.global.unique_items[UniqueItem::BugCatchingNet as usize] {
                             discoveries.refills.fairy = !self.global.refills.fairy;
                         }
                     }
-                    Resource::BottleContent(content) => {
-                        if self.global.bottles_owned == 0 {
-                            return;
+                    Resource::BottleContent(content) => match content {
+                        BottleContent::RedPotion => {
+                            discoveries.refills.red_potion = !self.global.refills.red_potion;
                         }
-                        match content {
-                            BottleContent::RedPotion => {
-                                discoveries.refills.red_potion = !self.global.refills.red_potion;
-                            }
-                            BottleContent::GreenPotion => {
-                                discoveries.refills.green_potion =
-                                    !self.global.refills.green_potion;
-                            }
-                            BottleContent::BluePotion => {
-                                discoveries.refills.blue_potion = !self.global.refills.blue_potion;
-                            }
-                            _ => unreachable!(),
+                        BottleContent::GreenPotion => {
+                            discoveries.refills.green_potion = !self.global.refills.green_potion;
                         }
-                    }
+                        BottleContent::BluePotion => {
+                            discoveries.refills.blue_potion = !self.global.refills.blue_potion;
+                        }
+                        _ => unreachable!(),
+                    },
                 }
                 true
             }
