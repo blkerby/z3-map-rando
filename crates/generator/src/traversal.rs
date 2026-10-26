@@ -9,6 +9,7 @@ use crate::{
 };
 use anyhow::Result;
 use common_types::Item;
+use hashbrown::HashSet;
 use logic_catalog::{ItemLocationIndex, LogicCatalog, OcarinaState, VertexIndex};
 use std::collections::VecDeque;
 
@@ -83,10 +84,10 @@ pub fn compute_closure(
         }
     }
     // A new placement may occupy a slot already found by an earlier closure.
-    let mut changes = Vec::new();
+    let mut changes = HashSet::new();
     collect_reachable_items(catalog, inputs, global, placements, &mut changes)?;
     loop {
-        for dependency in changes.drain(..) {
+        for dependency in changes.drain() {
             if let Some(edges) = graph.dependencies.get(&dependency) {
                 for &index in edges {
                     if !local_states[index.from_vertex_idx.0 as usize]
@@ -117,19 +118,19 @@ pub fn compute_closure(
         initial_work.clear();
         for idx in discoveries.item_locations {
             global.reachable_item_locations[idx.0 as usize] = true;
-            changes.push(GlobalDependency::ItemLocation(idx));
+            changes.insert(GlobalDependency::ItemLocation(idx));
         }
         for idx in discoveries.flags {
             global.flags[idx.0 as usize] = true;
-            changes.push(GlobalDependency::Flag(idx));
+            changes.insert(GlobalDependency::Flag(idx));
         }
         for idx in discoveries.unlocked_doors {
             global.unlocked_doors[idx.0 as usize] = true;
-            changes.push(GlobalDependency::Door(idx));
+            changes.insert(GlobalDependency::Door(idx));
         }
         if discoveries.activate_ocarina {
             global.ocarina = OcarinaState::Active;
-            changes.push(GlobalDependency::Ocarina);
+            changes.insert(GlobalDependency::Ocarina);
         }
         for (discovered, dependency) in [
             (discoveries.refills.magic, GlobalDependency::Magic),
@@ -147,7 +148,7 @@ pub fn compute_closure(
             (discoveries.refills.fairy, GlobalDependency::Fairy),
         ] {
             if discovered {
-                changes.push(dependency);
+                changes.insert(dependency);
             }
         }
         global.refills.merge(discoveries.refills);
@@ -161,7 +162,7 @@ fn collect_reachable_items(
     inputs: &GenerationInputs,
     global: &mut GlobalState,
     placements: &[Option<Item>],
-    changes: &mut Vec<GlobalDependency>,
+    changes: &mut HashSet<GlobalDependency>,
 ) -> Result<()> {
     for (index, &item) in placements.iter().enumerate() {
         if global.reachable_item_locations[index] && !global.collected_item_locations[index] {
@@ -169,7 +170,7 @@ fn collect_reachable_items(
                 if let Some(dependency) =
                     global.collect_item(catalog, inputs, item, ItemLocationIndex(index as u32))?
                 {
-                    changes.push(dependency);
+                    changes.insert(dependency);
                 }
             }
         }
