@@ -5,7 +5,6 @@ pub mod graph;
 pub mod inputs;
 pub mod interpreter;
 pub mod key_assignment;
-pub mod key_traversal;
 pub mod local_state_reducer;
 pub mod placement;
 pub mod state;

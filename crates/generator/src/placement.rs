@@ -4,13 +4,13 @@ use crate::{
     graph::TraversalGraph,
     inputs::GenerationInputs,
     local_state_reducer::LocalStateReducer,
-    state::{GlobalState, HealthState, LocalState},
+    state::{GlobalState, LocalState},
     traversal::compute_closure,
 };
 use anyhow::Result;
 use common_types::Item;
 use hashbrown::HashMap;
-use logic_catalog::{FollowerMask, ItemLocationIndex, LogicCatalog};
+use logic_catalog::{ItemLocationIndex, LogicCatalog};
 use rand::{Rng, seq::SliceRandom};
 
 /// An accepted candidate updates the state; rejection leaves it unchanged.
@@ -62,15 +62,7 @@ impl PlacementState {
         }
         let mut global = GlobalState::initialize(catalog);
         let mut local_states = vec![LocalStateReducer::default(); graph.outgoing.len()];
-        local_states[graph.start_vertex_idx.0 as usize].insert(LocalState {
-            health: HealthState::Consumed(0),
-            magic_used: 0,
-            bombs_used: 0,
-            arrows_used: 0,
-            bottles_used: 0,
-            possible_followers: FollowerMask(0),
-            cleared_obstacles: 0,
-        });
+        local_states[graph.start_vertex_idx.0 as usize].insert(LocalState::initialize());
         compute_closure(
             catalog,
             graph,

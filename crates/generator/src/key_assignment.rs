@@ -1,18 +1,29 @@
 //! Preliminary Small Key assignment, settling one dungeon at a time.
+//! This assumes a full item loadout, with the exception of the given
+//! dungeon's keys while they are being assigned.
 
 use crate::{
     graph::TraversalGraph,
-    inputs::{DungeonInputs, GenerationInputs},
-    key_traversal::{KeyPassState, traverse_key_pass},
+    inputs::GenerationInputs,
+    local_state_reducer::LocalStateReducer,
+    state::{GlobalState, LocalState},
+    traversal::compute_closure,
 };
 use anyhow::{Result, bail};
 use common_types::Item;
 use hashbrown::HashMap;
-use logic_catalog::{DoorIndex, DungeonIndex, ItemLocationIndex, LogicCatalog};
+use logic_catalog::{DoorIndex, DungeonIndex, ItemLocationIndex, LockKind, LogicCatalog};
 use rand::{Rng, seq::SliceRandom};
 
 const MAX_DUNGEON_ATTEMPTS: usize = 1000;
 const MAX_CANDIDATE_ATTEMPTS: usize = 100;
+
+#[derive(Clone)]
+struct KeyPlacementState {
+    global: GlobalState,
+    local_states: Vec<LocalStateReducer>,
+    placements: Vec<Option<Item>>,
+}
 
 /// Assign every dungeon's vanilla Small Key pickups to distinct same-dungeon doors.
 /// Completed dungeons remain settled while a later dungeon retries. Returned items
@@ -23,6 +34,16 @@ pub fn assign_small_keys(
     inputs: &GenerationInputs,
     rng: &mut impl Rng,
 ) -> Result<HashMap<ItemLocationIndex, Item>> {
+    let mut inventory = GlobalState::initialize(catalog);
+    for &item in &inputs.ordinary_pool {
+        inventory.grant_non_key_item(item);
+    }
+    for &item in inputs.fixed_items.values() {
+        inventory.grant_non_key_item(item);
+    }
+    for &item in &inputs.prize_pool {
+        inventory.grant_non_key_item(item);
+    }
     let mut items = HashMap::new();
     for (index, dungeon) in inputs.dungeons.iter().enumerate() {
         let dungeon_idx = DungeonIndex(index as u32);
@@ -36,9 +57,10 @@ pub fn assign_small_keys(
         let assignments = assign_dungeon_keys(
             catalog,
             graph,
+            inputs,
             dungeon_idx,
-            dungeon,
             &required_locations,
+            &inventory,
             rng,
         )?;
         // Catalog order keeps even item construction independent of hash iteration.
@@ -58,22 +80,56 @@ pub fn assign_small_keys(
 fn assign_dungeon_keys(
     catalog: &LogicCatalog,
     graph: &TraversalGraph,
+    inputs: &GenerationInputs,
     dungeon_idx: DungeonIndex,
-    dungeon: &DungeonInputs,
     required_locations: &[ItemLocationIndex],
+    inventory: &GlobalState,
     rng: &mut impl Rng,
 ) -> Result<HashMap<ItemLocationIndex, DoorIndex>> {
+    let dungeon = &inputs.dungeons[dungeon_idx.0 as usize];
+    let mut initial = KeyPlacementState {
+        global: inventory.clone(),
+        local_states: vec![LocalStateReducer::default(); graph.outgoing.len()],
+        placements: vec![None; catalog.item_locations.len()],
+    };
+
+    // Assume having all big and small keys except for the given dungeon.
+    initial.global.big_keys.fill(true);
+    initial.global.big_keys[dungeon_idx.0 as usize] = false;
+    for (index, door) in catalog.doors.iter().enumerate() {
+        if door.lock == LockKind::SmallKey
+            && catalog.room(door.room_idx).dungeon_idx != Some(dungeon_idx)
+        {
+            initial.global.unlocked_doors[index] = true;
+        }
+    }
+    for &location_idx in &dungeon.big_key_locations {
+        initial.placements[location_idx.0 as usize] = Some(Item::BigKey);
+    }
+    
+    initial.local_states[graph.start_vertex_idx.0 as usize].insert(LocalState::initialize());
+    compute_closure(
+        catalog,
+        graph,
+        inputs,
+        &mut initial.global,
+        &mut initial.local_states,
+        &initial.placements,
+        vec![graph.start_vertex_idx],
+    )?;
     let mut inaccessible_locations = Vec::new();
     let mut failure_reason = "";
     for _ in 0..MAX_DUNGEON_ATTEMPTS {
         let mut assignments = HashMap::new();
-        let mut state = KeyPassState::initialize(graph);
-        collect_dungeon_items(catalog, graph, dungeon_idx, dungeon, &mut state);
+        let mut state = initial.clone();
 
-        while state.collected_item_locations.len() < required_locations.len() {
+        while required_locations
+            .iter()
+            .any(|idx| !state.global.reachable_item_locations[idx.0 as usize])
+        {
             let mut keys = Vec::new();
             for &location_idx in &dungeon.small_key_locations {
-                if state.collected_item_locations.contains(&location_idx)
+                if state.global.reachable_item_locations[location_idx.0 as usize]
                     && !assignments.contains_key(&location_idx)
                 {
                     keys.push(location_idx);
@@ -83,9 +139,10 @@ fn assign_dungeon_keys(
                 failure_reason = "no collectible unassigned Small Keys remain";
                 break;
             }
+            // Normal logic can open doors without keys; only assignments reserve identities.
             let mut doors = Vec::new();
             for &door_idx in &dungeon.small_key_doors {
-                if !state.available_doors.contains(&door_idx) {
+                if !assignments.values().any(|&assigned| assigned == door_idx) {
                     doors.push(door_idx);
                 }
             }
@@ -94,22 +151,34 @@ fn assign_dungeon_keys(
             for _ in 0..MAX_CANDIDATE_ATTEMPTS {
                 doors.shuffle(rng);
                 let mut candidate = state.clone();
-                for &door_idx in &doors[..keys.len()] {
-                    candidate.available_doors.insert(door_idx);
+                for (&location_idx, &door_idx) in keys.iter().zip(&doors) {
+                    candidate.placements[location_idx.0 as usize] = Some(Item::SmallKey {
+                        door_id: inputs.door_ids[door_idx.0 as usize],
+                    });
                 }
-                collect_dungeon_items(catalog, graph, dungeon_idx, dungeon, &mut candidate);
+                compute_closure(
+                    catalog,
+                    graph,
+                    inputs,
+                    &mut candidate.global,
+                    &mut candidate.local_states,
+                    &candidate.placements,
+                    Vec::new(),
+                )?;
 
                 let mut found_new_key = false;
                 for &location_idx in &dungeon.small_key_locations {
-                    if candidate.collected_item_locations.contains(&location_idx)
-                        && !state.collected_item_locations.contains(&location_idx)
+                    if candidate.global.reachable_item_locations[location_idx.0 as usize]
+                        && !state.global.reachable_item_locations[location_idx.0 as usize]
                     {
                         found_new_key = true;
                         break;
                     }
                 }
                 if found_new_key
-                    || candidate.collected_item_locations.len() == required_locations.len()
+                    || required_locations
+                        .iter()
+                        .all(|idx| candidate.global.reachable_item_locations[idx.0 as usize])
                 {
                     for (&location_idx, &door_idx) in keys.iter().zip(&doors) {
                         assignments.insert(location_idx, door_idx);
@@ -125,7 +194,10 @@ fn assign_dungeon_keys(
             }
         }
 
-        if state.collected_item_locations.len() == required_locations.len() {
+        if required_locations
+            .iter()
+            .all(|idx| state.global.reachable_item_locations[idx.0 as usize])
+        {
             let mut keys = Vec::new();
             for &location_idx in &dungeon.small_key_locations {
                 if !assignments.contains_key(&location_idx) {
@@ -134,7 +206,7 @@ fn assign_dungeon_keys(
             }
             let mut doors = Vec::new();
             for &door_idx in &dungeon.small_key_doors {
-                if !state.available_doors.contains(&door_idx) {
+                if !assignments.values().any(|&assigned| assigned == door_idx) {
                     doors.push(door_idx);
                 }
             }
@@ -149,7 +221,7 @@ fn assign_dungeon_keys(
 
         inaccessible_locations.clear();
         for &location_idx in required_locations {
-            if !state.collected_item_locations.contains(&location_idx) {
+            if !state.global.reachable_item_locations[location_idx.0 as usize] {
                 inaccessible_locations.push(location_idx);
             }
         }
@@ -170,32 +242,4 @@ fn assign_dungeon_keys(
         failure_reason,
         inaccessible_names.join(", "),
     )
-}
-
-/// Apply collection discoveries outside traversal and repeat only for a new Big Key.
-fn collect_dungeon_items(
-    catalog: &LogicCatalog,
-    graph: &TraversalGraph,
-    dungeon_idx: DungeonIndex,
-    dungeon: &DungeonInputs,
-    state: &mut KeyPassState,
-) {
-    loop {
-        let result = traverse_key_pass(catalog, graph, dungeon_idx, state);
-        state
-            .collected_item_locations
-            .extend(result.new_item_locations);
-        if state.has_big_key {
-            return;
-        }
-        for location_idx in &dungeon.big_key_locations {
-            if state.collected_item_locations.contains(location_idx) {
-                state.has_big_key = true;
-                break;
-            }
-        }
-        if !state.has_big_key {
-            return;
-        }
-    }
 }

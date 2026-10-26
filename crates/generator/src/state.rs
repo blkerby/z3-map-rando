@@ -122,13 +122,43 @@ impl GlobalState {
         location_idx: ItemLocationIndex,
     ) -> Result<Option<GlobalDependency>> {
         use GlobalDependency as D;
-        let previous_bomb_usable_capacity = self.bomb_usable_capacity;
-        let previous_arrow_usable_capacity = self.arrow_usable_capacity;
         let collected = &mut self.collected_item_locations[location_idx.0 as usize];
         if *collected {
             bail!("item location {location_idx:?} has already been collected");
         }
         *collected = true;
+        Ok(match item {
+            Item::SmallKey { door_id } => {
+                let door_idx = inputs.door_indices[&door_id];
+                let unlocked = &mut self.unlocked_doors[door_idx.0 as usize];
+                if !*unlocked {
+                    *unlocked = true;
+                    Some(D::Door(door_idx))
+                } else {
+                    None
+                }
+            }
+            Item::BigKey => {
+                let location = catalog.item_location(location_idx);
+                let room = catalog.room(catalog.vertex(location.vertex_idx).room_idx);
+                let dungeon_idx = room.dungeon_idx.unwrap();
+                let owned = &mut self.big_keys[dungeon_idx.0 as usize];
+                if !*owned {
+                    *owned = true;
+                    Some(D::BigKey(dungeon_idx))
+                } else {
+                    None
+                }
+            }
+            _ => self.grant_non_key_item(item),
+        })
+    }
+
+    /// Grant an assumed non-key inventory item without collecting a location.
+    pub(crate) fn grant_non_key_item(&mut self, item: Item) -> Option<GlobalDependency> {
+        use GlobalDependency as D;
+        let previous_bomb_usable_capacity = self.bomb_usable_capacity;
+        let previous_arrow_usable_capacity = self.arrow_usable_capacity;
         let dependency = match item {
             Item::Sword if self.sword_level < 4 => {
                 self.sword_level += 1;
@@ -213,28 +243,6 @@ impl GlobalState {
                     None
                 }
             }
-            Item::SmallKey { door_id } => {
-                let door_idx = inputs.door_indices[&door_id];
-                let unlocked = &mut self.unlocked_doors[door_idx.0 as usize];
-                if !*unlocked {
-                    *unlocked = true;
-                    Some(D::Door(door_idx))
-                } else {
-                    None
-                }
-            }
-            Item::BigKey => {
-                let location = catalog.item_location(location_idx);
-                let room = catalog.room(catalog.vertex(location.vertex_idx).room_idx);
-                let dungeon_idx = room.dungeon_idx.unwrap();
-                let owned = &mut self.big_keys[dungeon_idx.0 as usize];
-                if !*owned {
-                    *owned = true;
-                    Some(D::BigKey(dungeon_idx))
-                } else {
-                    None
-                }
-            }
             Item::FireRod => Some(D::Item(UniqueItem::FireRod as usize)),
             Item::IceRod => Some(D::Item(UniqueItem::IceRod as usize)),
             Item::Hammer => Some(D::Item(UniqueItem::Hammer as usize)),
@@ -269,7 +277,9 @@ impl GlobalState {
             Item::Crystal6 => Some(D::Item(UniqueItem::Crystal6 as usize)),
             Item::Crystal7 => Some(D::Item(UniqueItem::Crystal7 as usize)),
             Item::Triforce => Some(D::Item(UniqueItem::Triforce as usize)),
-            Item::Sword
+            Item::SmallKey { .. }
+            | Item::BigKey
+            | Item::Sword
             | Item::Shield
             | Item::Glove
             | Item::Mail
@@ -294,7 +304,7 @@ impl GlobalState {
             | Item::Compass => None,
         };
         self.update_usable_capacities();
-        Ok(match dependency {
+        match dependency {
             Some(D::Item(idx)) => {
                 if !self.unique_items[idx] {
                     self.unique_items[idx] = true;
@@ -306,7 +316,7 @@ impl GlobalState {
             Some(D::Bombs) if self.bomb_usable_capacity == previous_bomb_usable_capacity => None,
             Some(D::Arrows) if self.arrow_usable_capacity == previous_arrow_usable_capacity => None,
             _ => dependency,
-        })
+        }
     }
 
     /// Obtaining a source remains meaningful even when the physical capacity is zero.
@@ -371,6 +381,21 @@ pub struct LocalState {
     /// Bit n represents ObstacleIndex(n) in the containing vertex's room.
     /// Room resets set this mask to zero.
     pub cleared_obstacles: u8,
+}
+
+impl LocalState {
+    /// Begin a route with full health, no consumption, followers, or cleared obstacles.
+    pub(crate) fn initialize() -> Self {
+        Self {
+            health: HealthState::Consumed(0),
+            magic_used: 0,
+            bombs_used: 0,
+            arrows_used: 0,
+            bottles_used: 0,
+            possible_followers: FollowerMask(0),
+            cleared_obstacles: 0,
+        }
+    }
 }
 
 /// Health in eighths of a heart, preserving the fixed amount from a Fairy revival.

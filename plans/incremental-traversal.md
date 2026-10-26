@@ -185,7 +185,7 @@ Measure fresh versus incremental generation using the same optimized build setti
 
 Search all callers and matches of `ResourceUsage`, `UNPREPARED`, `ResetHealthToSpawn`, `get_spawn_health`, `traverse`, and `compute_closure` before editing. The current closure callers are placement initialization and candidate evaluation. Verify compilation across consumers after changing public requirement or traversal interfaces.
 
-The preliminary key-assignment traversal relaxes resource requirements and does not need incremental traversal for this work. Do not change its behavior, item-placement policy, CLI/settings/seed format, ROM patches, or submodules. No new dependencies, permanent tests, fixtures, runtime switches, or telemetry are planned.
+A subsequent approved change reuses normal incremental closure for preliminary key assignment with full non-key inventory and other dungeons' key access. Its global state, local-state reducers, and placements are cloned together for candidates and reset together for dungeon retries. Keep the item-placement and retry policies, CLI/settings/seed format, ROM patches, and submodules unchanged. No new dependencies, permanent tests, fixtures, runtime switches, or telemetry are planned.
 
 ## Deferred work
 
