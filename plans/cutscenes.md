@@ -264,6 +264,8 @@ The importer should then write the corresponding script template above to the ar
 
 Starting a cutscene suspends normal player and sprite processing. Ending one restores that processing and clears any active shake. Drawing actions automatically request the necessary NMI uploads; scripts do not manage VRAM or transfer queues directly.
 
+Drawing first updates the logical Map16 buffer and accumulates a pending rectangle in 8x8 coordinates. After the frame's BG1/BG2 scroll positions and edge updates are finalized, the shared renderer appends the visible part of that rectangle to the same `$1100` DMA list. Horizontal segments split at VRAM screen-block boundaries, and existing NMI mode `$18` uploads the combined list. The pending rectangle survives script completion so a final draw is uploaded even when `end` runs in the same frame.
+
 Cutscene triggers are separate from scripts. An area event selects and starts a script, while the script describes only what happens after it begins. The format does not initially include branches, loops, arbitrary ASM calls, arbitrary memory writes, or sprite choreography.
 
 Each compiled theme must provide all five vanilla entrance events. Missing, duplicate, misplaced, or incomplete scripts are compiler errors; the runtime does not fall back to the vanilla cutscene implementation.

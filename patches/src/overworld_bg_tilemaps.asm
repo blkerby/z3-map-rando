@@ -2150,7 +2150,9 @@ BG1StreamVertical:
     JSR BGStreamVerticalEdge
 
 .finish_list
-    CPY.w #$0000                ; All four stages produced no work.
+    JSR AppendCutsceneRedraw
+
+    CPY.w #$0000                ; No edge or cutscene transfers were queued.
     BEQ .done
 
     JSR BGFinishList            ; Request the combined BG2/BG1 edge list.
@@ -2164,6 +2166,88 @@ BG1StreamVertical:
 
     PLP
     RTL
+
+; Append visible cutscene cells after both layers' edge updates. The segment
+; emitter preserves $00/$02/$04/$0C/$0E, so those hold our window and bounds.
+AppendCutsceneRedraw:
+    LDA.l !CutsceneRedrawPending
+    BNE .draw
+    RTS
+
+.draw
+    LDA.w #$0000
+    STA.l !CutsceneRedrawPending
+    JSR BG2SelectRenderer
+    JSR BG2CalculateLogicalWindowOrigin
+    LDA.b $02
+    STA.b $04                  ; Finalized viewport Y, before selecting rows.
+    LDA.l !CutsceneRedrawMinY
+    STA.b $02
+    LDA.l !CutsceneRedrawMaxY
+    INC A
+    INC A
+    STA.b $0C                  ; Exclusive rectangle bottom.
+    LDA.l !CutsceneRedrawMaxX
+    INC A
+    INC A
+    STA.b $0E                  ; Exclusive rectangle right.
+
+.next_row
+    LDA.b $02
+    SEC
+    SBC.b $04
+    AND.w #$007F
+    CMP.w #$001D               ; Clip to the viewport, including logical wrap.
+    BCS .finish_row
+    LDA.l !CutsceneRedrawMinX
+    STA.b $06
+
+.next_column
+    LDA.b $06
+    CMP.b $0E
+    BCS .finish_row
+    SEC
+    SBC.b $00
+    AND.w #$007F
+    CMP.w #$0021
+    BCC .start_segment
+    INC.b $06
+    BRA .next_column
+
+.start_segment
+    STZ.b $08
+
+.count_segment
+    INC.b $08
+    LDA.b $06
+    CLC
+    ADC.b $08
+    CMP.b $0E
+    BCS .emit_segment
+    AND.w #$001F               ; Split at each physical screen-block boundary.
+    BEQ .emit_segment
+    LDA.b $06
+    CLC
+    ADC.b $08
+    SEC
+    SBC.b $00
+    AND.w #$007F
+    CMP.w #$0021
+    BCC .count_segment
+
+.emit_segment
+    JSR BGEmitHorizontalSegment
+    LDA.w #$0001
+    STA.w $0710                ; Reserve this upload even when the script ended.
+    LDA.b $06
+    BNE .next_column           ; The emitter wraps X to zero after column 127.
+
+.finish_row
+    INC.b $02
+    LDA.b $02
+    CMP.b $0C
+    BCC .next_row
+    RTS
 
 ; Return Z clear when a streamed overlay is active. Disabled overlays and
 ; rain return Z set without changing the caller's accumulator width.

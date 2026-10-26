@@ -102,3 +102,11 @@ endmacro
 ; Cached rain treatment for displayed OBJ palettes 0-3: 0 is bright; 1 and 2
 ; use light and dark rain; 3 and 4 also keep palette 1's lower half bright.
 !RainSpritePaletteState = $7ECC82
+
+; Pending cutscene BG2 rectangle in logical 8x8 coordinates. All fields are
+; words; maxima name the top-left 8x8 tile of the last changed Map16 cell.
+!CutsceneRedrawPending = $7ECC83
+!CutsceneRedrawMinX = $7ECC85
+!CutsceneRedrawMaxX = $7ECC87
+!CutsceneRedrawMinY = $7ECC89
+!CutsceneRedrawMaxY = $7ECC8B

@@ -198,14 +198,25 @@ RunGeneratedEntranceCutscene:
     STA.w $012C                ; Queue it in the music command byte.
     JMP .next_action
 
-; Apply an encoded list of Map16 changes immediately. DrawPersistentMap16
-; updates the $7E2000 Map16 buffer and appends the corresponding VRAM stripes.
+; Apply Map16 changes and accumulate their bounds. The shared streamer draws
+; the rectangle after this frame's BG1/BG2 scroll positions are finalized.
 .draw
     LDA.b [$07],Y              ; Read the byte-sized write count.
     STA.b $0E
     STZ.b $0F                  ; Extend it for a 16-bit decrement below.
     INY                        ; Advance to the first offset/ID pair.
     REP #$30                   ; Offsets, IDs, X, and Y are all 16-bit.
+
+    LDA.l !CutsceneRedrawPending
+    BNE .next_write
+    LDA.w #$FFFF
+    STA.l !CutsceneRedrawMinX
+    STA.l !CutsceneRedrawMinY
+    LDA.w #$0000
+    STA.l !CutsceneRedrawMaxX
+    STA.l !CutsceneRedrawMaxY
+    INC A
+    STA.l !CutsceneRedrawPending
 
 .next_write
     LDA.b [$07],Y              ; Read the $7E2000-relative Map16 offset.
@@ -215,15 +226,35 @@ RunGeneratedEntranceCutscene:
     LDA.b [$07],Y              ; Read the generated Map16 ID.
     INY
     INY
-    PHY                        ; Vanilla drawing uses Y for its stripe buffer.
-    JSL $9BC97C                ; DrawPersistentMap16
-    PLY                        ; Restore the script cursor.
+    STA.l $7E2000,X
+
+    TXA
+    AND.w #$007E               ; Map16 byte column is also its 8x8 X coordinate.
+    CMP.l !CutsceneRedrawMinX
+    BCS +
+    STA.l !CutsceneRedrawMinX
++   CMP.l !CutsceneRedrawMaxX
+    BCC +
+    STA.l !CutsceneRedrawMaxX
++   TXA
+    LSR A
+    LSR A
+    LSR A
+    LSR A
+    LSR A
+    LSR A
+    AND.w #$007E               ; Two 8x8 rows per logical Map16 row.
+    CMP.l !CutsceneRedrawMinY
+    BCS +
+    STA.l !CutsceneRedrawMinY
++   CMP.l !CutsceneRedrawMaxY
+    BCC +
+    STA.l !CutsceneRedrawMaxY
++
     DEC.b $0E                  ; Continue until all pairs are consumed.
     BNE .next_write
 
     SEP #$20                   ; Opcodes are bytes; keep Y 16-bit.
-    LDA.b #$01
-    STA.b $14                  ; Ask NMI to upload the queued stripes.
     JMP .next_action
 
 ; Set event bit $20 for the current overworld area. This makes the final
