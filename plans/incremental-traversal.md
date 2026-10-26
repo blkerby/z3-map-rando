@@ -134,9 +134,9 @@ Walk nested `And` and `Or` requirements and index mutable global values that can
 
 Derive changes from actual old/new global values at the collection/discovery boundary. Keep change tracking small and specific to the interpreter; do not add a generic event system. Include changes observed through edge effects as well as requirements when determining dependencies.
 
-At the start of a wave, enqueue affected edges only when their source vertex has retained states. Deduplicate queued work and preserve a deterministic ordering based on existing graph order. A global change must force affected edges to run even if no source reducer improved. Successful requirement prefixes must still report discoveries when an edge fails or its destination reducer does not improve.
+At the start of a wave, select affected edges only when their source vertex has retained states. Deduplicate this initial work, preserve deterministic graph order, and evaluate the initial edges directly before processing the vertex queue. A global change must force affected edges to run even if no source reducer improved. Successful requirement prefixes must still report discoveries when an edge fails or its destination reducer does not improve.
 
-When an evaluated edge improves its destination reducer, enqueue all outgoing edges of that destination so ordinary local-state propagation continues. Preserve self-loop behavior. Newly reached vertices expand normally, so edges whose source was unreachable at notification time need no separate pending-change mechanism. The first traversal still begins at the starting vertex.
+When an evaluated edge improves its destination reducer, enqueue that destination vertex unless already queued. Process the vertex queue by clearing its queued bit, snapshotting its retained states once, and evaluating all outgoing edges against that snapshot. Self-loop improvements can requeue the vertex because its queued bit is cleared before expansion. Newly reached vertices expand normally, so edges whose source was unreachable at notification time need no separate pending-change mechanism. The first traversal still begins at the starting vertex.
 
 ### Phase 3 verification results
 
@@ -149,6 +149,10 @@ Temporary counters measured paired work for the 34 accepted closures with identi
 ### Follow-up: bottle-independent source discovery
 
 Bottle-content sources are now recorded before a bottle is owned, with only the Fairy Net check retained as a `Refill` scheduling dependency. Three temporary focused checks passed, including 264 resource/limit/Net/bottle/known-source cases, unchanged local counters, successful refill prefixes and discoveries before failed suffixes, delayed availability between waves, consumption requiring an unused owned bottle, exhausted bottle budgets, and incremental Fairy discovery when the Net is collected before a bottle. The temporary checks were removed after verification.
+
+### Follow-up: vertex queue for local propagation
+
+Initial affected edges now run directly in a separate pass, and only improved destination vertices enter the propagation queue. Queued bookkeeping is one bit per vertex, and each vertex expansion shares a single source-state snapshot across its outgoing edges. Four temporary release checks passed against the prior edge-queue implementation: selective initial work and discoveries without destination improvements, joins without invented state combinations, initial and propagated self-loop requeueing, six default/hard attempts with 600 candidates (34 accepted and 566 rejected), and full-inventory closures reaching all 259 locations under both settings. Initial and accepted closures matched for reachable/collected locations, inventory, flags, doors, activation, and preparation; rejected candidates preserved committed state, and reducers stayed within 18 states. Temporary checks and the reference were removed afterward. Full-generation timing was not repeated, and the earlier Phase 3 work counts describe the edge-queue implementation.
 
 ## Incremental verification and performance comparison
 

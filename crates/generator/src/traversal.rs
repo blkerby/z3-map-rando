@@ -12,7 +12,7 @@ use common_types::Item;
 use logic_catalog::{ItemLocationIndex, LogicCatalog, OcarinaState, VertexIndex};
 use std::collections::VecDeque;
 
-/// Extend retained routes from the supplied work set without applying discoveries.
+/// Evaluate the initial edges, then propagate improved vertices without applying discoveries.
 pub fn traverse(
     graph: &TraversalGraph,
     interpreter: &Interpreter<'_>,
@@ -21,20 +21,8 @@ pub fn traverse(
 ) -> GlobalDiscoveries {
     let mut discoveries = GlobalDiscoveries::default();
     let mut queue = VecDeque::new();
-    let mut queued = Vec::with_capacity(graph.outgoing.len());
-    for outgoing in &graph.outgoing {
-        queued.push(vec![false; outgoing.len()]);
-    }
+    let mut queued = vec![false; graph.outgoing.len()];
     for &index in initial_work {
-        if !queued[index.from_vertex_idx.0 as usize][index.outgoing_idx] {
-            queue.push_back(index);
-            queued[index.from_vertex_idx.0 as usize][index.outgoing_idx] = true;
-        }
-    }
-
-    while let Some(index) = queue.pop_front() {
-        // Clear before evaluation so self-loop improvements can schedule this edge again.
-        queued[index.from_vertex_idx.0 as usize][index.outgoing_idx] = false;
         let edge = &graph.outgoing[index.from_vertex_idx.0 as usize][index.outgoing_idx];
         let states = local_states[index.from_vertex_idx.0 as usize].clone();
         let destination = edge.edge.to_vertex_idx;
@@ -44,15 +32,27 @@ pub fn traverse(
             &mut discoveries,
             &mut local_states[destination.0 as usize],
         );
-        if improved {
-            for outgoing_idx in 0..graph.outgoing[destination.0 as usize].len() {
-                if !queued[destination.0 as usize][outgoing_idx] {
-                    queue.push_back(TraversalEdgeIndex {
-                        from_vertex_idx: destination,
-                        outgoing_idx,
-                    });
-                    queued[destination.0 as usize][outgoing_idx] = true;
-                }
+        if improved && !queued[destination.0 as usize] {
+            queue.push_back(destination);
+            queued[destination.0 as usize] = true;
+        }
+    }
+
+    while let Some(vertex_idx) = queue.pop_front() {
+        // Self-loops may improve the stored reducer and schedule another expansion.
+        queued[vertex_idx.0 as usize] = false;
+        let states = local_states[vertex_idx.0 as usize].clone();
+        for edge in &graph.outgoing[vertex_idx.0 as usize] {
+            let destination = edge.edge.to_vertex_idx;
+            let improved = interpreter.evaluate_edge(
+                edge,
+                states.clone(),
+                &mut discoveries,
+                &mut local_states[destination.0 as usize],
+            );
+            if improved && !queued[destination.0 as usize] {
+                queue.push_back(destination);
+                queued[destination.0 as usize] = true;
             }
         }
     }
