@@ -132,7 +132,7 @@ Walk nested `And` and `Or` requirements and index mutable global values that can
 | Bottles owned or prepared content availability | Bottle-count/content checks and potion-dependent damage, magic, and missing-resource evaluation; source discovery is independent of bottle ownership, with Fairy Net discovery indexed under unique items |
 | Reachable item location | Collection effects that read its reachability to filter discoveries; collected-location bookkeeping itself does not schedule edges |
 
-Derive changes from actual old/new global values at the collection/discovery boundary. Keep change tracking small and specific to the interpreter; do not add a generic event system. Include changes observed through edge effects as well as requirements when determining dependencies.
+Drive scheduling from newly applied discoveries and item receipts. Discoveries already exclude known progress and directly supply keys for locations, flags, doors, activation, and preparation. `GlobalState::collect_item` returns an optional scheduling key from its existing item match, suppressing duplicate/capped capabilities, partial heart pieces, and ammunition upgrades that leave usable capacity unchanged. Accumulate keys in a simple list and look them up directly in the reverse index before sorting and deduplicating edges. No per-wave global-state clone, full dependency scan, or generic event system is needed. Include changes observed through edge effects as well as requirements when determining dependencies.
 
 At the start of a wave, select affected edges only when their source vertex has retained states. Deduplicate this initial work, preserve deterministic graph order, and evaluate the initial edges directly before processing the vertex queue. A global change must force affected edges to run even if no source reducer improved. Successful requirement prefixes must still report discoveries when an edge fails or its destination reducer does not improve.
 
@@ -154,6 +154,12 @@ Bottle-content sources are now recorded before a bottle is owned, with only the 
 
 Initial affected edges now run directly in a separate pass, and only improved destination vertices enter the propagation queue. Queued bookkeeping is one bit per vertex, and each vertex expansion shares a single source-state snapshot across its outgoing edges. Four temporary release checks passed against the prior edge-queue implementation: selective initial work and discoveries without destination improvements, joins without invented state combinations, initial and propagated self-loop requeueing, six default/hard attempts with 600 candidates (34 accepted and 566 rejected), and full-inventory closures reaching all 259 locations under both settings. Initial and accepted closures matched for reachable/collected locations, inventory, flags, doors, activation, and preparation; rejected candidates preserved committed state, and reducers stayed within 18 states. Temporary checks and the reference were removed afterward. Full-generation timing was not repeated, and the earlier Phase 3 work counts describe the edge-queue implementation.
 
+### Follow-up: scheduling from discoveries and item receipts
+
+Closure now accumulates dependency keys while applying discoveries and collecting placed items, then looks up only those keys in the existing reverse index. `GlobalDependency` lives beside global state, and `collect_item` returns at most one changed key per receipt. Sorted/deduplicated initial edges, vertex propagation, and fixed global state within each wave are unchanged.
+
+A temporary unit check compared all 73 item variants across 7,008 receipts with the previous item implementation and verified that returned keys exactly matched the former global-state comparisons. Cases included repeated and capped grants, all heart-piece counts, prepared/unprepared and zero ammunition capacities, Ocarina states, bottles, prizes, and both key types. Three temporary release checks compared closure with the previous snapshot scheduler, covering multiple discoveries, failed prefixes, unchanged source reducers, preparation at zero capacity, later usable-capacity upgrades, and collection in already-reachable slots. Six default/hard attempts exercised 600 candidates (34 accepted, 566 rejected); initial and accepted closures matched, rejections preserved committed state, and fresh initialization reproduced each attempt. Both full-inventory closures reached all 259 locations, with reducers bounded by 18 states. Temporary checks and references were removed after verification. Full-generation timing was not measured.
+
 ## Incremental verification and performance comparison
 
 Keep a temporary fresh-traversal reference using Phase 1 semantics. Compare reachable and collected locations, flags, unlocked doors, preparation, and inventory at closure boundaries for selected generation attempts. Exercise multiple discoveries in one wave, unchanged source reducers with newly enabled edges, self-loops, nested alternatives, cost reductions from Mail/Half Magic, capacity changes in both health modes, formerly lethal hits becoming survivable, bottle preparation, rejected candidates, and complete-attempt restarts.
@@ -166,9 +172,9 @@ Measure fresh versus incremental generation using the same optimized build setti
 
 | Area | Planned changes |
 | --- | --- |
-| `crates/generator/src/state.rs` | Usable capacities, two health representations, plain magic/ammo/bottle counters, capacity upgrades, preparedness state |
+| `crates/generator/src/state.rs` | Usable capacities, two health representations, plain magic/ammo/bottle counters, capacity upgrades, preparedness state, scheduling keys reported by item collection |
 | `crates/generator/src/interpreter.rs` | Resource checks/spending, preparation-only environmental sources, full-health reset, consumables, dependency reads |
-| `crates/generator/src/traversal.rs` | Full-health initialization, preparation application, global deltas, retained reducers, work scheduling |
+| `crates/generator/src/traversal.rs` | Full-health initialization, preparation application, discovery/item scheduling keys, retained reducers, work scheduling |
 | `crates/generator/src/cost_metrics.rs` | Plain-counter access and comparison of health representations; retain unrelated metric definitions |
 | `crates/generator/src/local_state_reducer.rs` | Update wave-only documentation for cache reuse; retain reduction and tie behavior |
 | `crates/generator/src/graph.rs` | Full-health save-and-quit requirement and runtime reverse dependency index |

@@ -1,6 +1,6 @@
 //! Shared world topology for the preliminary key pass and normal traversal.
 
-use crate::interpreter::{GlobalDependency, collect_requirement_dependencies};
+use crate::{interpreter::collect_requirement_dependencies, state::GlobalDependency};
 use common_types::allows_frog_dwarf;
 use hashbrown::{HashMap, HashSet};
 use logic_catalog::{

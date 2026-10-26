@@ -5,7 +5,7 @@ use crate::{
     inputs::GenerationInputs,
     interpreter::{GlobalDiscoveries, Interpreter},
     local_state_reducer::LocalStateReducer,
-    state::GlobalState,
+    state::{GlobalDependency, GlobalState},
 };
 use anyhow::Result;
 use common_types::Item;
@@ -83,11 +83,11 @@ pub fn compute_closure(
         }
     }
     // A new placement may occupy a slot already found by an earlier closure.
-    let mut previous = global.clone();
-    collect_reachable_items(catalog, inputs, global, placements)?;
+    let mut changes = Vec::new();
+    collect_reachable_items(catalog, inputs, global, placements, &mut changes)?;
     loop {
-        for (&dependency, edges) in &graph.dependencies {
-            if dependency.has_changed(&previous, global) {
+        for dependency in changes.drain(..) {
+            if let Some(edges) = graph.dependencies.get(&dependency) {
                 for &index in edges {
                     if !local_states[index.from_vertex_idx.0 as usize]
                         .get_states()
@@ -101,10 +101,9 @@ pub fn compute_closure(
         if initial_work.is_empty() {
             return Ok(());
         }
-        // Hash-map iteration must not affect metric ties or queue order.
+        // Discovery-set iteration must not affect metric ties or queue order.
         initial_work.sort_unstable();
         initial_work.dedup();
-        previous = global.clone();
         let discoveries = traverse(
             graph,
             &Interpreter {
@@ -118,19 +117,42 @@ pub fn compute_closure(
         initial_work.clear();
         for idx in discoveries.item_locations {
             global.reachable_item_locations[idx.0 as usize] = true;
+            changes.push(GlobalDependency::ItemLocation(idx));
         }
         for idx in discoveries.flags {
             global.flags[idx.0 as usize] = true;
+            changes.push(GlobalDependency::Flag(idx));
         }
         for idx in discoveries.unlocked_doors {
             global.unlocked_doors[idx.0 as usize] = true;
+            changes.push(GlobalDependency::Door(idx));
         }
         if discoveries.activate_ocarina {
             global.ocarina = OcarinaState::Active;
+            changes.push(GlobalDependency::Ocarina);
+        }
+        for (discovered, dependency) in [
+            (discoveries.refills.magic, GlobalDependency::Magic),
+            (discoveries.refills.bombs, GlobalDependency::Bombs),
+            (discoveries.refills.arrows, GlobalDependency::Arrows),
+            (discoveries.refills.red_potion, GlobalDependency::RedPotion),
+            (
+                discoveries.refills.green_potion,
+                GlobalDependency::GreenPotion,
+            ),
+            (
+                discoveries.refills.blue_potion,
+                GlobalDependency::BluePotion,
+            ),
+            (discoveries.refills.fairy, GlobalDependency::Fairy),
+        ] {
+            if discovered {
+                changes.push(dependency);
+            }
         }
         global.refills.merge(discoveries.refills);
         global.update_usable_capacities();
-        collect_reachable_items(catalog, inputs, global, placements)?;
+        collect_reachable_items(catalog, inputs, global, placements, &mut changes)?;
     }
 }
 
@@ -139,11 +161,16 @@ fn collect_reachable_items(
     inputs: &GenerationInputs,
     global: &mut GlobalState,
     placements: &[Option<Item>],
+    changes: &mut Vec<GlobalDependency>,
 ) -> Result<()> {
     for (index, &item) in placements.iter().enumerate() {
         if global.reachable_item_locations[index] && !global.collected_item_locations[index] {
             if let Some(item) = item {
-                global.collect_item(catalog, inputs, item, ItemLocationIndex(index as u32))?;
+                if let Some(dependency) =
+                    global.collect_item(catalog, inputs, item, ItemLocationIndex(index as u32))?
+                {
+                    changes.push(dependency);
+                }
             }
         }
     }

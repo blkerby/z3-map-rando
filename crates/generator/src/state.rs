@@ -3,7 +3,35 @@
 use crate::inputs::GenerationInputs;
 use anyhow::{Result, bail};
 use common_types::Item;
-use logic_catalog::{FollowerMask, ItemLocationIndex, LogicCatalog, OcarinaState, UniqueItem};
+use logic_catalog::{
+    DoorIndex, DungeonIndex, FlagIndex, FollowerMask, ItemLocationIndex, LogicCatalog,
+    OcarinaState, UniqueItem,
+};
+
+/// Mutable global reads that can change an edge's results or discoveries.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum GlobalDependency {
+    Item(usize),
+    Sword,
+    Shield,
+    Glove,
+    Mail,
+    Boomerang,
+    Ocarina,
+    BigKey(DungeonIndex),
+    Door(DoorIndex),
+    Flag(FlagIndex),
+    ItemLocation(ItemLocationIndex),
+    Health,
+    Magic,
+    Bombs,
+    Arrows,
+    Bottles,
+    RedPotion,
+    GreenPotion,
+    BluePotion,
+    Fairy,
+}
 
 /// Permanent inventory and progress, held fixed during a traversal wave.
 #[derive(Clone, Debug)]
@@ -84,42 +112,92 @@ impl GlobalState {
 
     /// Collect a placed item into inventory, returning an error for already-collected locations.
     /// The pickup location determines Big Key scope; Small Keys carry their door identity.
+    /// Return the changed scheduling key, excluding duplicate or capped capabilities.
     /// One-time resource refills and initial bottle contents have no logical effect.
-    pub fn collect_item(
+    pub(crate) fn collect_item(
         &mut self,
         catalog: &LogicCatalog,
         inputs: &GenerationInputs,
         item: Item,
         location_idx: ItemLocationIndex,
-    ) -> Result<()> {
+    ) -> Result<Option<GlobalDependency>> {
+        use GlobalDependency as D;
+        let previous_bomb_usable_capacity = self.bomb_usable_capacity;
+        let previous_arrow_usable_capacity = self.arrow_usable_capacity;
         let collected = &mut self.collected_item_locations[location_idx.0 as usize];
         if *collected {
             bail!("item location {location_idx:?} has already been collected");
         }
         *collected = true;
-        match item {
-            Item::Sword => self.sword_level = (self.sword_level + 1).min(4),
-            Item::Shield => self.shield_level = (self.shield_level + 1).min(3),
-            Item::Glove => self.glove_level = (self.glove_level + 1).min(2),
-            Item::Mail => self.mail_level = (self.mail_level + 1).min(2),
-            Item::Boomerang => self.boomerang_level = (self.boomerang_level + 1).min(2),
-            Item::Ocarina => self.ocarina = self.ocarina.max(OcarinaState::Inactive),
-            Item::BossHeartContainer | Item::SanctuaryHeartContainer => {
+        let dependency = match item {
+            Item::Sword if self.sword_level < 4 => {
+                self.sword_level += 1;
+                Some(D::Sword)
+            }
+            Item::Shield if self.shield_level < 3 => {
+                self.shield_level += 1;
+                Some(D::Shield)
+            }
+            Item::Glove if self.glove_level < 2 => {
+                self.glove_level += 1;
+                Some(D::Glove)
+            }
+            Item::Mail if self.mail_level < 2 => {
+                self.mail_level += 1;
+                Some(D::Mail)
+            }
+            Item::Boomerang if self.boomerang_level < 2 => {
+                self.boomerang_level += 1;
+                Some(D::Boomerang)
+            }
+            Item::Ocarina if self.ocarina == OcarinaState::Missing => {
+                self.ocarina = OcarinaState::Inactive;
+                Some(D::Ocarina)
+            }
+            Item::BossHeartContainer | Item::SanctuaryHeartContainer
+                if self.health_capacity < 160 =>
+            {
                 self.health_capacity = (self.health_capacity + 8).min(160);
+                Some(D::Health)
             }
             Item::PieceOfHeart => {
                 self.heart_pieces += 1;
                 if self.heart_pieces == 4 {
                     self.heart_pieces = 0;
-                    self.health_capacity = (self.health_capacity + 8).min(160);
+                    if self.health_capacity < 160 {
+                        self.health_capacity = (self.health_capacity + 8).min(160);
+                        Some(D::Health)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
                 }
             }
-            Item::BombUpgrade5 => self.bomb_capacity = (self.bomb_capacity + 5).min(50),
-            Item::BombUpgrade10 => self.bomb_capacity = (self.bomb_capacity + 10).min(50),
-            Item::BombUpgrade50 => self.bomb_capacity = 50,
-            Item::ArrowUpgrade5 => self.arrow_capacity = (self.arrow_capacity + 5).min(70),
-            Item::ArrowUpgrade10 => self.arrow_capacity = (self.arrow_capacity + 10).min(70),
-            Item::ArrowUpgrade70 => self.arrow_capacity = 70,
+            Item::BombUpgrade5 => {
+                self.bomb_capacity = (self.bomb_capacity + 5).min(50);
+                Some(D::Bombs)
+            }
+            Item::BombUpgrade10 => {
+                self.bomb_capacity = (self.bomb_capacity + 10).min(50);
+                Some(D::Bombs)
+            }
+            Item::BombUpgrade50 => {
+                self.bomb_capacity = 50;
+                Some(D::Bombs)
+            }
+            Item::ArrowUpgrade5 => {
+                self.arrow_capacity = (self.arrow_capacity + 5).min(70);
+                Some(D::Arrows)
+            }
+            Item::ArrowUpgrade10 => {
+                self.arrow_capacity = (self.arrow_capacity + 10).min(70);
+                Some(D::Arrows)
+            }
+            Item::ArrowUpgrade70 => {
+                self.arrow_capacity = 70;
+                Some(D::Arrows)
+            }
             // These receipts all create a bottle, including the filled-bottle items.
             Item::Bottle
             | Item::Bee
@@ -127,53 +205,79 @@ impl GlobalState {
             | Item::GoldBee
             | Item::RedPotion
             | Item::GreenPotion
-            | Item::BluePotion => self.bottles_owned = (self.bottles_owned + 1).min(4),
+            | Item::BluePotion => {
+                if self.bottles_owned < 4 {
+                    self.bottles_owned += 1;
+                    Some(D::Bottles)
+                } else {
+                    None
+                }
+            }
             Item::SmallKey { door_id } => {
                 let door_idx = inputs.door_indices[&door_id];
-                self.unlocked_doors[door_idx.0 as usize] = true;
+                let unlocked = &mut self.unlocked_doors[door_idx.0 as usize];
+                if !*unlocked {
+                    *unlocked = true;
+                    Some(D::Door(door_idx))
+                } else {
+                    None
+                }
             }
             Item::BigKey => {
                 let location = catalog.item_location(location_idx);
                 let room = catalog.room(catalog.vertex(location.vertex_idx).room_idx);
-                self.big_keys[room.dungeon_idx.unwrap().0 as usize] = true;
+                let dungeon_idx = room.dungeon_idx.unwrap();
+                let owned = &mut self.big_keys[dungeon_idx.0 as usize];
+                if !*owned {
+                    *owned = true;
+                    Some(D::BigKey(dungeon_idx))
+                } else {
+                    None
+                }
             }
-            Item::FireRod => self.unique_items[UniqueItem::FireRod as usize] = true,
-            Item::IceRod => self.unique_items[UniqueItem::IceRod as usize] = true,
-            Item::Hammer => self.unique_items[UniqueItem::Hammer as usize] = true,
-            Item::Hookshot => self.unique_items[UniqueItem::Hookshot as usize] = true,
-            Item::Bow => self.unique_items[UniqueItem::Bow as usize] = true,
-            Item::SilverArrows => self.unique_items[UniqueItem::SilverArrows as usize] = true,
-            Item::MagicPowder => self.unique_items[UniqueItem::MagicPowder as usize] = true,
-            Item::Bombos => self.unique_items[UniqueItem::Bombos as usize] = true,
-            Item::Ether => self.unique_items[UniqueItem::Ether as usize] = true,
-            Item::Quake => self.unique_items[UniqueItem::Quake as usize] = true,
-            Item::Lamp => self.unique_items[UniqueItem::Lamp as usize] = true,
-            Item::Shovel => self.unique_items[UniqueItem::Shovel as usize] = true,
-            Item::CaneOfSomaria => self.unique_items[UniqueItem::CaneOfSomaria as usize] = true,
-            Item::CaneOfByrna => self.unique_items[UniqueItem::CaneOfByrna as usize] = true,
-            Item::Cape => self.unique_items[UniqueItem::Cape as usize] = true,
-            Item::MagicMirror => self.unique_items[UniqueItem::MagicMirror as usize] = true,
-            Item::BookOfMudora => self.unique_items[UniqueItem::BookOfMudora as usize] = true,
-            Item::Flippers => self.unique_items[UniqueItem::Flippers as usize] = true,
-            Item::MoonPearl => self.unique_items[UniqueItem::MoonPearl as usize] = true,
-            Item::BugCatchingNet => self.unique_items[UniqueItem::BugCatchingNet as usize] = true,
-            Item::Mushroom => self.unique_items[UniqueItem::Mushroom as usize] = true,
-            Item::PegasusBoots => self.unique_items[UniqueItem::PegasusBoots as usize] = true,
-            Item::HalfMagic => self.unique_items[UniqueItem::HalfMagic as usize] = true,
-            Item::PendantOfCourage => {
-                self.unique_items[UniqueItem::PendantOfCourage as usize] = true
-            }
-            Item::PendantOfWisdom => self.unique_items[UniqueItem::PendantOfWisdom as usize] = true,
-            Item::PendantOfPower => self.unique_items[UniqueItem::PendantOfPower as usize] = true,
-            Item::Crystal1 => self.unique_items[UniqueItem::Crystal1 as usize] = true,
-            Item::Crystal2 => self.unique_items[UniqueItem::Crystal2 as usize] = true,
-            Item::Crystal3 => self.unique_items[UniqueItem::Crystal3 as usize] = true,
-            Item::Crystal4 => self.unique_items[UniqueItem::Crystal4 as usize] = true,
-            Item::Crystal5 => self.unique_items[UniqueItem::Crystal5 as usize] = true,
-            Item::Crystal6 => self.unique_items[UniqueItem::Crystal6 as usize] = true,
-            Item::Crystal7 => self.unique_items[UniqueItem::Crystal7 as usize] = true,
-            Item::Triforce => self.unique_items[UniqueItem::Triforce as usize] = true,
-            Item::Arrow
+            Item::FireRod => Some(D::Item(UniqueItem::FireRod as usize)),
+            Item::IceRod => Some(D::Item(UniqueItem::IceRod as usize)),
+            Item::Hammer => Some(D::Item(UniqueItem::Hammer as usize)),
+            Item::Hookshot => Some(D::Item(UniqueItem::Hookshot as usize)),
+            Item::Bow => Some(D::Item(UniqueItem::Bow as usize)),
+            Item::SilverArrows => Some(D::Item(UniqueItem::SilverArrows as usize)),
+            Item::MagicPowder => Some(D::Item(UniqueItem::MagicPowder as usize)),
+            Item::Bombos => Some(D::Item(UniqueItem::Bombos as usize)),
+            Item::Ether => Some(D::Item(UniqueItem::Ether as usize)),
+            Item::Quake => Some(D::Item(UniqueItem::Quake as usize)),
+            Item::Lamp => Some(D::Item(UniqueItem::Lamp as usize)),
+            Item::Shovel => Some(D::Item(UniqueItem::Shovel as usize)),
+            Item::CaneOfSomaria => Some(D::Item(UniqueItem::CaneOfSomaria as usize)),
+            Item::CaneOfByrna => Some(D::Item(UniqueItem::CaneOfByrna as usize)),
+            Item::Cape => Some(D::Item(UniqueItem::Cape as usize)),
+            Item::MagicMirror => Some(D::Item(UniqueItem::MagicMirror as usize)),
+            Item::BookOfMudora => Some(D::Item(UniqueItem::BookOfMudora as usize)),
+            Item::Flippers => Some(D::Item(UniqueItem::Flippers as usize)),
+            Item::MoonPearl => Some(D::Item(UniqueItem::MoonPearl as usize)),
+            Item::BugCatchingNet => Some(D::Item(UniqueItem::BugCatchingNet as usize)),
+            Item::Mushroom => Some(D::Item(UniqueItem::Mushroom as usize)),
+            Item::PegasusBoots => Some(D::Item(UniqueItem::PegasusBoots as usize)),
+            Item::HalfMagic => Some(D::Item(UniqueItem::HalfMagic as usize)),
+            Item::PendantOfCourage => Some(D::Item(UniqueItem::PendantOfCourage as usize)),
+            Item::PendantOfWisdom => Some(D::Item(UniqueItem::PendantOfWisdom as usize)),
+            Item::PendantOfPower => Some(D::Item(UniqueItem::PendantOfPower as usize)),
+            Item::Crystal1 => Some(D::Item(UniqueItem::Crystal1 as usize)),
+            Item::Crystal2 => Some(D::Item(UniqueItem::Crystal2 as usize)),
+            Item::Crystal3 => Some(D::Item(UniqueItem::Crystal3 as usize)),
+            Item::Crystal4 => Some(D::Item(UniqueItem::Crystal4 as usize)),
+            Item::Crystal5 => Some(D::Item(UniqueItem::Crystal5 as usize)),
+            Item::Crystal6 => Some(D::Item(UniqueItem::Crystal6 as usize)),
+            Item::Crystal7 => Some(D::Item(UniqueItem::Crystal7 as usize)),
+            Item::Triforce => Some(D::Item(UniqueItem::Triforce as usize)),
+            Item::Sword
+            | Item::Shield
+            | Item::Glove
+            | Item::Mail
+            | Item::Boomerang
+            | Item::Ocarina
+            | Item::BossHeartContainer
+            | Item::SanctuaryHeartContainer
+            | Item::Arrow
             | Item::TenArrows
             | Item::Bomb
             | Item::ThreeBombs
@@ -187,10 +291,22 @@ impl GlobalState {
             | Item::OneHundredRupees
             | Item::ThreeHundredRupees
             | Item::Map
-            | Item::Compass => {}
-        }
+            | Item::Compass => None,
+        };
         self.update_usable_capacities();
-        Ok(())
+        Ok(match dependency {
+            Some(D::Item(idx)) => {
+                if !self.unique_items[idx] {
+                    self.unique_items[idx] = true;
+                    dependency
+                } else {
+                    None
+                }
+            }
+            Some(D::Bombs) if self.bomb_usable_capacity == previous_bomb_usable_capacity => None,
+            Some(D::Arrows) if self.arrow_usable_capacity == previous_arrow_usable_capacity => None,
+            _ => dependency,
+        })
     }
 
     /// Obtaining a source remains meaningful even when the physical capacity is zero.

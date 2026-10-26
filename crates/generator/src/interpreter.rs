@@ -4,81 +4,13 @@ use crate::{
     graph::TraversalEdge,
     inputs::GenerationInputs,
     local_state_reducer::LocalStateReducer,
-    state::{GlobalState, HealthState, LocalState, RefillFlags},
+    state::{GlobalDependency, GlobalState, HealthState, LocalState, RefillFlags},
 };
 use hashbrown::HashSet;
 use logic_catalog::{
-    Ammo, BottleContent, DoorIndex, DungeonIndex, Effect, Equipment, FlagIndex, ItemLocationIndex,
-    LockKind, LogicCatalog, OcarinaState, PrizeKind, Requirement, Resource, UniqueItem,
+    Ammo, BottleContent, DoorIndex, Effect, Equipment, FlagIndex, ItemLocationIndex, LockKind,
+    LogicCatalog, OcarinaState, PrizeKind, Requirement, Resource, UniqueItem,
 };
-
-/// Mutable global reads that can change an edge's results or discoveries.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(crate) enum GlobalDependency {
-    Item(usize),
-    Sword,
-    Shield,
-    Glove,
-    Mail,
-    Boomerang,
-    Ocarina,
-    BigKey(DungeonIndex),
-    Door(DoorIndex),
-    Flag(FlagIndex),
-    ItemLocation(ItemLocationIndex),
-    Health,
-    Magic,
-    Bombs,
-    Arrows,
-    Bottles,
-    RedPotion,
-    GreenPotion,
-    BluePotion,
-    Fairy,
-}
-
-impl GlobalDependency {
-    pub(crate) fn has_changed(self, previous: &GlobalState, current: &GlobalState) -> bool {
-        match self {
-            Self::Item(idx) => previous.unique_items[idx] != current.unique_items[idx],
-            Self::Sword => previous.sword_level != current.sword_level,
-            Self::Shield => previous.shield_level != current.shield_level,
-            Self::Glove => previous.glove_level != current.glove_level,
-            Self::Mail => previous.mail_level != current.mail_level,
-            Self::Boomerang => previous.boomerang_level != current.boomerang_level,
-            Self::Ocarina => previous.ocarina != current.ocarina,
-            Self::BigKey(idx) => {
-                previous.big_keys[idx.0 as usize] != current.big_keys[idx.0 as usize]
-            }
-            Self::Door(idx) => {
-                previous.unlocked_doors[idx.0 as usize] != current.unlocked_doors[idx.0 as usize]
-            }
-            Self::Flag(idx) => previous.flags[idx.0 as usize] != current.flags[idx.0 as usize],
-            Self::ItemLocation(idx) => {
-                previous.reachable_item_locations[idx.0 as usize]
-                    != current.reachable_item_locations[idx.0 as usize]
-            }
-            Self::Health => previous.health_capacity != current.health_capacity,
-            Self::Magic => {
-                previous.magic_usable_capacity != current.magic_usable_capacity
-                    || previous.refills.magic != current.refills.magic
-            }
-            Self::Bombs => {
-                previous.bomb_usable_capacity != current.bomb_usable_capacity
-                    || previous.refills.bombs != current.refills.bombs
-            }
-            Self::Arrows => {
-                previous.arrow_usable_capacity != current.arrow_usable_capacity
-                    || previous.refills.arrows != current.refills.arrows
-            }
-            Self::Bottles => previous.bottles_owned != current.bottles_owned,
-            Self::RedPotion => previous.refills.red_potion != current.refills.red_potion,
-            Self::GreenPotion => previous.refills.green_potion != current.refills.green_potion,
-            Self::BluePotion => previous.refills.blue_potion != current.refills.blue_potion,
-            Self::Fairy => previous.refills.fairy != current.refills.fairy,
-        }
-    }
-}
 
 /// Include implicit reads in consumables, ammunition, and source discovery.
 pub(crate) fn collect_requirement_dependencies(
