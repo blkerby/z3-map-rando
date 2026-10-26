@@ -61,17 +61,65 @@ impl KeyPlacementState {
         )?;
         Ok(initial)
     }
+
+    /// Derive each dungeon's initial closure once, before randomized attempts.
+    pub fn initialize_dungeons(
+        catalog: &LogicCatalog,
+        graph: &TraversalGraph,
+        inputs: &GenerationInputs,
+    ) -> Result<Vec<Self>> {
+        let baseline = Self::initialize(catalog, graph, inputs)?;
+        let mut initial_states = Vec::new();
+        for (index, dungeon) in inputs.dungeons.iter().enumerate() {
+            let dungeon_idx = DungeonIndex(index as u32);
+            let mut initial = baseline.clone();
+            let mut changes = HashSet::new();
+
+            // Assume having all big and small keys except for the given dungeon.
+            for index in 0..catalog.dungeons.len() {
+                let other_dungeon_idx = DungeonIndex(index as u32);
+                if other_dungeon_idx != dungeon_idx {
+                    initial.global.big_keys[index] = true;
+                    changes.insert(GlobalDependency::BigKey(other_dungeon_idx));
+                }
+            }
+            for (index, door) in catalog.doors.iter().enumerate() {
+                if door.lock == LockKind::SmallKey
+                    && catalog.room(door.room_idx).dungeon_idx != Some(dungeon_idx)
+                    && !initial.global.unlocked_doors[index]
+                {
+                    initial.global.unlocked_doors[index] = true;
+                    changes.insert(GlobalDependency::Door(DoorIndex(index as u32)));
+                }
+            }
+            for &location_idx in &dungeon.big_key_locations {
+                initial.placements[location_idx.0 as usize] = Some(Item::BigKey);
+            }
+            compute_closure(
+                catalog,
+                graph,
+                inputs,
+                &mut initial.global,
+                &mut initial.local_states,
+                &initial.placements,
+                Vec::new(),
+                changes,
+            )?;
+            initial_states.push(initial);
+        }
+        Ok(initial_states)
+    }
 }
 
 /// Assign every dungeon's vanilla Small Key pickups to distinct same-dungeon doors.
 /// Completed dungeons remain settled while a later dungeon retries. Returned items
 /// carry stable door identities, ready for the later logical placement phases.
-/// Reuse the baseline initialized for this catalog, graph, and inputs across attempts.
+/// Reuse the dungeon initial states prepared for this generation across attempts.
 pub fn assign_small_keys(
     catalog: &LogicCatalog,
     graph: &TraversalGraph,
     inputs: &GenerationInputs,
-    baseline: &KeyPlacementState,
+    initial_states: &[KeyPlacementState],
     rng: &mut impl Rng,
 ) -> Result<HashMap<ItemLocationIndex, Item>> {
     let mut items = HashMap::new();
@@ -90,7 +138,7 @@ pub fn assign_small_keys(
             inputs,
             dungeon_idx,
             &required_locations,
-            baseline,
+            &initial_states[index],
             rng,
         )?;
         // Catalog order keeps even item construction independent of hash iteration.
@@ -113,43 +161,10 @@ fn assign_dungeon_keys(
     inputs: &GenerationInputs,
     dungeon_idx: DungeonIndex,
     required_locations: &[ItemLocationIndex],
-    baseline: &KeyPlacementState,
+    initial: &KeyPlacementState,
     rng: &mut impl Rng,
 ) -> Result<HashMap<ItemLocationIndex, DoorIndex>> {
     let dungeon = &inputs.dungeons[dungeon_idx.0 as usize];
-    let mut initial = baseline.clone();
-    let mut changes = HashSet::new();
-
-    // Assume having all big and small keys except for the given dungeon.
-    for index in 0..catalog.dungeons.len() {
-        let other_dungeon_idx = DungeonIndex(index as u32);
-        if other_dungeon_idx != dungeon_idx {
-            initial.global.big_keys[index] = true;
-            changes.insert(GlobalDependency::BigKey(other_dungeon_idx));
-        }
-    }
-    for (index, door) in catalog.doors.iter().enumerate() {
-        if door.lock == LockKind::SmallKey
-            && catalog.room(door.room_idx).dungeon_idx != Some(dungeon_idx)
-            && !initial.global.unlocked_doors[index]
-        {
-            initial.global.unlocked_doors[index] = true;
-            changes.insert(GlobalDependency::Door(DoorIndex(index as u32)));
-        }
-    }
-    for &location_idx in &dungeon.big_key_locations {
-        initial.placements[location_idx.0 as usize] = Some(Item::BigKey);
-    }
-    compute_closure(
-        catalog,
-        graph,
-        inputs,
-        &mut initial.global,
-        &mut initial.local_states,
-        &initial.placements,
-        Vec::new(),
-        changes,
-    )?;
     let mut inaccessible_locations = Vec::new();
     let mut failure_reason = "";
     for _ in 0..MAX_DUNGEON_ATTEMPTS {

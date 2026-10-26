@@ -68,10 +68,10 @@ fn generate_items(
     inputs: &GenerationInputs,
     rng: &mut impl Rng,
 ) -> Result<Vec<ItemPlacement>> {
-    let key_baseline = KeyPlacementState::initialize(catalog, graph, inputs)?;
+    let key_initial_states = KeyPlacementState::initialize_dungeons(catalog, graph, inputs)?;
     'attempts: for attempt in 1..=MAX_GENERATION_ATTEMPTS {
         eprintln!("Starting generation attempt {attempt}/{MAX_GENERATION_ATTEMPTS}");
-        let small_keys = assign_small_keys(catalog, graph, inputs, &key_baseline, rng)?;
+        let small_keys = assign_small_keys(catalog, graph, inputs, &key_initial_states, rng)?;
         let mut state = PlacementState::initialize(catalog, graph, inputs, &small_keys, rng)?;
         let mut wave = 0;
         while state.placements.contains(&None) {
