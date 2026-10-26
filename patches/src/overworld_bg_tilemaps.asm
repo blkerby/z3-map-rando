@@ -883,6 +883,9 @@ assert UpdateRainSpritePalettes == !UpdateRainSpritePalettes
     BRA .rain
 
 .mire
+    LDA.w $04C6
+    CMP.b #$03
+    BEQ .mode_ready
     LDA.l $7EF2F0
     AND.b #$20
     BNE .mode_ready
@@ -1023,9 +1026,31 @@ RunRainEffectsWhenSelected:
     CMP.b #$9F
     BNE .done
 
+    LDA.b $11
+    BNE .run
+    LDA.b $8A
+    CMP.b #$70
+    BNE .run_vanilla
+    LDA.w $04C6
+    CMP.b #$03
+    BEQ .clear_rain
+    LDA.l $7EF2F0
+    AND.b #$20
+    BEQ .run
+
+.clear_rain
+    ; Hide rain as Mire's opening starts, before the entrance is marked complete.
+    STZ.b $8C
+    STZ.b $1D
+    LDA.b #$20
+    STA.b $9A
+    RTL
+
 .run
     LDA.b $8A
     CMP.b #$70
+
+.run_vanilla
     JML $82A3C8
 
 .done
