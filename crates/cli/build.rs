@@ -6,9 +6,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     use catalog_builder::{cache::CatalogCache, config::BuildConfig};
     use std::path::Path;
 
-    // This path is deliberately never created. Let the existing catalog cache
-    // check for changes on every bundled build instead of duplicating tracking.
-    println!("cargo:rerun-if-changed=always-update-bundled-catalogs");
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap()
@@ -18,6 +15,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     config.resolve_paths(root);
     let output_directory = config.output_directory.clone();
     let cache = CatalogCache::open_cache(config)?;
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join("catalog-build.toml").display()
+    );
+    for path in cache.collect_input_paths()? {
+        println!("cargo:rerun-if-changed={}", path.display());
+    }
     cache.update_all()?;
     for (name, filename) in [
         ("Z3_LOGIC_CATALOG", "logic_catalog.bin"),

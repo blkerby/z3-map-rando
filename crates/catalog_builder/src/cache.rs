@@ -51,6 +51,49 @@ impl CatalogCache {
         fingerprint
     }
 
+    /// List external inputs for Cargo; fingerprints still decide which catalogs rebuild.
+    // shortcut: after manually deleting catalog outputs, clean the CLI package;
+    // watch outputs too only if their generation can avoid timestamp-driven rebuilds.
+    pub fn collect_input_paths(&self) -> Result<Vec<PathBuf>> {
+        let mut paths = vec![
+            self.config.logic_source.clone(),
+            self.config.retiling_source.clone(),
+            self.config.asm.clone(),
+            self.config.tile_fingerprints.clone(),
+        ];
+        if let Some(path) = &self.config.asar_executable {
+            paths.push(path.clone());
+        } else {
+            paths.push(self.config.asar_source.join("src"));
+        }
+        for source in [&self.config.logic_source, &self.config.retiling_source] {
+            if source.join(".git").exists() {
+                // Submodule Git metadata lives outside the watched source directory.
+                let output = Command::new("git")
+                    .arg("-C")
+                    .arg(source)
+                    .args([
+                        "rev-parse",
+                        "--path-format=absolute",
+                        "--git-path",
+                        "HEAD",
+                        "--git-path",
+                        "refs",
+                        "--git-path",
+                        "packed-refs",
+                    ])
+                    .output()?;
+                for path in String::from_utf8_lossy(&output.stdout).lines() {
+                    // Missing optional Git files would force Cargo to rerun every time.
+                    if Path::new(path).exists() {
+                        paths.push(PathBuf::from(path));
+                    }
+                }
+            }
+        }
+        Ok(paths)
+    }
+
     pub fn update_logic(&self) -> Result<()> {
         let source = &self.config.logic_source;
         let output = self.config.output_directory.join("logic_catalog.bin");
