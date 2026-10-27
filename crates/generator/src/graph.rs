@@ -4,8 +4,8 @@ use crate::{interpreter::collect_requirement_dependencies, state::GlobalDependen
 use common_types::allows_frog_dwarf;
 use hashbrown::{HashMap, HashSet};
 use logic_catalog::{
-    Connection, Edge, EdgeIndex, Effect, EntranceIndex, EntranceKind, EventEndpoint, Follower,
-    FollowerMask, LogicCatalog, NodeType, Requirement, VertexIndex,
+    Connection, Edge, EdgeIndex, EdgeOrigin, Effect, EntranceIndex, EntranceKind, EventEndpoint,
+    Follower, FollowerMask, LogicCatalog, NodeType, Requirement, UniqueItem, VertexIndex, World,
 };
 
 #[derive(Debug)]
@@ -86,11 +86,45 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
         graph.outgoing.push(Vec::new());
     }
 
+    let mut interior_worlds = vec![None; catalog.rooms.len()];
+    for connection in connections {
+        if let Connection::Entrance {
+            entrance_idx,
+            interior_vertex_idx,
+            ..
+        } = connection
+        {
+            let room_idx = catalog.vertex(*interior_vertex_idx).room_idx;
+            let outside_vertex_idx = catalog.entrance(*entrance_idx).vertex_idx;
+            interior_worlds[room_idx.0 as usize] =
+                catalog.vertex_metadata(outside_vertex_idx).world;
+        }
+    }
+
     // Start with the edges in the catalog (room-local edges and flute travel).
     for (index, edge) in catalog.edges.iter().enumerate() {
+        let mut edge = edge.clone();
+        if let EdgeOrigin::Strat {
+            room_idx,
+            strat_idx,
+        } = catalog.edge_metadata[index].origin
+        {
+            let world = catalog
+                .vertex_metadata(edge.from_vertex_idx)
+                .world
+                .or(interior_worlds[room_idx.0 as usize]);
+            if world == Some(World::Dark)
+                && catalog.room(room_idx).strat(strat_idx).requires_non_bunny
+            {
+                edge.requirement = Requirement::make_and(vec![
+                    Requirement::Item(UniqueItem::MoonPearl),
+                    edge.requirement,
+                ]);
+            }
+        }
         graph.add_edge(
             catalog,
-            edge.clone(),
+            edge,
             TraversalEdgeOrigin::Catalog(EdgeIndex(index as u32)),
         );
     }
