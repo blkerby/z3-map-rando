@@ -324,7 +324,6 @@ pub struct NodeMetadata {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StratMetadata {
     pub name: String,
-    pub requires_non_bunny: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -458,6 +457,9 @@ pub enum EdgeOrigin {
 pub enum Requirement {
     Free,
     Never,
+    IsNotBunny,
+    CanInteract,
+    CanUseYItems,
     /// Execute children in order, passing successful local states to the next.
     And(Box<[Requirement]>),
     /// Each branch starts with the same input; retain its successful local states.

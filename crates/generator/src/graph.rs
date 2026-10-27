@@ -4,8 +4,8 @@ use crate::{interpreter::collect_requirement_dependencies, state::GlobalDependen
 use common_types::allows_frog_dwarf;
 use hashbrown::{HashMap, HashSet};
 use logic_catalog::{
-    Connection, Edge, EdgeIndex, EdgeOrigin, Effect, EntranceIndex, EntranceKind, EventEndpoint,
-    Follower, FollowerMask, LogicCatalog, NodeType, Requirement, UniqueItem, VertexIndex, World,
+    Connection, Edge, EdgeIndex, Effect, EntranceIndex, EntranceKind, EventEndpoint, Follower,
+    FollowerMask, LogicCatalog, NodeType, Requirement, RoomKind, UniqueItem, VertexIndex, World,
 };
 
 #[derive(Debug)]
@@ -28,6 +28,7 @@ pub struct TraversalEdgeIndex {
 pub struct TraversalEdge {
     pub edge: Edge,
     pub origin: TraversalEdgeOrigin,
+    pub world: World,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -62,15 +63,29 @@ impl ConnectionEndpoint {
 }
 
 impl TraversalGraph {
-    fn add_edge(&mut self, catalog: &LogicCatalog, mut edge: Edge, origin: TraversalEdgeOrigin) {
+    fn add_edge(
+        &mut self,
+        catalog: &LogicCatalog,
+        interior_worlds: &[Option<World>],
+        mut edge: Edge,
+        origin: TraversalEdgeOrigin,
+    ) {
+        let source_room_idx = catalog.vertex(edge.from_vertex_idx).room_idx;
+        let world = catalog
+            .vertex_metadata(edge.from_vertex_idx)
+            .world
+            .or(interior_worlds[source_room_idx.0 as usize])
+            .unwrap_or(World::Light);
         let destination_room_idx = catalog.vertex(edge.to_vertex_idx).room_idx;
-        if origin == TraversalEdgeOrigin::SaveAndQuit
-            || catalog.vertex(edge.from_vertex_idx).room_idx != destination_room_idx
-        {
+        if origin == TraversalEdgeOrigin::SaveAndQuit || source_room_idx != destination_room_idx {
             let reset = Requirement::ResetObstacles(destination_room_idx);
             edge.requirement = Requirement::make_and(vec![edge.requirement, reset]);
         }
-        self.outgoing[edge.from_vertex_idx.0 as usize].push(TraversalEdge { edge, origin });
+        self.outgoing[edge.from_vertex_idx.0 as usize].push(TraversalEdge {
+            edge,
+            origin,
+            world,
+        });
     }
 }
 
@@ -103,28 +118,10 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
 
     // Start with the edges in the catalog (room-local edges and flute travel).
     for (index, edge) in catalog.edges.iter().enumerate() {
-        let mut edge = edge.clone();
-        if let EdgeOrigin::Strat {
-            room_idx,
-            strat_idx,
-        } = catalog.edge_metadata[index].origin
-        {
-            let world = catalog
-                .vertex_metadata(edge.from_vertex_idx)
-                .world
-                .or(interior_worlds[room_idx.0 as usize]);
-            if world == Some(World::Dark)
-                && catalog.room(room_idx).strat(strat_idx).requires_non_bunny
-            {
-                edge.requirement = Requirement::make_and(vec![
-                    Requirement::Item(UniqueItem::MoonPearl),
-                    edge.requirement,
-                ]);
-            }
-        }
         graph.add_edge(
             catalog,
-            edge,
+            &interior_worlds,
+            edge.clone(),
             TraversalEdgeOrigin::Catalog(EdgeIndex(index as u32)),
         );
     }
@@ -158,6 +155,17 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                     EntranceKind::Drop => {
                         Requirement::LoseFollowers(FollowerMask::make([Follower::SuperBomb]))
                     }
+                };
+                let requirement = if catalog
+                    .room(catalog.vertex(*interior_vertex_idx).room_idx)
+                    .kind
+                    == RoomKind::Dungeon
+                {
+                    // FIXME: Entering a dungeon temporarily requires IsNoBunny,
+                    // because bunny logic is not yet complete in dungeons.
+                    Requirement::make_and(vec![Requirement::IsNotBunny, requirement])
+                } else {
+                    requirement
                 };
                 (
                     ConnectionEndpoint {
@@ -243,6 +251,7 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
             }
             graph.add_edge(
                 catalog,
+                &interior_worlds,
                 Edge {
                     from_vertex_idx: from.vertex_idx,
                     to_vertex_idx: to.vertex_idx,
@@ -262,6 +271,7 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                     if exit.event_idx == entry.event_idx && to.match_event(catalog, entry) {
                         graph.add_edge(
                             catalog,
+                            &interior_worlds,
                             Edge {
                                 from_vertex_idx: exit.vertex_idx,
                                 to_vertex_idx: entry.vertex_idx,
@@ -279,6 +289,7 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
     for index in 0..catalog.vertices.len() {
         graph.add_edge(
             catalog,
+            &interior_worlds,
             Edge {
                 from_vertex_idx: VertexIndex(index as u32),
                 to_vertex_idx: catalog.start_vertex_idx,
@@ -298,6 +309,10 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
         for (outgoing_idx, edge) in outgoing.iter().enumerate() {
             let mut dependencies = HashSet::new();
             collect_requirement_dependencies(catalog, &edge.edge.requirement, &mut dependencies);
+            // Capability checks read Moon Pearl implicitly in the Dark World.
+            if edge.world == World::Dark {
+                dependencies.insert(GlobalDependency::Item(UniqueItem::MoonPearl as usize));
+            }
             for effect in &edge.edge.effects {
                 let dependency = match *effect {
                     Effect::CollectItem(idx) => GlobalDependency::ItemLocation(idx),

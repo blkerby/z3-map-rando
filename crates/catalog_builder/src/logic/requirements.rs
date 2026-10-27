@@ -61,10 +61,13 @@ impl Compiler {
                     }
                     "OcarinaActive" => return Requirement::Ocarina(OcarinaState::Active),
                     "BlueBoomerang" | "RedBoomerang" => {
-                        return Requirement::Equipment {
-                            equipment: Equipment::Boomerang,
-                            minimum_level: if name == "BlueBoomerang" { 1 } else { 2 },
-                        };
+                        return Requirement::make_and(vec![
+                            Requirement::CanUseYItems,
+                            Requirement::Equipment {
+                                equipment: Equipment::Boomerang,
+                                minimum_level: if name == "BlueBoomerang" { 1 } else { 2 },
+                            },
+                        ]);
                     }
                     _ => {}
                 }
@@ -131,10 +134,13 @@ impl Compiler {
                 }
                 Requirement::make_or(branches)
             }
-            Op::Sword(level) => Requirement::Equipment {
-                equipment: Equipment::Sword,
-                minimum_level: *level,
-            },
+            Op::Sword(level) => Requirement::make_and(vec![
+                Requirement::CanInteract,
+                Requirement::Equipment {
+                    equipment: Equipment::Sword,
+                    minimum_level: *level,
+                },
+            ]),
             // We intend to make the fairy upgrade to be applicable at any Shield level,
             // so the `shieldExact` requirement (only used as a condition for the fairy shield upgrade)
             // can be interpreted the same as a plain `shield` requirement.
@@ -142,10 +148,13 @@ impl Compiler {
                 equipment: Equipment::Shield,
                 minimum_level: *level,
             },
-            Op::Glove(level) => Requirement::Equipment {
-                equipment: Equipment::Glove,
-                minimum_level: *level,
-            },
+            Op::Glove(level) => Requirement::make_and(vec![
+                Requirement::CanInteract,
+                Requirement::Equipment {
+                    equipment: Equipment::Glove,
+                    minimum_level: *level,
+                },
+            ]),
             // A `swordExact` level of 1 makes the Armos fight easier than level 2 sword.
             // We intend to leave this vanilla quirk unchanged, so we treat `swordExact` as
             // unsatisfiable, since we can't rule out that the player may have been

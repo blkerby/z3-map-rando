@@ -285,7 +285,6 @@ fn compile_room_strats(
         let strat_idx = StratIndex(room.strats.len() as u32);
         room.strats.push(StratMetadata {
             name: strat.name.clone(),
-            requires_non_bunny: matches!(strat.is_bunny, z3_json_data::Bunny::No),
         });
         let world_pairs = get_strat_world_pairs(strat, overworld, indices);
         let effects = collect_strat_effects(strat, indices, compiler);
@@ -329,7 +328,7 @@ fn compile_room_strats(
                 }
             }
             let bunny_requirement = match strat.is_bunny {
-                z3_json_data::Bunny::Yes => Requirement::Never,
+                Some(z3_json_data::Bunny::No) => Requirement::IsNotBunny,
                 _ => Requirement::Free,
             };
             catalog.edges.push(Edge {

@@ -9,7 +9,7 @@ use crate::{
 use hashbrown::HashSet;
 use logic_catalog::{
     Ammo, BottleContent, DoorIndex, Effect, Equipment, FlagIndex, ItemLocationIndex, LockKind,
-    LogicCatalog, OcarinaState, PrizeKind, Requirement, Resource, UniqueItem,
+    LogicCatalog, OcarinaState, PrizeKind, Requirement, Resource, UniqueItem, World,
 };
 
 /// Include implicit reads in consumables, ammunition, and source discovery.
@@ -143,6 +143,9 @@ pub(crate) fn collect_requirement_dependencies(
         },
         Requirement::Free
         | Requirement::Never
+        | Requirement::IsNotBunny
+        | Requirement::CanInteract
+        | Requirement::CanUseYItems
         | Requirement::Pay(_)
         | Requirement::Tech(_)
         | Requirement::Notable(_)
@@ -178,6 +181,22 @@ pub struct Interpreter<'a> {
 }
 
 impl Interpreter<'_> {
+    fn is_not_bunny(&self, world: World) -> bool {
+        world == World::Light || self.global.unique_items[UniqueItem::MoonPearl as usize]
+    }
+
+    fn can_use_y_items(&self, world: World) -> bool {
+        // If we ever model Lonk state, this function could separate what
+        // Lonk can do that Bunny cannot.
+        self.is_not_bunny(world)
+    }
+
+    fn can_interact(&self, world: World) -> bool {
+        // If we ever model Superbunny state, this function could separate what
+        // Superbunny can do that Bunny cannot.
+        self.is_not_bunny(world)
+    }
+
     /// Evaluate an edge for a batch of local states at its source vertex.
     /// Report global discoveries as a requirement prefix succeeds, even if a later part fails.
     /// Insert successful states directly into to_states; return whether its metrics improved.
@@ -189,7 +208,8 @@ impl Interpreter<'_> {
         discoveries: &mut GlobalDiscoveries,
         to_states: &mut LocalStateReducer,
     ) -> bool {
-        let states = self.evaluate_requirement(&edge.edge.requirement, states, discoveries);
+        let states =
+            self.evaluate_requirement(&edge.edge.requirement, edge.world, states, discoveries);
         let mut improved = false;
         for mut state in states.into_states() {
             for effect in &edge.edge.effects {
@@ -230,6 +250,7 @@ impl Interpreter<'_> {
     fn evaluate_requirement(
         &self,
         requirement: &Requirement,
+        world: World,
         mut states: LocalStateReducer,
         discoveries: &mut GlobalDiscoveries,
     ) -> LocalStateReducer {
@@ -239,9 +260,12 @@ impl Interpreter<'_> {
         let succeeds = match requirement {
             Requirement::Free | Requirement::Pay(_) => true,
             Requirement::Never => false,
+            Requirement::IsNotBunny => self.is_not_bunny(world),
+            Requirement::CanInteract => self.can_interact(world),
+            Requirement::CanUseYItems => self.can_use_y_items(world),
             Requirement::And(children) => {
                 for child in children {
-                    states = self.evaluate_requirement(child, states, discoveries);
+                    states = self.evaluate_requirement(child, world, states, discoveries);
                     if states.get_states().is_empty() {
                         break;
                     }
@@ -252,7 +276,7 @@ impl Interpreter<'_> {
                 let mut result = LocalStateReducer::default();
                 for child in children {
                     for output in self
-                        .evaluate_requirement(child, states.clone(), discoveries)
+                        .evaluate_requirement(child, world, states.clone(), discoveries)
                         .into_states()
                     {
                         result.insert(output);
@@ -260,8 +284,33 @@ impl Interpreter<'_> {
                 }
                 return result;
             }
-            Requirement::Item(item) => self.global.unique_items[*item as usize],
-            Requirement::Ocarina(minimum) => self.global.ocarina >= *minimum,
+            Requirement::Item(item) => {
+                let can_use = match item {
+                    UniqueItem::FireRod
+                    | UniqueItem::IceRod
+                    | UniqueItem::Hammer
+                    | UniqueItem::Hookshot
+                    | UniqueItem::Bow
+                    | UniqueItem::MagicPowder
+                    | UniqueItem::Bombos
+                    | UniqueItem::Ether
+                    | UniqueItem::Quake
+                    | UniqueItem::Lamp
+                    | UniqueItem::Shovel
+                    | UniqueItem::CaneOfSomaria
+                    | UniqueItem::CaneOfByrna
+                    | UniqueItem::Cape
+                    | UniqueItem::BugCatchingNet
+                    | UniqueItem::Mushroom => self.can_use_y_items(world),
+                    UniqueItem::PegasusBoots => self.can_interact(world),
+                    UniqueItem::Flippers => self.is_not_bunny(world),
+                    _ => true,
+                };
+                can_use && self.global.unique_items[*item as usize]
+            }
+            Requirement::Ocarina(minimum) => {
+                self.can_use_y_items(world) && self.global.ocarina >= *minimum
+            }
             Requirement::Bottles(minimum) => self.global.bottles_owned >= *minimum,
             Requirement::BigKey(idx) => self.global.big_keys[idx.0 as usize],
             Requirement::Equipment {
@@ -336,7 +385,13 @@ impl Interpreter<'_> {
             | Requirement::ObstacleNotCleared(_) => {
                 let mut result = LocalStateReducer::default();
                 for state in states.into_states() {
-                    self.evaluate_local_requirement(requirement, state, discoveries, &mut result);
+                    self.evaluate_local_requirement(
+                        requirement,
+                        world,
+                        state,
+                        discoveries,
+                        &mut result,
+                    );
                 }
                 return result;
             }
@@ -352,12 +407,16 @@ impl Interpreter<'_> {
     fn evaluate_local_requirement(
         &self,
         requirement: &Requirement,
+        world: World,
         mut state: LocalState,
         discoveries: &mut GlobalDiscoveries,
         result: &mut LocalStateReducer,
     ) {
         let succeeds = match requirement {
             Requirement::UseAmmo { kind, count } => {
+                if !self.can_use_y_items(world) {
+                    return;
+                }
                 let (usage, capacity) = match kind {
                     Ammo::Arrow | Ammo::SilverArrow => {
                         if !self.global.unique_items[UniqueItem::Bow as usize]
@@ -381,6 +440,9 @@ impl Interpreter<'_> {
                 cost_per_use,
                 num_uses,
             } => {
+                if !self.can_use_y_items(world) {
+                    return;
+                }
                 let half_magic = self.global.unique_items[UniqueItem::HalfMagic as usize];
                 let divisor = if half_magic { 2 } else { 1 };
                 let cost_per_use = u64::from(*cost_per_use);
@@ -496,7 +558,9 @@ impl Interpreter<'_> {
                     }
                     Resource::BottleContent(BottleContent::Bee | BottleContent::GoldBee) => {}
                     Resource::BottleContent(BottleContent::Fairy) => {
-                        if self.global.unique_items[UniqueItem::BugCatchingNet as usize] {
+                        if self.can_use_y_items(world)
+                            && self.global.unique_items[UniqueItem::BugCatchingNet as usize]
+                        {
                             discoveries.refills.fairy = !self.global.refills.fairy;
                         }
                     }

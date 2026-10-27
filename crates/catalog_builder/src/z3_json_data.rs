@@ -282,11 +282,10 @@ pub enum StratWorld {
     Any,
 }
 
-#[derive(Clone, Copy, Default, Deserialize)]
+#[derive(Clone, Copy, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Bunny {
     Yes,
-    #[default]
     No,
     Any,
 }
@@ -339,8 +338,7 @@ pub struct Strat {
     pub world: Option<StratWorld>,
     pub from_world: Option<SourceWorld>,
     pub to_world: Option<SourceWorld>,
-    #[serde(default)]
-    pub is_bunny: Bunny,
+    pub is_bunny: Option<Bunny>,
     pub sets_follower: Option<Follower>,
     pub follower_complete: Option<Follower>,
     pub entrance_state: Option<Event>,
