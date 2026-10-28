@@ -1,0 +1,1 @@
+$86E81A-$86E81D overworld_map16_properties.asm (sprite tile collision lookup hook)
