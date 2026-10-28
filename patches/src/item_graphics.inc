@@ -65,13 +65,10 @@ org $9DDF81
 hook_draw_water_item:
     JSL DrawWaterItem
 
-; These callers use JSR. Their helpers return through the original bank's RTS.
+; This caller uses JSR. Its helper returns through the original bank's RTS.
 org $85F67B
 hook_draw_powder_item:
     JML DrawPowderItem
-org $858DA8
-hook_draw_pedestal_item:
-    JML DrawPedestalItem
 
 ; The Grove carrier already uses the shared item image and one 16x16 OBJ.
 org $88D045
@@ -620,78 +617,8 @@ DrawPowderItem:
 .done
     JML $85F68D
 
-DrawPedestalItem:
-    JSL DrawPickupWithoutShadow
-    LDY.b #$01
-    LDA.b ($90),Y
-    CMP.b #$F0
-    BEQ .done
-    ; Retain the pedestal's bottom two 8x8 tiles, underneath the item image.
-    LDY.b #$04
-    LDA.b $00
-    SEC
-    SBC.b #$08
-    STA.b ($90),Y
-    INY
-    LDA.b $02
-    CLC
-    ADC.b #$08
-    STA.b ($90),Y
-    INY
-    LDA.b #$E0
-    STA.b ($90),Y
-    INY
-    LDA.b $05
-    STA.b ($90),Y
-    INY
-    LDA.b $00
-    STA.b ($90),Y
-    INY
-    LDA.b $02
-    CLC
-    ADC.b #$08
-    STA.b ($90),Y
-    INY
-    LDA.b #$F0
-    STA.b ($90),Y
-    INY
-    LDA.b $05
-    STA.b ($90),Y
-    LDY.b #$02
-    LDA.b $01
-    AND.b #$01
-    STA.b ($92),Y
-    DEY
-    LDA.b $00
-    CMP.b #$08
-    LDA.b $01
-    SBC.b #$00
-    AND.b #$01
-    STA.b ($92),Y
-    ; Position the replacement image where the upper four sword tiles were.
-    LDY.b #$00
-    LDA.b $00
-    SEC
-    SBC.b #$08
-    STA.b ($90),Y
-    LDA.b $01
-    SBC.b #$00
-    AND.b #$01
-    ORA.b #$02
-    STA.b ($92)
-    INY
-    LDA.b $02
-    SEC
-    SBC.b #$08
-    STA.b ($90),Y
-    LDA.l $8589B0
-    JSL DrawSharedPickup
-.done
-    JML $858DD7
-
-; These two vanilla carriers have custom drawers without a shadow. Temporarily
-; suppress the generic drawer's shadow so it leaves the body coordinates intact
-; and stays within their original OAM allocations. Restore the sprite flags.
+; Powder's custom drawer has no shadow. Temporarily suppress the generic drawer's
+; shadow to preserve its body coordinates and OAM allocation. Restore sprite flags.
 DrawPickupWithoutShadow:
     LDA.w $0E60,X
     PHA
