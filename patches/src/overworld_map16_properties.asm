@@ -6,6 +6,9 @@ lorom
 
 incsrc "symbols.inc"
 
+!free_space_bank_a0_start = $A08000
+!free_space_bank_a0_end = $A08040
+
 ; Vanilla has already loaded the Map16 ID into A.
 ;
 ; Inputs:
@@ -92,6 +95,26 @@ org $9BC027
     RTL
 assert pc() <= $9BC03D
 
-; Let ordinary sprites walk through shallow water while preserving its water behavior.
-org $9DF6D8
-    db $00
+; Patch sprite tile interaction to allow enemies walk through shallow water.
+org $86E81A
+hook_sprite_tile_collision:
+    JSL ReadSpriteTileInteraction
+assert pc() == $86E81E
+
+org !free_space_bank_a0_start
+
+; The caller has saved the sprite slot and put the tile type in X. A/X/Y are
+; 8-bit; preserve X/Y and use no scratch RAM. The caller compares A afterward.
+ReadSpriteTileInteraction:
+    CPX.b #$09
+    BNE .vanilla
+    LDA.b $1B
+    BNE .vanilla
+
+    LDA.b #$00
+    RTL
+
+.vanilla
+    LDA.l $9DF6CF,X          ; Run hi-jacked instruction
+    RTL
+assert pc() <= !free_space_bank_a0_end

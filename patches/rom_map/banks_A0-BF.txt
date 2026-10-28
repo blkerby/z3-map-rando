@@ -1,5 +1,6 @@
 Bank $A0
-$A08000-$A0803F [FREE]
+$A08000-$A0800F overworld_map16_properties.asm (overworld-only shallow-water sprite collision)
+$A08010-$A0803F [FREE]
 $A08040-$A08057 fastrom_extra.asm (FastROM startup and NMI entry)
 $A08058-$A0807F [FREE]
 $A08080-$A080FD mirror_bg1_hdma.asm (independent BG1 mirror-wave HDMA table)
