@@ -157,6 +157,11 @@ hook_choose_crystal_backdrop:
     JML ChooseCrystalBackdrop
 org $8297A4
 return_build_crystal_backdrop:
+org $9ECDCB
+hook_position_crystal_cutscene:
+    JML PositionCrystalCutscene
+org $9ECDD2
+return_position_crystal_cutscene:
 org $9ECEC8
 hook_choose_crystal_speech:
     JML ShowCrystalSpeech
@@ -519,6 +524,37 @@ ChooseCrystalBackdrop:
     dw $1618,$1658,$1658,$1618,$0658,$1618,$1658
     ; Eastern/Desert use quadrant centers; Hera's prize falls at room center.
     dw $1658,$1618,$0EBA
+
+PositionCrystalCutscene:
+    ; Hera's centered backdrop and parallax need their own scroll and maiden origin.
+    ; A is 16-bit and X/Y are 8-bit; clearing all sprites put the maiden in slot $0F.
+    LDA.b $A0
+    CMP.w #$0007
+    BNE .finish
+    LDA.w #$0F00
+    SEC
+    SBC.b $22
+    STA.w $0422
+    LDA.w #$00B8 ; Backdrop center $0108 minus screen Y $0050.
+    SEC
+    SBC.b $E8
+    STA.w $0424
+    SEP #$20
+    LDA.b #$00
+    STA.w $0D1F
+    LDA.b #$0F
+    STA.w $0D3F
+    LDA.b #$04
+    STA.w $0D0F
+    LDA.b #$01
+    STA.w $0D2F
+.finish
+    ; Run hi-jacked instructions:
+    SEP #$30
+    LDA.b #$01
+    STA.w $0428
+
+    JML return_position_crystal_cutscene
 
 ShowCrystalSpeech:
     ; Vanilla indexes maiden messages by the dungeon, which is invalid when
