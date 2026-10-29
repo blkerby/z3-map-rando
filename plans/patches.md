@@ -125,6 +125,7 @@ The builder packages the typed manifest alongside the assembled IPS bytes. The s
 
 ### Overworld map and gameplay
 
+- `mothula_sword.asm` gives L4 the same damage as L3 against Mothula: 8 HP for slashes/dashes, 4 HP for pokes, and zero for spins.
 - `overworld_map_data.asm` replaces Map32 with flat, four-quadrant Map16 screen and overlay maps in WRAM.
 - `overworld_map16_graphics.asm` expands Map16 graphical definitions to four banks and makes map construction, stripe generation, dynamic changes, and animated doors use them.
 - `overworld_map16_properties.asm` gives each Map16 quadrant an independent property used by collision, terrain, hammer, and liftable-tile behavior.

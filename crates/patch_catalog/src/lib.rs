@@ -68,6 +68,7 @@ pub struct PatchIps {
     pub fastrom_extra: Ips,
     pub item_placements: Ips,
     pub mirror_bg1_hdma: Ips,
+    pub mothula_sword: Ips,
     pub nmi_optimize: Ips,
     pub new_game: Ips,
     pub overworld_animations: Ips,
