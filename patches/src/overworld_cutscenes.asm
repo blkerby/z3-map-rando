@@ -16,7 +16,7 @@
 ;
 ; Direct-page scratch used here:
 ;   $07-$09  24-bit generated-data pointer
-;   $0A-$0B  Overlay mode: zero updates WRAM only, nonzero also queues VRAM
+;   $0A-$0B  Write mode: zero updates WRAM only, nonzero queues a rectangle
 ;   $0E-$0F  16-bit write count
 
 lorom
@@ -207,52 +207,9 @@ RunGeneratedEntranceCutscene:
     INY                        ; Advance to the first offset/ID pair.
     REP #$30                   ; Offsets, IDs, X, and Y are all 16-bit.
 
-    LDA.l !CutsceneRedrawPending
-    BNE .next_write
-    LDA.w #$FFFF
-    STA.l !CutsceneRedrawMinX
-    STA.l !CutsceneRedrawMinY
-    LDA.w #$0000
-    STA.l !CutsceneRedrawMaxX
-    STA.l !CutsceneRedrawMaxY
-    INC A
-    STA.l !CutsceneRedrawPending
-
-.next_write
-    LDA.b [$07],Y              ; Read the $7E2000-relative Map16 offset.
-    TAX
-    INY
-    INY
-    LDA.b [$07],Y              ; Read the generated Map16 ID.
-    INY
-    INY
-    STA.l $7E2000,X
-
-    TXA
-    AND.w #$007E               ; Map16 byte column is also its 8x8 X coordinate.
-    CMP.l !CutsceneRedrawMinX
-    BCS +
-    STA.l !CutsceneRedrawMinX
-+   CMP.l !CutsceneRedrawMaxX
-    BCC +
-    STA.l !CutsceneRedrawMaxX
-+   TXA
-    LSR A
-    LSR A
-    LSR A
-    LSR A
-    LSR A
-    LSR A
-    AND.w #$007E               ; Two 8x8 rows per logical Map16 row.
-    CMP.l !CutsceneRedrawMinY
-    BCS +
-    STA.l !CutsceneRedrawMinY
-+   CMP.l !CutsceneRedrawMaxY
-    BCC +
-    STA.l !CutsceneRedrawMaxY
-+
-    DEC.b $0E                  ; Continue until all pairs are consumed.
-    BNE .next_write
+    LDA.w #$0001
+    STA.b $0A                  ; Live script writes also request a redraw.
+    JSR ApplyGeneratedMap16Writes
 
     SEP #$20                   ; Opcodes are bytes; keep Y 16-bit.
     JMP .next_action
@@ -335,7 +292,7 @@ RunGeneratedEntranceCutscene:
     RTL
 
 ; Apply an area's completed-event overlay while its Map16 buffer is loading.
-; Apply only generated data, without queuing redundant VRAM stripes during
+; Apply only generated data, without queuing redundant VRAM transfers during
 ; the load. Missing generated records remain no-ops until coverage validation
 ; is added after the overlay audit.
 ApplyGeneratedOverworldOverlay:
@@ -344,15 +301,15 @@ ApplyGeneratedOverworldOverlay:
     BRA ProcessGeneratedOverworldOverlay
 
 ; Apply the current area's generated overlay while it is already visible.
-; The shared processor updates the Map16 buffer and queues each changed cell
-; for VRAM upload. This is the generic entry point for live overworld events.
+; The shared processor updates the Map16 buffer and queues a rectangle for
+; the shared streamer. This is the generic entry point for live events.
 DrawGeneratedOverworldOverlay:
     REP #$20                   ; Store the processor's 16-bit mode flag.
     LDA.w #$0001
-    STA.b $0A                  ; Nonzero selects immediate drawing.
+    STA.b $0A                  ; Nonzero requests a streamed redraw.
 
 ; Read and apply the generated overlay record for the current area in $8A.
-; Entry: $0A word is zero for buffer-only or nonzero for immediate drawing.
+; Entry: $0A word is zero for buffer-only or nonzero for a streamed redraw.
 ; Exit: A, X, and Y are 8-bit; $0E-$0F are preserved. A missing pointer is a
 ; successful no-op.
 ProcessGeneratedOverworldOverlay:
@@ -380,31 +337,7 @@ ProcessGeneratedOverworldOverlay:
     STZ.b $0F                  ; Extend it for a 16-bit decrement below.
     INY                        ; Advance to the first offset/ID pair.
     REP #$20                   ; Map16 offsets and IDs are words.
-
-.next_overlay_write
-    LDA.b [$07],Y              ; Read the $7E2000-relative Map16 offset.
-    TAX
-    INY
-    INY
-    LDA.b [$07],Y              ; Read the generated Map16 ID.
-    STA.l $7E2000,X            ; Always update the logical Map16 buffer.
-    PHA                        ; Preserve the ID while testing draw mode.
-    LDA.b $0A
-    BEQ .skip_draw             ; Area loading needs no immediate VRAM update.
-    PLA                        ; Restore the Map16 ID expected by DrawMap16.
-    PHY                        ; Preserve the generated-record cursor.
-    JSL $9BC980                ; DrawMap16: queue this cell's VRAM stripes.
-    PLY
-    BRA .write_done
-
-.skip_draw
-    PLA                        ; Balance the saved Map16 ID.
-
-.write_done
-    INY                        ; Advance past the Map16 ID.
-    INY
-    DEC.b $0E                  ; Continue until all pairs are consumed.
-    BNE .next_overlay_write
+    JSR ApplyGeneratedMap16Writes
 
 .no_generated_overlay
     REP #$20
@@ -413,9 +346,66 @@ ProcessGeneratedOverworldOverlay:
     SEP #$30                   ; Restore the caller's expected register widths.
     RTL
 
+; Apply the count in $0E from [$07],Y. Keep 16-bit A/X/Y and leave Y after
+; the last pair. Live writes share one redraw rectangle with cutscene writes.
+ApplyGeneratedMap16Writes:
+    LDA.b $0A
+    BEQ .next_write
+    LDA.l !CutsceneRedrawPending
+    BNE .next_write
+    LDA.w #$FFFF
+    STA.l !CutsceneRedrawMinX
+    STA.l !CutsceneRedrawMinY
+    LDA.w #$0000
+    STA.l !CutsceneRedrawMaxX
+    STA.l !CutsceneRedrawMaxY
+    INC A
+    STA.l !CutsceneRedrawPending
+
+.next_write
+    LDA.b [$07],Y              ; Read the $7E2000-relative Map16 offset.
+    TAX
+    INY
+    INY
+    LDA.b [$07],Y              ; Read the generated Map16 ID.
+    INY
+    INY
+    STA.l $7E2000,X
+
+    LDA.b $0A
+    BEQ .write_done
+    TXA
+    AND.w #$007E               ; Map16 byte column is also its 8x8 X coordinate.
+    CMP.l !CutsceneRedrawMinX
+    BCS +
+    STA.l !CutsceneRedrawMinX
++   CMP.l !CutsceneRedrawMaxX
+    BCC +
+    STA.l !CutsceneRedrawMaxX
++   TXA
+    LSR A
+    LSR A
+    LSR A
+    LSR A
+    LSR A
+    LSR A
+    AND.w #$007E               ; Two 8x8 rows per logical Map16 row.
+    CMP.l !CutsceneRedrawMinY
+    BCS +
+    STA.l !CutsceneRedrawMinY
++   CMP.l !CutsceneRedrawMaxY
+    BCC +
+    STA.l !CutsceneRedrawMaxY
++
+.write_done
+    DEC.b $0E                  ; Continue until all pairs are consumed.
+    BNE .next_write
+
+    RTS
+
 ; Finish the live Bird Statue event. The generic draw entry point replaces
 ; vanilla's hard-coded weather-vane Map16 IDs with this theme's generated
-; overlay, then the original persistence and NMI signals are reproduced.
+; overlay, then the original persistence is reproduced.
 BreakGeneratedBirdStatue:
     JSL DrawGeneratedOverworldOverlay ; Draw all generated Bird Statue cells.
 
@@ -424,13 +414,11 @@ BreakGeneratedBirdStatue:
     LDA.l $7EF280,X
     ORA.b #$20                 ; Persist the completed overworld event.
     STA.l $7EF280,X
-    LDA.b #$01
-    STA.b $14                  ; Ask NMI to upload the queued VRAM stripes.
     RTL
 
 ; Finish the live Thieves' Town opening event. The generic draw entry point
 ; replaces vanilla's hard-coded entrance Map16 IDs with this theme's generated
-; overlay, then the original persistence, sound, and NMI signals are reproduced.
+; overlay, then the original persistence and sound are reproduced.
 OpenGeneratedThievesTown:
     JSL DrawGeneratedOverworldOverlay ; Draw the generated entrance cells.
 
@@ -441,8 +429,6 @@ OpenGeneratedThievesTown:
     STA.l $7EF280,X
     LDA.b #$1B
     STA.w $012F                ; Play the vanilla opening sound on channel 3.
-    LDA.b #$01
-    STA.b $14                  ; Ask NMI to upload the queued VRAM stripes.
     RTL
 
 ; Draw the live peg-puzzle entrance with generated Map16. The caller has
@@ -454,8 +440,6 @@ DrawGeneratedHiddenStairs:
     INC.w $0690                ; Match DoMap32Update's state advance.
     STZ.w $0692                ; Match DoMap32Update_long's cleanup.
     SEP #$20                   ; Restore the caller's 8-bit accumulator.
-    LDA.b #$01
-    STA.b $14                  ; Ask NMI to upload the queued VRAM stripes.
     RTL
 
 assert pc() <= !free_space_bank_a0_end

@@ -2192,8 +2192,8 @@ BG1StreamVertical:
     PLP
     RTL
 
-; Append visible cutscene cells after both layers' edge updates. The segment
-; emitter preserves $00/$02/$04/$0C/$0E, so those hold our window and bounds.
+; Append visible cutscene and live-overlay cells after both layers' edge updates.
+; The segment emitter preserves $00/$02/$04/$0C/$0E for the window and bounds.
 AppendCutsceneRedraw:
     LDA.l !CutsceneRedrawPending
     BNE .draw
