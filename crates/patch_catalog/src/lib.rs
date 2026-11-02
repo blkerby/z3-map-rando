@@ -66,6 +66,8 @@ pub struct PatchIps {
     pub bg3_tilemap: Ips,
     pub fastrom_base: Ips,
     pub fastrom_extra: Ips,
+    pub item_inventory: Ips,
+    pub item_menu_toggle: Ips,
     pub item_placements: Ips,
     pub mirror_bg1_hdma: Ips,
     pub mothula_sword: Ips,

@@ -10,6 +10,8 @@ pub(crate) fn apply_items(
     placements: &[ItemPlacement],
     catalog: &PatchCatalog,
 ) -> Result<()> {
+    patcher.use_ips(&catalog.patches.item_inventory)?;
+    patcher.use_ips(&catalog.patches.item_menu_toggle)?;
     patcher.use_ips(&catalog.patches.item_placements)?;
     for placement in placements {
         let location = &catalog.item_locations[&placement.item_location_id];

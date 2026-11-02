@@ -1,4 +1,5 @@
-; Randomized items use vanilla receipt behavior and assigned pickup graphics.
+; Randomized items use vanilla receipts with shared-slot ownership tracking
+; and assigned pickup graphics.
 ; Chest bytes are patched directly. Other carriers retain their own identity
 ; and collection flag while reading a separate assigned item.
 ;

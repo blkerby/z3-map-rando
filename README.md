@@ -51,7 +51,7 @@ This invokes the existing cached builder for all three catalogs, including ASM a
 
 Generation uses the selected tech, proficiency, and notable settings and requires all item locations to be filled and logically collected. Each complete attempt assigns door-specific Small Keys at vanilla key locations, shuffles prizes among prize locations, and fills collectible slots in waves, prioritizing dungeon Maps and Compasses. Rejected candidates retry within the current wave; a failed complete attempt restarts with fresh keys. Big Keys and Waterfall/Pyramid fairy exchanges stay fixed. Saved placements contain typed logical items, including Small Key door identities. The selected theme is recorded for each supported area, with vanilla positions and connections implicit.
 
-Progressive swords, shields, gloves, mail, and boomerangs upgrade one level per pickup, capped at the highest tier. Visible pickups show the next upgrade. ROM behavior still differs from the logical model: keys and fairy exchanges use vanilla behavior. Silver Arrows uses Bow and Silver Arrows, which also grants the bow. Equipment receipt messages retain vanilla text pending replacement. The CLI and patcher library apply the saved layout and items using the current patch catalog. See [the CLI design](plans/cli.md) for bundled builds and argument behavior.
+Progressive swords, shields, gloves, mail, and boomerangs upgrade one level per pickup, capped at the highest tier. Visible pickups show the next upgrade. When both are owned, highlight Mushroom/Powder or Shovel/Ocarina in the item menu and press Y to switch between them. Shared-slot ownership is saved at `$7EF38C` using ALTTPR's tracker-compatible bit layout. ROM behavior still differs from the logical model: keys and fairy exchanges use vanilla behavior. Silver Arrows uses Bow and Silver Arrows, which also grants the bow. Equipment receipt messages retain vanilla text pending replacement. The CLI and patcher library apply the saved layout and items using the current patch catalog. See [the CLI design](plans/cli.md) for bundled builds and argument behavior.
 
 # How to test current engine changes
 
@@ -115,6 +115,8 @@ compression_level = 18
 # How to build the patch catalog
 
 The patch catalog bundles the separate IPS patches, their typed symbol manifest, and item/location patching data read directly from `z3-json-data`. It uses the same streaming Zstd-compressed bincode format as the other catalogs and requires neither a ROM nor a generated logic catalog.
+
+Shared-slot ownership (`item_inventory.asm`) and pause-menu Y-button switching (`item_menu_toggle.asm`) are separate patches. The patcher currently applies both; a future menu can replace the toggle patch while reusing the ownership byte defined in `symbols.inc`.
 
 From the repository root:
 

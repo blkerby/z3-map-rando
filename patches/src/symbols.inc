@@ -6,6 +6,11 @@ macro export_symbol(internal_name, exported_name, value)
     export_<exported_name> = <value>
 endmacro
 
+; ALTTPR-compatible saved ownership, separate from the selected vanilla items.
+; $80 blue boomerang, $40 red boomerang, $20 current mushroom, $10 powder,
+; $08 past mushroom, $04 shovel, $02 inactive ocarina, $01 active ocarina.
+!InventoryTracking = $7EF38C
+
 ; Items for the vanilla thrown-gift sprites, whose subtype remains unchanged.
 %export_symbol(CatfishItem, catfish_item, $B08040)
 %export_symbol(KingZoraItem, king_zora_item, $B08041)
