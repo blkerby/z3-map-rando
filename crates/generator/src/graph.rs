@@ -5,7 +5,8 @@ use common_types::allows_frog_dwarf;
 use hashbrown::{HashMap, HashSet};
 use logic_catalog::{
     Connection, Edge, EdgeIndex, Effect, EntranceIndex, EntranceKind, EventEndpoint, Follower,
-    FollowerMask, LogicCatalog, NodeType, Requirement, RoomKind, UniqueItem, VertexIndex, World,
+    FollowerMask, LogicCatalog, NodeType, OverheadClass, Requirement, RoomKind, TransitionState,
+    UniqueItem, VertexIndex, VertexOrigin, World,
 };
 
 #[derive(Debug)]
@@ -52,13 +53,14 @@ impl ConnectionEndpoint {
         if self.entrance_idx != event.entrance_idx {
             return false;
         }
-        // Entrance indices identify overworld endpoints. Interior endpoints are
-        // identified by the owning room and node, not the extra event vertex index.
+        // State vertices share the ordinary endpoint's room, node, and world.
         self.entrance_idx.is_some()
             || (catalog.vertex(self.vertex_idx).room_idx
                 == catalog.vertex(event.vertex_idx).room_idx
                 && catalog.vertex_metadata(self.vertex_idx).node_idx
-                    == catalog.vertex_metadata(event.vertex_idx).node_idx)
+                    == catalog.vertex_metadata(event.vertex_idx).node_idx
+                && catalog.vertex_metadata(self.vertex_idx).world
+                    == catalog.vertex_metadata(event.vertex_idx).world)
     }
 }
 
@@ -260,15 +262,46 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                 },
                 TraversalEdgeOrigin::Connection(connection_idx),
             );
-            if !matches!(connection, Connection::Entrance { .. }) {
+            if !matches!(
+                connection,
+                Connection::Entrance { .. } | Connection::ScreenBoundary { .. }
+            ) {
                 continue;
             }
             for exit in &catalog.event_exits {
                 if !from.match_event(catalog, exit) {
                     continue;
                 }
+                let state = catalog.get_transition_state(exit.event_idx);
+                match (state, connection) {
+                    (TransitionState::Event(_), Connection::Entrance { .. })
+                    | (TransitionState::Overhead(_), Connection::ScreenBoundary { .. }) => {}
+                    (TransitionState::LeaveNormally, Connection::ScreenBoundary { .. }) => {
+                        graph.add_edge(
+                            catalog,
+                            &interior_worlds,
+                            Edge {
+                                from_vertex_idx: exit.vertex_idx,
+                                to_vertex_idx: to.vertex_idx,
+                                requirement: requirement.clone(),
+                                effects: Box::new([]),
+                            },
+                            TraversalEdgeOrigin::Connection(connection_idx),
+                        );
+                        continue;
+                    }
+                    _ => continue,
+                }
                 for entry in &catalog.event_entries {
-                    if exit.event_idx == entry.event_idx && to.match_event(catalog, entry) {
+                    let compatible = exit.event_idx == entry.event_idx
+                        || matches!(
+                            (state, catalog.get_transition_state(entry.event_idx)),
+                            (
+                                TransitionState::Overhead(OverheadClass::Class3),
+                                TransitionState::Overhead(OverheadClass::Class1)
+                            )
+                        );
+                    if compatible && to.match_event(catalog, entry) {
                         graph.add_edge(
                             catalog,
                             &interior_worlds,
@@ -287,6 +320,15 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
     }
 
     for index in 0..catalog.vertices.len() {
+        // A forced-exit strat cannot finish until it crosses the screen boundary.
+        if let VertexOrigin::EventExit { event_idx } = catalog.vertex_metadata[index].origin {
+            if matches!(
+                catalog.get_transition_state(event_idx),
+                TransitionState::LeaveNormally
+            ) {
+                continue;
+            }
+        }
         graph.add_edge(
             catalog,
             &interior_worlds,

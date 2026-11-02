@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use logic_catalog::{Direction, NodeType, ProficiencyTier, RoomKind, World};
+use logic_catalog::{Direction, NodeType, OverheadClass, ProficiencyTier, RoomKind, World};
 use serde::{Deserialize, de::DeserializeOwned};
 use std::{
     fs,
@@ -341,16 +341,24 @@ pub struct Strat {
     pub is_bunny: Option<Bunny>,
     pub sets_follower: Option<Follower>,
     pub follower_complete: Option<Follower>,
-    pub entrance_state: Option<Event>,
-    pub exit_state: Option<Event>,
+    pub entrance_state: Option<TransitionState>,
+    pub exit_state: Option<TransitionState>,
 }
 
 #[derive(Deserialize)]
-pub struct Event {
-    #[serde(rename = "type")]
-    pub name: String,
-    #[serde(rename = "entranceID")]
-    pub entrance_id: Option<u32>,
+#[serde(tag = "state", rename_all = "camelCase")]
+pub enum TransitionState {
+    Event {
+        #[serde(rename = "type")]
+        name: String,
+        #[serde(rename = "entranceID")]
+        entrance_id: Option<u32>,
+    },
+    Overhead {
+        #[serde(rename = "type")]
+        class: OverheadClass,
+    },
+    LeaveNormally,
 }
 
 #[derive(Deserialize)]

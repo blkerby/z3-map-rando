@@ -177,8 +177,8 @@ pub struct LogicCatalog {
     pub notables: Vec<NotableDefinition>,
     pub flags: Vec<String>,
     pub doors: Vec<Door>,
-    /// Names used to match event-exit and event-entry endpoints across connections.
-    pub events: Vec<String>,
+    /// Temporary states and forced exits used across room connections.
+    pub events: Vec<TransitionState>,
     pub entrances: Vec<Entrance>,
     pub screen_boundaries: Vec<ScreenBoundary>,
     pub teleports: Vec<Teleport>,
@@ -234,7 +234,7 @@ impl LogicCatalog {
         &self.doors[door_idx.0 as usize]
     }
 
-    pub fn event(&self, event_idx: EventIndex) -> &str {
+    pub fn get_transition_state(&self, event_idx: EventIndex) -> &TransitionState {
         &self.events[event_idx.0 as usize]
     }
 
@@ -409,15 +409,28 @@ pub struct FluteSpot {
     pub location: u8,
 }
 
-/// An extra entry or exit vertex for one event at a physical room endpoint.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum TransitionState {
+    Event(String),
+    Overhead(OverheadClass),
+    LeaveNormally,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OverheadClass {
+    Class1,
+    Class3,
+}
+
+/// An extra entry or exit vertex for one state at a physical room endpoint.
 /// Its room and metadata's node and world match the ordinary endpoint vertex,
 /// but its index is distinct. Generation matches the physical connection and event.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct EventEndpoint {
     pub vertex_idx: VertexIndex,
     pub event_idx: EventIndex,
-    /// Overworld entrance; `None` identifies the interior door by the vertex's
-    /// room and its metadata's node index.
+    /// Overworld entrance; otherwise match the vertex's room, node, and world.
     pub entrance_idx: Option<EntranceIndex>,
 }
 
@@ -739,6 +752,8 @@ pub fn compute_schema_hash() -> Result<u64> {
         tracer.trace_simple_type::<RoomKind>()?;
         tracer.trace_simple_type::<World>()?;
         tracer.trace_simple_type::<VertexOrigin>()?;
+        tracer.trace_simple_type::<TransitionState>()?;
+        tracer.trace_simple_type::<OverheadClass>()?;
         tracer.trace_simple_type::<NodeType>()?;
         tracer.trace_simple_type::<Direction>()?;
         tracer.trace_simple_type::<Connection>()?;

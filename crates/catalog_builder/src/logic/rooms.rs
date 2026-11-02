@@ -2,11 +2,14 @@ use super::{RoomIndices, requirements::Compiler};
 use crate::z3_json_data::{self, collect_source_files, read_source};
 use anyhow::{Context, Result};
 use logic_catalog::*;
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
+};
 
 #[derive(Default)]
 struct EventVertices {
-    indices: BTreeMap<String, EventIndex>,
+    indices: BTreeMap<TransitionState, EventIndex>,
     entry_vertices: BTreeMap<(VertexIndex, EventIndex, Option<EntranceIndex>), VertexIndex>,
     exit_vertices: BTreeMap<(VertexIndex, EventIndex, Option<EntranceIndex>), VertexIndex>,
 }
@@ -299,15 +302,23 @@ fn compile_room_strats(
                 (&strat.exit_state, ordinary_to, to_world, false),
             ] {
                 if let Some(event) = event {
-                    let event_idx =
-                        *events.indices.entry(event.name.clone()).or_insert_with(|| {
-                            let idx = EventIndex(catalog.events.len() as u32);
-                            catalog.events.push(event.name.clone());
-                            idx
-                        });
-                    let entrance_idx = event
-                        .entrance_id
-                        .map(|id| indices.entrances[&(id, world.unwrap())]);
+                    let (state, entrance_idx) = match event {
+                        z3_json_data::TransitionState::Event { name, entrance_id } => (
+                            TransitionState::Event(name.clone()),
+                            entrance_id.map(|id| indices.entrances[&(id, world.unwrap())]),
+                        ),
+                        z3_json_data::TransitionState::Overhead { class } => {
+                            (TransitionState::Overhead(*class), None)
+                        }
+                        z3_json_data::TransitionState::LeaveNormally => {
+                            (TransitionState::LeaveNormally, None)
+                        }
+                    };
+                    let event_idx = *events.indices.entry(state.clone()).or_insert_with(|| {
+                        let idx = EventIndex(catalog.events.len() as u32);
+                        catalog.events.push(state);
+                        idx
+                    });
                     let vertex_idx = add_event_vertex(
                         catalog,
                         if is_entry {
@@ -336,6 +347,63 @@ fn compile_room_strats(
                 to_vertex_idx,
                 requirement: Requirement::make_and(vec![bunny_requirement, requirement.clone()]),
                 effects: effects.clone().into_boxed_slice(),
+            });
+            catalog.edge_metadata.push(EdgeMetadata {
+                origin: EdgeOrigin::Strat {
+                    room_idx,
+                    strat_idx,
+                },
+            });
+        }
+    }
+    let mut boundary_vertices = BTreeSet::new();
+    for boundary in &catalog.screen_boundaries {
+        if catalog.vertex(boundary.vertex_idx).room_idx == room_idx {
+            boundary_vertices.insert(boundary.vertex_idx);
+        }
+    }
+    for ordinary_idx in boundary_vertices {
+        for class in [OverheadClass::Class1, OverheadClass::Class3] {
+            let state = TransitionState::Overhead(class);
+            let event_idx = *events.indices.entry(state.clone()).or_insert_with(|| {
+                let idx = EventIndex(catalog.events.len() as u32);
+                catalog.events.push(state);
+                idx
+            });
+            let from_vertex_idx = add_event_vertex(
+                catalog,
+                &mut events.entry_vertices,
+                ordinary_idx,
+                event_idx,
+                None,
+                true,
+            );
+            let to_vertex_idx = add_event_vertex(
+                catalog,
+                &mut events.exit_vertices,
+                ordinary_idx,
+                event_idx,
+                None,
+                false,
+            );
+            let strat_idx = StratIndex(room.strats.len() as u32);
+            room.strats.push(StratMetadata {
+                name: match class {
+                    OverheadClass::Class1 => "Return with Weak Overhead Object",
+                    OverheadClass::Class3 => "Return with Strong Overhead Object",
+                }
+                .to_owned(),
+            });
+            catalog.edges.push(Edge {
+                from_vertex_idx,
+                to_vertex_idx,
+                requirement: compiler.compile_requirements(
+                    &[z3_json_data::Requirement::Named(
+                        "canCrossRoomOverheadPickups".to_owned(),
+                    )],
+                    indices,
+                ),
+                effects: Box::new([]),
             });
             catalog.edge_metadata.push(EdgeMetadata {
                 origin: EdgeOrigin::Strat {
