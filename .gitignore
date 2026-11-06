@@ -2,4 +2,5 @@
 /build/
 /catalog-build.toml
 /seeds
+/maps/
 *.sfc
