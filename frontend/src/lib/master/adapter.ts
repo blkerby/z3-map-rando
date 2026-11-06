@@ -1,0 +1,160 @@
+import type { Group, Preset, Setting, Value } from '$lib/settings/types';
+import { isLeaf, labelOf, nodeKey, type LeafNode, type MasterData, type MasterNode } from './master';
+
+export interface Schema {
+	/** What the settings store renders: one group (card) per master section. */
+	groups: Group[];
+	/** The first difficulty (e.g. "Basic", the same as the defaults) first, then one preset per difficulty, then any hand-written ones from the master file. */
+	presets: Preset[];
+	/** Hidden settings and their fixed values. Not shown, not in links, but sent to the server. */
+	hidden: Record<string, Value>;
+}
+
+/** Display hints a node passes down to everything below it. */
+interface Look {
+	layout?: 'list' | 'grid';
+	/** Sub-headings already say the difficulty, so rows don't repeat it as a tag. */
+	hideBadge?: boolean;
+}
+
+/** A node's own display hints win over what it inherited. */
+function inherit(n: { layout?: 'list' | 'grid' }, look: Look): Look {
+	return { ...look, layout: n.layout ?? look.layout };
+}
+
+/** Turn the master file into the groups and presets the settings store already understands. */
+export function buildSchema(master: MasterData): Schema {
+	const groups: Group[] = [];
+	const hidden: Record<string, Value> = {};
+	const leaves: LeafNode[] = []; // visible leaves, for preset derivation
+	const seen = new Set<string>();
+
+	function toSetting(n: LeafNode, key: string, path: string[], look: Look): Setting {
+		const heading = path.length ? path.join(' › ') : undefined;
+		const base = { id: key, label: labelOf(n), help: n.desc, notes: n.notes, heading, headingPath: path.length ? path : undefined, layout: look.layout };
+		switch (n.type) {
+			case 'toggle': {
+				const ranked = n.difficulty && master.difficulties.includes(n.difficulty);
+				return { ...base, kind: 'toggle', default: n.default, badge: ranked && !look.hideBadge ? n.difficulty : undefined };
+			}
+			case 'count':
+				if (n.calculated) return { ...base, kind: 'calculated', weight: n.default, min: n.min, max: n.max };
+				if (n.max === undefined) throw new Error(`master_data: count "${key}" needs a max (only calculated counts may omit it)`);
+				return { ...base, kind: 'number', display: 'input', min: n.min, max: n.max, step: n.step ?? 1, default: n.default };
+			case 'choice':
+				return {
+					...base,
+					kind: 'choice',
+					display: n.display,
+					default: n.default,
+					options: n.options.map((o) => ({ value: o.value, label: o.label ?? o.value, desc: o.desc }))
+				};
+			case 'level':
+				return {
+					...base,
+					kind: 'level',
+					default: n.default,
+					levels: n.levels.map((l) => ({ value: l.level, label: l.label ?? l.difficulty }))
+				};
+		}
+	}
+
+	function collect(nodes: MasterNode[], path: string[], out: Setting[], sectionTitle: string, look: Look) {
+		for (const n of nodes) {
+			if (n.type === 'section') {
+				collect(n.children, path, out, sectionTitle, inherit(n, look));
+			} else if (n.type === 'group' && n.groupBy === 'difficulty') {
+				// One heading per difficulty in ladder order (anything off the ladder goes last). Under each,
+				// the group's own leaves, then each child group's leaves of that difficulty under its title.
+				const next = { ...inherit(n, look), hideBadge: true };
+				const leavesHere = n.children.filter(isLeaf);
+				const childGroups = n.children.filter((c) => c.type === 'group');
+				const diffOf = (l: LeafNode) => ('difficulty' in l ? l.difficulty : undefined);
+				const everyLeaf = [...leavesHere, ...childGroups.flatMap((g) => g.children.filter(isLeaf))];
+				const known = [...master.difficulties, ...master.unrankedDifficulties];
+				const extra = [...new Set(everyLeaf.map(diffOf).filter((d): d is string => !!d && !known.includes(d)))];
+				collect(leavesHere.filter((l) => !diffOf(l)), path, out, sectionTitle, inherit(n, look));
+				for (const d of [...known, ...extra]) {
+					collect(leavesHere.filter((l) => diffOf(l) === d), [...path, d], out, sectionTitle, next);
+					for (const g of childGroups) {
+						const mine = g.children.filter(isLeaf).filter((l) => diffOf(l) === d);
+						collect(mine, n.subheadings === false ? [...path, d] : [...path, d, g.title], out, sectionTitle, inherit(g, next));
+					}
+				}
+			} else if (n.type === 'group') {
+				collect(n.children, [...path, n.title], out, sectionTitle, inherit(n, look));
+			} else if (['toggle', 'count', 'choice', 'level'].includes(n.type)) {
+				const key = nodeKey(n);
+				if (seen.has(key)) throw new Error(`master_data: duplicate setting key "${key}"`);
+				seen.add(key);
+				if (n.hidden) {
+					hidden[key] = n.default;
+					continue;
+				}
+				leaves.push(n);
+				// A heading that just repeats the card title adds nothing.
+				const shown = path.length === 1 && path[0] === sectionTitle ? [] : path;
+				out.push(toSetting(n, key, shown, look));
+			}
+			// Unknown node types are skipped on purpose: a newer server must not break this page.
+		}
+	}
+
+	const loose: Setting[] = [];
+	for (const top of master.root) {
+		if (top.type === 'section') {
+			const settings: Setting[] = [];
+			collect(top.children, [], settings, top.title, inherit(top, {}));
+			if (settings.length) {
+				// A card with calculated items shares the game's fixed number of item slots.
+				const pool = master.itemLocations && settings.some((s) => s.kind === 'calculated') ? { total: master.itemLocations } : undefined;
+				groups.push({ id: top.id, title: top.title, icon: top.icon, collapsible: top.collapsible, collapsed: top.collapsed, pool, settings });
+			}
+		} else {
+			collect([top], [], loose, '', {});
+		}
+	}
+	if (loose.length) groups.push({ id: 'general', title: 'General', settings: loose });
+
+	return { groups, presets: buildPresets(master, leaves), hidden };
+}
+
+function slug(s: string): string {
+	return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+/**
+ * One preset per rung of the difficulty ladder. A preset at difficulty D turns on every toggle
+ * ranked at or below D and sets each proficiency to its highest level ranked at or below D.
+ * Unranked difficulties (e.g. "Ignored") never take part. Presets that change nothing are
+ * left out, since they would just duplicate the first preset (the defaults).
+ */
+function buildPresets(master: MasterData, leaves: LeafNode[]): Preset[] {
+	// The store needs a preset with id 'default'. It is the bottom rung of the ladder, so it is named after it.
+	const presets: Preset[] = [{ id: 'default', name: master.difficulties[0] ?? 'Default', values: {} }];
+	const rank = (d: string | undefined) => (d ? master.difficulties.indexOf(d) : -1);
+
+	master.difficulties.forEach((name, i) => {
+		const values: Record<string, Value> = {};
+		for (const n of leaves) {
+			const key = nodeKey(n);
+			if (n.type === 'toggle') {
+				const r = rank(n.difficulty);
+				if (r >= 0 && r <= i && n.default !== true) values[key] = true;
+			} else if (n.type === 'level') {
+				const reachable = n.levels.filter((l) => {
+					const r = rank(l.difficulty);
+					return r >= 0 && r <= i;
+				});
+				if (reachable.length) {
+					const top = Math.max(...reachable.map((l) => l.level));
+					if (top !== n.default) values[key] = top;
+				}
+			}
+		}
+		if (Object.keys(values).length) presets.push({ id: `difficulty-${slug(name)}`, name, values });
+	});
+
+	for (const p of master.presets ?? []) presets.push({ id: p.id, name: p.name, values: p.values });
+	return presets;
+}

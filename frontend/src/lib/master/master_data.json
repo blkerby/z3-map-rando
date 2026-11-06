@@ -1,0 +1,620 @@
+{
+  "version": 1,
+  "difficulties": [
+    "Basic",
+    "Medium",
+    "Hard",
+    "Very Hard",
+    "Expert"
+  ],
+  "unrankedDifficulties": [
+    "Ignored"
+  ],
+  "itemLocations": 149,
+  "root": [
+    {
+      "type": "section",
+      "id": "logic",
+      "title": "Logic",
+      "icon": "speedometer2",
+      "children": [
+        {
+          "type": "group",
+          "title": "Proficiencies",
+          "children": [
+            {
+              "type": "level",
+              "tech_id": 1,
+              "name": "combatProficiency",
+              "levels": [
+                {
+                  "level": 1,
+                  "difficulty": "Basic"
+                },
+                {
+                  "level": 2,
+                  "difficulty": "Medium"
+                },
+                {
+                  "level": 3,
+                  "difficulty": "Hard"
+                },
+                {
+                  "level": 4,
+                  "difficulty": "Very Hard"
+                },
+                {
+                  "level": 5,
+                  "difficulty": "Expert"
+                }
+              ],
+              "notes": "Example of a descriptor",
+              "default": 1
+            },
+            {
+              "type": "level",
+              "tech_id": 2,
+              "name": "bossProficiency",
+              "levels": [
+                {
+                  "level": 1,
+                  "difficulty": "Basic"
+                },
+                {
+                  "level": 2,
+                  "difficulty": "Medium"
+                },
+                {
+                  "level": 3,
+                  "difficulty": "Hard"
+                },
+                {
+                  "level": 4,
+                  "difficulty": "Very Hard"
+                },
+                {
+                  "level": 5,
+                  "difficulty": "Expert"
+                }
+              ],
+              "default": 1
+            },
+            {
+              "type": "level",
+              "tech_id": 3,
+              "name": "darkProficiency",
+              "levels": [
+                {
+                  "level": 0,
+                  "difficulty": "Basic",
+                  "label": "None"
+                },
+                {
+                  "level": 1,
+                  "difficulty": "Medium"
+                },
+                {
+                  "level": 2,
+                  "difficulty": "Hard"
+                },
+                {
+                  "level": 3,
+                  "difficulty": "Very Hard"
+                },
+                {
+                  "level": 4,
+                  "difficulty": "Expert"
+                }
+              ],
+              "default": 0
+            }
+          ]
+        },
+        {
+          "type": "group",
+          "title": "Tech and notables",
+          "layout": "grid",
+          "groupBy": "difficulty",
+          "children": [
+            {
+              "type": "group",
+              "title": "Tech",
+              "children": [
+                {
+                  "type": "toggle",
+                  "tech_id": 4,
+                  "name": "canBonkBoost",
+                  "difficulty": "Medium",
+                  "default": false
+                },
+                {
+                  "type": "toggle",
+                  "tech_id": 5,
+                  "name": "canBombBoost",
+                  "difficulty": "Hard",
+                  "default": false
+                },
+                {
+                  "type": "toggle",
+                  "tech_id": 6,
+                  "name": "canPushBlockClip",
+                  "difficulty": "Hard",
+                  "default": false
+                },
+                {
+                  "type": "toggle",
+                  "tech_id": 8,
+                  "name": "canBreakDashableWall",
+                  "difficulty": "Hard",
+                  "default": false
+                },
+                {
+                  "type": "toggle",
+                  "tech_id": 7,
+                  "name": "canPreciseBombBoost",
+                  "difficulty": "Very Hard",
+                  "default": false
+                },
+                {
+                  "type": "toggle",
+                  "tech_id": 9,
+                  "name": "canRiskPermanentLossOfAccess",
+                  "difficulty": "Ignored",
+                  "hidden": true,
+                  "default": false
+                }
+              ]
+            },
+            {
+              "type": "group",
+              "title": "Notables",
+              "children": [
+                {
+                  "type": "toggle",
+                  "room_id": {
+                    "Underworld": 60
+                  },
+                  "room_name": "Tower of Hera",
+                  "notable_id": 1,
+                  "name": "Hera Pot Clip",
+                  "difficulty": "Very Hard",
+                  "default": false
+                },
+                {
+                  "type": "toggle",
+                  "room_id": {
+                    "Underworld": 94
+                  },
+                  "room_name": "Swamp Palace",
+                  "notable_id": 1,
+                  "name": "Specky Clip",
+                  "difficulty": "Very Hard",
+                  "default": false
+                },
+                {
+                  "type": "toggle",
+                  "room_id": {
+                    "Underworld": 97
+                  },
+                  "room_name": "Ice Palace",
+                  "notable_id": 1,
+                  "name": "Icebreaker",
+                  "difficulty": "Very Hard",
+                  "default": false
+                },
+                {
+                  "type": "toggle",
+                  "room_id": {
+                    "Underworld": 97
+                  },
+                  "room_name": "Ice Palace",
+                  "notable_id": 2,
+                  "name": "Precise Multi-Hit Fire Rod Kill",
+                  "difficulty": "Very Hard",
+                  "default": false
+                }
+              ]
+            }
+          ],
+          "subheadings": false
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "map",
+      "title": "Map",
+      "icon": "map",
+      "children": [
+        {
+          "type": "choice",
+          "name": "mapLayout",
+          "label": "Map layout",
+          "default": "randomized",
+          "display": "cards",
+          "options": [
+            {
+              "value": "randomized",
+              "label": "Randomized",
+              "desc": "The map is shuffled."
+            },
+            {
+              "value": "vanilla",
+              "label": "Vanilla",
+              "desc": "The original map, unchanged."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "id": "items",
+      "title": "Items",
+      "icon": "box-seam",
+      "layout": "grid",
+      "collapsible": true,
+      "collapsed": true,
+      "children": [
+        {
+          "type": "group",
+          "title": "Equipment",
+          "children": [
+            {
+              "type": "count",
+              "name": "FireRod",
+              "label": "Fire Rod",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "IceRod",
+              "label": "Ice Rod",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "Hammer",
+              "label": "Hammer",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "Hookshot",
+              "label": "Hookshot",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "Bow",
+              "label": "Bow",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "Boomerang",
+              "label": "Boomerang",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "MagicPowder",
+              "label": "Magic Powder",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "Bombos",
+              "label": "Bombos",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "Ether",
+              "label": "Ether",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "Quake",
+              "label": "Quake",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "Lamp",
+              "label": "Lamp",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "Shovel",
+              "label": "Shovel",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "CaneOfSomaria",
+              "label": "Cane of Somaria",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "CaneOfByrna",
+              "label": "Cane of Byrna",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "Cape",
+              "label": "Magic Cape",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "MagicMirror",
+              "label": "Magic Mirror",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "BookOfMudora",
+              "label": "Book of Mudora",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "Flippers",
+              "label": "Flippers",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "MoonPearl",
+              "label": "Moon Pearl",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "BugCatchingNet",
+              "label": "Bug-Catching Net",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "Mushroom",
+              "label": "Mushroom",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "Bottle",
+              "label": "Bottle",
+              "default": 4,
+              "min": 0,
+              "max": 4
+            },
+            {
+              "type": "count",
+              "name": "PegasusBoots",
+              "label": "Pegasus Boots",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "Ocarina",
+              "label": "Ocarina",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            }
+          ]
+        },
+        {
+          "type": "group",
+          "title": "Upgrades",
+          "children": [
+            {
+              "type": "count",
+              "name": "Sword",
+              "label": "Sword",
+              "default": 4,
+              "min": 1,
+              "max": 4
+            },
+            {
+              "type": "count",
+              "name": "Shield",
+              "label": "Shield",
+              "default": 3,
+              "min": 0,
+              "max": 3
+            },
+            {
+              "type": "count",
+              "name": "Glove",
+              "label": "Glove",
+              "default": 2,
+              "min": 0,
+              "max": 2
+            },
+            {
+              "type": "count",
+              "name": "Mail",
+              "label": "Mail",
+              "default": 2,
+              "min": 0,
+              "max": 2
+            },
+            {
+              "type": "count",
+              "name": "HalfMagic",
+              "label": "Half Magic",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            },
+            {
+              "type": "count",
+              "name": "Arrow",
+              "label": "Silver Arrow",
+              "default": 1,
+              "min": 0,
+              "max": 1
+            }
+          ]
+        },
+        {
+          "type": "group",
+          "title": "Ammo",
+          "children": [
+            {
+              "type": "count",
+              "name": "ThreeBombs",
+              "label": "Bombs (3)",
+              "default": 17,
+              "min": 1,
+              "calculated": true
+            },
+            {
+              "type": "count",
+              "name": "TenArrows",
+              "label": "Arrows (10)",
+              "default": 11,
+              "min": 1,
+              "calculated": true
+            }
+          ]
+        },
+        {
+          "type": "group",
+          "title": "Rupees",
+          "children": [
+            {
+              "type": "count",
+              "name": "OneRupee",
+              "label": "1 Rupee",
+              "default": 2,
+              "min": 1,
+              "calculated": true
+            },
+            {
+              "type": "count",
+              "name": "FiveRupees",
+              "label": "5 Rupees",
+              "default": 4,
+              "min": 1,
+              "calculated": true
+            },
+            {
+              "type": "count",
+              "name": "TwentyRupees",
+              "label": "20 Rupees",
+              "default": 29,
+              "min": 0,
+              "max": 58
+            },
+            {
+              "type": "count",
+              "name": "FiftyRupees",
+              "label": "50 Rupees",
+              "default": 7,
+              "min": 0,
+              "max": 14
+            },
+            {
+              "type": "count",
+              "name": "OneHundredRupees",
+              "label": "100 Rupees",
+              "default": 1,
+              "min": 0,
+              "max": 2
+            },
+            {
+              "type": "count",
+              "name": "ThreeHundredRupees",
+              "label": "300 Rupees",
+              "default": 5,
+              "min": 0,
+              "max": 10
+            }
+          ]
+        },
+        {
+          "type": "group",
+          "title": "Hearts",
+          "children": [
+            {
+              "type": "count",
+              "name": "BossHeartContainer",
+              "label": "Boss Heart Container",
+              "default": 10,
+              "min": 0,
+              "max": 20
+            },
+            {
+              "type": "count",
+              "name": "SanctuaryHeartContainer",
+              "label": "Sanctuary Heart Container",
+              "default": 1,
+              "min": 0,
+              "max": 2
+            },
+            {
+              "type": "count",
+              "name": "PieceOfHeart",
+              "label": "Piece of Heart",
+              "default": 24,
+              "min": 0,
+              "max": 48
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
