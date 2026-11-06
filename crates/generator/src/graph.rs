@@ -5,8 +5,8 @@ use common_types::allows_frog_dwarf;
 use hashbrown::{HashMap, HashSet};
 use logic_catalog::{
     Connection, Edge, EdgeIndex, Effect, EntranceIndex, EntranceKind, EventEndpoint, Follower,
-    FollowerMask, LogicCatalog, NodeType, OverheadClass, Requirement, RoomKind, TransitionState,
-    UniqueItem, VertexIndex, VertexOrigin, World,
+    FollowerMask, LogicCatalog, MapBoundaryKind, NodeType, OverheadClass, Requirement, RoomKind,
+    TransitionState, UniqueItem, VertexIndex, VertexOrigin, World,
 };
 
 #[derive(Debug)]
@@ -131,6 +131,24 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
     // Now add edges for cross-room connections.
     for (connection_idx, connection) in connections.iter().enumerate() {
         let (first, second, bidirectional, requirement) = match connection {
+            Connection::MapBoundary { endpoints, kind } => (
+                ConnectionEndpoint {
+                    vertex_idx: endpoints[0],
+                    entrance_idx: None,
+                },
+                ConnectionEndpoint {
+                    vertex_idx: endpoints[1],
+                    entrance_idx: None,
+                },
+                matches!(kind, MapBoundaryKind::Ordinary),
+                match kind {
+                    MapBoundaryKind::Ordinary => Requirement::Free,
+                    MapBoundaryKind::Mirror => Requirement::Item(UniqueItem::MagicMirror),
+                    MapBoundaryKind::Return => {
+                        Requirement::ResetObstacles(catalog.vertex(endpoints[0]).room_idx)
+                    }
+                },
+            ),
             Connection::Entrance {
                 kind,
                 entrance_idx,
@@ -264,7 +282,9 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
             );
             if !matches!(
                 connection,
-                Connection::Entrance { .. } | Connection::ScreenBoundary { .. }
+                Connection::Entrance { .. }
+                    | Connection::ScreenBoundary { .. }
+                    | Connection::MapBoundary { .. }
             ) {
                 continue;
             }
@@ -275,8 +295,14 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                 let state = catalog.get_transition_state(exit.event_idx);
                 match (state, connection) {
                     (TransitionState::Event(_), Connection::Entrance { .. })
-                    | (TransitionState::Overhead(_), Connection::ScreenBoundary { .. }) => {}
-                    (TransitionState::LeaveNormally, Connection::ScreenBoundary { .. }) => {
+                    | (
+                        TransitionState::Overhead(_),
+                        Connection::ScreenBoundary { .. } | Connection::MapBoundary { .. },
+                    ) => {}
+                    (
+                        TransitionState::LeaveNormally,
+                        Connection::ScreenBoundary { .. } | Connection::MapBoundary { .. },
+                    ) => {
                         graph.add_edge(
                             catalog,
                             &interior_worlds,

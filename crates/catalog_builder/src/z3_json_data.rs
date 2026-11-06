@@ -98,6 +98,7 @@ pub struct Room {
     pub dungeon_id: Option<u32>,
     pub position: Option<[u8; 2]>,
     pub size: Option<[u16; 2]>,
+    pub edge_variants: Option<SourceEdgeVariants>,
     pub nodes: Vec<Node>,
     #[serde(default)]
     pub items: Vec<ItemLocation>,
@@ -108,6 +109,26 @@ pub struct Room {
     #[serde(default)]
     pub notables: Vec<Notable>,
     pub strats: Vec<Strat>,
+}
+
+#[derive(Deserialize)]
+pub struct SourceEdgeVariants {
+    pub north: Vec<SourceEdgeSegment>,
+    pub south: Vec<SourceEdgeSegment>,
+    pub east: Vec<SourceEdgeSegment>,
+    pub west: Vec<SourceEdgeSegment>,
+}
+
+#[derive(Deserialize)]
+pub struct SourceEdgeSegment {
+    pub supported: std::collections::BTreeMap<String, Vec<Option<SourceEdgeReference>>>,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum SourceEdgeReference {
+    Node(u32),
+    Return(String),
 }
 
 #[derive(Clone, Copy, Deserialize)]
@@ -141,6 +162,7 @@ pub struct Node {
     pub name: String,
     pub node_type: Option<SourceNodeType>,
     pub world: Option<NodeWorld>,
+    pub mirror_point: Option<bool>,
     pub spawn_point: Option<String>,
     #[serde(default)]
     pub entrances: Vec<Entrance>,

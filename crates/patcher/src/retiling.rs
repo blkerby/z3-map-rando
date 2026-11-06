@@ -11,10 +11,13 @@ use std::collections::{BTreeMap, BTreeSet};
 
 mod allocation;
 mod areas;
+mod condition;
 mod events;
 mod graphics;
 mod maps;
 mod rain;
+mod world_map;
+pub use world_map::CompiledWorldMap;
 
 use allocation::{
     CHARACTER_CAPACITY, allocate_characters, allocate_palettes, build_scrollable_transition_pairs,
@@ -47,6 +50,7 @@ pub struct BackgroundSettings {
 }
 
 pub struct CompiledTheme {
+    pub world_map: CompiledWorldMap,
     pub screen_maps: BTreeMap<usize, Vec<u8>>,
     pub bg1_variants: BTreeMap<usize, Vec<CompiledBg1Variant>>,
     pub background_settings: BTreeMap<usize, BackgroundSettings>,
@@ -188,7 +192,7 @@ pub fn compile(
     add_dynamic_dependencies(&mut areas, &mut dynamic_tiles);
     ensure!(area_assets.len() == 0xa0);
 
-    let scrollable_transitions = build_scrollable_transition_pairs();
+    let scrollable_transitions = build_scrollable_transition_pairs(layout);
     let palette_slots = allocate_palettes(&areas, &palettes, &scrollable_transitions)?;
     let mut fullest_palette = (0, 0);
     for area in &areas {
@@ -358,6 +362,7 @@ pub fn compile(
         }
     }
     Ok(CompiledTheme {
+        world_map: world_map::build_world_map(&areas, &palettes, layout, catalog)?,
         screen_count: screen_maps.len(),
         palette_count: palette_slots.len(),
         character_count,

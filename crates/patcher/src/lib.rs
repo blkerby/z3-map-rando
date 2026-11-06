@@ -12,6 +12,7 @@ mod items;
 mod rain_tilemap;
 pub mod retiling;
 mod rom;
+mod topology;
 
 pub use asset_bundle::TransitionAssetPhase;
 pub use rom::{PatchSettings, RetilingStats, apply_retiling, finalize_rom, patch_rom};

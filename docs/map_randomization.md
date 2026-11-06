@@ -1,6 +1,6 @@
 # Map randomization integration plan
 
-Status: design and implementation plan; map randomization is not implemented. This document records the agreed initial behavior and identifies the remaining implementation decisions. It builds on [engine milestones 10–12](../plans/engine.md#milestone-10-paired-world-area-topology-and-transitions), replacing the planned layout search with selection from the precomputed map pool. No Python runs during seed generation or ROM patching.
+Status: initial implementation present, with broader ROM gameplay verification outstanding. This document records the agreed behavior and verification scope. It builds on [engine milestones 10–12](../plans/engine.md#milestone-10-paired-world-area-topology-and-transitions), replacing the planned layout search with selection from the precomputed map pool. No Python runs during seed generation or ROM patching.
 
 ## Agreed behavior
 
@@ -16,6 +16,7 @@ Status: design and implementation plan; map randomization is not implemented. Th
 - Configure the pool location with `map_pool = "maps/map_pool.bin"` in `catalog-build.toml` and its default template. Allow an explicit `--map-pool <PATH>` CLI override. `maps/map_pool.bin` in the randomizer repository is the default pool location.
 - Save the resolved room positions and edge choices in the seed. Patching a saved seed must not require the pool or rerun random selection.
 - Retain `$8A` and `$040A` as logical area identities with their existing loading/cache lifetimes. Resolve normal-overworld physical placement through generated ROM tables; no additional persistent RAM word is needed initially. Special overworld areas remain outside the shuffled grid, with their existing identities and internal coordinate systems.
+- Graphics and palette allocation failures remain patch-time errors. Do not reject or resample a generated map because its assets exceed these budgets, and do not add allocation failures to the shared generation-attempt quota.
 
 ## Current implementation and input data
 
@@ -23,9 +24,9 @@ The randomizer's pool is at [`maps/map_pool.bin`](../maps/map_pool.bin), relativ
 
 The pool guarantees complete, compatible room packing according to the map generator's catalog. It does not select border variants or prove reachability under randomizer logic. Those are generation-time responsibilities.
 
-Relevant existing components:
+The integration started from these components:
 
-| Component | Current behavior | Required change |
+| Component | Previous behavior | Integration change |
 | --- | --- | --- |
 | `seed_data::Settings` and `data/settings.json` | Item and logic settings, without a map choice | Add the two-value map setting and make random the bundled default |
 | CLI and its bundled-catalog build | Load catalogs and pass decoded inputs into generation | Supply pool data for random generation and support the existing external-data/bundling workflow |
@@ -216,9 +217,15 @@ The invariant is that entering an authored interior and returning outside reache
 
 Generate Light and Dark World map art from the final placements and edge choices. Move Link, dungeon/objective, portal, and flute markers consistently. Keep this presentation pipeline distinct from playable-overworld tiles while deriving it from the same saved layout.
 
+Use the authored map grids for normal areas, with `Main` alone in vanilla mode and the selected edge layers in random mode. Use the regular `Main` tile grids of `Light World Clouds` and `Dark World Clouds` as the respective full-map backgrounds, then overlay the normal areas in the central region. Unpainted cloud tiles and the fill beyond the map remain blank until those assets are populated; do not import vanilla map artwork as a fallback.
+
 Retain authored flute location numbers initially; geographic renumbering is not part of this change. Confirm flute selection, landing, map zoom/pan, menu exit, and restoration of playable graphics and palettes. A ROM with a vanilla-looking map over a random layout is only an intermediate development checkpoint.
 
 ## Implementation milestones and verification
+
+The implementation covers pool selection and saved borders, configured-inventory item discovery, the shared attempt budget, conditional Desert artwork, logical-ID-preserving ROM topology, relocated exterior returns/transport destinations and area-specific coordinates, and authored Mode 7 maps. The physical-cell ownership table uses the native 64-byte table at `$82A4E3`, and logical-area anchors use 64 bytes at `$BFE540`. Map graphics occupy bank `$CA`; the two full tilemaps occupy `$CB8000–$CB9FFF`, and their palettes replace the native map palettes. Allocation failures remain patch-time errors.
+
+Development checks cover a vanilla discovery baseline, rejection with reduced configured inventory, acceptance of an unused unreachable vertex, rejection of an unexecutable collection action, malformed pool headers/length, deterministic layouts and items, configured and explicit pool paths, bundled operation outside the repository, and pool-independent vanilla generation and saved-seed patching. Repatching the same saved seed produces identical ROM bytes. A temporary cloud-art check verifies that authored cloud placements appear while missing cloud tiles and fill remain blank. Emulator smoke checks on a saved random layout cover relocated house exit, all four ordinary transition directions with logical IDs retained, flute selection and landing in a relocated large area, both world maps, map zoom/exit, and restoration of playable graphics. These checks do not replace the broader transition, special-area, transport, event, persistence, and completion-playthrough checkpoints below. Temporary test code has been removed.
 
 1. **Settings, pool reader, and seed representation.** Add the configured `map_pool` path with default `maps/map_pool.bin`, the `--map-pool` CLI override, and bundled-pool handling. Decode the supplied pool in Rust, select reproducible records, serialize resolved layout choices, and retain vanilla mode. Confirm CLI override precedence and that patch-only code has no pool dependency. Do not make random the shipped default until the complete generation/patching path supports it; the final bundled default must be random.
 2. **Variant-aware logic and reachability.** Compile source variants, resolve selected connections, implement specialized semantics, and implement the every-item-location discovery gate using the complete configured item pool and the same-map retry loop. Establish the vanilla reference before drawing conclusions from random-map rejections.

@@ -212,6 +212,19 @@ fn prepare_retiling(
         SnesAddr(patches.symbols.rain_flat_map16_pointers).into(),
         flat.rain_pointers,
     )?;
+    let mut context = patcher.context("authored world maps");
+    context.write(
+        SnesAddr(patches.symbols.world_map_graphics).into(),
+        compiled.world_map.graphics,
+    )?;
+    context.write(
+        SnesAddr(patches.symbols.world_map_tilemaps).into(),
+        compiled.world_map.tilemaps,
+    )?;
+    context.write(
+        SnesAddr(patches.symbols.world_map_palettes).into(),
+        compiled.world_map.palettes,
+    )?;
 
     let mut context = patcher.context("expanded Map16 definitions");
     for (start, definitions) in [
@@ -273,9 +286,12 @@ fn prepare_retiling(
         &patches.patches.overworld_dynamic_tiles,
         &patches.patches.overworld_cutscenes,
         &patches.patches.overworld_lightning,
+        &patches.patches.overworld_topology,
+        &patches.patches.overworld_world_map,
     ] {
         patcher.use_ips(patch)?;
     }
+    crate::topology::apply_topology(&mut patcher, rom, layout, patches)?;
     Ok((patcher, stats))
 }
 

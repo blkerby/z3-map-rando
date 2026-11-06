@@ -55,6 +55,7 @@ pub(super) fn compile_rooms(
             dungeon_idx,
             position: source_room.position,
             size: source_room.size,
+            edge_variants: std::array::from_fn(|_| Vec::new()),
             obstacles: Vec::new(),
             nodes: Vec::new(),
             strats: Vec::new(),
@@ -80,6 +81,41 @@ pub(super) fn compile_rooms(
             });
         }
         compile_room_nodes(&source_room, &mut room, &mut indices, catalog);
+        if let Some(edges) = &source_room.edge_variants {
+            for (direction, segments) in [&edges.north, &edges.south, &edges.east, &edges.west]
+                .into_iter()
+                .enumerate()
+            {
+                for segment in segments {
+                    let mut variants = BTreeMap::new();
+                    for (name, references) in &segment.supported {
+                        let mut endpoints = Vec::new();
+                        for reference in references {
+                            endpoints.push(match reference {
+                                Some(z3_json_data::SourceEdgeReference::Node(id)) => {
+                                    BoundaryEndpoint::Node {
+                                        light: indices
+                                            .vertices
+                                            .get(&(*id, Some(World::Light)))
+                                            .copied(),
+                                        dark: indices
+                                            .vertices
+                                            .get(&(*id, Some(World::Dark)))
+                                            .copied(),
+                                    }
+                                }
+                                Some(z3_json_data::SourceEdgeReference::Return(_name)) => {
+                                    BoundaryEndpoint::Return
+                                }
+                                None => BoundaryEndpoint::Absent,
+                            });
+                        }
+                        variants.insert(name.clone(), endpoints);
+                    }
+                    room.edge_variants[direction].push(variants);
+                }
+            }
+        }
         compile_room_items(&source_room, room_id, &mut indices, catalog, compiler)?;
         compile_room_doors(&source_room, &mut indices, catalog);
         compile_room_strats(
@@ -91,7 +127,9 @@ pub(super) fn compile_rooms(
             &mut events,
         );
         for node in &source_room.nodes {
-            if matches!(node.world, Some(z3_json_data::NodeWorld::Both)) {
+            if matches!(node.world, Some(z3_json_data::NodeWorld::Both))
+                && node.mirror_point != Some(false)
+            {
                 catalog.edges.push(Edge {
                     from_vertex_idx: indices.vertices[&(node.id, Some(World::Dark))],
                     to_vertex_idx: indices.vertices[&(node.id, Some(World::Light))],

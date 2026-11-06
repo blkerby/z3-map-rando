@@ -2365,6 +2365,8 @@ BGStreamVerticalEdge:
 
 BG2CalculateLogicalWindowOrigin:
     LDA.b $8A                   ; Current top-left overworld screen ID.
+    JSL !GetPhysicalAreaAnchor
+    PHA
     AND.w #$0007                ; Screen-grid column, 0..7.
     XBA                         ; Multiply by $100.
     ASL A                       ; Multiply by $200 pixels per screen.
@@ -2381,7 +2383,7 @@ BG2CalculateLogicalWindowOrigin:
 
     ; Each overworld screen-grid row is $200 pixels tall. Bits 3-5 of $8A
     ; select that row; world and special-area bits do not affect its origin.
-    LDA.b $8A
+    PLA                        ; Physical anchor resolved above.
     AND.w #$0038                ; Screen-grid row already multiplied by 8.
     ASL A                       ; Multiply by another $40:
     ASL A

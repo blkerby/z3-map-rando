@@ -66,6 +66,14 @@ pub struct RetilingCatalog {
     /// Keys are source area names, including non-map templates such as Tree Edges.
     pub areas: BTreeMap<String, Area>,
     pub dynamic_tile_groups: Vec<DynamicTileGroup>,
+    pub conditions: EdgeConditions,
+}
+
+#[derive(Clone, Debug, Deserialize, Encode, Decode, TypeHash)]
+pub struct EdgeConditions {
+    pub edge_variants: Vec<String>,
+    pub edge_variant_aliases: BTreeMap<String, Vec<String>>,
+    pub slot_aliases: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug, Encode, Decode, TypeHash)]
@@ -187,8 +195,11 @@ pub enum BackgroundLayering {
 pub struct Layer {
     /// Used by cutscene draw actions and by the compiler's event interpretation.
     pub name: String,
+    pub condition: Option<String>,
     pub background: Background,
     pub grid: TileGrid,
+    /// Authored Mode 7 map tiles, at two tiles per editor screen.
+    pub map: Option<TileGrid>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Encode, Decode, TypeHash)]

@@ -48,7 +48,11 @@ fn main() -> Result<()> {
             }
         }
     }
-    let layout = WorldLayout { areas };
+    let layout = WorldLayout {
+        areas,
+        rooms: Vec::new(),
+        borders: Vec::new(),
+    };
     let settings = PatchSettings {
         transition_asset_phase: match args.transition_asset_phase {
             TransitionAssetPhase::PreScroll => patcher::TransitionAssetPhase::PreScroll,

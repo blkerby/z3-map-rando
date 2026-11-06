@@ -9,7 +9,7 @@ use crate::{
     state::{GlobalDependency, GlobalState, LocalState},
     traversal::compute_closure,
 };
-use anyhow::{Result, bail};
+use anyhow::Result;
 use common_types::Item;
 use hashbrown::{HashMap, HashSet};
 use logic_catalog::{DoorIndex, DungeonIndex, ItemLocationIndex, LockKind, LogicCatalog};
@@ -17,6 +17,17 @@ use rand::{Rng, seq::SliceRandom};
 
 const MAX_DUNGEON_ATTEMPTS: usize = 1000;
 const MAX_CANDIDATE_ATTEMPTS: usize = 100;
+
+#[derive(Debug)]
+pub struct KeyAssignmentExhausted;
+
+impl std::fmt::Display for KeyAssignmentExhausted {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("key assignment exhausted")
+    }
+}
+
+impl std::error::Error for KeyAssignmentExhausted {}
 
 /// Retained routes and placements, including the shared no-key baseline.
 #[derive(Clone)]
@@ -27,6 +38,48 @@ pub struct KeyPlacementState {
 }
 
 impl KeyPlacementState {
+    pub fn discover_all_items(
+        catalog: &LogicCatalog,
+        graph: &TraversalGraph,
+        inputs: &GenerationInputs,
+    ) -> Result<bool> {
+        let mut state = Self::initialize(catalog, graph, inputs)?;
+        let mut changes = HashSet::new();
+        for (index, key) in state.global.big_keys.iter_mut().enumerate() {
+            *key = true;
+            changes.insert(GlobalDependency::BigKey(DungeonIndex(index as u32)));
+        }
+        for (index, door) in catalog.doors.iter().enumerate() {
+            if door.lock == LockKind::SmallKey {
+                state.global.unlocked_doors[index] = true;
+                changes.insert(GlobalDependency::Door(DoorIndex(index as u32)));
+            }
+        }
+        compute_closure(
+            catalog,
+            graph,
+            inputs,
+            &mut state.global,
+            &mut state.local_states,
+            &state.placements,
+            Vec::new(),
+            changes,
+        )?;
+        let mut missing = Vec::new();
+        for (index, reachable) in state.global.reachable_item_locations.iter().enumerate() {
+            if !reachable {
+                missing.push(catalog.item_locations[index].id);
+            }
+        }
+        if !missing.is_empty() {
+            eprintln!(
+                "{} undiscovered item locations; first entries: {:?}",
+                missing.len(),
+                &missing[..missing.len().min(8)]
+            );
+        }
+        Ok(missing.is_empty())
+    }
     /// Build the shared full-inventory closure without dungeon keys or placed items.
     pub fn initialize(
         catalog: &LogicCatalog,
@@ -282,7 +335,7 @@ fn assign_dungeon_keys(
         inaccessible_names.push(format!("{} ({:?})", location.name, location.id));
     }
     let dungeon = catalog.room(catalog.dungeons[dungeon_idx.0 as usize]);
-    bail!(
+    Err(anyhow::Error::new(KeyAssignmentExhausted).context(format!(
         "preliminary key assignment for {} ({:?}) exhausted {} dungeon attempts ({} candidates per wave); last attempt: {}; inaccessible locations: {}.",
         dungeon.name,
         dungeon.room_id,
@@ -290,5 +343,5 @@ fn assign_dungeon_keys(
         MAX_CANDIDATE_ATTEMPTS,
         failure_reason,
         inaccessible_names.join(", "),
-    )
+    )))
 }

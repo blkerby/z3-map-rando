@@ -17,6 +17,7 @@ pub(super) struct ThemeArea {
     pub(super) width: usize,
     pub(super) height: usize,
     pub(super) placements: Vec<Placement>,
+    pub(super) map_tiles: Vec<Option<Placement>>,
     pub(super) palettes: BTreeSet<PaletteId>,
     pub(super) extra_tiles: BTreeSet<TileKey>,
     pub(super) overworld_overlay: Option<StateLayer>,
@@ -79,6 +80,7 @@ pub(super) fn select_areas(
         };
         let area = &source.themes[*theme_name];
         let area_id = usize::from(area_id);
+        let edges = layout.get_area_edges(area_id as u8);
         let mut source_scripts = Vec::new();
         let mut cutscene_layer_names = BTreeSet::new();
         for source in &area.cutscenes {
@@ -118,10 +120,38 @@ pub(super) fn select_areas(
         let width = usize::from(area.layers[0].grid.width);
         let height = usize::from(area.layers[0].grid.height);
         let mut area_tiles = vec![vec![None; width]; height];
+        let mut map_tiles = vec![None; (width / 16) * (height / 16)];
         let mut bg1_layers = Vec::new();
         let mut cutscene_layers = BTreeMap::new();
         let mut overworld_overlay = None;
         for layer in &area.layers {
+            if !edges.is_empty()
+                && !super::condition::evaluate_condition(
+                    layer
+                        .condition
+                        .as_deref()
+                        .filter(|condition| !condition.trim().is_empty())
+                        .unwrap_or("true"),
+                    &edges,
+                    &catalog.conditions.edge_variants,
+                    &catalog.conditions.edge_variant_aliases,
+                    &catalog.conditions.slot_aliases,
+                )?
+            {
+                continue;
+            }
+            if layer.background == Background::Bg2 && (!edges.is_empty() || layer.name == "Main") {
+                if let Some(map) = &layer.map {
+                    for placement in &map.tiles {
+                        map_tiles[usize::from(placement.y) * usize::from(map.width)
+                            + usize::from(placement.x)] = Some(Placement {
+                            palette: placement.palette,
+                            tile: usize::from(placement.tile),
+                            flip: placement.flip as u8,
+                        });
+                    }
+                }
+            }
             let mut layer_tiles = vec![vec![None; width]; height];
             for placement in &layer.grid.tiles {
                 layer_tiles[usize::from(placement.y)][usize::from(placement.x)] = Some(Placement {
@@ -168,7 +198,7 @@ pub(super) fn select_areas(
             }
             match layer.background {
                 Background::Bg1 => bg1_layers.push((layer.name.clone(), layer_tiles)),
-                Background::Bg2 if layer.name == "Main" => {
+                Background::Bg2 if !edges.is_empty() || layer.name == "Main" => {
                     for y in 0..height {
                         for x in 0..width {
                             if layer_tiles[y][x].is_some() {
@@ -268,6 +298,7 @@ pub(super) fn select_areas(
             }
         }
         result.push(ThemeArea {
+            map_tiles,
             id: area_id,
             width,
             height,

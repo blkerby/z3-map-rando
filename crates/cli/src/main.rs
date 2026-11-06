@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use chrono::{DateTime, SecondsFormat, Utc};
 use clap::Parser;
 use rand::{Rng, SeedableRng, rngs::StdRng};
-use seed_data::{SeedData, SeedMetadata, Settings};
+use seed_data::{MapLayoutSetting, SeedData, SeedMetadata, Settings};
 use sha2::{Digest, Sha256};
 use std::{
     borrow::Cow,
@@ -14,6 +14,11 @@ use std::{
 };
 
 const DEFAULT_SETTINGS: &str = include_str!("../../../data/settings.json");
+
+#[cfg(feature = "bundle-catalogs")]
+const BUNDLED_MAP_POOL: Option<&[u8]> = Some(include_bytes!(env!("Z3_MAP_POOL")));
+#[cfg(not(feature = "bundle-catalogs"))]
+const BUNDLED_MAP_POOL: Option<&[u8]> = None;
 
 #[cfg(feature = "bundle-catalogs")]
 const BUNDLED_LOGIC_CATALOG: Option<&[u8]> = Some(include_bytes!(env!("Z3_LOGIC_CATALOG")));
@@ -47,8 +52,11 @@ struct Args {
     #[arg(long)]
     rom: Option<PathBuf>,
     /// Whole-game theme.
-    #[arg(long, default_value = "Base")]
+    #[arg(long, default_value = "Desert")]
     theme: String,
+    /// Map pool override; otherwise use bundled data or catalog-build.toml.
+    #[arg(long)]
+    map_pool: Option<PathBuf>,
     /// Numeric RNG seed; chooses randomly when omitted.
     #[arg(long)]
     rng: Option<u64>,
@@ -146,6 +154,35 @@ fn generate_seed(
         BUNDLED_LOGIC_CATALOG,
     )?;
     let logic_catalog = logic_catalog::decode_catalog(logic_bytes.as_ref())?;
+    let map_pool = if settings.map_layout == MapLayoutSetting::Random {
+        let bytes = if let Some(path) = &args.map_pool {
+            Cow::Owned(
+                fs::read(path).with_context(|| format!("reading map pool {}", path.display()))?,
+            )
+        } else if let Some(bytes) = BUNDLED_MAP_POOL {
+            Cow::Borrowed(bytes)
+        } else {
+            let path = Path::new("catalog-build.toml");
+            let pool_path = if path.exists() {
+                let config: toml::Table = toml::from_str(&fs::read_to_string(path)?)?;
+                PathBuf::from(
+                    config
+                        .get("map_pool")
+                        .and_then(toml::Value::as_str)
+                        .context("catalog-build.toml requires map_pool")?,
+                )
+            } else {
+                PathBuf::from("maps/map_pool.bin")
+            };
+            Cow::Owned(
+                fs::read(&pool_path)
+                    .with_context(|| format!("reading map pool {}", pool_path.display()))?,
+            )
+        };
+        Some(bytes)
+    } else {
+        None
+    };
     let numeric_seed: u64 = args.rng.unwrap_or_else(rand::random);
     let metadata = create_metadata(numeric_seed, &logic_bytes, retiling_bytes)?;
     let mut rng = StdRng::seed_from_u64(numeric_seed);
@@ -154,6 +191,7 @@ fn generate_seed(
         &logic_catalog,
         retiling_catalog,
         &args.theme,
+        map_pool.as_deref(),
         metadata,
         &mut rng,
     )

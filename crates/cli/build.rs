@@ -13,6 +13,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap();
     let mut config = BuildConfig::read_config(root)?;
     config.resolve_paths(root);
+    println!("cargo:rerun-if-changed={}", config.map_pool.display());
+    println!("cargo:rustc-env=Z3_MAP_POOL={}", config.map_pool.display());
     let output_directory = config.output_directory.clone();
     let cache = CatalogCache::open_cache(config)?;
     println!(

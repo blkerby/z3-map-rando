@@ -3,10 +3,18 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Settings {
+    pub map_layout: MapLayoutSetting,
     pub proficiencies: Vec<ProficiencySetting>,
     pub tech: Vec<TechSetting>,
     pub notables: Vec<NotableSetting>,
     pub item_pool: Vec<ItemPoolEntry>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MapLayoutSetting {
+    Vanilla,
+    Random,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

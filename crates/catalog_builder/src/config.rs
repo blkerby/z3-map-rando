@@ -14,6 +14,7 @@ pub struct BuildConfig {
     pub asar_executable: Option<PathBuf>,
     pub output_directory: PathBuf,
     pub tile_fingerprints: PathBuf,
+    pub map_pool: PathBuf,
     pub compression_level: i32,
 }
 
@@ -38,6 +39,7 @@ impl BuildConfig {
             &mut self.asar_source,
             &mut self.output_directory,
             &mut self.tile_fingerprints,
+            &mut self.map_pool,
         ] {
             *path = root.join(&*path);
         }

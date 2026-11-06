@@ -61,6 +61,22 @@ pub(super) fn allocate_palettes(
         )
     });
     let mut assignments = BTreeMap::new();
+    for a in areas {
+        for b in areas {
+            if a.id <= b.id && can_areas_coexist(a.id, b.id, scrollable_transitions) {
+                let mut half_slots = 0;
+                for id in a.palettes.union(&b.palettes) {
+                    half_slots += if full.contains(id) { 2 } else { 1 };
+                }
+                ensure!(
+                    half_slots <= 12,
+                    "areas ${:02X}/${:02X} require {half_slots} palette half-slots; only 12 are available",
+                    a.id,
+                    b.id
+                );
+            }
+        }
+    }
 
     // Recursively assign palettes with backtracking:
     ensure!(
@@ -247,7 +263,33 @@ pub(super) fn allocate_characters(
     Ok((slots, area_tiles))
 }
 
-pub(super) fn build_scrollable_transition_pairs() -> BTreeSet<(usize, usize)> {
+pub(super) fn build_scrollable_transition_pairs(
+    layout: &seed_data::WorldLayout,
+) -> BTreeSet<(usize, usize)> {
+    if !layout.rooms.is_empty() {
+        let mut cells = [0usize; 64];
+        for room in &layout.rooms {
+            for dy in 0..room.size[1] {
+                for dx in 0..room.size[0] {
+                    cells[usize::from(room.position + dx + dy * 8)] =
+                        usize::from(room.vanilla_map_id);
+                }
+            }
+        }
+        let mut pairs = BTreeSet::new();
+        for border in &layout.borders {
+            if border.variant == "closed" {
+                continue;
+            }
+            let a = cells[usize::from(border.cells[0])];
+            let b = cells[usize::from(border.cells[1])];
+            pairs.insert((a.min(b), a.max(b)));
+            if border.variant != "light-only" && border.variant != "light-and-mirror" {
+                pairs.insert((a.min(b) + 0x40, a.max(b) + 0x40));
+            }
+        }
+        return pairs;
+    }
     let light_world_pairs = [
         (0x02, 0x0a),
         (0x03, 0x05),

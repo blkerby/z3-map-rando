@@ -84,7 +84,9 @@ pub struct PatchIps {
     pub overworld_map16_graphics: Ips,
     pub overworld_map16_properties: Ips,
     pub overworld_map_data: Ips,
+    pub overworld_topology: Ips,
     pub overworld_vram: Ips,
+    pub overworld_world_map: Ips,
     pub rom_size: Ips,
 }
 
@@ -103,6 +105,11 @@ pub struct PatchSymbols {
     pub lost_woods_clear_bg1_flat_map16_pointers: u32,
     pub rain_contexts: u32,
     pub rain_flat_map16_pointers: u32,
+    pub slot_to_area: u32,
+    pub area_to_anchor: u32,
+    pub world_map_graphics: u32,
+    pub world_map_tilemaps: u32,
+    pub world_map_palettes: u32,
     pub theme_background_colors: u32,
     pub overworld_area_record_variant_pointers: u32,
     pub overworld_asset_data: u32,

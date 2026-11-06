@@ -254,11 +254,23 @@ pub struct Room {
     /// Source overworld grid position and size; absent for interiors and the flute hub.
     pub position: Option<[u8; 2]>,
     pub size: Option<[u16; 2]>,
+    /// North, south, east, west; segment order follows the authored edge schema.
+    pub edge_variants: [Vec<std::collections::BTreeMap<String, Vec<BoundaryEndpoint>>>; 4],
     pub obstacles: Vec<Obstacle>,
     /// Room-local nodes, shared by Light and Dark World vertices in overworld rooms.
     pub nodes: Vec<NodeMetadata>,
     /// Source strats in authored order.
     pub strats: Vec<StratMetadata>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum BoundaryEndpoint {
+    Node {
+        light: Option<VertexIndex>,
+        dark: Option<VertexIndex>,
+    },
+    Return,
+    Absent,
 }
 
 impl Room {
@@ -353,6 +365,10 @@ pub struct Entrance {
 /// Default endpoint pairings. Generation expands the selected connections into edges.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Connection {
+    MapBoundary {
+        endpoints: [VertexIndex; 2],
+        kind: MapBoundaryKind,
+    },
     Entrance {
         kind: EntranceKind,
         entrance_idx: EntranceIndex,
@@ -371,6 +387,13 @@ pub enum Connection {
         /// Traversable in both directions.
         endpoints: [ScreenBoundaryIndex; 2],
     },
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub enum MapBoundaryKind {
+    Ordinary,
+    Mirror,
+    Return,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -751,6 +774,8 @@ pub fn compute_schema_hash() -> Result<u64> {
         tracer.trace_simple_type::<SourceRoomId>()?;
         tracer.trace_simple_type::<RoomKind>()?;
         tracer.trace_simple_type::<World>()?;
+        tracer.trace_simple_type::<BoundaryEndpoint>()?;
+        tracer.trace_simple_type::<MapBoundaryKind>()?;
         tracer.trace_simple_type::<VertexOrigin>()?;
         tracer.trace_simple_type::<TransitionState>()?;
         tracer.trace_simple_type::<OverheadClass>()?;

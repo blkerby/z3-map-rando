@@ -70,8 +70,17 @@ fn get_default_camera_follow() -> f32 {
 #[derive(Deserialize)]
 struct SourceLayer {
     name: String,
+    condition: Option<String>,
     background: Background,
     screens: Vec<SourceScreen>,
+    map: Option<SourceMap>,
+}
+
+#[derive(Deserialize)]
+struct SourceMap {
+    palettes: Vec<Vec<Option<PaletteId>>>,
+    tiles: Vec<Vec<Option<TileId>>>,
+    flips: Vec<Vec<Option<u8>>>,
 }
 
 #[derive(Deserialize)]
@@ -136,6 +145,7 @@ pub fn build_catalog(
         palettes: compile_palettes(retiling_project, &fingerprints)?,
         areas: compile_areas(retiling_project)?,
         dynamic_tile_groups: compile_dynamic_tiles(retiling_project)?,
+        conditions: read_json(&retiling_project.join("conditions.json"))?,
     };
     write_catalog(&catalog, output_catalog, compression_level)
 }
@@ -261,6 +271,33 @@ fn compile_area_theme(source: SourceArea, directory: &Path, theme: &str) -> Resu
 }
 
 fn convert_layer(layer: SourceLayer, size: [u8; 2]) -> Layer {
+    let map = if let Some(source) = layer.map {
+        let mut tiles = Vec::new();
+        for y in 0..usize::from(size[1]) * 2 {
+            for x in 0..usize::from(size[0]) * 2 {
+                if let (Some(palette), Some(tile), Some(flip)) = (
+                    source.palettes[y][x],
+                    source.tiles[y][x],
+                    source.flips[y][x],
+                ) {
+                    tiles.push(TilePlacement {
+                        x: x as u8,
+                        y: y as u8,
+                        palette,
+                        tile,
+                        flip: convert_flip(flip),
+                    });
+                }
+            }
+        }
+        Some(TileGrid {
+            width: size[0] * 2,
+            height: size[1] * 2,
+            tiles,
+        })
+    } else {
+        None
+    };
     let mut tiles = BTreeMap::new();
     for screen in layer.screens {
         for y in 0..usize::from(screen.size[1]) {
@@ -283,6 +320,8 @@ fn convert_layer(layer: SourceLayer, size: [u8; 2]) -> Layer {
         }
     }
     Layer {
+        map,
+        condition: layer.condition,
         name: layer.name,
         background: layer.background,
         grid: TileGrid {

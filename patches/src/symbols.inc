@@ -25,6 +25,14 @@ endmacro
 %export_symbol(LostWoodsClearBG1FlatMap16Pointers, lost_woods_clear_bg1_flat_map16_pointers, $BFE410)
 %export_symbol(RainContexts, rain_contexts, $BFE430)
 %export_symbol(RainFlatMap16Pointers, rain_flat_map16_pointers, $BFE4D0)
+%export_symbol(SlotToArea, slot_to_area, $82A4E3)
+%export_symbol(AreaToAnchor, area_to_anchor, $BFE540)
+%export_symbol(WorldMapGraphics, world_map_graphics, $CA8000)
+%export_symbol(WorldMapTilemaps, world_map_tilemaps, $CB8000)
+%export_symbol(WorldMapPalettes, world_map_palettes, $8ADB39)
+
+; A/X are 16-bit; preserve X and resolve a normal logical ID to its physical anchor.
+!GetPhysicalAreaAnchor = $A0F200
 
 ; Generated background colors and asset payloads. Asset records and descriptor
 ; lists are allocated by the patcher in banks D0-FF.

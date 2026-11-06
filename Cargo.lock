@@ -220,6 +220,7 @@ dependencies = [
  "seed_data",
  "serde_json",
  "sha2",
+ "toml",
 ]
 
 [[package]]
