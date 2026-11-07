@@ -494,9 +494,7 @@
 	/* Negative vertical margin: the button is taller than the title line, so without it the header grows when it appears. */
 	.card-reset {
 		flex: none;
-		margin: -0.25rem 0.75rem -0.25rem 0.25rem;
-		padding: 0.1rem 0.5rem;
-		font-size: 0.78rem;
+		margin: -0.4rem 0.75rem -0.4rem 0.25rem;
 	}
 
 	/* Shrinkable rather than capped, so the controls only wrap when the header is actually out of room. */
