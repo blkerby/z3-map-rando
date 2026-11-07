@@ -2,23 +2,24 @@ import type { Preset } from './types';
 import { newPresetId } from './presetIO';
 
 /** What a preset holds besides its id and name. */
-export type PresetContent = Pick<Preset, 'values' | 'groupPresets'>;
+export type PresetContent = Pick<Preset, 'base' | 'sections' | 'values'>;
 
 /** The presets behind one preset picker: the built-in ones, the player's own, and which is selected. */
 export class PresetList {
 	readonly builtIn: Preset[];
+	/** The built-in preset selected to begin with, and whenever the selected preset goes away. */
+	readonly defaultId: string;
 	/** Presets the player saved or imported. */
 	userPresets = $state<Preset[]>([]);
-	selectedId = $state('');
+	/**
+	 * The preset picked for this section, or null when it takes whatever the presets around it choose
+	 * (see SettingsStore.selectedPreset). The root section always has one.
+	 */
+	selectedId = $state<string | null>(null);
 
-	constructor(builtIn: Preset[]) {
+	constructor(builtIn: Preset[], defaultId?: string) {
 		this.builtIn = builtIn;
-		this.selectedId = this.defaultId;
-	}
-
-	/** The first built-in preset: selected to begin with, and whenever the selected preset goes away. */
-	get defaultId(): string {
-		return this.builtIn[0].id;
+		this.defaultId = builtIn.some((p) => p.id === defaultId) ? defaultId! : builtIn[0].id;
 	}
 
 	/** Built-in presets followed by the player's own. */
@@ -26,21 +27,26 @@ export class PresetList {
 		return [...this.builtIn, ...this.userPresets];
 	}
 
-	get selected(): Preset {
-		return this.find(this.selectedId) ?? this.builtIn[0];
+	get defaultPreset(): Preset {
+		return this.builtIn.find((p) => p.id === this.defaultId)!;
 	}
 
 	find(id: unknown): Preset | undefined {
 		return this.all.find((p) => p.id === id);
 	}
 
-	isUser(id: string): boolean {
-		return this.userPresets.some((p) => p.id === id);
+	/** The built-in preset with this id, or the default one. */
+	builtInOrDefault(id: unknown): Preset {
+		return this.builtIn.find((p) => p.id === id) ?? this.defaultPreset;
 	}
 
-	/** Select a preset by id, falling back to the default one if there is no such preset. */
-	select(id: unknown) {
-		this.selectedId = this.find(id)?.id ?? this.defaultId;
+	/** The built-in preset a preset stands on: itself if built-in, otherwise its base. */
+	builtInBehind(preset: Preset): Preset {
+		return preset.base === undefined ? preset : this.builtInOrDefault(preset.base);
+	}
+
+	isUser(id: string): boolean {
+		return this.userPresets.some((p) => p.id === id);
 	}
 
 	add(name: string, content: PresetContent): Preset {
@@ -57,10 +63,5 @@ export class PresetList {
 	rename(id: string, name: string) {
 		const preset = this.userPresets.find((p) => p.id === id);
 		if (preset) preset.name = name;
-	}
-
-	delete(id: string) {
-		this.userPresets = this.userPresets.filter((p) => p.id !== id);
-		if (this.selectedId === id) this.selectedId = this.defaultId;
 	}
 }

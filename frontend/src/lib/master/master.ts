@@ -42,8 +42,10 @@ export interface SectionNode extends NodeBase {
 	collapsed?: boolean;
 	/** The section's counts fill the game's item locations, so together they may not exceed `itemLocations`. */
 	itemPool?: boolean;
-	/** Built-in presets for this section (the first is the default). Without any, the section gets "Default" (Logic derives its own from difficulties). */
+	/** Built-in presets for this section. Without any, the section gets "Default" (Logic derives its own from difficulties). */
 	presets?: MasterPreset[];
+	/** Id of the preset selected to begin with (and when a preset goes missing). Default: the first. */
+	defaultPreset?: string;
 	children: MasterNode[];
 }
 
@@ -126,8 +128,10 @@ export type LeafNode = LevelNode | ToggleNode | CountNode | ChoiceNode;
 export interface MasterPreset {
 	id: string;
 	name: string;
-	/** Setting key -> value. Only what differs from defaults. */
+	/** Setting key -> value, for the section's own settings. Only what differs from defaults. */
 	values: Record<string, Value>;
+	/** Section id -> built-in preset id, for sections inside this one (any left out get their default). */
+	sections?: Record<string, string>;
 }
 
 export interface MasterData {
@@ -139,7 +143,7 @@ export interface MasterData {
 	unrankedDifficulties: string[];
 	/** Number of item locations in the game: the most items the Item Pool can hold (fewer leaves locations empty). */
 	itemLocations: number;
-	/** Built-in presets for all the settings at once. */
+	/** Built-in presets for all the settings at once (after "Default", which is the default). */
 	presets?: MasterPreset[];
 	root: MasterNode[];
 }

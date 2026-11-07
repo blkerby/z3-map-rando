@@ -23,9 +23,9 @@ function inherit(n: { layout?: 'list' | 'grid' | 'compact' }, look: Look): Look 
 }
 
 /**
- * Turn the master file into the settings and presets the settings store understands. A section with
- * settings of its own gets its own presets: those listed in the master file, otherwise one per
- * difficulty if its settings have difficulties (Logic), otherwise just "Default".
+ * Turn the master file into the settings and presets the settings store understands. Every section
+ * gets its own presets: those listed in the master file, otherwise one per difficulty if its settings
+ * have difficulties (Logic), otherwise just "Default".
  */
 export function buildSchema(master: MasterData): Schema {
 	const hidden: Record<string, Value> = {};
@@ -107,20 +107,17 @@ export function buildSchema(master: MasterData): Schema {
 		leaves = [];
 		const items: Item[] = [];
 		collect(n.children, [], items, n.title, inherit(n, {}));
-		const hasSettings = items.some((item) => item.kind !== 'section');
-		const presets = hasSettings
-			? (n.presets ?? buildDifficultyPresets(master, leaves) ?? [{ id: 'default', name: 'Default', values: {} }])
-			: undefined;
+		const presets = n.presets ?? buildDifficultyPresets(master, leaves) ?? [{ id: 'default', name: 'Default', values: {} }];
 		leaves = outer;
 		const pool = n.itemPool ? { total: master.itemLocations } : undefined;
-		return { kind: 'section', id: n.id, title: n.title, icon: n.icon, collapsible: n.collapsible, collapsed: n.collapsed, pool, presets, items };
+		return { kind: 'section', id: n.id, title: n.title, icon: n.icon, collapsible: n.collapsible, collapsed: n.collapsed, pool, presets, defaultPreset: n.defaultPreset, items };
 	}
 
 	const items: Item[] = [];
 	collect(master.root, [], items, '', {});
 
 	const presets: Preset[] = [{ id: 'default', name: 'Default', values: {} }];
-	for (const p of master.presets ?? []) presets.push({ id: p.id, name: p.name, values: p.values });
+	for (const p of master.presets ?? []) presets.push(p);
 	return { items, presets, hidden };
 }
 

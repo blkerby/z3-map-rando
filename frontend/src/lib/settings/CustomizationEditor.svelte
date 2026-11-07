@@ -9,9 +9,11 @@
 	let { store }: { store: SettingsStore } = $props();
 
 	const STORAGE_KEY = 'alttp-maprando:customization';
+	const PRESETS_KEY = 'alttp-maprando:presets:customization';
 	let ready = $state(false);
 
 	onMount(() => {
+		store.loadUserPresets(PRESETS_KEY, 1); // before the draft, which may name one of them
 		try {
 			const code = localStorage.getItem(STORAGE_KEY);
 			if (code) store.load(code);
@@ -19,6 +21,11 @@
 			/* storage unavailable: start from defaults */
 		}
 		ready = true;
+	});
+
+	$effect(() => {
+		JSON.stringify(Object.values(store.lists).map((l) => l.userPresets)); // tracked: re-runs when any preset changes
+		if (ready) store.saveUserPresets(PRESETS_KEY, 1);
 	});
 
 	$effect(() => {
@@ -33,7 +40,7 @@
 </script>
 
 <div class="mb-3">
-	<PresetManager {store} kind="customization" storageKey="alttp-maprando:presets:customization" selectId="custom-preset" />
+	<PresetManager {store} kind="customization" selectId="custom-preset" />
 </div>
 
 <ItemList {store} items={store.items} idPrefix="custom-section-" />

@@ -1,5 +1,6 @@
 import type { Item, Preset, Section, Setting, Value } from './types';
 import { PresetList, type PresetContent } from './presetList.svelte';
+import { readStoredPresets } from './presetIO';
 import { SearchState } from './search.svelte';
 
 /** Flatten settings and their nested `details` into one list. */
@@ -28,21 +29,41 @@ function sectionsIn(items: Item[]): Section[] {
 	return out;
 }
 
+/** The sections directly inside a section. */
+function childSections(section: Section): Section[] {
+	const out: Section[] = [];
+	for (const item of section.items) if (item.kind === 'section') out.push(item);
+	return out;
+}
+
 /** Item locations used by a section's counts (see Section.pool). */
 export interface PoolStatus {
 	total: number;
 	used: number;
 }
 
+/** What applying a preset gives: every setting's value and the preset selected in every section. */
+interface Resolution {
+	values: Record<string, Value>;
+	selections: Record<string, string>;
+	/** For each section inside: the preset the presets around it choose for it. */
+	implied: Record<string, string>;
+	/** A section to work out as if it took what the presets around it choose (its pick and any picks inside it ignored). */
+	inherit?: string;
+}
+
+/** Id of the root section: everything, with the presets for all the settings at once. */
+const ROOT_ID = 'root';
+
 export class SettingsStore {
+	/** Everything, as one section: its items are the top-level settings and sections, its presets are for all the settings. */
+	readonly root: Section;
 	/** The top-level list: loose settings and sections. */
 	readonly items: Item[];
-	/** Every section, nested ones included, parents first. */
+	/** Every section below the root, nested ones included, parents first. */
 	readonly sections: Section[];
-	/** Presets for all the settings at once. */
-	readonly presets: PresetList;
-	/** Presets for a single card, by section id (only for cards that have their own). */
-	readonly sectionPresets: Record<string, PresetList | undefined> = {};
+	/** The presets for each section (the root included), by section id. */
+	readonly lists: Record<string, PresetList> = {};
 	readonly all: Setting[];
 	/** Lookup by id. Null-prototype so ids from untrusted links like "constructor" can't match. */
 	readonly byId: Record<string, Setting | undefined>;
@@ -58,17 +79,46 @@ export class SettingsStore {
 	 * open, unless the section says `collapsed`. Searching opens every card with a match.
 	 */
 	opened = $state<Record<string, boolean>>({});
+	/** Set when the player's presets couldn't be saved in this browser. */
+	storageFailed = $state(false);
+
+	/** The values the selected presets give, and what they choose for each section (see `resolve`). */
+	private readonly layers = $derived.by(() => {
+		const applied = this.emptyResolution();
+		this.resolve(this.root, this.rootPreset, {}, true, true, applied);
+		const plain = this.emptyResolution();
+		this.resolve(this.root, this.rootPreset, {}, true, false, plain);
+		return { applied: applied.values, implied: applied.implied, plain: plain.values };
+	});
+
+	/**
+	 * For each section: how many settings inside it the presets around it change from the preset they
+	 * choose for it (with their tweaks, and their picks for sections inside it), had it not been picked by hand.
+	 */
+	private readonly inheritedChanges = $derived.by(() => {
+		const out: Record<string, number> = {};
+		for (const sec of this.sections) {
+			const inherited = this.emptyResolution(sec.id);
+			this.resolve(this.root, this.rootPreset, {}, true, true, inherited);
+			const plain = this.resolveFresh(sec, this.impliedPreset(sec)).values;
+			let n = 0;
+			for (const s of settingsIn(sec.items)) if (inherited.values[s.id] !== plain[s.id]) n++;
+			out[sec.id] = n;
+		}
+		return out;
+	});
 
 	constructor(items: Item[], presets: Preset[], search: SearchState = new SearchState()) {
 		this.search = search;
 		this.items = items;
+		this.root = { kind: 'section', id: ROOT_ID, title: 'All settings', presets, items };
 		this.sections = sectionsIn(items);
-		this.presets = new PresetList(presets);
-		for (const sec of this.sections) if (sec.presets) this.sectionPresets[sec.id] = new PresetList(sec.presets);
+		for (const sec of [this.root, ...this.sections]) this.lists[sec.id] = new PresetList(sec.presets, sec.defaultPreset);
+		this.lists[ROOT_ID].selectedId = this.lists[ROOT_ID].defaultId;
 		this.all = settingsIn(items);
 		this.byId = Object.assign(Object.create(null), Object.fromEntries(this.all.map((s) => [s.id, s])));
 		this.defaults = Object.fromEntries(this.all.map((s) => [s.id, s.default]));
-		this.values = { ...this.defaults };
+		this.values = this.resolveFresh(this.root, this.rootPreset).values;
 	}
 
 	get query(): string {
@@ -79,34 +129,51 @@ export class SettingsStore {
 		this.search.query = value;
 	}
 
-	/** The presets for one card if it has its own, otherwise the presets for all the settings. */
-	listFor(section?: Section): PresetList {
-		return (section && this.sectionPresets[section.id]) || this.presets;
+	listFor(section: Section): PresetList {
+		return this.lists[section.id];
 	}
 
-	/** The selected presets, e.g. "Default · Logic: Expert". */
+	/** The selected presets, e.g. "Default · Logic: Hard + 2 tweaks". */
 	get presetSummary(): string {
-		let out = this.presets.selected.name;
-		for (const sec of this.sections) {
-			const list = this.sectionPresets[sec.id];
-			if (list) out += ` · ${sec.title}: ${list.selected.name}`;
-		}
+		let out = this.rootPreset.name;
+		for (const sec of this.sections) out += ` · ${sec.title}: ${this.selectionLabel(sec)}`;
 		return out;
 	}
 
-	/**
-	 * Values the selected presets want: a card with its own presets takes its own settings' values from
-	 * the preset selected for it, everything else from the selected full-settings preset.
-	 */
-	get baseline(): Record<string, Value> {
-		const out = { ...this.defaults, ...this.presets.selected.values };
-		for (const sec of this.sections) {
-			const list = this.sectionPresets[sec.id];
-			if (!list) continue;
-			const values = list.selected.values;
-			for (const s of ownSettings(sec)) out[s.id] = values[s.id] ?? this.defaults[s.id];
-		}
-		return out;
+	/** The selected top-level preset. */
+	get rootPreset(): Preset {
+		const list = this.lists[ROOT_ID];
+		return list.find(list.selectedId) ?? list.defaultPreset;
+	}
+
+	/** The preset the presets around a section choose for it. */
+	impliedPreset(section: Section): Preset {
+		const list = this.lists[section.id];
+		return list.find(this.layers.implied[section.id]) ?? list.defaultPreset;
+	}
+
+	/** The preset a section takes: the one picked for it by hand, otherwise the one chosen for it. */
+	selectedPreset(section: Section): Preset {
+		if (section === this.root) return this.rootPreset;
+		return this.lists[section.id].find(this.lists[section.id].selectedId) ?? this.impliedPreset(section);
+	}
+
+	/** How many settings inside a section the presets around it change (see `inheritedChanges`). */
+	tweakCount(section: Section): number {
+		return this.inheritedChanges[section.id] ?? 0;
+	}
+
+	/** What a section takes, e.g. "Hard + 2 tweaks", or "Expert" when picked by hand. */
+	selectionLabel(section: Section): string {
+		if (section === this.root || this.isSelectionChanged(section)) return this.selectedPreset(section).name;
+		return this.inheritedLabel(section);
+	}
+
+	/** The label of a section's choice when it isn't picked by hand, e.g. "Hard + 2 tweaks". */
+	inheritedLabel(section: Section): string {
+		const name = this.impliedPreset(section).name;
+		const n = this.tweakCount(section);
+		return n ? `${name} + ${n} tweak${n === 1 ? '' : 's'}` : name;
 	}
 
 	get(id: string): Value {
@@ -116,6 +183,75 @@ export class SettingsStore {
 	set(id: string, value: Value) {
 		if (this.locked) return;
 		this.values[id] = value;
+	}
+
+	// ---- Working out what presets give ------------------------------------------
+
+	private emptyResolution(inherit?: string): Resolution {
+		return { values: { ...this.defaults }, selections: {}, implied: {}, inherit };
+	}
+
+	/**
+	 * Work out a section with `preset` applied, into `out`: its own settings come from the preset (or its
+	 * base); each section inside takes the preset chosen for it (by `outer`, the choices of the presets
+	 * around this one, which win; then by this preset; then by its base; otherwise the section's default);
+	 * then this preset's tweaks go on top.
+	 *
+	 * With `follow`, a section inside that has a preset picked by hand takes that preset instead, plainly:
+	 * this preset's choices and tweaks don't reach into it. Without `follow`, picks are ignored. With `tweaks` false, this preset's own tweaks are left
+	 * out (not those of presets inside it).
+	 *
+	 * Returns the ids of the settings this preset decides (where its tweaks apply).
+	 */
+	private resolve(
+		section: Section,
+		preset: Preset,
+		outer: Record<string, string>,
+		follow: boolean,
+		tweaks: boolean,
+		out: Resolution
+	): string[] {
+		const base = this.lists[section.id].builtInBehind(preset);
+		out.selections[section.id] = preset.id;
+		const decided: string[] = [];
+		for (const s of ownSettings(section)) {
+			out.values[s.id] = base.values[s.id] ?? this.defaults[s.id];
+			decided.push(s.id);
+		}
+		const chosen = { ...base.sections, ...(preset === base ? undefined : preset.sections), ...outer };
+		for (const child of childSections(section)) {
+			const list = this.lists[child.id];
+			const implied = list.find(chosen[child.id]) ?? list.defaultPreset;
+			out.implied[child.id] = implied.id;
+			const followChild = follow && child.id !== out.inherit;
+			const picked = followChild ? list.find(list.selectedId) : undefined;
+			if (picked) {
+				this.resolve(child, picked, {}, true, true, out);
+				continue;
+			}
+			decided.push(...this.resolve(child, implied, chosen, followChild, true, out));
+		}
+		if (tweaks && preset !== base) {
+			for (const [id, v] of Object.entries(preset.values)) if (decided.includes(id)) out.values[id] = v;
+		}
+		return decided;
+	}
+
+	/** A section with a preset applied as if just selected (current selections inside it ignored). */
+	private resolveFresh(section: Section, preset: Preset): Resolution {
+		const out = this.emptyResolution();
+		this.resolve(section, preset, {}, false, true, out);
+		return out;
+	}
+
+	/** The values the selected presets give. Differences from these are unsaved changes. */
+	get applied(): Record<string, Value> {
+		return this.layers.applied;
+	}
+
+	/** The values the selected presets give without the top-level preset's own tweaks. */
+	get plain(): Record<string, Value> {
+		return this.layers.plain;
 	}
 
 	// ---- Item locations -----------------------------------------------------------
@@ -146,117 +282,207 @@ export class SettingsStore {
 		return out;
 	}
 
+	// ---- Unsaved changes ------------------------------------------------------------
+
+	/** Does this setting differ from what the selected presets give? */
 	isChanged(id: string): boolean {
-		return this.values[id] !== this.baseline[id];
+		return this.values[id] !== this.applied[id];
 	}
 
-	/** Ids that differ from the selected preset. */
+	/** Was this section's preset picked by hand (rather than taking what the presets around it choose)? */
+	isSelectionChanged(section: Section): boolean {
+		if (section === this.root) return false;
+		return this.lists[section.id].find(this.lists[section.id].selectedId) !== undefined;
+	}
+
+	/** Ids that differ from the selected presets. */
 	get changedIds(): string[] {
 		return this.all.filter((s) => this.isChanged(s.id)).map((s) => s.id);
 	}
 
+	/** Has anything in this section (its selection, settings and sections inside included) changed? */
+	sectionChanged(section: Section): boolean {
+		for (const sec of [section, ...sectionsIn(section.items)]) if (this.isSelectionChanged(sec)) return true;
+		return settingsIn(section.items).some((s) => this.isChanged(s.id));
+	}
+
 	reset(id: string) {
 		if (this.locked) return;
-		this.values[id] = this.baseline[id];
+		this.values[id] = this.applied[id];
 	}
 
-	/** Has any of this card's own settings moved from the selected preset? */
-	sectionChanged(section: Section): boolean {
-		return ownSettings(section).some((s) => this.isChanged(s.id));
-	}
-
-	/** Put this card's own settings back to the selected preset, leaving everything else alone. */
+	/** Undo the unsaved changes in one section (selections inside it included), leaving everything else alone. */
 	resetSection(section: Section) {
 		if (this.locked) return;
-		const base = this.baseline;
-		for (const s of ownSettings(section)) this.values[s.id] = base[s.id];
+		for (const sec of [section, ...sectionsIn(section.items)]) if (sec !== this.root) this.lists[sec.id].selectedId = null;
+		const applied = this.applied;
+		for (const s of settingsIn(section.items)) this.values[s.id] = applied[s.id];
 	}
 
 	resetAll() {
-		if (this.locked) return;
-		this.values = { ...this.baseline };
+		this.resetSection(this.root);
 	}
 
 	/**
-	 * Select a preset (for one card, or for all the settings) and take its values. A full-settings
-	 * preset also selects the card presets it was saved with.
+	 * Pick a preset for a section and take its values (and the presets it chooses for sections inside
+	 * it). An empty id, or the preset the presets around it choose when they change nothing in it, means
+	 * taking what they choose.
 	 */
-	applyPreset(id: string, section?: Section) {
+	applyPreset(id: string, section: Section) {
 		if (this.locked) return;
-		const list = this.listFor(section);
-		const preset = list.find(id);
-		if (!preset) return;
-		list.selectedId = preset.id;
-		if (section) {
-			this.resetSection(section);
-			return;
-		}
-		for (const sec of this.sections) this.sectionPresets[sec.id]?.select(preset.groupPresets?.[sec.id]);
-		this.values = { ...this.defaults, ...preset.values };
+		const list = this.lists[section.id];
+		if (id !== '' && !list.find(id)) return;
+		const inherit = section !== this.root && (id === '' || (id === this.impliedPreset(section).id && this.tweakCount(section) === 0));
+		this.adoptPreset(section, inherit ? null : id);
+		const applied = this.applied;
+		for (const s of settingsIn(section.items)) this.values[s.id] = applied[s.id];
+	}
+
+	/** Make `id` (null: what the presets around it choose) a section's selection, with the sections inside it taking what it chooses. */
+	private adoptPreset(section: Section, id: string | null) {
+		this.lists[section.id].selectedId = id;
+		for (const sec of sectionsIn(section.items)) this.lists[sec.id].selectedId = null;
+	}
+
+	/** After saving or updating a preset for a section from the current settings: make it the section's selection. */
+	adoptSaved(section: Section, id: string) {
+		const inherit = section !== this.root && !this.isSelectionChanged(section) && id === this.impliedPreset(section).id;
+		this.adoptPreset(section, inherit ? null : id);
 	}
 
 	// ---- User presets -----------------------------------------------------------
 
 	/**
-	 * What a preset saved now would hold: a full snapshot of the values (one card's, or all of them, so
-	 * later default changes can't silently alter it) and, for a full-settings preset, the selected card presets.
+	 * What a user preset for this section saved now would hold: the built-in preset behind the selected
+	 * one as its base, the selections inside the section that differ from what would otherwise be chosen,
+	 * and the settings that differ from what those give.
 	 */
-	capture(section?: Section): PresetContent {
-		if (section) {
-			const values: Record<string, Value> = {};
-			for (const s of ownSettings(section)) values[s.id] = this.values[s.id];
-			return { values };
-		}
-		const groupPresets: Record<string, string> = {};
-		for (const sec of this.sections) {
-			const list = this.sectionPresets[sec.id];
-			if (list) groupPresets[sec.id] = list.selectedId;
-		}
-		return { values: { ...this.values }, groupPresets };
+	capture(section: Section): PresetContent {
+		const base = this.lists[section.id].builtInBehind(this.selectedPreset(section));
+		const sections: Record<string, string> = {};
+		this.recordSelections(section, base, {}, sections);
+		const given = this.resolveFresh(section, { id: '', name: '', base: base.id, sections, values: {} }).values;
+		const values: Record<string, Value> = {};
+		for (const s of settingsIn(section.items)) if (this.values[s.id] !== given[s.id]) values[s.id] = this.values[s.id];
+		return { base: base.id, sections, values };
 	}
 
-	/** Would saving now change the selected preset (for one card, or for all the settings)? */
-	hasChanges(section?: Section): boolean {
-		if (section) return this.sectionChanged(section);
-		if (this.changedIds.length) return true;
-		const recorded = this.presets.selected.groupPresets;
-		for (const sec of this.sections) {
-			const list = this.sectionPresets[sec.id];
-			if (list && list.selectedId !== (recorded?.[sec.id] ?? list.defaultId)) return true;
+	/** Record the current selections inside a section where they differ from what `preset` and `outer` choose. */
+	private recordSelections(section: Section, preset: Preset, outer: Record<string, string>, out: Record<string, string>) {
+		const base = this.lists[section.id].builtInBehind(preset);
+		const chosen = { ...base.sections, ...(preset === base ? undefined : preset.sections), ...outer };
+		for (const child of childSections(section)) {
+			const list = this.lists[child.id];
+			const implied = list.find(chosen[child.id]) ?? list.defaultPreset;
+			const current = list.find(list.selectedId) ?? implied;
+			if (current.id !== implied.id) out[child.id] = current.id;
+			this.recordSelections(child, current, { ...chosen, ...out }, out);
 		}
-		return false;
+	}
+
+	/** Would updating the selected preset (a user preset) change it? */
+	canUpdate(section: Section): boolean {
+		const saved = this.selectedPreset(section);
+		if (!this.lists[section.id].isUser(saved.id)) return false;
+		const now = this.capture(section);
+		return (
+			now.base !== saved.base ||
+			!sameEntries(now.sections ?? {}, saved.sections ?? {}) ||
+			!sameEntries(now.values, saved.values)
+		);
 	}
 
 	/**
-	 * Keep only known, correctly-typed values from untrusted input; everything else gets its default.
-	 * With a section, only that card's own values are kept.
+	 * Delete a user preset. Presets that refer to it switch to its base and take over its choices and
+	 * tweaks (unless they have their own), so their values don't change.
 	 */
-	sanitize(raw: unknown, section?: Section): Record<string, Value> {
-		const next = this.sanitizeAll(raw);
-		if (!section) return next;
-		const out: Record<string, Value> = {};
-		for (const s of ownSettings(section)) out[s.id] = next[s.id];
-		return out;
+	deletePreset(section: Section, id: string) {
+		const list = this.lists[section.id];
+		const gone = list.userPresets.find((p) => p.id === id);
+		if (!gone) return;
+		for (const other of Object.values(this.lists)) {
+			for (const p of other.userPresets) {
+				if (p.sections?.[section.id] !== id) continue;
+				p.sections = { ...gone.sections, ...p.sections, [section.id]: gone.base! };
+				p.values = { ...gone.values, ...p.values };
+			}
+		}
+		list.userPresets = list.userPresets.filter((p) => p.id !== id);
+		if (list.selectedId === id) list.selectedId = list.builtInOrDefault(gone.base).id; // the current settings are kept
 	}
 
-	private sanitizeAll(raw: unknown): Record<string, Value> {
-		const next = { ...this.defaults };
-		if (typeof raw !== 'object' || raw === null) return next;
+	/** Load the player's presets from this browser, moving tweaks of settings that changed section (see `migrate`). */
+	loadUserPresets(key: string, version: number) {
+		let data: { version?: unknown; lists?: Record<string, unknown> } = {};
+		try {
+			data = JSON.parse(localStorage.getItem(key) ?? '{}') ?? {};
+		} catch {
+			/* storage unavailable or unreadable: start without saved presets */
+		}
+		for (const [secId, list] of Object.entries(this.lists)) {
+			list.userPresets = readStoredPresets(data.lists?.[secId], (v) => this.sanitize(v));
+		}
+		if (typeof data.version === 'number' && data.version < version) this.migrate();
+	}
+
+	/** Save the player's presets in this browser. */
+	saveUserPresets(key: string, version: number) {
+		const lists: Record<string, Preset[]> = {};
+		for (const [secId, list] of Object.entries(this.lists)) if (list.userPresets.length) lists[secId] = list.userPresets;
+		try {
+			localStorage.setItem(key, JSON.stringify({ version, lists }));
+			this.storageFailed = false;
+		} catch {
+			this.storageFailed = true;
+		}
+	}
+
+	/**
+	 * After settings have moved between sections: a section preset's tweak of a setting that is no longer
+	 * inside the section moves up into the presets that refer to it (unless they have their own), so they
+	 * keep the same values. With nothing referring to it, it stays, unused, in case the setting moves back.
+	 */
+	private migrate() {
+		for (const section of this.sections) {
+			const inside = settingsIn(section.items).map((s) => s.id);
+			for (const preset of this.lists[section.id].userPresets) {
+				for (const [id, v] of Object.entries(preset.values)) {
+					if (inside.includes(id)) continue;
+					let moved = false;
+					for (const other of Object.values(this.lists)) {
+						for (const p of other.userPresets) {
+							if (p.sections?.[section.id] !== preset.id) continue;
+							if (!(id in p.values)) p.values[id] = v;
+							moved = true;
+						}
+					}
+					if (moved) delete preset.values[id];
+				}
+			}
+		}
+	}
+
+	/** Keep only known, correctly-typed values from untrusted input (only those given; nothing is filled in). */
+	sanitize(raw: unknown): Record<string, Value> {
+		const out: Record<string, Value> = {};
+		if (typeof raw !== 'object' || raw === null) return out;
 		for (const [id, val] of Object.entries(raw)) {
 			const s = this.byId[id];
 			if (!s) continue;
 			if (s.kind === 'choice' && typeof val === 'string' && s.options.some((o) => o.value === val)) {
-				next[id] = val;
+				out[id] = val;
 			} else if (s.kind === 'toggle' && typeof val === 'boolean') {
-				next[id] = val;
+				out[id] = val;
 			} else if (s.kind === 'level' && typeof val === 'number' && s.levels.some((l) => l.value === val)) {
-				next[id] = val;
+				out[id] = val;
 			} else if (s.kind === 'number' && typeof val === 'number' && Number.isFinite(val)) {
-				next[id] = Math.min(s.max, Math.max(s.min, val));
+				out[id] = Math.min(s.max, Math.max(s.min, val));
 			}
 		}
-		return next;
+		return out;
 	}
+
+	// ---- Display and search -------------------------------------------------------
 
 	/** Human-readable label for a value, for summaries and chips. */
 	display(id: string): string {
@@ -306,28 +532,23 @@ export class SettingsStore {
 		return this.opened[section.id] ?? !section.collapsed;
 	}
 
-	/** Only the values that differ from the schema defaults (in one card, or in all of them). */
-	diff(section?: Section): Record<string, Value> {
-		const out: Record<string, Value> = {};
-		for (const s of section ? ownSettings(section) : this.all) {
-			if (this.values[s.id] !== s.default) out[s.id] = this.values[s.id];
-		}
-		return out;
-	}
+	// ---- Links and drafts -----------------------------------------------------------
 
 	/**
-	 * Compact string of the current settings (only values that differ from defaults).
-	 * Share links leave out the player's own presets, since other people don't have them;
-	 * pass `keepPreset` for local storage, where the selected preset should be remembered.
+	 * Compact string of the current settings: the selected presets and the values that differ from the
+	 * schema defaults. Share links can't use the player's own presets, since other people don't have them,
+	 * so they name the built-in preset behind each; pass `keepPreset` for local storage, where the
+	 * selected presets should be remembered.
 	 */
 	serialize(opts: { keepPreset?: boolean } = {}): string {
-		const idOf = (list: PresetList) => (opts.keepPreset || !list.isUser(list.selectedId) ? list.selectedId : list.defaultId);
-		const g: Record<string, string> = {};
-		for (const sec of this.sections) {
-			const list = this.sectionPresets[sec.id];
-			if (list) g[sec.id] = idOf(list);
+		const s: Record<string, string | null> = {};
+		for (const [secId, list] of Object.entries(this.lists)) {
+			const picked = list.find(list.selectedId);
+			s[secId] = !picked ? null : opts.keepPreset ? picked.id : list.builtInBehind(picked).id;
 		}
-		const json = JSON.stringify({ p: idOf(this.presets), g, v: this.diff() });
+		const v: Record<string, Value> = {};
+		for (const x of this.all) if (this.values[x.id] !== x.default) v[x.id] = this.values[x.id];
+		const json = JSON.stringify({ s, v });
 		return btoa(unescape(encodeURIComponent(json)))
 			.replace(/\+/g, '-')
 			.replace(/\//g, '_')
@@ -339,13 +560,21 @@ export class SettingsStore {
 		try {
 			const b64 = code.replace(/-/g, '+').replace(/_/g, '/');
 			const json = decodeURIComponent(escape(atob(b64)));
-			const { p, g, v } = JSON.parse(json) as { p: unknown; g?: Record<string, unknown>; v: unknown };
-			this.presets.select(p);
-			for (const sec of this.sections) this.sectionPresets[sec.id]?.select(g?.[sec.id]);
-			this.values = this.sanitize(v);
+			const { s, v } = JSON.parse(json) as { s?: Record<string, unknown>; v: unknown };
+			for (const [secId, list] of Object.entries(this.lists)) list.selectedId = list.find(s?.[secId])?.id ?? null;
+			this.lists[ROOT_ID].selectedId ??= this.lists[ROOT_ID].defaultId;
+			this.values = { ...this.defaults, ...this.sanitize(v) };
 			return true;
 		} catch {
 			return false;
 		}
 	}
+}
+
+/** Do two records hold the same entries? */
+function sameEntries(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+	const keys = Object.keys(a);
+	if (keys.length !== Object.keys(b).length) return false;
+	for (const k of keys) if (!(k in b) || a[k] !== b[k]) return false;
+	return true;
 }

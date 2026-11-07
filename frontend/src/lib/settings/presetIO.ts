@@ -1,8 +1,9 @@
 import type { Preset, Value } from './types';
+import type { PresetContent } from './presetList.svelte';
 
 /**
- * Which preset list a preset belongs to: 'settings', 'customization', or the id of a card with its
- * own presets (e.g. 'logic'). Presets for one can't be imported into another.
+ * Which preset list a preset belongs to: 'settings', 'customization', or the id of a section (e.g.
+ * 'logic'). Presets for one can't be imported into another.
  */
 export type PresetKind = string;
 
@@ -52,7 +53,7 @@ export function buildExportFile(kind: PresetKind, presets: Preset[]): string {
 			format: FORMAT,
 			version: FORMAT_VERSION,
 			kind,
-			presets: presets.map((p) => ({ name: p.name, values: p.values, groupPresets: p.groupPresets }))
+			presets: presets.map((p) => ({ name: p.name, base: p.base, sections: p.sections, values: p.values }))
 		},
 		null,
 		2
@@ -73,22 +74,14 @@ function fromBase64Url(code: string): string {
 	return new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(binary, (c) => c.charCodeAt(0)));
 }
 
-/** `diff` holds only values that differ from the schema defaults, which keeps the code short. */
-export function encodePresetCode(
-	kind: PresetKind,
-	name: string,
-	diff: Record<string, Value>,
-	groupPresets?: Record<string, string>
-): string {
-	return toBase64Url(JSON.stringify({ k: kind, n: name, v: diff, g: groupPresets }));
+export function encodePresetCode(kind: PresetKind, name: string, content: PresetContent): string {
+	return toBase64Url(JSON.stringify({ k: kind, n: name, b: content.base, s: content.sections, v: content.values }));
 }
 
 // ---- Import -------------------------------------------------------------------
 
-export interface ParsedPreset {
+export interface ParsedPreset extends PresetContent {
 	name: string;
-	values: Record<string, Value>;
-	groupPresets?: Record<string, string>;
 }
 
 export type ParseResult = { ok: true; presets: ParsedPreset[] } | { ok: false; error: string };
@@ -97,12 +90,17 @@ function isObject(x: unknown): x is Record<string, unknown> {
 	return typeof x === 'object' && x !== null && !Array.isArray(x);
 }
 
-/** Card id -> preset id, keeping only string entries. Unknown ids are harmless: they fall back to the default preset. */
-function readGroupPresets(raw: unknown): Record<string, string> | undefined {
+/** Section id -> preset id, keeping only string entries. Unknown ids are harmless: they fall back to the default preset. */
+function readSections(raw: unknown): Record<string, string> | undefined {
 	if (!isObject(raw)) return undefined;
 	const out: Record<string, string> = {};
 	for (const [k, v] of Object.entries(raw)) if (typeof v === 'string') out[k] = v;
 	return out;
+}
+
+/** A user preset's base. Missing or unknown, it becomes the section's default preset. */
+function readBase(raw: unknown): string {
+	return typeof raw === 'string' ? raw : '';
 }
 
 /**
@@ -143,8 +141,9 @@ export function parseImport(
 			if (!isObject(item) || !isObject(item.values)) continue;
 			presets.push({
 				name: cleanName(item.name) || 'Imported preset',
-				values: sanitize(item.values),
-				groupPresets: readGroupPresets(item.groupPresets)
+				base: readBase(item.base),
+				sections: readSections(item.sections),
+				values: sanitize(item.values)
 			});
 		}
 		if (!presets.length) return { ok: false, error: 'That file has no usable presets in it.' };
@@ -167,28 +166,18 @@ export function parseImport(
 	if (data.k !== kind) return { ok: false, error: wrongKind(data.k) };
 	return {
 		ok: true,
-		presets: [{ name: cleanName(data.n) || 'Imported preset', values: sanitize(data.v), groupPresets: readGroupPresets(data.g) }]
+		presets: [{ name: cleanName(data.n) || 'Imported preset', base: readBase(data.b), sections: readSections(data.s), values: sanitize(data.v) }]
 	};
 }
 
 // ---- Browser storage ----------------------------------------------------------
 
-/** Read presets back out of localStorage, discarding anything malformed. */
-export function readStoredPresets(
-	raw: string,
-	sanitize: (raw: unknown) => Record<string, Value>
-): Preset[] {
-	let data: unknown;
-	try {
-		data = JSON.parse(raw);
-	} catch {
-		return [];
-	}
-	if (!isObject(data) || !Array.isArray(data.presets)) return [];
-
+/** Read one list of stored presets back, discarding anything malformed. */
+export function readStoredPresets(raw: unknown, sanitize: (raw: unknown) => Record<string, Value>): Preset[] {
+	if (!Array.isArray(raw)) return [];
 	const out: Preset[] = [];
 	const names: string[] = [];
-	for (const item of data.presets.slice(0, MAX_USER_PRESETS)) {
+	for (const item of raw.slice(0, MAX_USER_PRESETS)) {
 		if (!isObject(item) || !isObject(item.values)) continue;
 		const name = uniqueName(cleanName(item.name) || 'Preset', names);
 		names.push(name);
@@ -196,7 +185,7 @@ export function readStoredPresets(
 			typeof item.id === 'string' && /^user-[a-z0-9]{4,32}$/.test(item.id) && !out.some((p) => p.id === item.id)
 				? item.id
 				: newPresetId();
-		out.push({ id, name, values: sanitize(item.values), groupPresets: readGroupPresets(item.groupPresets) });
+		out.push({ id, name, base: readBase(item.base), sections: readSections(item.sections), values: sanitize(item.values) });
 	}
 	return out;
 }

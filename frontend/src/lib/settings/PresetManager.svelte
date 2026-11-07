@@ -1,10 +1,9 @@
 <script lang="ts">
-	import { onMount, type Snippet } from 'svelte';
+	import type { Snippet } from 'svelte';
 	import { tooltip } from '$lib/tooltip';
 	import type { SettingsStore } from './store.svelte';
 	import type { Section } from './types';
 	import {
-		FORMAT_VERSION,
 		MAX_IMPORT_BYTES,
 		MAX_NAME,
 		MAX_USER_PRESETS,
@@ -12,7 +11,6 @@
 		cleanName,
 		encodePresetCode,
 		parseImport,
-		readStoredPresets,
 		sameName,
 		uniqueName,
 		type PresetKind
@@ -20,9 +18,8 @@
 
 	let {
 		store,
-		section,
+		section: card,
 		kind,
-		storageKey,
 		selectId = 'preset',
 		children
 	}: {
@@ -30,8 +27,6 @@
 		/** Manage this card's own presets instead of the presets for all the settings. */
 		section?: Section;
 		kind: PresetKind;
-		/** localStorage key for this list of presets. */
-		storageKey: string;
 		selectId?: string;
 		/** Extra controls shown at the end of the row (e.g. a search box). */
 		children?: Snippet;
@@ -46,42 +41,25 @@
 	let formError = $state<string | null>(null);
 	let overwriteConfirm = $state(false);
 	let notice = $state<{ type: 'success' | 'info' | 'danger'; text: string } | null>(null);
-	let ready = $state(false);
 
 	let menuEl = $state<HTMLElement>();
 	let nameInput = $state<HTMLInputElement>();
 	let importArea = $state<HTMLTextAreaElement>();
 	let fileInput = $state<HTMLInputElement>();
 
+	/** The section whose presets these are: the card's, or the root (all the settings). */
+	const section = $derived(card ?? store.root);
 	const list = $derived(store.listFor(section));
-	/** The selected preset, if it is one of the player's own. */
-	const selected = $derived(list.userPresets.find((p) => p.id === list.selectedId));
-	const hasChanges = $derived(store.hasChanges(section));
-	const noun = $derived(section ? `${section.title.toLowerCase()} settings` : kind === 'settings' ? 'settings' : 'customization');
-
-	// ---- Persistence: the player's presets live in this browser ------------------
-	onMount(() => {
-		try {
-			const raw = localStorage.getItem(storageKey);
-			if (raw) list.userPresets = readStoredPresets(raw, (v) => store.sanitize(v, section));
-		} catch {
-			/* storage unavailable: presets just won't persist */
-		}
-		ready = true;
-	});
-
-	$effect(() => {
-		const data = JSON.stringify({ version: FORMAT_VERSION, presets: list.userPresets }); // tracked
-		if (!ready) return;
-		try {
-			localStorage.setItem(storageKey, data);
-		} catch {
-			notice = {
-				type: 'danger',
-				text: "Your presets couldn't be saved in this browser (storage may be full or blocked). Export them to keep a backup."
-			};
-		}
-	});
+	/** The preset the section takes (picked by hand, or chosen by the presets around it). */
+	const current = $derived(store.selectedPreset(section));
+	/** The same, if it is one of the player's own. */
+	const selected = $derived(list.isUser(current.id) ? current : undefined);
+	/** A card that isn't picked by hand, where the presets around it change something: "Hard + 2 tweaks". */
+	const tweaks = $derived(card ? store.tweakCount(card) : 0);
+	/** What the dropdown shows: the preset picked by hand, else "" for the "+ tweaks" entry, else the preset chosen for it. */
+	const shown = $derived(store.isSelectionChanged(section) || !tweaks ? current.id : '');
+	const changed = $derived(store.sectionChanged(section));
+	const noun = $derived(card ? `${card.title.toLowerCase()} settings` : kind === 'settings' ? 'settings' : 'customization');
 
 	// ---- Menu ---------------------------------------------------------------------
 	function onWindowClick(e: MouseEvent) {
@@ -152,7 +130,7 @@
 				return;
 			}
 			list.update(clash.id, store.capture(section));
-			list.selectedId = clash.id;
+			store.adoptSaved(section, clash.id);
 			notice = { type: 'success', text: `Updated “${clash.name}”.` };
 			closeForm();
 			return;
@@ -163,7 +141,7 @@
 			return;
 		}
 		const preset = list.add(name, store.capture(section));
-		list.selectedId = preset.id;
+		store.adoptSaved(section, preset.id);
 		notice = { type: 'success', text: `Saved “${name}”.` };
 		closeForm();
 	}
@@ -172,13 +150,14 @@
 		menuOpen = false;
 		if (!selected) return;
 		list.update(selected.id, store.capture(section));
+		store.adoptSaved(section, selected.id);
 		notice = { type: 'success', text: `Updated “${selected.name}” with your current ${noun}.` };
 	}
 
 	function confirmDelete() {
 		if (!selected) return;
 		const name = selected.name;
-		list.delete(selected.id);
+		store.deletePreset(section, selected.id);
 		notice = { type: 'info', text: `Deleted “${name}”. Your current ${noun} were kept.` };
 		closeForm();
 	}
@@ -186,9 +165,9 @@
 	// ---- Share: copy code / export file / import ---------------------------------
 	async function copyCode() {
 		menuOpen = false;
-		const name = hasChanges ? 'Shared settings' : list.selected.name;
+		const name = changed ? 'Shared settings' : current.name;
 		try {
-			await navigator.clipboard.writeText(encodePresetCode(kind, name, store.diff(section), store.capture(section).groupPresets));
+			await navigator.clipboard.writeText(encodePresetCode(kind, name, store.capture(section)));
 			notice = { type: 'success', text: 'Preset code copied. Anyone can paste it into Import.' };
 		} catch {
 			notice = { type: 'danger', text: "Couldn't copy to the clipboard." };
@@ -215,7 +194,7 @@
 	}
 
 	function runImport(text: string) {
-		const result = parseImport(text, kind, (raw) => store.sanitize(raw, section));
+		const result = parseImport(text, kind, (raw) => store.sanitize(raw));
 		if (!result.ok) {
 			formError = result.error;
 			return;
@@ -233,7 +212,7 @@
 			const name = uniqueName(item.name, taken);
 			if (name !== item.name) renamed++;
 			taken.push(name);
-			added.push(list.add(name, { values: item.values, groupPresets: section ? undefined : item.groupPresets }));
+			added.push(list.add(name, { base: item.base, sections: item.sections, values: item.values }));
 		}
 		const skipped = result.presets.length - added.length;
 
@@ -270,9 +249,12 @@
 			id={selectId}
 			class="form-select form-select-sm w-auto"
 			disabled={store.locked}
-			value={list.selectedId}
+			value={shown}
 			onchange={(e) => store.applyPreset(e.currentTarget.value, section)}
 		>
+			{#if card && tweaks}
+				<option value="">{store.inheritedLabel(card)}</option>
+			{/if}
 			<optgroup label="Built-in">
 				{#each list.builtIn as p (p.id)}
 					<option value={p.id}>{p.name}</option>
@@ -306,7 +288,7 @@
 						type="button"
 						role="menuitem"
 						class="menu-item"
-						disabled={!selected || !hasChanges}
+						disabled={!store.canUpdate(section)}
 						onclick={updateSelected}
 					>
 						<i class="bi bi-arrow-repeat"></i>
@@ -351,13 +333,13 @@
 		</div>
 
 		<!-- A card's own Reset sits in its header (see the generate page), so this is only for the top-level preset. -->
-		{#if !section && hasChanges}
+		{#if !card && changed}
 			<button
 				type="button"
 				class="btn btn-sm btn-outline-secondary"
 				disabled={store.locked}
-				use:tooltip={`Put all the ${noun} back to ${list.selected.name}.`}
-				onclick={() => store.applyPreset(list.selectedId)}
+				use:tooltip={`Put all the ${noun} back to ${current.name}.`}
+				onclick={() => store.resetAll()}
 			>
 				<i class="bi bi-arrow-counterclockwise"></i> Reset
 			</button>
@@ -366,6 +348,11 @@
 		{@render children?.()}
 	</div>
 
+	{#if !card && store.storageFailed}
+		<div class="alert alert-danger small py-1 px-2 mt-2 mb-0" role="status">
+			Your presets couldn't be saved in this browser (storage may be full or blocked). Export them to keep a backup.
+		</div>
+	{/if}
 	{#if notice}
 		<div class="alert alert-{notice.type} small py-1 px-2 mt-2 mb-0 d-flex align-items-center" role="status">
 			<span class="me-auto">{notice.text}</span>

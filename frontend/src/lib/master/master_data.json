@@ -264,6 +264,17 @@
       "type": "section",
       "id": "items",
       "title": "Items",
+      "presets": [
+        {
+          "id": "default",
+          "name": "Default",
+          "values": {},
+          "sections": {
+            "itemPool": "full",
+            "startingItems": "none"
+          }
+        }
+      ],
       "children": [
         {
           "type": "section",

@@ -66,7 +66,7 @@
 			<button
 				type="button"
 				class="btn btn-link btn-sm p-0 reset"
-				use:tooltip={`Reset to ${store.baseline[setting.id]}`}
+				use:tooltip={`Reset to ${store.applied[setting.id]}`}
 				aria-label="Reset {setting.label}"
 				onclick={() => store.reset(setting.id)}
 			>

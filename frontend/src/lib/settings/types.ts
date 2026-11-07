@@ -85,19 +85,31 @@ export interface Section {
 	collapsed?: boolean;
 	/** The card's own number settings fill this many item locations at most (fewer leaves locations empty). */
 	pool?: { total: number };
-	/** The card has its own preset picker for its own settings, with these built-in presets (the first is the default). */
-	presets?: Preset[];
+	/** Built-in presets for this section. */
+	presets: Preset[];
+	/** Id of the built-in preset selected to begin with (and when a preset goes missing). Default: the first. */
+	defaultPreset?: string;
 	items: Item[];
 }
 
 /** An entry in a list of settings: a setting, or a section holding more. */
 export type Item = Setting | Section;
 
+/**
+ * A preset for one section (or for everything: the root section).
+ *
+ * A built-in preset stands on its own: `values` are its section's own settings (only those differing from
+ * the schema defaults) and `sections` picks a built-in preset for child sections (any left out get their
+ * default). A user preset has a `base`: a built-in preset of the same section. Its `sections` picks presets
+ * (built-in or user) for sections inside it, but only where they differ from what the base would pick, and
+ * its `values` are tweaks: settings anywhere inside the section that differ from the base and those picks.
+ */
 export interface Preset {
 	id: string;
 	name: string;
-	/** Built-in presets: only the values that differ from schema defaults. Saved presets: a full snapshot. */
+	/** User presets only: the id of the built-in preset of the same section it is built on. */
+	base?: string;
+	/** Section id -> preset id, for sections inside this one. */
+	sections?: Record<string, string>;
 	values: Record<string, Value>;
-	/** Full-settings presets only: the preset selected in each card that has its own (card id -> preset id). */
-	groupPresets?: Record<string, string>;
 }

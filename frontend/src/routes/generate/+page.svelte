@@ -72,6 +72,7 @@
 	// The URL hash is NOT written while editing. It only exists once a game does,
 	// so "has a hash" reliably means "this is a generated game".
 	const DRAFT_KEY = 'alttp-maprando:draft';
+	const PRESETS_KEY = 'alttp-maprando:presets:settings';
 
 	function loadDraft() {
 		try {
@@ -100,7 +101,13 @@
 		}
 	});
 
+	$effect(() => {
+		JSON.stringify(Object.values(store.lists).map((l) => l.userPresets)); // tracked: re-runs when any preset changes
+		if (ready) store.saveUserPresets(PRESETS_KEY, data.master.version);
+	});
+
 	onMount(() => {
+		store.loadUserPresets(PRESETS_KEY, data.master.version); // before the draft, which may name one of them
 		if (location.hash.length > 1) {
 			const link = parseHash(location.hash);
 			if (link && store.load(link.settings)) {
@@ -296,7 +303,7 @@
 				bind:open={generateOpen}
 			>
 				<div class="mb-3">
-					<PresetManager {store} kind="settings" storageKey="alttp-maprando:presets:settings" selectId="preset" />
+					<PresetManager {store} kind="settings" selectId="preset" />
 				</div>
 
 				<ItemList {store} items={store.items} idPrefix="section-" />

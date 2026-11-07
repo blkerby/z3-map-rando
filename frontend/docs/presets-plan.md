@@ -20,16 +20,22 @@ Working plan for reorganizing the Generate settings into a section hierarchy wit
 - Saving a user preset: the base is the built-in behind the current selection; child selections are the current ones; tweaks are the values that differ from what base + child selections give. Tweaks equal to the baseline are dropped.
 - Saving while a user preset of the same section is selected (e.g. "Mine" selected, then "Save as new") flattens: the new preset takes Mine's base, with Mine's own tweaks folded in.
 
+### Section selections
+
+A section (other than the top level) either takes what the presets around it choose for it, or has a preset picked by hand:
+
+- **Inherited** (the state right after selecting a top-level preset): the section takes the preset chosen for it, plus whatever the presets around it change inside it (their tweaks, and their picks for sections inside it). Its dropdown shows e.g. "Hard + 2 tweaks", or just "Hard" when they change nothing.
+- **Picked by hand**: the section takes the picked preset plainly; the presets around it don't reach into it. The selection itself is the unsaved change, covering everything under it, so the rows inside are clean. Picking plain "Hard" is how tweaks are removed. The dropdown still lists "Hard + 2 tweaks" to go back. Picking the preset it would inherit, when nothing is changed inside, counts as inheriting.
+
 ### Two comparisons
 
-- **Unsaved changes** (strong shade): differences from the selected top-level preset, as applied.
-  - Changing a section's preset selection marks only the selection itself as unsaved; the section then takes the selected preset's own values (e.g. switching Logic from Hard to Expert gives plain Expert), so the rows inside are clean.
+- **Unsaved changes** (strong shade): differences from the selected presets, as applied; a section picked by hand is one unsaved change (its selection).
 - **Tweaks** (weak shade): differences from the selected preset with its own tweaks removed. For a section's own settings that means the preset's base; for a child section it means the selected child preset.
 - A setting that is both is shown with the strong shade.
 
 ### Reset
 
-Resets (per row, per card, top-level) peel one layer at a time: an unsaved change goes back to the preset's value; if there is none, a tweak goes back to the baseline (which then is an unsaved change).
+Resets (per row, per card, top-level) only undo unsaved changes: values go back, and sections picked by hand inside go back to inheriting (e.g. back to "Hard + 2 tweaks"). Tweaks are removed by picking the plain preset instead (see Section selections).
 
 ### Lifecycle
 
@@ -70,7 +76,15 @@ Resets (per row, per card, top-level) peel one layer at a time: an unsaved chang
 
 ## Phase 2: preset model
 
-Store, types, and preset storage implementing the concepts above: section tree, built-in and user preset shapes, the two baselines, selection changes, reset by layers, deletion folding, built-in fallback, migration with schema versions. Items gets its "Default" composite preset. The preset format's `groupPresets` field is replaced as part of the new preset shapes.
+Store, types, and preset storage implementing the concepts above: section tree, built-in and user preset shapes, the two baselines, selection changes, reset of unsaved changes, deletion folding, built-in fallback, migration with schema versions. Items gets its "Default" composite preset.
+
+Notes on how it was done:
+
+- The root is a section like any other (id `root`), with the top-level presets. Every section has a preset picker.
+- A user preset records only the selections that differ from what its base (and the presets selected inside it) would choose, so it follows changes to those presets too.
+- All of a store's user presets are kept under one localStorage key with the schema version; the migration of tweaks runs when the stored version is older.
+- Share links name the built-in preset behind each selection (flattening the tweaks is Phase 4).
+- Preset codes and exported files still carry references to the player's other presets; flattening them is Phase 4.
 
 ## Phase 3: UI
 

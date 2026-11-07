@@ -34,24 +34,16 @@
 				{section.title}
 			{/if}
 		</h3>
-		{#if store.sectionPresets[section.id]}
-			<!-- In the header, so the card's preset can be seen and changed while it is folded. -->
-			<div class="card-presets">
-				<PresetManager
-					{store}
-					{section}
-					kind={section.id}
-					storageKey="alttp-maprando:presets:{section.id}"
-					selectId="preset-{section.id}"
-				/>
-			</div>
-		{/if}
+		<!-- In the header, so the card's preset can be seen and changed while it is folded. -->
+		<div class="card-presets">
+			<PresetManager {store} {section} kind={section.id} selectId="{idPrefix}preset-{section.id}" />
+		</div>
 		{#if store.sectionChanged(section)}
 			<button
 				type="button"
 				class="btn btn-sm btn-outline-secondary card-reset"
 				disabled={store.locked}
-				use:tooltip={`Put everything in ${section.title} back to "${store.listFor(section).selected.name}". The other sections are not touched.`}
+				use:tooltip={`Undo the changes in ${section.title}. The other sections are not touched.`}
 				onclick={() => store.resetSection(section)}
 			>
 				<i class="bi bi-arrow-counterclockwise"></i> Reset
