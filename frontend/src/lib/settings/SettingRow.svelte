@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tooltip } from '$lib/tooltip';
 	import SettingRow from './SettingRow.svelte';
 	import Segmented from './controls/Segmented.svelte';
 	import Cards from './controls/Cards.svelte';
@@ -47,17 +48,17 @@
 <div class="setting-row" class:nested class:changed class:compact>
 	<div class="left">
 	<div class="label-col">
-		<span class="dot" title={changed ? 'Changed from preset' : ''} aria-hidden="true"></span>
-		<label class="label" for={setting.id} title={setting.help ?? (compact ? setting.label : undefined)}>{setting.label}</label>
-		{#if setting.badge && !compact}<span class="badge-tag">{setting.badge}</span>{/if}
+		<span class="dot" use:tooltip={changed ? 'Changed from preset' : undefined} aria-hidden="true"></span>
 		{#if setting.help}
-			<i class="bi bi-info-circle help" title={setting.help} aria-label={setting.help}></i>
+			<i class="bi bi-info-circle help" use:tooltip={setting.help} aria-label={setting.help}></i>
 		{/if}
+		<label class="label" for={setting.id}>{setting.label}</label>
+		{#if setting.badge && !compact}<span class="badge-tag">{setting.badge}</span>{/if}
 		{#if changed && !locked}
 			<button
 				type="button"
 				class="btn btn-link btn-sm p-0 reset"
-				title="Reset to {store.baseline[setting.id]}"
+				use:tooltip={`Reset to ${store.baseline[setting.id]}`}
 				aria-label="Reset {setting.label}"
 				onclick={() => store.reset(setting.id)}
 			>
@@ -134,7 +135,7 @@
 				aria-label="{setting.label} (estimated)"
 				value={Number(value)}
 				disabled
-				title="Worked out for you: the slots your other counts leave over are shared out at random between these items. Use Reroll at the top of the Items card to draw again."
+				use:tooltip={'Worked out for you: the slots your other counts leave over are shared out at random between these items. Use Reroll at the top of the Items card to draw again.'}
 			/>
 		{:else if setting.kind === 'level'}
 			<Level

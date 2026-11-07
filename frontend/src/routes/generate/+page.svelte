@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tooltip } from '$lib/tooltip';
 	import { onMount, tick } from 'svelte';
 	import { replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -344,7 +345,7 @@
 									type="button"
 									class="btn btn-sm btn-outline-secondary card-reset"
 									disabled={store.locked}
-									title="Put everything in {group.title} back to {store.presetName}. The other sections are not touched."
+									use:tooltip={`Put everything in ${group.title} back to ${store.presetName}. The other sections are not touched.`}
 									onclick={() => store.resetGroup(group)}
 								>
 									<i class="bi bi-arrow-counterclockwise"></i> Reset

@@ -25,6 +25,7 @@
               "type": "level",
               "tech_id": 1,
               "name": "combatProficiency",
+              "desc": "Help text coming soon.",
               "levels": [
                 {
                   "level": 1,
@@ -54,6 +55,7 @@
               "type": "level",
               "tech_id": 2,
               "name": "bossProficiency",
+              "desc": "Help text coming soon.",
               "levels": [
                 {
                   "level": 1,
@@ -82,6 +84,7 @@
               "type": "level",
               "tech_id": 3,
               "name": "darkProficiency",
+              "desc": "Help text coming soon.",
               "levels": [
                 {
                   "level": 0,
@@ -123,6 +126,7 @@
                   "type": "toggle",
                   "tech_id": 4,
                   "name": "canBonkBoost",
+                  "desc": "Help text coming soon.",
                   "difficulty": "Medium",
                   "default": false
                 },
@@ -130,6 +134,7 @@
                   "type": "toggle",
                   "tech_id": 5,
                   "name": "canBombBoost",
+                  "desc": "Help text coming soon.",
                   "difficulty": "Hard",
                   "default": false
                 },
@@ -137,6 +142,7 @@
                   "type": "toggle",
                   "tech_id": 6,
                   "name": "canPushBlockClip",
+                  "desc": "Help text coming soon.",
                   "difficulty": "Hard",
                   "default": false
                 },
@@ -144,6 +150,7 @@
                   "type": "toggle",
                   "tech_id": 8,
                   "name": "canBreakDashableWall",
+                  "desc": "Help text coming soon.",
                   "difficulty": "Hard",
                   "default": false
                 },
@@ -151,6 +158,7 @@
                   "type": "toggle",
                   "tech_id": 7,
                   "name": "canPreciseBombBoost",
+                  "desc": "Help text coming soon.",
                   "difficulty": "Very Hard",
                   "default": false
                 },
@@ -176,6 +184,7 @@
                   "room_name": "Tower of Hera",
                   "notable_id": 1,
                   "name": "Hera Pot Clip",
+                  "desc": "Help text coming soon.",
                   "difficulty": "Very Hard",
                   "default": false
                 },
@@ -187,6 +196,7 @@
                   "room_name": "Swamp Palace",
                   "notable_id": 1,
                   "name": "Specky Clip",
+                  "desc": "Help text coming soon.",
                   "difficulty": "Very Hard",
                   "default": false
                 },
@@ -198,6 +208,7 @@
                   "room_name": "Ice Palace",
                   "notable_id": 1,
                   "name": "Icebreaker",
+                  "desc": "Help text coming soon.",
                   "difficulty": "Very Hard",
                   "default": false
                 },
@@ -209,6 +220,7 @@
                   "room_name": "Ice Palace",
                   "notable_id": 2,
                   "name": "Precise Multi-Hit Fire Rod Kill",
+                  "desc": "Help text coming soon.",
                   "difficulty": "Very Hard",
                   "default": false
                 }
@@ -227,6 +239,7 @@
         {
           "type": "choice",
           "name": "mapLayout",
+          "desc": "Help text coming soon.",
           "label": "Map layout",
           "default": "randomized",
           "display": "cards",

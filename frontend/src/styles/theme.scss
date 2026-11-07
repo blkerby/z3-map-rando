@@ -29,3 +29,4 @@ $link-hover-color-dark:  #cfcf9c;
 // Custom bits that change per world
 [data-bs-theme='light'] .navbar-world { background-color: #2f6b34; } // grass green, 2f6b34
 [data-bs-theme='dark']  .navbar-world { background-color: #3f4f2d; } // forest, 3f4f2d
+.tooltip-inner { text-align: left; }

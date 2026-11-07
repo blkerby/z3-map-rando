@@ -39,6 +39,7 @@ export const customizationGroups: Group[] = [
 			{
 				id: 'heartColor',
 				label: 'Heart color',
+				help: 'Help text coming soon.',
 				kind: 'choice',
 				display: 'swatches',
 				default: 'de3843',
@@ -78,6 +79,7 @@ export const customizationGroups: Group[] = [
 			{
 				id: 'menuSpeed',
 				label: 'Menu speed',
+				help: 'Help text coming soon.',
 				kind: 'choice',
 				default: 'vanilla',
 				options: [
@@ -101,12 +103,12 @@ export const customizationGroups: Group[] = [
 				help: 'Remap which button does what.',
 				detailsWhen: true,
 				details: [
-					button('customController.sword', 'Sword', 'b'),
-					button('customController.item', 'Use item', 'y'),
-					button('customController.dash', 'Dash', 'a'),
-					button('customController.map', 'Open map', 'x'),
-					button('customController.prevItem', 'Previous item', 'l'),
-					button('customController.nextItem', 'Next item', 'r')
+					button('customController.sword', 'Sword', 'b', 'Help text coming soon.'),
+					button('customController.item', 'Use item', 'y', 'Help text coming soon.'),
+					button('customController.dash', 'Dash', 'a', 'Help text coming soon.'),
+					button('customController.map', 'Open map', 'x', 'Help text coming soon.'),
+					button('customController.prevItem', 'Previous item', 'l', 'Help text coming soon.'),
+					button('customController.nextItem', 'Next item', 'r', 'Help text coming soon.')
 				]
 			}
 		]
@@ -118,6 +120,7 @@ export const customizationGroups: Group[] = [
 			{
 				id: 'musicMode',
 				label: 'Music',
+				help: 'Help text coming soon.',
 				kind: 'choice',
 				default: 'vanilla',
 				options: [
@@ -128,6 +131,7 @@ export const customizationGroups: Group[] = [
 			{
 				id: 'lowHealthBeep',
 				label: 'Low-health beep',
+				help: 'Help text coming soon.',
 				kind: 'choice',
 				default: 'vanilla',
 				options: [
@@ -152,6 +156,7 @@ export const customizationGroups: Group[] = [
 			{
 				id: 'screenShake',
 				label: 'Screen shake',
+				help: 'Help text coming soon.',
 				kind: 'choice',
 				default: 'vanilla',
 				options: [

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tooltip } from '$lib/tooltip';
 	import { onMount } from 'svelte';
 	import lightWorld from '$lib/assets/light-world.png';
 	import darkWorld from '$lib/assets/dark-world.png';
@@ -20,7 +21,7 @@
 	class="btn btn-outline-primary btn-sm"
 	onclick={toggle}
 	aria-label={theme === 'dark' ? 'Mirror to Light World' : 'Mirror to Dark World'}
-	title={theme === 'dark' ? 'Mirror to Light World' : 'Mirror to Dark World'}
+	use:tooltip={theme === 'dark' ? 'Mirror to Light World' : 'Mirror to Dark World'}
 >
 	<img class="icon-light" src={darkWorld} alt="" />
 	<img class="icon-dark" src={lightWorld} alt="" />

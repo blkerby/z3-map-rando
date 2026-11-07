@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tooltip } from '$lib/tooltip';
 	import type { SettingsStore } from './store.svelte';
 	import { downloadRom } from '$lib/game';
 
@@ -72,7 +73,7 @@
 			<div class="alert alert-danger small py-2 px-3 mt-3 mb-0" role="alert">{romError}</div>
 		{/if}
 
-		<div class="d-grid gap-2 mt-3" title={generated ? undefined : 'Generate game to save the ROM.'}>
+		<div class="d-grid gap-2 mt-3" use:tooltip={generated ? undefined : 'Generate a game first, before a ROM can be saved.'}>
 			<button type="button" class="btn btn-primary" disabled={!generated || downloading} onclick={download}>
 				{#if downloading}
 					<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
