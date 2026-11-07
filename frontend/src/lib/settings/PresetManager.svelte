@@ -293,30 +293,44 @@
 			{/if}
 		</select>
 
+		{#if selected && store.canUpdate(section)}
+			<button
+				type="button"
+				class="btn btn-link btn-sm p-0 icon-btn"
+				use:tooltip={`Update “${selected.name}” with your current ${noun}.`}
+				aria-label="Update “{selected.name}”"
+				onclick={updateSelected}
+			>
+				<i class="bi bi-floppy"></i>
+			</button>
+		{:else if !selected && changeCount}
+			<button
+				type="button"
+				class="btn btn-link btn-sm p-0 icon-btn"
+				use:tooltip={`Save your current ${noun} as a new preset.`}
+				aria-label="Save as new preset"
+				onclick={() => openMode('save')}
+			>
+				<i class="bi bi-floppy"></i>
+			</button>
+		{/if}
+
 		<div class="menu-wrap" bind:this={menuEl}>
 			<button
 				type="button"
-				class="btn btn-outline-secondary btn-sm"
+				class="btn btn-link btn-sm p-0 icon-btn"
 				aria-haspopup="menu"
 				aria-expanded={menuOpen}
+				aria-label="Manage presets"
+				use:tooltip={'Manage presets'}
 				onclick={() => (menuOpen = !menuOpen)}
 			>
-				<i class="bi bi-three-dots"></i> Manage
+				<i class="bi bi-three-dots"></i>
 			</button>
 			{#if menuOpen}
 				<div class="menu" role="menu">
 					<button type="button" role="menuitem" class="menu-item" onclick={() => openMode('save')}>
 						<i class="bi bi-plus-circle"></i> Save current as new preset…
-					</button>
-					<button
-						type="button"
-						role="menuitem"
-						class="menu-item"
-						disabled={!store.canUpdate(section)}
-						onclick={updateSelected}
-					>
-						<i class="bi bi-arrow-repeat"></i>
-						{selected ? `Update “${selected.name}”` : 'Update preset'}
 					</button>
 					<button
 						type="button"
@@ -360,7 +374,7 @@
 		{#if !card && changed}
 			<button
 				type="button"
-				class="btn btn-link btn-sm p-0 reset"
+				class="btn btn-link btn-sm p-0 icon-btn"
 				disabled={store.locked}
 				use:tooltip={`Put all the ${noun} back to ${current.name}.`}
 				aria-label="Reset all the {noun}"
@@ -479,7 +493,7 @@
 		gap: 0.75rem 0.75rem;
 	}
 
-	.reset {
+	.icon-btn {
 		text-decoration: none;
 	}
 
