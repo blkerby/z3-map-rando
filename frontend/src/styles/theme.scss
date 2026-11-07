@@ -24,6 +24,10 @@ $border-color-dark:      #6a512f; // dirt brown
 $link-color-dark:        #aaaa76; // light sand path color
 $link-hover-color-dark:  #cfcf9c;
 
+// Slider track: use the border color because the default (secondary-bg) doesn't
+// stand out enough on tinted rows, e.g. changed settings.
+$form-range-track-bg: var(--bs-border-color);
+
 @import 'bootstrap/scss/bootstrap';
 
 // Custom bits that change per world
