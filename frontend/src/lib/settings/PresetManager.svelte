@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, type Snippet } from 'svelte';
+	import { tooltip } from '$lib/tooltip';
 	import type { SettingsStore } from './store.svelte';
 	import type { Group } from './types';
 	import {
@@ -348,6 +349,19 @@
 				</div>
 			{/if}
 		</div>
+
+		<!-- A card's own Reset sits in its header (see the generate page), so this is only for the top-level preset. -->
+		{#if !group && hasChanges}
+			<button
+				type="button"
+				class="btn btn-sm btn-outline-secondary"
+				disabled={store.locked}
+				use:tooltip={`Put all the ${noun} back to ${list.selected.name}.`}
+				onclick={() => store.applyPreset(list.selectedId)}
+			>
+				<i class="bi bi-arrow-counterclockwise"></i> Reset
+			</button>
+		{/if}
 
 		{@render children?.()}
 	</div>
