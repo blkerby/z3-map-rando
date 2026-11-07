@@ -226,17 +226,14 @@
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
 		gap: 0.4rem;
-		/* Left padding gives up the 3px the accent bar takes. */
-		padding: 0.85rem 0.5rem 0.85rem calc(0.5rem - 3px);
+		padding: 0.85rem 0.5rem;
 		/* Bleed out by the padding so the tint doesn't hug the text and the layout doesn't shift. */
 		margin-inline: -0.5rem;
-		border-left: 3px solid transparent;
 		border-radius: var(--bs-border-radius);
 	}
 
 	.setting-row.changed {
 		background: rgba(var(--bs-success-rgb), 0.1);
-		border-left-color: var(--bs-success);
 	}
 
 	.setting-row.nested {
