@@ -349,6 +349,11 @@
 </main>
 
 <style>
+	/* Wider than the other pages (see the layout), to give the central column more room. */
+	main.container {
+		max-width: 1200px;
+	}
+
 	.searchbar {
 		display: flex;
 		flex-wrap: wrap;

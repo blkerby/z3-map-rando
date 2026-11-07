@@ -61,9 +61,13 @@
 	const changed = $derived(store.sectionChanged(section));
 	/** Unsaved changes inside the section, besides its own pick (which the dropdown already names). */
 	const changeCount = $derived(store.countChanges(section) - (picked ? 1 : 0));
-	/** What the section takes, with its unsaved changes: "Hard + 2 tweaks + 1 unsaved change". */
+	/**
+	 * What the section takes, with its unsaved changes and the built-in preset behind one of the player's own:
+	 * "My settings (based on Default) + 1 unsaved change".
+	 */
 	const label = $derived(
 		(card && !picked ? store.inheritedLabel(card) : current.name) +
+			(selected ? ` (based on ${list.builtInBehind(selected).name})` : '') +
 			(changeCount ? ` + ${changeCount} unsaved change${changeCount === 1 ? '' : 's'}` : '')
 	);
 	/** Value of the hidden entry that shows `label` while there are unsaved changes (not a preset id). */
@@ -261,7 +265,7 @@
 		<select
 			id={selectId}
 			aria-label="Preset"
-			class="form-select form-select-sm w-auto"
+			class="form-select form-select-sm w-auto preset-select"
 			class:changed
 			class:tweaked={!changed && store.isSelectionTweaked(section)}
 			use:tooltip={picked && card ? `Picked by hand. Reset goes back to “${store.inheritedLabel(card)}”.` : undefined}
@@ -283,14 +287,11 @@
 			{#if list.userPresets.length}
 				<optgroup label="My presets">
 					{#each list.userPresets as p (p.id)}
-						<option value={p.id}>{p.name}</option>
+						<option value={p.id}>{p.name} (based on {list.builtInBehind(p).name})</option>
 					{/each}
 				</optgroup>
 			{/if}
 		</select>
-		{#if selected}
-			<span class="based-on">based on {list.builtInBehind(selected).name}</span>
-		{/if}
 
 		<div class="menu-wrap" bind:this={menuEl}>
 			<button
@@ -482,6 +483,12 @@
 		text-decoration: none;
 	}
 
+	/* Capped so a long label (e.g. "+ 3 unsaved changes") is cut off rather than wrapping the header. */
+	.preset-select {
+		max-width: 26rem;
+		text-overflow: ellipsis;
+	}
+
 	/* Same tint as a changed setting row. */
 	.changed {
 		background-color: rgba(var(--bs-success-rgb), 0.3);
@@ -490,13 +497,6 @@
 	/* Same tint as a tweaked setting row. */
 	.tweaked {
 		background-color: rgba(var(--bs-info-rgb), 0.15);
-	}
-
-	.based-on {
-		margin-left: -0.35rem;
-		font-size: 0.8rem;
-		opacity: 0.65;
-		white-space: nowrap;
 	}
 
 	.menu-wrap {
