@@ -56,11 +56,23 @@
 	const selected = $derived(list.isUser(current.id) ? current : undefined);
 	/** A card that isn't picked by hand, where the presets around it change something: "Hard + 2 tweaks". */
 	const tweaks = $derived(card ? store.tweakCount(card) : 0);
-	/** What the dropdown shows: the preset picked by hand, else "" for the "+ tweaks" entry, else the preset chosen for it. */
-	const shown = $derived(store.isSelectionChanged(section) || !tweaks ? current.id : '');
 	/** The card's preset was picked by hand: an unsaved change. */
 	const picked = $derived(store.isSelectionChanged(section));
 	const changed = $derived(store.sectionChanged(section));
+	/** Unsaved changes inside the section, besides its own pick (which the dropdown already names). */
+	const changeCount = $derived(store.countChanges(section) - (picked ? 1 : 0));
+	/** What the section takes, with its unsaved changes: "Hard + 2 tweaks + 1 unsaved change". */
+	const label = $derived(
+		(card && !picked ? store.inheritedLabel(card) : current.name) +
+			(changeCount ? ` + ${changeCount} unsaved change${changeCount === 1 ? '' : 's'}` : '')
+	);
+	/** Value of the hidden entry that shows `label` while there are unsaved changes (not a preset id). */
+	const CURRENT = '*current';
+	/**
+	 * What the dropdown shows: the entry for the unsaved changes, else the preset picked by hand, else ""
+	 * for the "+ tweaks" entry, else the preset chosen for it.
+	 */
+	const shown = $derived(changeCount ? CURRENT : picked || !tweaks ? current.id : '');
 	const noun = $derived(card ? `${card.title.toLowerCase()} settings` : kind === 'settings' ? 'settings' : 'customization');
 
 	// ---- Menu ---------------------------------------------------------------------
@@ -250,13 +262,16 @@
 		<select
 			id={selectId}
 			class="form-select form-select-sm w-auto"
-			class:picked
-			class:tweaked={store.isSelectionTweaked(section)}
+			class:changed
+			class:tweaked={!changed && store.isSelectionTweaked(section)}
 			use:tooltip={picked && card ? `Picked by hand. Reset goes back to “${store.inheritedLabel(card)}”.` : undefined}
 			disabled={store.locked}
 			value={shown}
 			onchange={(e) => store.applyPreset(e.currentTarget.value, section)}
 		>
+			{#if changeCount}
+				<option value={CURRENT} hidden disabled>{label}</option>
+			{/if}
 			{#if card && tweaks}
 				<option value="">{store.inheritedLabel(card)}</option>
 			{/if}
@@ -463,7 +478,7 @@
 	}
 
 	/* Same tint as a changed setting row. */
-	.picked {
+	.changed {
 		background-color: rgba(var(--bs-success-rgb), 0.3);
 	}
 

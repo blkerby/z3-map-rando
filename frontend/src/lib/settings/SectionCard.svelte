@@ -9,8 +9,6 @@
 
 	const open = $derived(store.isOpen(section));
 	const pool = $derived(store.poolOf(section));
-	// Shown on a folded card, so changes inside it (nested cards included) aren't hidden.
-	const changedHere = $derived(store.countChanges(section));
 </script>
 
 <section id="{idPrefix}{section.id}" class="card mb-3">
@@ -26,9 +24,6 @@
 				>
 					<i class="bi" class:bi-chevron-down={open} class:bi-chevron-right={!open}></i>
 					<span>{section.title}</span>
-					{#if !open && changedHere}
-						<span class="changed-count">{changedHere} changed</span>
-					{/if}
 				</button>
 			{:else}
 				{section.title}
@@ -101,11 +96,5 @@
 		padding: 0.5rem 0;
 		font-size: 0.8rem;
 		opacity: 0.9;
-	}
-
-	.changed-count {
-		margin-left: auto;
-		font-size: 0.8rem;
-		font-weight: 600;
 	}
 </style>
