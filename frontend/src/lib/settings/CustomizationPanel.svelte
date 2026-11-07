@@ -72,7 +72,7 @@
 			<div class="alert alert-danger small py-2 px-3 mt-3 mb-0" role="alert">{romError}</div>
 		{/if}
 
-		<div class="d-grid gap-2 mt-3">
+		<div class="d-grid gap-2 mt-3" title={generated ? undefined : 'Generate game to save the ROM.'}>
 			<button type="button" class="btn btn-primary" disabled={!generated || downloading} onclick={download}>
 				{#if downloading}
 					<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
@@ -81,9 +81,6 @@
 					<i class="bi bi-download"></i> Save ROM
 				{/if}
 			</button>
-			{#if !generated}
-				<div class="form-text mt-0">Generate game to save the ROM.</div>
-			{/if}
 		</div>
 	</div>
 </aside>
