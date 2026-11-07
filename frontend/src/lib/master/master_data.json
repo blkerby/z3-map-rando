@@ -235,8 +235,8 @@
     },
     {
       "type": "section",
-      "id": "map",
-      "title": "Map",
+      "id": "general",
+      "title": "General",
       "children": [
         {
           "type": "choice",
@@ -264,365 +264,761 @@
       "type": "section",
       "id": "items",
       "title": "Items",
-      "layout": "grid",
-      "collapsible": true,
-      "collapsed": true,
       "children": [
         {
-          "type": "group",
-          "title": "Equipment",
+          "type": "section",
+          "id": "itemPool",
+          "title": "Item Pool",
+          "layout": "grid",
+          "collapsible": true,
+          "collapsed": true,
+          "itemPool": true,
+          "presets": [
+            {
+              "id": "full",
+              "name": "Full",
+              "values": {}
+            }
+          ],
           "children": [
             {
-              "type": "count",
-              "name": "FireRod",
-              "label": "Fire Rod",
-              "default": 1,
-              "min": 0,
-              "max": 1
+              "type": "group",
+              "title": "Equipment",
+              "children": [
+                {
+                  "type": "count",
+                  "name": "FireRod",
+                  "label": "Fire Rod",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "IceRod",
+                  "label": "Ice Rod",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "Hammer",
+                  "label": "Hammer",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "Hookshot",
+                  "label": "Hookshot",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "Bow",
+                  "label": "Bow",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "Boomerang",
+                  "label": "Boomerang",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "MagicPowder",
+                  "label": "Magic Powder",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "Bombos",
+                  "label": "Bombos",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "Ether",
+                  "label": "Ether",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "Quake",
+                  "label": "Quake",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "Lamp",
+                  "label": "Lamp",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "Shovel",
+                  "label": "Shovel",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "CaneOfSomaria",
+                  "label": "Cane of Somaria",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "CaneOfByrna",
+                  "label": "Cane of Byrna",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "Cape",
+                  "label": "Magic Cape",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "MagicMirror",
+                  "label": "Magic Mirror",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "BookOfMudora",
+                  "label": "Book of Mudora",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "Flippers",
+                  "label": "Flippers",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "MoonPearl",
+                  "label": "Moon Pearl",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "BugCatchingNet",
+                  "label": "Bug-Catching Net",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "Mushroom",
+                  "label": "Mushroom",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "Bottle",
+                  "label": "Bottle",
+                  "default": 4,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "PegasusBoots",
+                  "label": "Pegasus Boots",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "Ocarina",
+                  "label": "Ocarina",
+                  "default": 1,
+                  "min": 0
+                }
+              ]
             },
             {
-              "type": "count",
-              "name": "IceRod",
-              "label": "Ice Rod",
-              "default": 1,
-              "min": 0,
-              "max": 1
+              "type": "group",
+              "title": "Upgrades",
+              "children": [
+                {
+                  "type": "count",
+                  "name": "Sword",
+                  "label": "Sword",
+                  "default": 4,
+                  "min": 1
+                },
+                {
+                  "type": "count",
+                  "name": "Shield",
+                  "label": "Shield",
+                  "default": 3,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "Glove",
+                  "label": "Glove",
+                  "default": 2,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "Mail",
+                  "label": "Mail",
+                  "default": 2,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "HalfMagic",
+                  "label": "Half Magic",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "Arrow",
+                  "label": "Silver Arrow",
+                  "default": 1,
+                  "min": 0
+                }
+              ]
             },
             {
-              "type": "count",
-              "name": "Hammer",
-              "label": "Hammer",
-              "default": 1,
-              "min": 0,
-              "max": 1
+              "type": "group",
+              "title": "Ammo",
+              "children": [
+                {
+                  "type": "count",
+                  "name": "ThreeBombs",
+                  "label": "Bombs (3)",
+                  "default": 16,
+                  "min": 1
+                },
+                {
+                  "type": "count",
+                  "name": "TenArrows",
+                  "label": "Arrows (10)",
+                  "default": 10,
+                  "min": 1
+                }
+              ]
             },
             {
-              "type": "count",
-              "name": "Hookshot",
-              "label": "Hookshot",
-              "default": 1,
-              "min": 0,
-              "max": 1
+              "type": "group",
+              "title": "Rupees",
+              "children": [
+                {
+                  "type": "count",
+                  "name": "OneRupee",
+                  "label": "1 Rupee",
+                  "default": 2,
+                  "min": 1
+                },
+                {
+                  "type": "count",
+                  "name": "FiveRupees",
+                  "label": "5 Rupees",
+                  "default": 4,
+                  "min": 1
+                },
+                {
+                  "type": "count",
+                  "name": "TwentyRupees",
+                  "label": "20 Rupees",
+                  "default": 29,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "FiftyRupees",
+                  "label": "50 Rupees",
+                  "default": 7,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "OneHundredRupees",
+                  "label": "100 Rupees",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "ThreeHundredRupees",
+                  "label": "300 Rupees",
+                  "default": 5,
+                  "min": 0
+                }
+              ]
             },
             {
-              "type": "count",
-              "name": "Bow",
-              "label": "Bow",
-              "default": 1,
-              "min": 0,
-              "max": 1
-            },
-            {
-              "type": "count",
-              "name": "Boomerang",
-              "label": "Boomerang",
-              "default": 1,
-              "min": 0,
-              "max": 1
-            },
-            {
-              "type": "count",
-              "name": "MagicPowder",
-              "label": "Magic Powder",
-              "default": 1,
-              "min": 0,
-              "max": 1
-            },
-            {
-              "type": "count",
-              "name": "Bombos",
-              "label": "Bombos",
-              "default": 1,
-              "min": 0,
-              "max": 1
-            },
-            {
-              "type": "count",
-              "name": "Ether",
-              "label": "Ether",
-              "default": 1,
-              "min": 0,
-              "max": 1
-            },
-            {
-              "type": "count",
-              "name": "Quake",
-              "label": "Quake",
-              "default": 1,
-              "min": 0,
-              "max": 1
-            },
-            {
-              "type": "count",
-              "name": "Lamp",
-              "label": "Lamp",
-              "default": 1,
-              "min": 0,
-              "max": 1
-            },
-            {
-              "type": "count",
-              "name": "Shovel",
-              "label": "Shovel",
-              "default": 1,
-              "min": 0,
-              "max": 1
-            },
-            {
-              "type": "count",
-              "name": "CaneOfSomaria",
-              "label": "Cane of Somaria",
-              "default": 1,
-              "min": 0,
-              "max": 1
-            },
-            {
-              "type": "count",
-              "name": "CaneOfByrna",
-              "label": "Cane of Byrna",
-              "default": 1,
-              "min": 0,
-              "max": 1
-            },
-            {
-              "type": "count",
-              "name": "Cape",
-              "label": "Magic Cape",
-              "default": 1,
-              "min": 0,
-              "max": 1
-            },
-            {
-              "type": "count",
-              "name": "MagicMirror",
-              "label": "Magic Mirror",
-              "default": 1,
-              "min": 0,
-              "max": 1
-            },
-            {
-              "type": "count",
-              "name": "BookOfMudora",
-              "label": "Book of Mudora",
-              "default": 1,
-              "min": 0,
-              "max": 1
-            },
-            {
-              "type": "count",
-              "name": "Flippers",
-              "label": "Flippers",
-              "default": 1,
-              "min": 0,
-              "max": 1
-            },
-            {
-              "type": "count",
-              "name": "MoonPearl",
-              "label": "Moon Pearl",
-              "default": 1,
-              "min": 0,
-              "max": 1
-            },
-            {
-              "type": "count",
-              "name": "BugCatchingNet",
-              "label": "Bug-Catching Net",
-              "default": 1,
-              "min": 0,
-              "max": 1
-            },
-            {
-              "type": "count",
-              "name": "Mushroom",
-              "label": "Mushroom",
-              "default": 1,
-              "min": 0,
-              "max": 1
-            },
-            {
-              "type": "count",
-              "name": "Bottle",
-              "label": "Bottle",
-              "default": 4,
-              "min": 0,
-              "max": 4
-            },
-            {
-              "type": "count",
-              "name": "PegasusBoots",
-              "label": "Pegasus Boots",
-              "default": 1,
-              "min": 0,
-              "max": 1
-            },
-            {
-              "type": "count",
-              "name": "Ocarina",
-              "label": "Ocarina",
-              "default": 1,
-              "min": 0,
-              "max": 1
+              "type": "group",
+              "title": "Hearts",
+              "children": [
+                {
+                  "type": "count",
+                  "name": "BossHeartContainer",
+                  "label": "Boss Heart Container",
+                  "default": 10,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "SanctuaryHeartContainer",
+                  "label": "Sanctuary Heart Container",
+                  "default": 1,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "PieceOfHeart",
+                  "label": "Piece of Heart",
+                  "default": 24,
+                  "min": 0
+                }
+              ]
             }
           ]
         },
         {
-          "type": "group",
-          "title": "Upgrades",
-          "children": [
+          "type": "section",
+          "id": "startingItems",
+          "title": "Starting Items",
+          "layout": "grid",
+          "collapsible": true,
+          "collapsed": true,
+          "presets": [
             {
-              "type": "count",
-              "name": "Sword",
-              "label": "Sword",
-              "default": 4,
-              "min": 1,
-              "max": 4
+              "id": "none",
+              "name": "None",
+              "values": {}
             },
             {
-              "type": "count",
-              "name": "Shield",
-              "label": "Shield",
-              "default": 3,
-              "min": 0,
-              "max": 3
-            },
-            {
-              "type": "count",
-              "name": "Glove",
-              "label": "Glove",
-              "default": 2,
-              "min": 0,
-              "max": 2
-            },
-            {
-              "type": "count",
-              "name": "Mail",
-              "label": "Mail",
-              "default": 2,
-              "min": 0,
-              "max": 2
-            },
-            {
-              "type": "count",
-              "name": "HalfMagic",
-              "label": "Half Magic",
-              "default": 1,
-              "min": 0,
-              "max": 1
-            },
-            {
-              "type": "count",
-              "name": "Arrow",
-              "label": "Silver Arrow",
-              "default": 1,
-              "min": 0,
-              "max": 1
+              "id": "all",
+              "name": "All",
+              "values": {
+                "start.FireRod": 1,
+                "start.IceRod": 1,
+                "start.Hammer": 1,
+                "start.Hookshot": 1,
+                "start.Bow": 1,
+                "start.Boomerang": 1,
+                "start.MagicPowder": 1,
+                "start.Bombos": 1,
+                "start.Ether": 1,
+                "start.Quake": 1,
+                "start.Lamp": 1,
+                "start.Shovel": 1,
+                "start.CaneOfSomaria": 1,
+                "start.CaneOfByrna": 1,
+                "start.Cape": 1,
+                "start.MagicMirror": 1,
+                "start.BookOfMudora": 1,
+                "start.Flippers": 1,
+                "start.MoonPearl": 1,
+                "start.BugCatchingNet": 1,
+                "start.Mushroom": 1,
+                "start.Bottle": 4,
+                "start.PegasusBoots": 1,
+                "start.Ocarina": 1,
+                "start.Sword": 4,
+                "start.Shield": 3,
+                "start.Glove": 2,
+                "start.Mail": 2,
+                "start.HalfMagic": 1,
+                "start.Arrow": 1,
+                "start.ThreeBombs": 16,
+                "start.TenArrows": 10,
+                "start.OneRupee": 2,
+                "start.FiveRupees": 4,
+                "start.TwentyRupees": 29,
+                "start.FiftyRupees": 7,
+                "start.OneHundredRupees": 1,
+                "start.ThreeHundredRupees": 5,
+                "start.BossHeartContainer": 10,
+                "start.SanctuaryHeartContainer": 1,
+                "start.PieceOfHeart": 24
+              }
             }
-          ]
-        },
-        {
-          "type": "group",
-          "title": "Ammo",
+          ],
           "children": [
             {
-              "type": "count",
-              "name": "ThreeBombs",
-              "label": "Bombs (3)",
-              "default": 17,
-              "min": 1,
-              "calculated": true
+              "type": "group",
+              "title": "Equipment",
+              "children": [
+                {
+                  "type": "count",
+                  "name": "start.FireRod",
+                  "label": "Fire Rod",
+                  "poolItem": "FireRod",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.IceRod",
+                  "label": "Ice Rod",
+                  "poolItem": "IceRod",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.Hammer",
+                  "label": "Hammer",
+                  "poolItem": "Hammer",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.Hookshot",
+                  "label": "Hookshot",
+                  "poolItem": "Hookshot",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.Bow",
+                  "label": "Bow",
+                  "poolItem": "Bow",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.Boomerang",
+                  "label": "Boomerang",
+                  "poolItem": "Boomerang",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.MagicPowder",
+                  "label": "Magic Powder",
+                  "poolItem": "MagicPowder",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.Bombos",
+                  "label": "Bombos",
+                  "poolItem": "Bombos",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.Ether",
+                  "label": "Ether",
+                  "poolItem": "Ether",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.Quake",
+                  "label": "Quake",
+                  "poolItem": "Quake",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.Lamp",
+                  "label": "Lamp",
+                  "poolItem": "Lamp",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.Shovel",
+                  "label": "Shovel",
+                  "poolItem": "Shovel",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.CaneOfSomaria",
+                  "label": "Cane of Somaria",
+                  "poolItem": "CaneOfSomaria",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.CaneOfByrna",
+                  "label": "Cane of Byrna",
+                  "poolItem": "CaneOfByrna",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.Cape",
+                  "label": "Magic Cape",
+                  "poolItem": "Cape",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.MagicMirror",
+                  "label": "Magic Mirror",
+                  "poolItem": "MagicMirror",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.BookOfMudora",
+                  "label": "Book of Mudora",
+                  "poolItem": "BookOfMudora",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.Flippers",
+                  "label": "Flippers",
+                  "poolItem": "Flippers",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.MoonPearl",
+                  "label": "Moon Pearl",
+                  "poolItem": "MoonPearl",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.BugCatchingNet",
+                  "label": "Bug-Catching Net",
+                  "poolItem": "BugCatchingNet",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.Mushroom",
+                  "label": "Mushroom",
+                  "poolItem": "Mushroom",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.Bottle",
+                  "label": "Bottle",
+                  "poolItem": "Bottle",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.PegasusBoots",
+                  "label": "Pegasus Boots",
+                  "poolItem": "PegasusBoots",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.Ocarina",
+                  "label": "Ocarina",
+                  "poolItem": "Ocarina",
+                  "default": 0,
+                  "min": 0
+                }
+              ]
             },
             {
-              "type": "count",
-              "name": "TenArrows",
-              "label": "Arrows (10)",
-              "default": 11,
-              "min": 1,
-              "calculated": true
-            }
-          ]
-        },
-        {
-          "type": "group",
-          "title": "Rupees",
-          "children": [
-            {
-              "type": "count",
-              "name": "OneRupee",
-              "label": "1 Rupee",
-              "default": 2,
-              "min": 1,
-              "calculated": true
+              "type": "group",
+              "title": "Upgrades",
+              "children": [
+                {
+                  "type": "count",
+                  "name": "start.Sword",
+                  "label": "Sword",
+                  "poolItem": "Sword",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.Shield",
+                  "label": "Shield",
+                  "poolItem": "Shield",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.Glove",
+                  "label": "Glove",
+                  "poolItem": "Glove",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.Mail",
+                  "label": "Mail",
+                  "poolItem": "Mail",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.HalfMagic",
+                  "label": "Half Magic",
+                  "poolItem": "HalfMagic",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.Arrow",
+                  "label": "Silver Arrow",
+                  "poolItem": "Arrow",
+                  "default": 0,
+                  "min": 0
+                }
+              ]
             },
             {
-              "type": "count",
-              "name": "FiveRupees",
-              "label": "5 Rupees",
-              "default": 4,
-              "min": 1,
-              "calculated": true
+              "type": "group",
+              "title": "Ammo",
+              "children": [
+                {
+                  "type": "count",
+                  "name": "start.ThreeBombs",
+                  "label": "Bombs (3)",
+                  "poolItem": "ThreeBombs",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.TenArrows",
+                  "label": "Arrows (10)",
+                  "poolItem": "TenArrows",
+                  "default": 0,
+                  "min": 0
+                }
+              ]
             },
             {
-              "type": "count",
-              "name": "TwentyRupees",
-              "label": "20 Rupees",
-              "default": 29,
-              "min": 0,
-              "max": 58
+              "type": "group",
+              "title": "Rupees",
+              "children": [
+                {
+                  "type": "count",
+                  "name": "start.OneRupee",
+                  "label": "1 Rupee",
+                  "poolItem": "OneRupee",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.FiveRupees",
+                  "label": "5 Rupees",
+                  "poolItem": "FiveRupees",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.TwentyRupees",
+                  "label": "20 Rupees",
+                  "poolItem": "TwentyRupees",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.FiftyRupees",
+                  "label": "50 Rupees",
+                  "poolItem": "FiftyRupees",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.OneHundredRupees",
+                  "label": "100 Rupees",
+                  "poolItem": "OneHundredRupees",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.ThreeHundredRupees",
+                  "label": "300 Rupees",
+                  "poolItem": "ThreeHundredRupees",
+                  "default": 0,
+                  "min": 0
+                }
+              ]
             },
             {
-              "type": "count",
-              "name": "FiftyRupees",
-              "label": "50 Rupees",
-              "default": 7,
-              "min": 0,
-              "max": 14
-            },
-            {
-              "type": "count",
-              "name": "OneHundredRupees",
-              "label": "100 Rupees",
-              "default": 1,
-              "min": 0,
-              "max": 2
-            },
-            {
-              "type": "count",
-              "name": "ThreeHundredRupees",
-              "label": "300 Rupees",
-              "default": 5,
-              "min": 0,
-              "max": 10
-            }
-          ]
-        },
-        {
-          "type": "group",
-          "title": "Hearts",
-          "children": [
-            {
-              "type": "count",
-              "name": "BossHeartContainer",
-              "label": "Boss Heart Container",
-              "default": 10,
-              "min": 0,
-              "max": 20
-            },
-            {
-              "type": "count",
-              "name": "SanctuaryHeartContainer",
-              "label": "Sanctuary Heart Container",
-              "default": 1,
-              "min": 0,
-              "max": 2
-            },
-            {
-              "type": "count",
-              "name": "PieceOfHeart",
-              "label": "Piece of Heart",
-              "default": 24,
-              "min": 0,
-              "max": 48
+              "type": "group",
+              "title": "Hearts",
+              "children": [
+                {
+                  "type": "count",
+                  "name": "start.BossHeartContainer",
+                  "label": "Boss Heart Container",
+                  "poolItem": "BossHeartContainer",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.SanctuaryHeartContainer",
+                  "label": "Sanctuary Heart Container",
+                  "poolItem": "SanctuaryHeartContainer",
+                  "default": 0,
+                  "min": 0
+                },
+                {
+                  "type": "count",
+                  "name": "start.PieceOfHeart",
+                  "label": "Piece of Heart",
+                  "poolItem": "PieceOfHeart",
+                  "default": 0,
+                  "min": 0
+                }
+              ]
             }
           ]
         }

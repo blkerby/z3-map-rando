@@ -1,20 +1,19 @@
 <script lang="ts">
-	import { tooltip } from '$lib/tooltip';
 	import { onMount, tick } from 'svelte';
 	import { replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import CollapsibleSection from '$lib/settings/CollapsibleSection.svelte';
 	import CustomizationEditor from '$lib/settings/CustomizationEditor.svelte';
 	import CustomizationPanel from '$lib/settings/CustomizationPanel.svelte';
+	import ItemList from '$lib/settings/ItemList.svelte';
 	import PresetManager from '$lib/settings/PresetManager.svelte';
-	import SettingRow from '$lib/settings/SettingRow.svelte';
 	import SummaryPanel from '$lib/settings/SummaryPanel.svelte';
-	import { customizationGroups, customizationPresets } from '$lib/settings/customizationSchema';
+	import { customizationItems, customizationPresets } from '$lib/settings/customizationSchema';
 	import { buildSchema } from '$lib/master/adapter';
 	import type { PageData } from './$types';
 	import { SearchState } from '$lib/settings/search.svelte';
 	import { SettingsStore } from '$lib/settings/store.svelte';
-	import type { Setting } from '$lib/settings/types';
+	import type { Item } from '$lib/settings/types';
 	import { useRomStore } from '$lib/rom/store.svelte';
 	import { GENERATOR_VERSION, buildHash, generateGame, parseHash } from '$lib/game';
 
@@ -28,8 +27,8 @@
 
 	// One search box filters both stores.
 	const search = new SearchState();
-	const store = new SettingsStore(schema.groups, schema.presets, search);
-	const custom = new SettingsStore(customizationGroups, customizationPresets, search);
+	const store = new SettingsStore(schema.items, schema.presets, search);
+	const custom = new SettingsStore(customizationItems, customizationPresets, search);
 
 	// ---- Phases -------------------------------------------------------------
 	// configure: no game yet, settings are editable, Generate section is open.
@@ -163,8 +162,8 @@
 
 	// ---- Search (covers both sections) --------------------------------------
 	const searching = $derived(search.query.trim().length > 0);
-	const generateMatches = $derived(store.visibleGroups.reduce((n, x) => n + x.rows.length, 0));
-	const customMatches = $derived(custom.visibleGroups.reduce((n, x) => n + x.rows.length, 0));
+	const generateMatches = $derived(store.countMatches());
+	const customMatches = $derived(custom.countMatches());
 
 	// Open any section that has results. Only re-runs when the query or the results change,
 	// so collapsing a section by hand while searching sticks until the next keystroke.
@@ -174,26 +173,6 @@
 		if (customMatches > 0) customizationOpen = true;
 	});
 
-	// ---- Blocks: runs of rows under one heading, laid out as a list or a grid ----
-	type Block = { key: string; path: string[]; layout: 'list' | 'grid' | 'compact'; rows: Setting[] };
-
-	function blocksOf(groupId: string, rows: Setting[]): Block[] {
-		const out: Block[] = [];
-		for (const s of rows) {
-			const last = out[out.length - 1];
-			if (last && last.key === `${groupId}|${s.heading ?? ''}`) {
-				last.rows.push(s);
-			} else {
-				out.push({ key: `${groupId}|${s.heading ?? ''}`, path: s.headingPath ?? [], layout: s.layout ?? 'list', rows: [s] });
-			}
-		}
-		return out;
-	}
-
-	// Cards (like Items) the player has opened or folded by hand, by group id. Cards not in here use
-	// their default: open, unless the master file says `collapsed`. Searching opens every card with a match.
-	let cardOpen = $state<Record<string, boolean>>({});
-
 	// ---- Navigation ---------------------------------------------------------
 	let activeId = $state('');
 
@@ -202,11 +181,15 @@
 		else customizationOpen = true;
 	}
 
+	/** Unfold the cards holding an item (a setting or a card, by id), and the card itself. */
+	function unfold(settings: SettingsStore, id: string) {
+		for (const sec of settings.pathTo(id)) settings.opened[sec.id] = true;
+	}
+
 	// Buttons instead of #anchors, so the URL hash keeps holding the game link.
 	async function goTo(section: Section, elementId: string) {
 		openSection(section);
 		activeId = elementId;
-		if (elementId.startsWith('group-')) cardOpen[elementId.slice('group-'.length)] = true; // jumping to a folded card opens it
 		await tick(); // the section may have been collapsed
 		document.getElementById(elementId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	}
@@ -221,13 +204,34 @@
 		search.query = '';
 		openSection(section);
 		// If the setting sits in a folded card, unfold it first.
-		const owner = store.groups.find((g) => g.settings.some((x) => x.id === id));
-		if (owner) cardOpen[owner.id] = true;
+		unfold(section === 'generate' ? store : custom, id);
 		await tick();
 		// Nested settings live inside a collapsed expander; jumping to the top-level parent is enough.
 		(document.getElementById(id) ?? document.getElementById(id.split('.')[0]))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 	}
 </script>
+
+<!-- Links to the cards in a list of items, nested cards indented under their parent. -->
+{#snippet navLinks(settings: SettingsStore, items: Item[], page: Section, idPrefix: string, depth: number)}
+	{#each items as item (`${item.kind}|${item.id}`)}
+		{#if item.kind === 'section' && settings.matches(item)}
+			<button
+				type="button"
+				class="nav-link-btn sub"
+				style:padding-left="{0.6 + 0.8 * depth}rem"
+				class:active={activeId === `${idPrefix}${item.id}`}
+				onclick={() => {
+					unfold(settings, item.id);
+					goTo(page, `${idPrefix}${item.id}`);
+				}}
+			>
+				{#if item.icon}<i class="bi bi-{item.icon}"></i>{/if}
+				{item.title}
+			</button>
+			{@render navLinks(settings, item.items, page, idPrefix, depth + 1)}
+		{/if}
+	{/each}
+{/snippet}
 
 <main class="container my-4">
 	{#if linkError}
@@ -270,17 +274,7 @@
 			>
 				Generate
 			</button>
-			{#each store.visibleGroups as { group } (group.id)}
-				<button
-					type="button"
-					class="nav-link-btn sub"
-					class:active={activeId === `group-${group.id}`}
-					onclick={() => goTo('generate', `group-${group.id}`)}
-				>
-					{#if group.icon}<i class="bi bi-{group.icon}"></i>{/if}
-					{group.title}
-				</button>
-			{/each}
+			{@render navLinks(store, store.items, 'generate', 'section-', 1)}
 
 			<button
 				type="button"
@@ -290,17 +284,7 @@
 			>
 				Customization
 			</button>
-			{#each custom.visibleGroups as { group } (group.id)}
-				<button
-					type="button"
-					class="nav-link-btn sub"
-					class:active={activeId === `custom-group-${group.id}`}
-					onclick={() => goTo('customization', `custom-group-${group.id}`)}
-				>
-					{#if group.icon}<i class="bi bi-{group.icon}"></i>{/if}
-					{group.title}
-				</button>
-			{/each}
+			{@render navLinks(custom, custom.items, 'customization', 'custom-section-', 1)}
 		</nav>
 
 		<div class="content">
@@ -315,96 +299,10 @@
 					<PresetManager {store} kind="settings" storageKey="alttp-maprando:presets:settings" selectId="preset" />
 				</div>
 
-				{#each store.visibleGroups as { group, rows } (group.id)}
-					{@const open = !group.collapsible || searching || (cardOpen[group.id] ?? !group.collapsed)}
-					{@const pool = store.poolOf(group)}
-					<section id="group-{group.id}" class="card mb-3">
-						<header class="card-header d-flex align-items-center" class:p-0={group.collapsible} class:folded={!open}>
-							<h3 class="h6 fw-bold m-0 flex-grow-1">
-								{#if group.collapsible}
-									{@const changedHere = rows.filter((r) => store.isChanged(r.id)).length}
-									<button
-										type="button"
-										class="card-toggle"
-										aria-expanded={open}
-										aria-controls="group-body-{group.id}"
-										onclick={() => (cardOpen[group.id] = !open)}
-									>
-										<i class="bi" class:bi-chevron-down={open} class:bi-chevron-right={!open}></i>
-										<span>{group.title}</span>
-										{#if !open && changedHere}
-											<span class="changed-count">{changedHere} changed</span>
-										{/if}
-									</button>
-								{:else}
-									{group.title}
-								{/if}
-							</h3>
-							{#if store.groupPresets[group.id]}
-								<!-- In the header, so the card's preset can be seen and changed while it is folded. -->
-								<div class="card-presets">
-									<PresetManager
-										{store}
-										{group}
-										kind={group.id}
-										storageKey="alttp-maprando:presets:{group.id}"
-										selectId="preset-{group.id}"
-									/>
-								</div>
-							{/if}
-							{#if store.groupChanged(group)}
-								<button
-									type="button"
-									class="btn btn-sm btn-outline-secondary card-reset"
-									disabled={store.locked}
-									use:tooltip={`Put everything in ${group.title} back to "${store.listFor(group).selected.name}". The other sections are not touched.`}
-									onclick={() => store.resetGroup(group)}
-								>
-									<i class="bi bi-arrow-counterclockwise"></i> Reset
-								</button>
-							{/if}
-						</header>
-						{#if open}
-							{@const blocks = blocksOf(group.id, rows)}
-							<div class="card-body py-1" id="group-body-{group.id}">
-								{#if pool}
-									<div class="pool-bar">
-										<span>The greyed-out items fill the slots your choices leave over, shared out at random.</span>
-										<button
-											type="button"
-											class="btn btn-sm btn-outline-secondary"
-											disabled={store.locked || pool.free < 0}
-											onclick={() => store.reroll(group)}
-										>
-											<i class="bi bi-dice-5"></i> Reroll
-										</button>
-									</div>
-								{/if}
-								{#each blocks as block, bi (block.key)}
-									<!-- Show only the heading levels that changed since the previous block. -->
-									{@const prev = blocks[bi - 1]?.path ?? []}
-									{@const from = block.path.findIndex((part, i) => part !== prev[i])}
-									{#if from >= 0}
-										{#each block.path.slice(from) as part, j (j)}
-											{#if from + j === 0}
-												<h4 class="subhead">{part}</h4>
-											{:else}
-												<h5 class="subsubhead">{part}</h5>
-											{/if}
-										{/each}
-									{/if}
-									<div class="block" class:grid={block.layout === 'grid'} class:compact={block.layout === 'compact'}>
-										{#each block.rows as s (s.id)}
-											<SettingRow setting={s} {store} compact={block.layout !== 'list'} />
-										{/each}
-									</div>
-								{/each}
-							</div>
-						{/if}
-					</section>
-				{:else}
+				<ItemList {store} items={store.items} idPrefix="section-" />
+				{#if !generateMatches}
 					<p class="text-body-secondary">No settings match “{search.query}”.</p>
-				{/each}
+				{/if}
 			</CollapsibleSection>
 
 			<CollapsibleSection id="customization" title="Customization" bind:open={customizationOpen}>
@@ -446,87 +344,6 @@
 
 	.search {
 		max-width: 26rem;
-	}
-
-	.subhead {
-		margin: 1rem 0 0;
-		padding-top: 0.6rem;
-		border-top: 1px solid var(--bs-border-color-translucent);
-		font-size: 0.8rem;
-		font-weight: 700;
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
-		opacity: 0.65;
-	}
-
-	/* One column of label-left rows; capped so the control stays near its label. */
-	.block.compact {
-		max-width: 32rem;
-	}
-
-	.block.grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
-		column-gap: 1.5rem;
-		align-content: start;
-	}
-
-	.subsubhead {
-		margin: 0.7rem 0 0.1rem;
-		font-size: 0.75rem;
-		font-weight: 600;
-		opacity: 0.6;
-	}
-
-	.card-toggle {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		width: 100%;
-		padding: 0.5rem 1rem;
-		border: 0;
-		background: none;
-		color: inherit;
-		font: inherit;
-		text-align: left;
-	}
-
-	/* Negative vertical margin: the button is taller than the title line, so without it the header grows when it appears. */
-	.card-reset {
-		flex: none;
-		margin: -0.4rem 0.75rem -0.4rem 0.25rem;
-	}
-
-	/* Shrinkable rather than capped, so the controls only wrap when the header is actually out of room. */
-	.card-presets {
-		flex: 0 1 auto;
-		padding: 0.3rem 0.75rem 0.3rem 0;
-		font-size: 0.9rem;
-	}
-
-	.card-header.folded {
-		border-bottom: 0;
-	}
-
-	.pool-bar {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 0.75rem;
-		padding: 0.5rem 0;
-		font-size: 0.8rem;
-		opacity: 0.9;
-	}
-
-	.changed-count {
-		margin-left: auto;
-		font-size: 0.8rem;
-		font-weight: 600;
-	}
-
-	.subhead:first-child {
-		margin-top: 0.4rem;
-		border-top: 0;
 	}
 
 	.layout {
@@ -577,7 +394,6 @@
 	}
 
 	.sub {
-		padding-left: 1.4rem;
 		font-size: 0.92rem;
 	}
 
@@ -593,9 +409,7 @@
 	}
 
 	:global(#generate),
-	:global(#customization),
-	:global(section[id^='group-']),
-	:global(section[id^='custom-group-']) {
+	:global(#customization) {
 		scroll-margin-top: 1rem;
 	}
 

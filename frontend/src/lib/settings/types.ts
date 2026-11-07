@@ -57,8 +57,10 @@ export interface NumberSetting extends Base {
 	step: number;
 	default: number;
 	unit?: string;
-	/** 'input' = number box (a 0-or-1 range becomes a No/Yes toggle). Default is a slider. */
+	/** 'input' = number box. Default is a slider. */
 	display?: 'slider' | 'input';
+	/** A starting-item count: the id of the Item Pool count it is taken from (it may not exceed that count). */
+	poolItem?: string;
 	details?: Setting[];
 }
 
@@ -69,25 +71,11 @@ export interface LevelSetting extends Base {
 	default: number;
 }
 
-/**
- * A count the player does not set: it takes whatever item slots the other counts leave over (see
- * Group.pool). The store draws the split at random and keeps it in `values`, so it is saved, put in
- * share links and sent to the server like any other value, but it never counts as a "change".
- */
-export interface CalculatedSetting extends Base {
-	kind: 'calculated';
-	/** Share of the leftover slots this item tends to get (the vanilla amount). */
-	weight: number;
-	/** Fewest it can end up with. */
-	min: number;
-	max?: number;
-}
+export type Setting = ChoiceSetting | ToggleSetting | NumberSetting | LevelSetting;
 
-export type Setting = ChoiceSetting | ToggleSetting | NumberSetting | LevelSetting | CalculatedSetting;
-/** Settings that hold a value the player can change. */
-export type ValueSetting = Exclude<Setting, CalculatedSetting>;
-
-export interface Group {
+/** A card. Its items are settings and nested sections, in display order. */
+export interface Section {
+	kind: 'section';
 	id: string;
 	title: string;
 	icon?: string; // bootstrap-icons class suffix, e.g. "globe"
@@ -95,15 +83,15 @@ export interface Group {
 	collapsible?: boolean;
 	/** A collapsible card starts folded. */
 	collapsed?: boolean;
-	/**
-	 * A fixed number of slots shared by the card's number settings. Whatever they leave over goes to
-	 * the card's calculated settings.
-	 */
+	/** The card's own number settings fill this many item locations at most (fewer leaves locations empty). */
 	pool?: { total: number };
-	/** The card has its own preset picker with these built-in presets (the first is the default). */
+	/** The card has its own preset picker for its own settings, with these built-in presets (the first is the default). */
 	presets?: Preset[];
-	settings: Setting[];
+	items: Item[];
 }
+
+/** An entry in a list of settings: a setting, or a section holding more. */
+export type Item = Setting | Section;
 
 export interface Preset {
 	id: string;

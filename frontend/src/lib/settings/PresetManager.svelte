@@ -2,7 +2,7 @@
 	import { onMount, type Snippet } from 'svelte';
 	import { tooltip } from '$lib/tooltip';
 	import type { SettingsStore } from './store.svelte';
-	import type { Group } from './types';
+	import type { Section } from './types';
 	import {
 		FORMAT_VERSION,
 		MAX_IMPORT_BYTES,
@@ -20,7 +20,7 @@
 
 	let {
 		store,
-		group,
+		section,
 		kind,
 		storageKey,
 		selectId = 'preset',
@@ -28,7 +28,7 @@
 	}: {
 		store: SettingsStore;
 		/** Manage this card's own presets instead of the presets for all the settings. */
-		group?: Group;
+		section?: Section;
 		kind: PresetKind;
 		/** localStorage key for this list of presets. */
 		storageKey: string;
@@ -53,17 +53,17 @@
 	let importArea = $state<HTMLTextAreaElement>();
 	let fileInput = $state<HTMLInputElement>();
 
-	const list = $derived(store.listFor(group));
+	const list = $derived(store.listFor(section));
 	/** The selected preset, if it is one of the player's own. */
 	const selected = $derived(list.userPresets.find((p) => p.id === list.selectedId));
-	const hasChanges = $derived(store.hasChanges(group));
-	const noun = $derived(group ? `${group.title.toLowerCase()} settings` : kind === 'settings' ? 'settings' : 'customization');
+	const hasChanges = $derived(store.hasChanges(section));
+	const noun = $derived(section ? `${section.title.toLowerCase()} settings` : kind === 'settings' ? 'settings' : 'customization');
 
 	// ---- Persistence: the player's presets live in this browser ------------------
 	onMount(() => {
 		try {
 			const raw = localStorage.getItem(storageKey);
-			if (raw) list.userPresets = readStoredPresets(raw, (v) => store.sanitize(v, group));
+			if (raw) list.userPresets = readStoredPresets(raw, (v) => store.sanitize(v, section));
 		} catch {
 			/* storage unavailable: presets just won't persist */
 		}
@@ -151,7 +151,7 @@
 				formError = `You already have a preset called “${clash.name}”. Press Save again to replace it.`;
 				return;
 			}
-			list.update(clash.id, store.capture(group));
+			list.update(clash.id, store.capture(section));
 			list.selectedId = clash.id;
 			notice = { type: 'success', text: `Updated “${clash.name}”.` };
 			closeForm();
@@ -162,7 +162,7 @@
 			formError = `You can keep up to ${MAX_USER_PRESETS} presets. Delete some first.`;
 			return;
 		}
-		const preset = list.add(name, store.capture(group));
+		const preset = list.add(name, store.capture(section));
 		list.selectedId = preset.id;
 		notice = { type: 'success', text: `Saved “${name}”.` };
 		closeForm();
@@ -171,7 +171,7 @@
 	function updateSelected() {
 		menuOpen = false;
 		if (!selected) return;
-		list.update(selected.id, store.capture(group));
+		list.update(selected.id, store.capture(section));
 		notice = { type: 'success', text: `Updated “${selected.name}” with your current ${noun}.` };
 	}
 
@@ -188,7 +188,7 @@
 		menuOpen = false;
 		const name = hasChanges ? 'Shared settings' : list.selected.name;
 		try {
-			await navigator.clipboard.writeText(encodePresetCode(kind, name, store.diff(group), store.capture(group).groupPresets));
+			await navigator.clipboard.writeText(encodePresetCode(kind, name, store.diff(section), store.capture(section).groupPresets));
 			notice = { type: 'success', text: 'Preset code copied. Anyone can paste it into Import.' };
 		} catch {
 			notice = { type: 'danger', text: "Couldn't copy to the clipboard." };
@@ -215,7 +215,7 @@
 	}
 
 	function runImport(text: string) {
-		const result = parseImport(text, kind, (raw) => store.sanitize(raw, group));
+		const result = parseImport(text, kind, (raw) => store.sanitize(raw, section));
 		if (!result.ok) {
 			formError = result.error;
 			return;
@@ -233,12 +233,12 @@
 			const name = uniqueName(item.name, taken);
 			if (name !== item.name) renamed++;
 			taken.push(name);
-			added.push(list.add(name, { values: item.values, groupPresets: group ? undefined : item.groupPresets }));
+			added.push(list.add(name, { values: item.values, groupPresets: section ? undefined : item.groupPresets }));
 		}
 		const skipped = result.presets.length - added.length;
 
 		// A single preset is applied straight away so you can see what you imported.
-		if (added.length === 1 && !store.locked) store.applyPreset(added[0].id, group);
+		if (added.length === 1 && !store.locked) store.applyPreset(added[0].id, section);
 
 		let text2 = `Imported ${added.length} preset${added.length === 1 ? '' : 's'}`;
 		if (renamed) text2 += ` (${renamed} renamed to avoid duplicates)`;
@@ -271,7 +271,7 @@
 			class="form-select form-select-sm w-auto"
 			disabled={store.locked}
 			value={list.selectedId}
-			onchange={(e) => store.applyPreset(e.currentTarget.value, group)}
+			onchange={(e) => store.applyPreset(e.currentTarget.value, section)}
 		>
 			<optgroup label="Built-in">
 				{#each list.builtIn as p (p.id)}
@@ -351,7 +351,7 @@
 		</div>
 
 		<!-- A card's own Reset sits in its header (see the generate page), so this is only for the top-level preset. -->
-		{#if !group && hasChanges}
+		{#if !section && hasChanges}
 			<button
 				type="button"
 				class="btn btn-sm btn-outline-secondary"

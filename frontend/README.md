@@ -17,9 +17,8 @@ Every setting on the page comes from one file, `src/lib/master/master_data.json`
 `loadMaster()` in `src/lib/master/load.ts`; the generator is meant to read the same file.
 
 - Format: `src/lib/master/master.ts` (types) and `adapter.ts` (file -> page).
-- Filler items (`"calculated": true`) share out the leftover item slots: `src/lib/master/pool.ts`.
-- Checks: `node scripts/validate-master.mjs ...` and
-  `node --experimental-strip-types scripts/test-pool.mjs`.
+- The Item Pool's counts may not add up to more than `itemLocations` (fewer leaves locations empty),
+  and no Starting Items count may exceed its Item Pool count.
 
 ## ROM
 

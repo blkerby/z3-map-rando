@@ -40,6 +40,10 @@ export interface SectionNode extends NodeBase {
 	collapsible?: boolean;
 	/** A collapsible section starts folded. */
 	collapsed?: boolean;
+	/** The section's counts fill the game's item locations, so together they may not exceed `itemLocations`. */
+	itemPool?: boolean;
+	/** Built-in presets for this section (the first is the default). Without any, the section gets "Default" (Logic derives its own from difficulties). */
+	presets?: MasterPreset[];
 	children: MasterNode[];
 }
 
@@ -98,21 +102,13 @@ export interface ToggleNode extends NodeBase {
 }
 
 export interface CountNode extends NodeBase {
-	type: 'count'; // number stepper / slider
+	type: 'count'; // number box; the max is always `itemLocations`
 	name: string;
-	/** Starting amount. For a calculated count this is its weight (the vanilla amount), not a value. */
 	default: number;
 	min: number;
-	/** Required, except on calculated counts (they take whatever slots are left). */
-	max?: number;
 	step?: number;
-	/**
-	 * The player does not set this. It takes a share of the item slots left over after all the other
-	 * counts (`itemLocations` minus their total), split randomly between the calculated counts,
-	 * weighted by `default`, each getting at least `min`. Not shown as an input, not saved in links,
-	 * not sent to generate: the generator works it out from the seed.
-	 */
-	calculated?: boolean;
+	/** A starting-item count: the key of the Item Pool count it is taken from (it may not exceed that count). */
+	poolItem?: string;
 }
 
 export interface ChoiceNode extends NodeBase {
@@ -126,7 +122,7 @@ export interface ChoiceNode extends NodeBase {
 export type MasterNode = SectionNode | GroupNode | LevelNode | ToggleNode | CountNode | ChoiceNode;
 export type LeafNode = LevelNode | ToggleNode | CountNode | ChoiceNode;
 
-/** An optional hand-written full-settings preset. Difficulty presets (for the Logic card) are derived and need no entry here. */
+/** A hand-written built-in preset. Difficulty presets (for the Logic card) are derived and need no entry here. */
 export interface MasterPreset {
 	id: string;
 	name: string;
@@ -141,11 +137,9 @@ export interface MasterData {
 	difficulties: string[];
 	/** Difficulty values that are not on the ladder and never take part in derived presets. */
 	unrankedDifficulties: string[];
-	/**
-	 * Number of item slots in the game. The player's item counts plus the calculated counts always
-	 * add up to this, so the page also stops the player's counts from using more than is free.
-	 */
-	itemLocations?: number;
+	/** Number of item locations in the game: the most items the Item Pool can hold (fewer leaves locations empty). */
+	itemLocations: number;
+	/** Built-in presets for all the settings at once. */
 	presets?: MasterPreset[];
 	root: MasterNode[];
 }

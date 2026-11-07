@@ -1,9 +1,9 @@
-import type { Group, Preset, Setting, Value } from '$lib/settings/types';
-import { isLeaf, labelOf, nodeKey, type LeafNode, type MasterData, type MasterNode } from './master';
+import type { Item, Preset, Section, Setting, Value } from '$lib/settings/types';
+import { isLeaf, labelOf, nodeKey, type LeafNode, type MasterData, type MasterNode, type SectionNode } from './master';
 
 export interface Schema {
-	/** What the settings store renders: one group (card) per master section. */
-	groups: Group[];
+	/** What the settings store renders: the top-level settings and sections (cards), as in the master file. */
+	items: Item[];
 	/** Full-settings presets: "Default" (the schema defaults), then any hand-written ones from the master file. */
 	presets: Preset[];
 	/** Hidden settings and their fixed values. Not shown, not in links, but sent to the server. */
@@ -23,11 +23,11 @@ function inherit(n: { layout?: 'list' | 'grid' | 'compact' }, look: Look): Look 
 }
 
 /**
- * Turn the master file into the groups and presets the settings store already understands. A card
- * whose settings have difficulties (Logic) gets its own presets, one per difficulty.
+ * Turn the master file into the settings and presets the settings store understands. A section with
+ * settings of its own gets its own presets: those listed in the master file, otherwise one per
+ * difficulty if its settings have difficulties (Logic), otherwise just "Default".
  */
 export function buildSchema(master: MasterData): Schema {
-	const groups: Group[] = [];
 	const hidden: Record<string, Value> = {};
 	let leaves: LeafNode[] = []; // visible leaves of the current section, for preset derivation
 	const seen = new Set<string>();
@@ -41,9 +41,7 @@ export function buildSchema(master: MasterData): Schema {
 				return { ...base, kind: 'toggle', default: n.default, badge: ranked && !look.hideBadge ? n.difficulty : undefined };
 			}
 			case 'count':
-				if (n.calculated) return { ...base, kind: 'calculated', weight: n.default, min: n.min, max: n.max };
-				if (n.max === undefined) throw new Error(`master_data: count "${key}" needs a max (only calculated counts may omit it)`);
-				return { ...base, kind: 'number', display: 'input', min: n.min, max: n.max, step: n.step ?? 1, default: n.default };
+				return { ...base, kind: 'number', display: 'input', min: n.min, max: master.itemLocations, step: n.step ?? 1, default: n.default, poolItem: n.poolItem };
 			case 'choice':
 				return {
 					...base,
@@ -62,10 +60,11 @@ export function buildSchema(master: MasterData): Schema {
 		}
 	}
 
-	function collect(nodes: MasterNode[], path: string[], out: Setting[], sectionTitle: string, look: Look) {
+	function collect(nodes: MasterNode[], path: string[], out: Item[], sectionTitle: string, look: Look) {
 		for (const n of nodes) {
 			if (n.type === 'section') {
-				collect(n.children, path, out, sectionTitle, inherit(n, look));
+				const section = toSection(n);
+				if (section.items.length) out.push(section);
 			} else if (n.type === 'group' && n.groupBy === 'difficulty') {
 				// One heading per difficulty in ladder order (anything off the ladder goes last). Under each,
 				// the group's own leaves, then each child group's leaves of that difficulty under its title.
@@ -103,27 +102,26 @@ export function buildSchema(master: MasterData): Schema {
 		}
 	}
 
-	const loose: Setting[] = [];
-	for (const top of master.root) {
+	function toSection(n: SectionNode): Section {
+		const outer = leaves;
 		leaves = [];
-		if (top.type === 'section') {
-			const settings: Setting[] = [];
-			collect(top.children, [], settings, top.title, inherit(top, {}));
-			if (settings.length) {
-				// A card with calculated items shares the game's fixed number of item slots.
-				const pool = master.itemLocations && settings.some((s) => s.kind === 'calculated') ? { total: master.itemLocations } : undefined;
-				const presets = buildDifficultyPresets(master, leaves);
-				groups.push({ id: top.id, title: top.title, icon: top.icon, collapsible: top.collapsible, collapsed: top.collapsed, pool, presets, settings });
-			}
-		} else {
-			collect([top], [], loose, '', {});
-		}
+		const items: Item[] = [];
+		collect(n.children, [], items, n.title, inherit(n, {}));
+		const hasSettings = items.some((item) => item.kind !== 'section');
+		const presets = hasSettings
+			? (n.presets ?? buildDifficultyPresets(master, leaves) ?? [{ id: 'default', name: 'Default', values: {} }])
+			: undefined;
+		leaves = outer;
+		const pool = n.itemPool ? { total: master.itemLocations } : undefined;
+		return { kind: 'section', id: n.id, title: n.title, icon: n.icon, collapsible: n.collapsible, collapsed: n.collapsed, pool, presets, items };
 	}
-	if (loose.length) groups.push({ id: 'general', title: 'General', settings: loose });
+
+	const items: Item[] = [];
+	collect(master.root, [], items, '', {});
 
 	const presets: Preset[] = [{ id: 'default', name: 'Default', values: {} }];
 	for (const p of master.presets ?? []) presets.push({ id: p.id, name: p.name, values: p.values });
-	return { groups, presets, hidden };
+	return { items, presets, hidden };
 }
 
 function slug(s: string): string {

@@ -138,15 +138,6 @@
 				disabled={locked}
 				onchange={(v) => store.set(setting.id, v)}
 			/>
-		{:else if setting.kind === 'calculated'}
-			<input
-				type="number"
-				class="form-control form-control-sm num calc"
-				aria-label="{setting.label} (estimated)"
-				value={Number(value)}
-				disabled
-				use:tooltip={'Worked out for you: the slots your other counts leave over are shared out at random between these items. Use Reroll at the top of the Items card to draw again.'}
-			/>
 		{:else if setting.kind === 'level'}
 			<Level
 				levels={setting.levels}
@@ -155,23 +146,11 @@
 				disabled={locked}
 				onchange={(v) => store.set(setting.id, v)}
 			/>
-		{:else if setting.display === 'input' && setting.min === 0 && setting.max === 1 && setting.step === 1}
-			<!-- Only ever 0 or 1: a No/Yes toggle reads better than a number box. -->
-			<Segmented
-				options={[
-					{ value: '0', label: 'No' },
-					{ value: '1', label: 'Yes' }
-				]}
-				value={String(value)}
-				label={setting.label}
-				disabled={locked}
-				onchange={(v) => store.set(setting.id, Number(v))}
-			/>
 		{:else if setting.display === 'input'}
 			<NumberInput
 				value={value as number}
 				min={setting.min}
-				max={store.limitOf(setting)}
+				max={setting.max}
 				step={setting.step}
 				label={setting.label}
 				disabled={locked}
@@ -230,6 +209,7 @@
 		/* Bleed out by the padding so the tint doesn't hug the text and the layout doesn't shift. */
 		margin-inline: -0.5rem;
 		border-radius: var(--bs-border-radius);
+		position: relative;
 	}
 
 	.setting-row.changed {
@@ -241,8 +221,11 @@
 		padding-block: 0.55rem;
 	}
 
-	/* Hairline between top-level rows inside a group card. */
-	:global(.setting-row:not(.nested) + .setting-row:not(.nested):not(.compact)) {
+	/* Hairline between top-level rows. Drawn separately, since a border would curve with the row's rounded corners. */
+	:global(.setting-row:not(.nested) + .setting-row:not(.nested):not(.compact)::before) {
+		content: '';
+		position: absolute;
+		inset: 0 0 auto;
 		border-top: 1px solid var(--bs-border-color-translucent);
 	}
 
@@ -280,22 +263,6 @@
 
 	.left {
 		min-width: 0;
-	}
-
-	.num {
-		width: 4.75rem;
-		font-variant-numeric: tabular-nums;
-	}
-	/* Greyed out, no spinner arrows: shows the estimate, can't be edited. */
-	.calc {
-		appearance: textfield;
-		-moz-appearance: textfield;
-		cursor: not-allowed;
-	}
-	.calc::-webkit-inner-spin-button,
-	.calc::-webkit-outer-spin-button {
-		-webkit-appearance: none;
-		margin: 0;
 	}
 
 	.notes {
