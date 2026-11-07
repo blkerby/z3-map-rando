@@ -51,7 +51,7 @@
 
 		{#if changed.length}
 			<div class="small mb-2 text-body-secondary">
-				{changed.length} change{changed.length === 1 ? '' : 's'} from <strong>{store.presetName}</strong>
+				{changed.length} change{changed.length === 1 ? '' : 's'} from <strong>{store.presetSummary}</strong>
 			</div>
 			<div class="chips mb-2">
 				{#each changed as c (c.id)}
@@ -65,7 +65,7 @@
 			</button>
 		{:else}
 			<div class="small text-body-secondary">
-				Everything matches <strong>{store.presetName}</strong>.
+				Everything matches <strong>{store.presetSummary}</strong>.
 			</div>
 		{/if}
 

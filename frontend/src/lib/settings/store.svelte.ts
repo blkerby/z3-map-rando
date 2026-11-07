@@ -1,5 +1,5 @@
 import type { CalculatedSetting, Group, NumberSetting, Preset, Setting, Value, ValueSetting } from './types';
-import { newPresetId } from './presetIO';
+import { PresetList, type PresetContent } from './presetList.svelte';
 import { adjustSplit, expectedSplit, splitFiller, type FillerItem } from '../master/pool';
 import { SearchState } from './search.svelte';
 
@@ -25,7 +25,10 @@ function toFiller(c: CalculatedSetting): FillerItem {
 
 export class SettingsStore {
 	readonly groups: Group[];
-	readonly presets: Preset[];
+	/** Presets for all the settings at once. */
+	readonly presets: PresetList;
+	/** Presets for a single card, by card id (only for cards that have their own). */
+	readonly groupPresets: Record<string, PresetList | undefined> = {};
 	readonly all: Setting[];
 	/** Lookup by id. Null-prototype so ids from untrusted links like "constructor" can't match. */
 	readonly byId: Record<string, Setting | undefined>;
@@ -36,9 +39,6 @@ export class SettingsStore {
 	private readonly poolGroupById: Record<string, Group | undefined>;
 
 	values = $state<Record<string, Value>>({});
-	presetId = $state('default');
-	/** Presets the player saved or imported (built-in ones live in `presets`). */
-	userPresets = $state<Preset[]>([]);
 	/** Shared search box state (the same object may be shared with other stores). */
 	readonly search: SearchState;
 	/** When true the settings are read-only (a game has been generated from them). */
@@ -47,7 +47,8 @@ export class SettingsStore {
 	constructor(groups: Group[], presets: Preset[], search: SearchState = new SearchState()) {
 		this.search = search;
 		this.groups = groups;
-		this.presets = presets;
+		this.presets = new PresetList(presets);
+		for (const g of groups) if (g.presets) this.groupPresets[g.id] = new PresetList(g.presets);
 		this.all = groups.flatMap((g) => flatten(g.settings));
 		this.byId = Object.assign(Object.create(null), Object.fromEntries(this.all.map((s) => [s.id, s])));
 		this.tracked = this.all.filter((s): s is ValueSetting => s.kind !== 'calculated');
@@ -75,23 +76,34 @@ export class SettingsStore {
 		this.search.query = value;
 	}
 
-	/** Built-in presets followed by the player's own. */
-	get allPresets(): Preset[] {
-		return [...this.presets, ...this.userPresets];
+	/** The presets for one card if it has its own, otherwise the presets for all the settings. */
+	listFor(group?: Group): PresetList {
+		return (group && this.groupPresets[group.id]) || this.presets;
 	}
 
-	get presetName(): string {
-		return this.allPresets.find((p) => p.id === this.presetId)?.name ?? 'Default';
+	/** The selected presets, e.g. "Default · Logic: Expert". */
+	get presetSummary(): string {
+		let out = this.presets.selected.name;
+		for (const g of this.groups) {
+			const list = this.groupPresets[g.id];
+			if (list) out += ` · ${g.title}: ${list.selected.name}`;
+		}
+		return out;
 	}
 
-	isUserPreset(id: string): boolean {
-		return this.userPresets.some((p) => p.id === id);
-	}
-
-	/** Values the currently selected preset wants (defaults + preset overrides). */
+	/**
+	 * Values the selected presets want: a card with its own presets takes its values from the preset
+	 * selected for it, everything else from the selected full-settings preset.
+	 */
 	get baseline(): Record<string, Value> {
-		const preset = this.allPresets.find((p) => p.id === this.presetId);
-		return { ...this.defaults, ...(preset?.values ?? {}) };
+		const out = { ...this.defaults, ...this.presets.selected.values };
+		for (const g of this.groups) {
+			const list = this.groupPresets[g.id];
+			if (!list) continue;
+			const values = list.selected.values;
+			for (const s of flatten(g.settings)) out[s.id] = values[s.id] ?? this.defaults[s.id];
+		}
+		return out;
 	}
 
 	get(id: string): Value {
@@ -216,46 +228,70 @@ export class SettingsStore {
 		this.rebalanceAll();
 	}
 
-	applyPreset(id: string) {
+	/**
+	 * Select a preset (for one card, or for all the settings) and take its values. A full-settings
+	 * preset also selects the card presets it was saved with.
+	 */
+	applyPreset(id: string, group?: Group) {
 		if (this.locked) return;
-		if (!this.allPresets.some((p) => p.id === id)) return;
-		this.presetId = id;
-		this.values = { ...this.baseline };
+		const list = this.listFor(group);
+		const preset = list.find(id);
+		if (!preset) return;
+		list.selectedId = preset.id;
+		if (group) {
+			this.resetGroup(group);
+			return;
+		}
+		for (const g of this.groups) this.groupPresets[g.id]?.select(preset.groupPresets?.[g.id]);
+		this.values = { ...this.defaults, ...preset.values };
 		this.rebalanceAll();
 	}
 
 	// ---- User presets -----------------------------------------------------------
 
-	/** Plain copy of the current values. */
-	snapshot(): Record<string, Value> {
-		return { ...this.values };
+	/**
+	 * What a preset saved now would hold: a full snapshot of the values (one card's, or all of them, so
+	 * later default changes can't silently alter it) and, for a full-settings preset, the selected card presets.
+	 */
+	capture(group?: Group): PresetContent {
+		if (group) {
+			const values: Record<string, Value> = {};
+			for (const s of flatten(group.settings)) values[s.id] = this.values[s.id];
+			return { values };
+		}
+		const groupPresets: Record<string, string> = {};
+		for (const g of this.groups) {
+			const list = this.groupPresets[g.id];
+			if (list) groupPresets[g.id] = list.selectedId;
+		}
+		return { values: { ...this.values }, groupPresets };
 	}
 
-	/** Save a preset (a full snapshot, so later default changes can't silently alter it). */
-	addPreset(name: string, values: Record<string, Value> = this.snapshot()): Preset {
-		const preset: Preset = { id: newPresetId(), name, values: this.sanitize(values) };
-		this.userPresets.push(preset);
-		return preset;
+	/** Would saving now change the selected preset (for one card, or for all the settings)? */
+	hasChanges(group?: Group): boolean {
+		if (group) return this.groupChanged(group);
+		if (this.changedIds.length) return true;
+		const recorded = this.presets.selected.groupPresets;
+		for (const g of this.groups) {
+			const list = this.groupPresets[g.id];
+			if (list && list.selectedId !== (recorded?.[g.id] ?? list.defaultId)) return true;
+		}
+		return false;
 	}
 
-	/** Overwrite a saved preset with the current values. */
-	updatePreset(id: string) {
-		const preset = this.userPresets.find((p) => p.id === id);
-		if (preset) preset.values = this.snapshot();
+	/**
+	 * Keep only known, correctly-typed values from untrusted input; everything else gets its default.
+	 * With a group, only that card's values are kept.
+	 */
+	sanitize(raw: unknown, group?: Group): Record<string, Value> {
+		const next = this.sanitizeAll(raw);
+		if (!group) return next;
+		const out: Record<string, Value> = {};
+		for (const s of flatten(group.settings)) out[s.id] = next[s.id];
+		return out;
 	}
 
-	renamePreset(id: string, name: string) {
-		const preset = this.userPresets.find((p) => p.id === id);
-		if (preset) preset.name = name;
-	}
-
-	deletePreset(id: string) {
-		this.userPresets = this.userPresets.filter((p) => p.id !== id);
-		if (this.presetId === id) this.presetId = 'default';
-	}
-
-	/** Keep only known, correctly-typed values from untrusted input; everything else gets its default. */
-	sanitize(raw: unknown): Record<string, Value> {
+	private sanitizeAll(raw: unknown): Record<string, Value> {
 		const next = { ...this.defaults };
 		if (typeof raw !== 'object' || raw === null) return next;
 		for (const [id, val] of Object.entries(raw)) {
@@ -307,10 +343,11 @@ export class SettingsStore {
 		return flatten([s]).filter((x) => this.isChanged(x.id)).length;
 	}
 
-	/** Only the values that differ from the schema defaults. */
-	diff(): Record<string, Value> {
+	/** Only the values that differ from the schema defaults (in one card, or in all of them). */
+	diff(group?: Group): Record<string, Value> {
 		const out: Record<string, Value> = {};
-		for (const s of this.tracked) {
+		for (const s of group ? flatten(group.settings) : this.tracked) {
+			if (s.kind === 'calculated') continue;
 			if (this.values[s.id] !== s.default) out[s.id] = this.values[s.id];
 		}
 		return out;
@@ -329,8 +366,13 @@ export class SettingsStore {
 	 * pass `keepPreset` for local storage, where the selected preset should be remembered.
 	 */
 	serialize(opts: { keepPreset?: boolean } = {}): string {
-		const p = opts.keepPreset || !this.isUserPreset(this.presetId) ? this.presetId : 'default';
-		const json = JSON.stringify({ p, v: { ...this.diff(), ...this.fillerValues() } });
+		const idOf = (list: PresetList) => (opts.keepPreset || !list.isUser(list.selectedId) ? list.selectedId : list.defaultId);
+		const g: Record<string, string> = {};
+		for (const group of this.groups) {
+			const list = this.groupPresets[group.id];
+			if (list) g[group.id] = idOf(list);
+		}
+		const json = JSON.stringify({ p: idOf(this.presets), g, v: { ...this.diff(), ...this.fillerValues() } });
 		return btoa(unescape(encodeURIComponent(json)))
 			.replace(/\+/g, '-')
 			.replace(/\//g, '_')
@@ -342,8 +384,9 @@ export class SettingsStore {
 		try {
 			const b64 = code.replace(/-/g, '+').replace(/_/g, '/');
 			const json = decodeURIComponent(escape(atob(b64)));
-			const { p, v } = JSON.parse(json) as { p: string; v: unknown };
-			this.presetId = this.allPresets.some((x) => x.id === p) ? p : 'default';
+			const { p, g, v } = JSON.parse(json) as { p: unknown; g?: Record<string, unknown>; v: unknown };
+			this.presets.select(p);
+			for (const group of this.groups) this.groupPresets[group.id]?.select(g?.[group.id]);
 			this.values = this.sanitize(v);
 			this.rebalanceAll(); // a link that doesn't add up (edited by hand) is repaired
 			return true;

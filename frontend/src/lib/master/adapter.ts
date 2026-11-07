@@ -4,7 +4,7 @@ import { isLeaf, labelOf, nodeKey, type LeafNode, type MasterData, type MasterNo
 export interface Schema {
 	/** What the settings store renders: one group (card) per master section. */
 	groups: Group[];
-	/** The first difficulty (e.g. "Basic", the same as the defaults) first, then one preset per difficulty, then any hand-written ones from the master file. */
+	/** Full-settings presets: "Default" (the schema defaults), then any hand-written ones from the master file. */
 	presets: Preset[];
 	/** Hidden settings and their fixed values. Not shown, not in links, but sent to the server. */
 	hidden: Record<string, Value>;
@@ -22,11 +22,14 @@ function inherit(n: { layout?: 'list' | 'grid' | 'compact' }, look: Look): Look 
 	return { ...look, layout: n.layout ?? look.layout };
 }
 
-/** Turn the master file into the groups and presets the settings store already understands. */
+/**
+ * Turn the master file into the groups and presets the settings store already understands. A card
+ * whose settings have difficulties (Logic) gets its own presets, one per difficulty.
+ */
 export function buildSchema(master: MasterData): Schema {
 	const groups: Group[] = [];
 	const hidden: Record<string, Value> = {};
-	const leaves: LeafNode[] = []; // visible leaves, for preset derivation
+	let leaves: LeafNode[] = []; // visible leaves of the current section, for preset derivation
 	const seen = new Set<string>();
 
 	function toSetting(n: LeafNode, key: string, path: string[], look: Look): Setting {
@@ -102,13 +105,15 @@ export function buildSchema(master: MasterData): Schema {
 
 	const loose: Setting[] = [];
 	for (const top of master.root) {
+		leaves = [];
 		if (top.type === 'section') {
 			const settings: Setting[] = [];
 			collect(top.children, [], settings, top.title, inherit(top, {}));
 			if (settings.length) {
 				// A card with calculated items shares the game's fixed number of item slots.
 				const pool = master.itemLocations && settings.some((s) => s.kind === 'calculated') ? { total: master.itemLocations } : undefined;
-				groups.push({ id: top.id, title: top.title, icon: top.icon, collapsible: top.collapsible, collapsed: top.collapsed, pool, settings });
+				const presets = buildDifficultyPresets(master, leaves);
+				groups.push({ id: top.id, title: top.title, icon: top.icon, collapsible: top.collapsible, collapsed: top.collapsed, pool, presets, settings });
 			}
 		} else {
 			collect([top], [], loose, '', {});
@@ -116,7 +121,9 @@ export function buildSchema(master: MasterData): Schema {
 	}
 	if (loose.length) groups.push({ id: 'general', title: 'General', settings: loose });
 
-	return { groups, presets: buildPresets(master, leaves), hidden };
+	const presets: Preset[] = [{ id: 'default', name: 'Default', values: {} }];
+	for (const p of master.presets ?? []) presets.push({ id: p.id, name: p.name, values: p.values });
+	return { groups, presets, hidden };
 }
 
 function slug(s: string): string {
@@ -126,13 +133,13 @@ function slug(s: string): string {
 /**
  * One preset per rung of the difficulty ladder. A preset at difficulty D turns on every toggle
  * ranked at or below D and sets each proficiency to its highest level ranked at or below D.
- * Unranked difficulties (e.g. "Ignored") never take part. Presets that change nothing are
- * left out, since they would just duplicate the first preset (the defaults).
+ * Unranked difficulties (e.g. "Ignored") never take part. Undefined when the leaves have no
+ * difficulties at all. The first rung should match the defaults, since it is selected by default.
  */
-function buildPresets(master: MasterData, leaves: LeafNode[]): Preset[] {
-	// The store needs a preset with id 'default'. It is the bottom rung of the ladder, so it is named after it.
-	const presets: Preset[] = [{ id: 'default', name: master.difficulties[0] ?? 'Default', values: {} }];
+function buildDifficultyPresets(master: MasterData, leaves: LeafNode[]): Preset[] | undefined {
 	const rank = (d: string | undefined) => (d ? master.difficulties.indexOf(d) : -1);
+	const presets: Preset[] = [];
+	let any = false;
 
 	master.difficulties.forEach((name, i) => {
 		const values: Record<string, Value> = {};
@@ -140,6 +147,7 @@ function buildPresets(master: MasterData, leaves: LeafNode[]): Preset[] {
 			const key = nodeKey(n);
 			if (n.type === 'toggle') {
 				const r = rank(n.difficulty);
+				if (r >= 0) any = true;
 				if (r >= 0 && r <= i && n.default !== true) values[key] = true;
 			} else if (n.type === 'level') {
 				const reachable = n.levels.filter((l) => {
@@ -147,14 +155,14 @@ function buildPresets(master: MasterData, leaves: LeafNode[]): Preset[] {
 					return r >= 0 && r <= i;
 				});
 				if (reachable.length) {
+					any = true;
 					const top = Math.max(...reachable.map((l) => l.level));
 					if (top !== n.default) values[key] = top;
 				}
 			}
 		}
-		if (Object.keys(values).length) presets.push({ id: `difficulty-${slug(name)}`, name, values });
+		presets.push({ id: `difficulty-${slug(name)}`, name, values });
 	});
 
-	for (const p of master.presets ?? []) presets.push({ id: p.id, name: p.name, values: p.values });
-	return presets;
+	return any ? presets : undefined;
 }

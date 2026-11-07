@@ -340,12 +340,24 @@
 									{group.title}
 								{/if}
 							</h3>
+							{#if store.groupPresets[group.id]}
+								<!-- In the header, so the card's preset can be seen and changed while it is folded. -->
+								<div class="card-presets">
+									<PresetManager
+										{store}
+										{group}
+										kind={group.id}
+										storageKey="alttp-maprando:presets:{group.id}"
+										selectId="preset-{group.id}"
+									/>
+								</div>
+							{/if}
 							{#if store.groupChanged(group)}
 								<button
 									type="button"
 									class="btn btn-sm btn-outline-secondary card-reset"
 									disabled={store.locked}
-									use:tooltip={`Put everything in ${group.title} back to ${store.presetName}. The other sections are not touched.`}
+									use:tooltip={`Put everything in ${group.title} back to ${store.listFor(group).selected.name}. The other sections are not touched.`}
 									onclick={() => store.resetGroup(group)}
 								>
 									<i class="bi bi-arrow-counterclockwise"></i> Reset
@@ -485,6 +497,13 @@
 		margin: -0.25rem 0.75rem -0.25rem 0.25rem;
 		padding: 0.1rem 0.5rem;
 		font-size: 0.78rem;
+	}
+
+	.card-presets {
+		flex: none;
+		max-width: 60%;
+		padding: 0.3rem 0.75rem 0.3rem 0;
+		font-size: 0.9rem;
 	}
 
 	.card-header.folded {

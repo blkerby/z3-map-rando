@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, type Snippet } from 'svelte';
 	import type { SettingsStore } from './store.svelte';
+	import type { Group } from './types';
 	import {
 		FORMAT_VERSION,
 		MAX_IMPORT_BYTES,
@@ -18,12 +19,15 @@
 
 	let {
 		store,
+		group,
 		kind,
 		storageKey,
 		selectId = 'preset',
 		children
 	}: {
 		store: SettingsStore;
+		/** Manage this card's own presets instead of the presets for all the settings. */
+		group?: Group;
 		kind: PresetKind;
 		/** localStorage key for this list of presets. */
 		storageKey: string;
@@ -48,16 +52,17 @@
 	let importArea = $state<HTMLTextAreaElement>();
 	let fileInput = $state<HTMLInputElement>();
 
+	const list = $derived(store.listFor(group));
 	/** The selected preset, if it is one of the player's own. */
-	const selected = $derived(store.userPresets.find((p) => p.id === store.presetId));
-	const hasChanges = $derived(store.changedIds.length > 0);
-	const noun = $derived(kind === 'settings' ? 'settings' : 'customization');
+	const selected = $derived(list.userPresets.find((p) => p.id === list.selectedId));
+	const hasChanges = $derived(store.hasChanges(group));
+	const noun = $derived(group ? `${group.title.toLowerCase()} settings` : kind === 'settings' ? 'settings' : 'customization');
 
 	// ---- Persistence: the player's presets live in this browser ------------------
 	onMount(() => {
 		try {
 			const raw = localStorage.getItem(storageKey);
-			if (raw) store.userPresets = readStoredPresets(raw, (v) => store.sanitize(v));
+			if (raw) list.userPresets = readStoredPresets(raw, (v) => store.sanitize(v, group));
 		} catch {
 			/* storage unavailable: presets just won't persist */
 		}
@@ -65,7 +70,7 @@
 	});
 
 	$effect(() => {
-		const data = JSON.stringify({ version: FORMAT_VERSION, presets: store.userPresets }); // tracked
+		const data = JSON.stringify({ version: FORMAT_VERSION, presets: list.userPresets }); // tracked
 		if (!ready) return;
 		try {
 			localStorage.setItem(storageKey, data);
@@ -117,12 +122,12 @@
 			formError = 'Give the preset a name.';
 			return;
 		}
-		if (store.presets.some((p) => sameName(p.name, name))) {
+		if (list.builtIn.some((p) => sameName(p.name, name))) {
 			formError = `“${name}” is a built-in preset name. Please choose another.`;
 			return;
 		}
 		const renaming = mode === 'rename';
-		const clash = store.userPresets.find(
+		const clash = list.userPresets.find(
 			(p) => sameName(p.name, name) && !(renaming && p.id === selected?.id)
 		);
 
@@ -132,7 +137,7 @@
 				formError = 'You already have a preset with that name.';
 				return;
 			}
-			store.renamePreset(selected.id, name);
+			list.rename(selected.id, name);
 			notice = { type: 'success', text: `Renamed to “${name}”.` };
 			closeForm();
 			return;
@@ -145,19 +150,19 @@
 				formError = `You already have a preset called “${clash.name}”. Press Save again to replace it.`;
 				return;
 			}
-			store.updatePreset(clash.id);
-			store.presetId = clash.id;
+			list.update(clash.id, store.capture(group));
+			list.selectedId = clash.id;
 			notice = { type: 'success', text: `Updated “${clash.name}”.` };
 			closeForm();
 			return;
 		}
 
-		if (store.userPresets.length >= MAX_USER_PRESETS) {
+		if (list.userPresets.length >= MAX_USER_PRESETS) {
 			formError = `You can keep up to ${MAX_USER_PRESETS} presets. Delete some first.`;
 			return;
 		}
-		const preset = store.addPreset(name);
-		store.presetId = preset.id;
+		const preset = list.add(name, store.capture(group));
+		list.selectedId = preset.id;
 		notice = { type: 'success', text: `Saved “${name}”.` };
 		closeForm();
 	}
@@ -165,14 +170,14 @@
 	function updateSelected() {
 		menuOpen = false;
 		if (!selected) return;
-		store.updatePreset(selected.id);
+		list.update(selected.id, store.capture(group));
 		notice = { type: 'success', text: `Updated “${selected.name}” with your current ${noun}.` };
 	}
 
 	function confirmDelete() {
 		if (!selected) return;
 		const name = selected.name;
-		store.deletePreset(selected.id);
+		list.delete(selected.id);
 		notice = { type: 'info', text: `Deleted “${name}”. Your current ${noun} were kept.` };
 		closeForm();
 	}
@@ -180,9 +185,9 @@
 	// ---- Share: copy code / export file / import ---------------------------------
 	async function copyCode() {
 		menuOpen = false;
-		const name = hasChanges ? 'Shared settings' : store.presetName;
+		const name = hasChanges ? 'Shared settings' : list.selected.name;
 		try {
-			await navigator.clipboard.writeText(encodePresetCode(kind, name, store.diff()));
+			await navigator.clipboard.writeText(encodePresetCode(kind, name, store.diff(group), store.capture(group).groupPresets));
 			notice = { type: 'success', text: 'Preset code copied. Anyone can paste it into Import.' };
 		} catch {
 			notice = { type: 'danger', text: "Couldn't copy to the clipboard." };
@@ -191,11 +196,11 @@
 
 	function exportAll() {
 		menuOpen = false;
-		if (!store.userPresets.length) {
+		if (!list.userPresets.length) {
 			notice = { type: 'info', text: 'You have no saved presets to export yet.' };
 			return;
 		}
-		const blob = new Blob([buildExportFile(kind, store.userPresets)], { type: 'application/json' });
+		const blob = new Blob([buildExportFile(kind, list.userPresets)], { type: 'application/json' });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
@@ -204,35 +209,35 @@
 		a.click();
 		a.remove();
 		setTimeout(() => URL.revokeObjectURL(url), 1000);
-		const n = store.userPresets.length;
+		const n = list.userPresets.length;
 		notice = { type: 'success', text: `Exported ${n} preset${n === 1 ? '' : 's'}.` };
 	}
 
 	function runImport(text: string) {
-		const result = parseImport(text, kind, (raw) => store.sanitize(raw));
+		const result = parseImport(text, kind, (raw) => store.sanitize(raw, group));
 		if (!result.ok) {
 			formError = result.error;
 			return;
 		}
-		const room = MAX_USER_PRESETS - store.userPresets.length;
+		const room = MAX_USER_PRESETS - list.userPresets.length;
 		if (room <= 0) {
 			formError = `You already have ${MAX_USER_PRESETS} presets. Delete some first.`;
 			return;
 		}
 
-		const taken = store.allPresets.map((p) => p.name);
+		const taken = list.all.map((p) => p.name);
 		const added = [];
 		let renamed = 0;
 		for (const item of result.presets.slice(0, room)) {
 			const name = uniqueName(item.name, taken);
 			if (name !== item.name) renamed++;
 			taken.push(name);
-			added.push(store.addPreset(name, item.values));
+			added.push(list.add(name, { values: item.values, groupPresets: group ? undefined : item.groupPresets }));
 		}
 		const skipped = result.presets.length - added.length;
 
 		// A single preset is applied straight away so you can see what you imported.
-		if (added.length === 1 && !store.locked) store.applyPreset(added[0].id);
+		if (added.length === 1 && !store.locked) store.applyPreset(added[0].id, group);
 
 		let text2 = `Imported ${added.length} preset${added.length === 1 ? '' : 's'}`;
 		if (renamed) text2 += ` (${renamed} renamed to avoid duplicates)`;
@@ -264,17 +269,17 @@
 			id={selectId}
 			class="form-select form-select-sm w-auto"
 			disabled={store.locked}
-			value={store.presetId}
-			onchange={(e) => store.applyPreset(e.currentTarget.value)}
+			value={list.selectedId}
+			onchange={(e) => store.applyPreset(e.currentTarget.value, group)}
 		>
 			<optgroup label="Built-in">
-				{#each store.presets as p (p.id)}
+				{#each list.builtIn as p (p.id)}
 					<option value={p.id}>{p.name}</option>
 				{/each}
 			</optgroup>
-			{#if store.userPresets.length}
+			{#if list.userPresets.length}
 				<optgroup label="My presets">
-					{#each store.userPresets as p (p.id)}
+					{#each list.userPresets as p (p.id)}
 						<option value={p.id}>{p.name}</option>
 					{/each}
 				</optgroup>
@@ -332,7 +337,7 @@
 						type="button"
 						role="menuitem"
 						class="menu-item"
-						disabled={!store.userPresets.length}
+						disabled={!list.userPresets.length}
 						onclick={exportAll}
 					>
 						<i class="bi bi-box-arrow-up"></i> Export my presets…

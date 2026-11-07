@@ -16,6 +16,8 @@
       "type": "section",
       "id": "logic",
       "title": "Logic",
+      "collapsible": true,
+      "collapsed": true,
       "children": [
         {
           "type": "group",

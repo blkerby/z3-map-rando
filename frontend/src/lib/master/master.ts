@@ -126,7 +126,7 @@ export interface ChoiceNode extends NodeBase {
 export type MasterNode = SectionNode | GroupNode | LevelNode | ToggleNode | CountNode | ChoiceNode;
 export type LeafNode = LevelNode | ToggleNode | CountNode | ChoiceNode;
 
-/** An optional hand-written preset. Difficulty presets are derived and need no entry here. */
+/** An optional hand-written full-settings preset. Difficulty presets (for the Logic card) are derived and need no entry here. */
 export interface MasterPreset {
 	id: string;
 	name: string;

@@ -1,7 +1,10 @@
 import type { Preset, Value } from './types';
 
-/** Which store a preset belongs to. Presets for one can't be imported into the other. */
-export type PresetKind = 'settings' | 'customization';
+/**
+ * Which preset list a preset belongs to: 'settings', 'customization', or the id of a card with its
+ * own presets (e.g. 'logic'). Presets for one can't be imported into another.
+ */
+export type PresetKind = string;
 
 export const FORMAT = 'alttp-maprando-presets';
 export const FORMAT_VERSION = 1;
@@ -11,10 +14,9 @@ export const MAX_USER_PRESETS = 200;
 export const MAX_IMPORT_PRESETS = 100;
 export const MAX_IMPORT_BYTES = 1_000_000;
 
-const KIND_LABEL: Record<PresetKind, string> = {
-	settings: 'game settings',
-	customization: 'customization'
-};
+function kindLabel(kind: string): string {
+	return kind === 'settings' ? 'game settings' : kind;
+}
 
 export function newPresetId(): string {
 	const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -50,7 +52,7 @@ export function buildExportFile(kind: PresetKind, presets: Preset[]): string {
 			format: FORMAT,
 			version: FORMAT_VERSION,
 			kind,
-			presets: presets.map((p) => ({ name: p.name, values: p.values }))
+			presets: presets.map((p) => ({ name: p.name, values: p.values, groupPresets: p.groupPresets }))
 		},
 		null,
 		2
@@ -72,8 +74,13 @@ function fromBase64Url(code: string): string {
 }
 
 /** `diff` holds only values that differ from the schema defaults, which keeps the code short. */
-export function encodePresetCode(kind: PresetKind, name: string, diff: Record<string, Value>): string {
-	return toBase64Url(JSON.stringify({ k: kind, n: name, v: diff }));
+export function encodePresetCode(
+	kind: PresetKind,
+	name: string,
+	diff: Record<string, Value>,
+	groupPresets?: Record<string, string>
+): string {
+	return toBase64Url(JSON.stringify({ k: kind, n: name, v: diff, g: groupPresets }));
 }
 
 // ---- Import -------------------------------------------------------------------
@@ -81,12 +88,21 @@ export function encodePresetCode(kind: PresetKind, name: string, diff: Record<st
 export interface ParsedPreset {
 	name: string;
 	values: Record<string, Value>;
+	groupPresets?: Record<string, string>;
 }
 
 export type ParseResult = { ok: true; presets: ParsedPreset[] } | { ok: false; error: string };
 
 function isObject(x: unknown): x is Record<string, unknown> {
 	return typeof x === 'object' && x !== null && !Array.isArray(x);
+}
+
+/** Card id -> preset id, keeping only string entries. Unknown ids are harmless: they fall back to the default preset. */
+function readGroupPresets(raw: unknown): Record<string, string> | undefined {
+	if (!isObject(raw)) return undefined;
+	const out: Record<string, string> = {};
+	for (const [k, v] of Object.entries(raw)) if (typeof v === 'string') out[k] = v;
+	return out;
 }
 
 /**
@@ -103,8 +119,8 @@ export function parseImport(
 	if (input.length > MAX_IMPORT_BYTES) return { ok: false, error: 'That is too large to be a preset file.' };
 
 	const wrongKind = (other: unknown) =>
-		other === 'settings' || other === 'customization'
-			? `That is a ${KIND_LABEL[other]} preset, but this list holds ${KIND_LABEL[kind]} presets.`
+		typeof other === 'string' && other.length <= 40
+			? `That is a ${kindLabel(other)} preset, but this list holds ${kindLabel(kind)} presets.`
 			: "That preset isn't for this list.";
 
 	if (input.startsWith('{')) {
@@ -127,7 +143,8 @@ export function parseImport(
 			if (!isObject(item) || !isObject(item.values)) continue;
 			presets.push({
 				name: cleanName(item.name) || 'Imported preset',
-				values: sanitize(item.values)
+				values: sanitize(item.values),
+				groupPresets: readGroupPresets(item.groupPresets)
 			});
 		}
 		if (!presets.length) return { ok: false, error: 'That file has no usable presets in it.' };
@@ -150,7 +167,7 @@ export function parseImport(
 	if (data.k !== kind) return { ok: false, error: wrongKind(data.k) };
 	return {
 		ok: true,
-		presets: [{ name: cleanName(data.n) || 'Imported preset', values: sanitize(data.v) }]
+		presets: [{ name: cleanName(data.n) || 'Imported preset', values: sanitize(data.v), groupPresets: readGroupPresets(data.g) }]
 	};
 }
 
@@ -179,7 +196,7 @@ export function readStoredPresets(
 			typeof item.id === 'string' && /^user-[a-z0-9]{4,32}$/.test(item.id) && !out.some((p) => p.id === item.id)
 				? item.id
 				: newPresetId();
-		out.push({ id, name, values: sanitize(item.values) });
+		out.push({ id, name, values: sanitize(item.values), groupPresets: readGroupPresets(item.groupPresets) });
 	}
 	return out;
 }

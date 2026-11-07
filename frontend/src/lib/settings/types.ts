@@ -100,12 +100,16 @@ export interface Group {
 	 * the card's calculated settings.
 	 */
 	pool?: { total: number };
+	/** The card has its own preset picker with these built-in presets (the first is the default). */
+	presets?: Preset[];
 	settings: Setting[];
 }
 
 export interface Preset {
 	id: string;
 	name: string;
-	/** Only the values that differ from schema defaults. */
+	/** Built-in presets: only the values that differ from schema defaults. Saved presets: a full snapshot. */
 	values: Record<string, Value>;
+	/** Full-settings presets only: the preset selected in each card that has its own (card id -> preset id). */
+	groupPresets?: Record<string, string>;
 }

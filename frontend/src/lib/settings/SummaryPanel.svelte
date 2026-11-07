@@ -29,7 +29,7 @@
 
 	let copied = $state(false);
 
-	const presetName = $derived(store.presetName);
+	const presetName = $derived(store.presetSummary);
 
 	const changed = $derived(
 		store.changedIds.map((id) => ({
