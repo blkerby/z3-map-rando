@@ -302,10 +302,9 @@
 				badgeIcon="lock-fill"
 				bind:open={generateOpen}
 			>
-				<div class="mb-3">
+				{#snippet actions()}
 					<PresetManager {store} kind="settings" selectId="preset" />
-				</div>
-
+				{/snippet}
 				<ItemList {store} items={store.items} idPrefix="section-" />
 				{#if !generateMatches}
 					<p class="text-body-secondary">No settings match “{search.query}”.</p>
@@ -313,6 +312,9 @@
 			</CollapsibleSection>
 
 			<CollapsibleSection id="customization" title="Customization" bind:open={customizationOpen}>
+				{#snippet actions()}
+					<PresetManager store={custom} kind="customization" selectId="custom-preset" />
+				{/snippet}
 				<CustomizationEditor store={custom} />
 			</CollapsibleSection>
 		</div>

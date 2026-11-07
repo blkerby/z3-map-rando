@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import PresetManager from './PresetManager.svelte';
 	import ItemList from './ItemList.svelte';
 	import type { SettingsStore } from './store.svelte';
 
@@ -38,10 +37,6 @@
 		}
 	});
 </script>
-
-<div class="mb-3">
-	<PresetManager {store} kind="customization" selectId="custom-preset" />
-</div>
 
 <ItemList {store} items={store.items} idPrefix="custom-section-" />
 {#if !store.countMatches()}
