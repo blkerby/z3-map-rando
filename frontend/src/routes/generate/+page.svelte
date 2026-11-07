@@ -357,7 +357,7 @@
 									type="button"
 									class="btn btn-sm btn-outline-secondary card-reset"
 									disabled={store.locked}
-									use:tooltip={`Put everything in ${group.title} back to ${store.listFor(group).selected.name}. The other sections are not touched.`}
+									use:tooltip={`Put everything in ${group.title} back to "${store.listFor(group).selected.name}". The other sections are not touched.`}
 									onclick={() => store.resetGroup(group)}
 								>
 									<i class="bi bi-arrow-counterclockwise"></i> Reset
@@ -499,9 +499,9 @@
 		font-size: 0.78rem;
 	}
 
+	/* Shrinkable rather than capped, so the controls only wrap when the header is actually out of room. */
 	.card-presets {
-		flex: none;
-		max-width: 60%;
+		flex: 0 1 auto;
 		padding: 0.3rem 0.75rem 0.3rem 0;
 		font-size: 0.9rem;
 	}
