@@ -58,6 +58,8 @@
 	const tweaks = $derived(card ? store.tweakCount(card) : 0);
 	/** What the dropdown shows: the preset picked by hand, else "" for the "+ tweaks" entry, else the preset chosen for it. */
 	const shown = $derived(store.isSelectionChanged(section) || !tweaks ? current.id : '');
+	/** The card's preset was picked by hand: an unsaved change. */
+	const picked = $derived(store.isSelectionChanged(section));
 	const changed = $derived(store.sectionChanged(section));
 	const noun = $derived(card ? `${card.title.toLowerCase()} settings` : kind === 'settings' ? 'settings' : 'customization');
 
@@ -248,6 +250,8 @@
 		<select
 			id={selectId}
 			class="form-select form-select-sm w-auto"
+			class:picked
+			use:tooltip={picked && card ? `Picked by hand. Reset goes back to “${store.inheritedLabel(card)}”.` : undefined}
 			disabled={store.locked}
 			value={shown}
 			onchange={(e) => store.applyPreset(e.currentTarget.value, section)}
@@ -268,6 +272,9 @@
 				</optgroup>
 			{/if}
 		</select>
+		{#if selected}
+			<span class="based-on">based on {list.builtInBehind(selected).name}</span>
+		{/if}
 
 		<div class="menu-wrap" bind:this={menuEl}>
 			<button
@@ -452,6 +459,18 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 0.75rem 0.75rem;
+	}
+
+	/* Same tint as a changed setting row. */
+	.picked {
+		background-color: rgba(var(--bs-success-rgb), 0.3);
+	}
+
+	.based-on {
+		margin-left: -0.35rem;
+		font-size: 0.8rem;
+		opacity: 0.65;
+		white-space: nowrap;
 	}
 
 	.menu-wrap {

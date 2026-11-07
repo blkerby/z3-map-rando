@@ -88,7 +88,14 @@ Notes on how it was done:
 
 ## Phase 3: UI
 
-Strong and weak shading, the changed-selection marker on dropdowns, "based on X", reset by layers, and the summary panel's Tweaks list.
+Strong and weak shading, the changed-selection marker on dropdowns, "based on X", and the summary panel's Tweaks list.
+
+Notes on how it was done:
+
+- A setting is shaded as a tweak when it is behind the "+ N tweaks" of a section that isn't picked by hand (or, for settings outside any section, when the top-level preset's tweaks set it). An unsaved change takes the stronger shade instead.
+- A dropdown picked by hand gets the strong tint, with a tooltip naming what Reset goes back to. Folded cards count picked dropdowns in their "N changed".
+- The summary panel counts picked dropdowns as changes ("Logic preset: Hard" chips, which jump to the card). The Tweaks list ("N tweaks in Mine") is grouped by section, headed e.g. "Logic: Hard + 2 tweaks". It starts open only while there are no unsaved changes; once folded or unfolded by hand it stays that way.
+- The customization panel has no Tweaks list yet.
 
 ## Phase 4: share links
 

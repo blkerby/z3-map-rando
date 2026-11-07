@@ -68,6 +68,8 @@ export class SettingsStore {
 	/** Lookup by id. Null-prototype so ids from untrusted links like "constructor" can't match. */
 	readonly byId: Record<string, Setting | undefined>;
 	readonly defaults: Record<string, Value>;
+	/** The section each setting belongs to directly (the root for settings outside any section), by setting id. */
+	readonly ownerOf: Record<string, Section> = {};
 
 	values = $state<Record<string, Value>>({});
 	/** Shared search box state (the same object may be shared with other stores). */
@@ -92,19 +94,34 @@ export class SettingsStore {
 	});
 
 	/**
-	 * For each section: how many settings inside it the presets around it change from the preset they
+	 * For each section: the settings inside it that the presets around it change from the preset they
 	 * choose for it (with their tweaks, and their picks for sections inside it), had it not been picked by hand.
 	 */
 	private readonly inheritedChanges = $derived.by(() => {
-		const out: Record<string, number> = {};
+		const out: Record<string, string[]> = {};
 		for (const sec of this.sections) {
 			const inherited = this.emptyResolution(sec.id);
 			this.resolve(this.root, this.rootPreset, {}, true, true, inherited);
 			const plain = this.resolveFresh(sec, this.impliedPreset(sec)).values;
-			let n = 0;
-			for (const s of settingsIn(sec.items)) if (inherited.values[s.id] !== plain[s.id]) n++;
-			out[sec.id] = n;
+			const ids: string[] = [];
+			for (const s of settingsIn(sec.items)) if (inherited.values[s.id] !== plain[s.id]) ids.push(s.id);
+			out[sec.id] = ids;
 		}
+		return out;
+	});
+
+	/**
+	 * Settings the selected presets set differently from the preset shown for their section: the tweaks
+	 * behind "Hard + 2 tweaks" in sections that aren't picked by hand, and the top-level preset's tweaks of
+	 * settings outside any section.
+	 */
+	private readonly tweaked = $derived.by(() => {
+		const out: Record<string, boolean> = {};
+		for (const sec of this.sections) {
+			if (this.isSelectionChanged(sec)) continue;
+			for (const id of this.inheritedChanges[sec.id]) out[id] = true;
+		}
+		for (const s of ownSettings(this.root)) if (this.applied[s.id] !== this.plain[s.id]) out[s.id] = true;
 		return out;
 	});
 
@@ -116,6 +133,7 @@ export class SettingsStore {
 		for (const sec of [this.root, ...this.sections]) this.lists[sec.id] = new PresetList(sec.presets, sec.defaultPreset);
 		this.lists[ROOT_ID].selectedId = this.lists[ROOT_ID].defaultId;
 		this.all = settingsIn(items);
+		for (const sec of [this.root, ...this.sections]) for (const s of ownSettings(sec)) this.ownerOf[s.id] = sec;
 		this.byId = Object.assign(Object.create(null), Object.fromEntries(this.all.map((s) => [s.id, s])));
 		this.defaults = Object.fromEntries(this.all.map((s) => [s.id, s.default]));
 		this.values = this.resolveFresh(this.root, this.rootPreset).values;
@@ -160,7 +178,17 @@ export class SettingsStore {
 
 	/** How many settings inside a section the presets around it change (see `inheritedChanges`). */
 	tweakCount(section: Section): number {
-		return this.inheritedChanges[section.id] ?? 0;
+		return this.inheritedChanges[section.id]?.length ?? 0;
+	}
+
+	/** Is this setting one of the selected presets' tweaks (see `tweaked`)? */
+	isTweaked(id: string): boolean {
+		return this.tweaked[id] === true;
+	}
+
+	/** Ids of the selected presets' tweaks. */
+	get tweakedIds(): string[] {
+		return this.all.filter((s) => this.isTweaked(s.id)).map((s) => s.id);
 	}
 
 	/** What a section takes, e.g. "Hard + 2 tweaks", or "Expert" when picked by hand. */
@@ -300,10 +328,22 @@ export class SettingsStore {
 		return this.all.filter((s) => this.isChanged(s.id)).map((s) => s.id);
 	}
 
+	/** Sections picked by hand (their selection is an unsaved change). */
+	get changedSections(): Section[] {
+		return this.sections.filter((sec) => this.isSelectionChanged(sec));
+	}
+
+	/** How many unsaved changes there are in this section: changed settings and sections picked by hand, inside it included. */
+	countChanges(section: Section): number {
+		let n = 0;
+		for (const sec of [section, ...sectionsIn(section.items)]) if (this.isSelectionChanged(sec)) n++;
+		for (const s of settingsIn(section.items)) if (this.isChanged(s.id)) n++;
+		return n;
+	}
+
 	/** Has anything in this section (its selection, settings and sections inside included) changed? */
 	sectionChanged(section: Section): boolean {
-		for (const sec of [section, ...sectionsIn(section.items)]) if (this.isSelectionChanged(sec)) return true;
-		return settingsIn(section.items).some((s) => this.isChanged(s.id));
+		return this.countChanges(section) > 0;
 	}
 
 	reset(id: string) {

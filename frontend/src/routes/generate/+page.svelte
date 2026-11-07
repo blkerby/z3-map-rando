@@ -329,6 +329,11 @@
 				ongenerate={generate}
 				onnew={newGame}
 				onjump={(id) => jumpToSetting('generate', id)}
+				onjumpsection={(id) => {
+					search.query = '';
+					unfold(store, id);
+					goTo('generate', `section-${id}`);
+				}}
 			/>
 			<CustomizationPanel
 				store={custom}

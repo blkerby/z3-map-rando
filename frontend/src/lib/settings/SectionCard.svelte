@@ -2,7 +2,7 @@
 	import { tooltip } from '$lib/tooltip';
 	import ItemList from './ItemList.svelte';
 	import PresetManager from './PresetManager.svelte';
-	import { settingsIn, type SettingsStore } from './store.svelte';
+	import type { SettingsStore } from './store.svelte';
 	import type { Section } from './types';
 
 	let { store, section, idPrefix }: { store: SettingsStore; section: Section; idPrefix: string } = $props();
@@ -10,7 +10,7 @@
 	const open = $derived(store.isOpen(section));
 	const pool = $derived(store.poolOf(section));
 	// Shown on a folded card, so changes inside it (nested cards included) aren't hidden.
-	const changedHere = $derived(settingsIn(section.items).filter((s) => store.isChanged(s.id)).length);
+	const changedHere = $derived(store.countChanges(section));
 </script>
 
 <section id="{idPrefix}{section.id}" class="card mb-3">

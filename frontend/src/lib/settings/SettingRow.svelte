@@ -23,6 +23,8 @@
 	const locked = $derived(store.locked);
 	const value = $derived(store.get(setting.id));
 	const changed = $derived(store.isChanged(setting.id));
+	/** One of the selected presets' tweaks (shaded cyan, unlike the green of an unsaved change). */
+	const tweaked = $derived(!changed && store.isTweaked(setting.id));
 	// Details can be gated on the parent's value (e.g. controller mapping only when "Custom").
 	const detailsVisible = $derived(
 		!('detailsWhen' in setting) || setting.detailsWhen === undefined || value === setting.detailsWhen
@@ -54,7 +56,7 @@
 	});
 </script>
 
-<div class="setting-row" id={setting.id} class:nested class:changed class:compact>
+<div class="setting-row" id={setting.id} class:nested class:changed class:tweaked class:compact>
 	<div class="left">
 	<div class="label-col">
 		{#if setting.help}
@@ -213,7 +215,12 @@
 	}
 
 	.setting-row.changed {
-		background: rgba(var(--bs-success-rgb), 0.1);
+		background: rgba(var(--bs-success-rgb), 0.25);
+	}
+
+	/* Cyan rather than green, so it reads as distinct from a change rather than a fainter one. */
+	.setting-row.tweaked {
+		background: rgba(var(--bs-info-rgb), 0.15);
 	}
 
 	.setting-row.nested {

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import type { SettingsStore } from './store.svelte';
+	import type { Section } from './types';
 
 	let {
 		store,
@@ -11,7 +12,8 @@
 		shareHash = null,
 		ongenerate,
 		onnew,
-		onjump
+		onjump,
+		onjumpsection
 	}: {
 		store: SettingsStore;
 		/** True once a game exists for these settings (the settings are locked). */
@@ -25,11 +27,13 @@
 		onnew: () => void;
 		/** Scroll to a setting (the page also clears the search and opens its section). */
 		onjump: (id: string) => void;
+		/** Scroll to a section's card. */
+		onjumpsection: (id: string) => void;
 	} = $props();
 
 	let copied = $state(false);
 
-	const presetName = $derived(store.presetSummary);
+	const presetName = $derived(store.rootPreset.name);
 
 	const changed = $derived(
 		store.changedIds.map((id) => ({
@@ -38,6 +42,28 @@
 			value: store.display(id)
 		}))
 	);
+	const picked = $derived(store.changedSections);
+	const changeCount = $derived(changed.length + picked.length);
+
+	/** The selected presets' tweaks, by the section they are in. */
+	const tweakGroups = $derived.by(() => {
+		const groups: { section: Section; rows: { id: string; label: string; value: string }[] }[] = [];
+		for (const id of store.tweakedIds) {
+			if (store.isChanged(id)) continue; // listed as a change instead
+			const section = store.ownerOf[id];
+			let group = groups.find((g) => g.section === section);
+			if (!group) {
+				group = { section, rows: [] };
+				groups.push(group);
+			}
+			group.rows.push({ id, label: store.byId[id]?.label ?? id, value: store.display(id) });
+		}
+		return groups;
+	});
+	const tweakCount = $derived(tweakGroups.reduce((n, g) => n + g.rows.length, 0));
+	/** Folded or unfolded by hand; otherwise open only while there are no unsaved changes, so those stand out. */
+	let tweaksOpenByHand = $state<boolean | null>(null);
+	const tweaksOpen = $derived(tweaksOpenByHand ?? changeCount === 0);
 
 	async function copyLink() {
 		if (!shareHash) return;
@@ -56,15 +82,20 @@
 		{/if}
 
 		<div class="small mb-2 text-body-secondary">
-			{#if changed.length}
-				{changed.length} change{changed.length === 1 ? '' : 's'} from <strong>{presetName}</strong>
+			{#if changeCount}
+				{changeCount} change{changeCount === 1 ? '' : 's'} from <strong>{presetName}</strong>
 			{:else}
 				Matches <strong>{presetName}</strong>
 			{/if}
 		</div>
 
-		{#if changed.length}
+		{#if changeCount}
 			<div class="chips mb-2">
+				{#each picked as sec (sec.id)}
+					<button type="button" class="chip" onclick={() => onjumpsection(sec.id)}>
+						{sec.title} preset: <strong>{store.selectedPreset(sec).name}</strong>
+					</button>
+				{/each}
 				{#each changed as c (c.id)}
 					<button type="button" class="chip" onclick={() => onjump(c.id)}>
 						{c.label}: <strong>{c.value}</strong>
@@ -75,6 +106,34 @@
 				<button type="button" class="btn btn-link btn-sm p-0 mb-3" onclick={() => store.resetAll()}>
 					Reset all
 				</button>
+			{/if}
+		{/if}
+
+		{#if tweakCount}
+			<button
+				type="button"
+				class="tweaks-toggle"
+				aria-expanded={tweaksOpen}
+				onclick={() => (tweaksOpenByHand = !tweaksOpen)}
+			>
+				<i class="bi" class:bi-chevron-down={tweaksOpen} class:bi-chevron-right={!tweaksOpen}></i>
+				{tweakCount} tweak{tweakCount === 1 ? '' : 's'} in <strong>{presetName}</strong>
+			</button>
+			{#if tweaksOpen}
+				{#each tweakGroups as g (g.section.id)}
+					<div class="tweak-group">
+						{g.section === store.root
+							? presetName
+							: `${g.section.title}: ${store.selectionLabel(g.section)}`}
+					</div>
+					<div class="chips mb-2">
+						{#each g.rows as c (c.id)}
+							<button type="button" class="chip tweak" onclick={() => onjump(c.id)}>
+								{c.label}: <strong>{c.value}</strong>
+							</button>
+						{/each}
+					</div>
+				{/each}
 			{/if}
 		{/if}
 
@@ -134,6 +193,31 @@
 
 	.chip:hover {
 		border-color: var(--bs-primary);
+	}
+
+	/* Fainter than a change, like the tweaked rows. */
+	.chip.tweak {
+		opacity: 0.8;
+		border-style: dashed;
+	}
+
+	.tweaks-toggle {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		margin-bottom: 0.4rem;
+		padding: 0;
+		border: 0;
+		background: none;
+		color: var(--bs-secondary-color);
+		font-size: 0.875rem;
+		text-align: left;
+	}
+
+	.tweak-group {
+		margin-bottom: 0.25rem;
+		font-size: 0.78rem;
+		color: var(--bs-secondary-color);
 	}
 
 	.seed {
