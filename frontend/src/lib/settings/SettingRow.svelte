@@ -48,7 +48,6 @@
 <div class="setting-row" class:nested class:changed class:compact>
 	<div class="left">
 	<div class="label-col">
-		<span class="dot" use:tooltip={changed ? 'Changed from preset' : undefined} aria-hidden="true"></span>
 		{#if setting.help}
 			<i class="bi bi-info-circle help" use:tooltip={setting.help} aria-label={setting.help}></i>
 		{/if}
@@ -216,12 +215,22 @@
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
 		gap: 0.4rem;
-		padding: 0.85rem 0;
+		/* Left padding gives up the 3px the accent bar takes. */
+		padding: 0.85rem 0.5rem 0.85rem calc(0.5rem - 3px);
+		/* Bleed out by the padding so the tint doesn't hug the text and the layout doesn't shift. */
+		margin-inline: -0.5rem;
+		border-left: 3px solid transparent;
+		border-radius: var(--bs-border-radius);
+	}
+
+	.setting-row.changed {
+		background: rgba(var(--bs-success-rgb), 0.1);
+		border-left-color: var(--bs-success);
 	}
 
 	.setting-row.nested {
 		gap: 0.25rem;
-		padding: 0.55rem 0;
+		padding-block: 0.55rem;
 	}
 
 	/* Hairline between top-level rows inside a group card. */
@@ -234,7 +243,7 @@
 		grid-template-columns: minmax(0, 1fr) auto;
 		align-items: center;
 		gap: 0.5rem;
-		padding: 0.3rem 0;
+		padding-block: 0.3rem;
 	}
 
 	.compact .label-col {
@@ -255,18 +264,6 @@
 	.label {
 		font-weight: 500;
 		cursor: default;
-	}
-
-	.dot {
-		width: 0.5rem;
-		height: 0.5rem;
-		border-radius: 50%;
-		background: transparent;
-		flex: none;
-	}
-
-	.changed > .left > .label-col .dot {
-		background: var(--bs-success);
 	}
 
 	.left {
@@ -290,14 +287,12 @@
 	}
 
 	.notes {
-		padding-left: 0.9rem;
 		font-size: 0.78rem;
 		line-height: 1.25;
 		opacity: 0.7;
 	}
 
 	.badge-sub {
-		padding-left: 0.9rem;
 		font-size: 0.7rem;
 		line-height: 1.1;
 		opacity: 0.65;
