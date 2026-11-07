@@ -461,8 +461,15 @@ export class SettingsStore {
 				p.values = { ...gone.values, ...p.values };
 			}
 		}
+		if (list.selectedId === id) this.detachPreset(section);
 		list.userPresets = list.userPresets.filter((p) => p.id !== id);
-		if (list.selectedId === id) list.selectedId = list.builtInOrDefault(gone.base).id; // the current settings are kept
+	}
+
+	/** Switch a section from the user preset it takes to that preset's base, keeping the current settings. */
+	detachPreset(section: Section) {
+		const base = this.lists[section.id].builtInBehind(this.selectedPreset(section));
+		const inherit = section !== this.root && base.id === this.impliedPreset(section).id;
+		this.lists[section.id].selectedId = inherit ? null : base.id;
 	}
 
 	/** Load the player's presets from this browser, moving tweaks of settings that changed section (see `migrate`). */

@@ -40,7 +40,8 @@
 	let importText = $state('');
 	let formError = $state<string | null>(null);
 	let overwriteConfirm = $state(false);
-	let notice = $state<{ type: 'success' | 'info' | 'danger'; text: string } | null>(null);
+	/** Shown only for what isn't visible on screen: a failure, or an import that didn't go as asked. */
+	let notice = $state<{ type: 'info' | 'danger'; text: string } | null>(null);
 
 	let menuEl = $state<HTMLElement>();
 	let nameInput = $state<HTMLInputElement>();
@@ -135,7 +136,6 @@
 				return;
 			}
 			list.rename(selected.id, name);
-			notice = { type: 'success', text: `Renamed to “${name}”.` };
 			closeForm();
 			return;
 		}
@@ -149,7 +149,6 @@
 			}
 			list.update(clash.id, store.capture(section));
 			store.adoptSaved(section, clash.id);
-			notice = { type: 'success', text: `Updated “${clash.name}”.` };
 			closeForm();
 			return;
 		}
@@ -160,7 +159,6 @@
 		}
 		const preset = list.add(name, store.capture(section));
 		store.adoptSaved(section, preset.id);
-		notice = { type: 'success', text: `Saved “${name}”.` };
 		closeForm();
 	}
 
@@ -169,14 +167,11 @@
 		if (!selected) return;
 		list.update(selected.id, store.capture(section));
 		store.adoptSaved(section, selected.id);
-		notice = { type: 'success', text: `Updated “${selected.name}” with your current ${noun}.` };
 	}
 
 	function confirmDelete() {
 		if (!selected) return;
-		const name = selected.name;
 		store.deletePreset(section, selected.id);
-		notice = { type: 'info', text: `Deleted “${name}”. Your current ${noun} were kept.` };
 		closeForm();
 	}
 
@@ -186,7 +181,6 @@
 		const name = changed ? 'Shared settings' : current.name;
 		try {
 			await navigator.clipboard.writeText(encodePresetCode(kind, name, store.capture(section)));
-			notice = { type: 'success', text: 'Preset code copied. Anyone can paste it into Import.' };
 		} catch {
 			notice = { type: 'danger', text: "Couldn't copy to the clipboard." };
 		}
@@ -194,10 +188,6 @@
 
 	function exportAll() {
 		menuOpen = false;
-		if (!list.userPresets.length) {
-			notice = { type: 'info', text: 'You have no saved presets to export yet.' };
-			return;
-		}
 		const blob = new Blob([buildExportFile(kind, list.userPresets)], { type: 'application/json' });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
@@ -207,8 +197,6 @@
 		a.click();
 		a.remove();
 		setTimeout(() => URL.revokeObjectURL(url), 1000);
-		const n = list.userPresets.length;
-		notice = { type: 'success', text: `Exported ${n} preset${n === 1 ? '' : 's'}.` };
 	}
 
 	function runImport(text: string) {
@@ -237,10 +225,12 @@
 		// A single preset is applied straight away so you can see what you imported.
 		if (added.length === 1 && !store.locked) store.applyPreset(added[0].id, section);
 
-		let text2 = `Imported ${added.length} preset${added.length === 1 ? '' : 's'}`;
-		if (renamed) text2 += ` (${renamed} renamed to avoid duplicates)`;
-		if (skipped) text2 += `; ${skipped} skipped because the list is full`;
-		notice = { type: 'success', text: text2 + '.' };
+		if (renamed || skipped) {
+			let text2 = `Imported ${added.length} preset${added.length === 1 ? '' : 's'}`;
+			if (renamed) text2 += ` (${renamed} renamed to avoid duplicates)`;
+			if (skipped) text2 += `; ${skipped} skipped because the list is full`;
+			notice = { type: 'info', text: text2 + '.' };
+		}
 		closeForm();
 	}
 
@@ -340,6 +330,19 @@
 						onclick={() => openMode('rename')}
 					>
 						<i class="bi bi-pencil"></i> Rename…
+					</button>
+					<button
+						type="button"
+						role="menuitem"
+						class="menu-item"
+						disabled={!selected || store.locked}
+						onclick={() => {
+							menuOpen = false;
+							store.detachPreset(section);
+						}}
+					>
+						<i class="bi bi-link-45deg"></i>
+						{selected ? `Detach from “${selected.name}”` : 'Detach from preset'}
 					</button>
 					<button
 						type="button"
