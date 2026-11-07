@@ -175,7 +175,7 @@
 	});
 
 	// ---- Blocks: runs of rows under one heading, laid out as a list or a grid ----
-	type Block = { key: string; path: string[]; layout: 'list' | 'grid'; rows: Setting[] };
+	type Block = { key: string; path: string[]; layout: 'list' | 'grid' | 'compact'; rows: Setting[] };
 
 	function blocksOf(groupId: string, rows: Setting[]): Block[] {
 		const out: Block[] = [];
@@ -381,9 +381,9 @@
 											{/if}
 										{/each}
 									{/if}
-									<div class="block" class:grid={block.layout === 'grid'}>
+									<div class="block" class:grid={block.layout === 'grid'} class:compact={block.layout === 'compact'}>
 										{#each block.rows as s (s.id)}
-											<SettingRow setting={s} {store} compact={block.layout === 'grid'} />
+											<SettingRow setting={s} {store} compact={block.layout !== 'list'} />
 										{/each}
 									</div>
 								{/each}
@@ -445,6 +445,11 @@
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
 		opacity: 0.65;
+	}
+
+	/* One column of label-left rows; capped so the control stays near its label. */
+	.block.compact {
+		max-width: 32rem;
 	}
 
 	.block.grid {

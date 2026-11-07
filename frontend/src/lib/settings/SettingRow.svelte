@@ -65,7 +65,7 @@
 			</button>
 		{/if}
 	</div>
-	<!-- In grid rows the name needs the room, so the tag drops to a small second line. -->
+	<!-- In compact rows the name needs the room, so the tag drops to a small second line. -->
 	{#if setting.badge && compact}<div class="badge-sub">{setting.badge}</div>{/if}
 	{#if setting.notes}<div class="notes">{setting.notes}</div>{/if}
 	</div>
@@ -238,7 +238,7 @@
 		border-top: 1px solid var(--bs-border-color-translucent);
 	}
 
-	/* Compact: label on the left, control on the right, for the grid layout. */
+	/* Compact: label on the left, control on the right, for the grid and compact layouts. */
 	.setting-row.compact {
 		grid-template-columns: minmax(0, 1fr) auto;
 		align-items: center;

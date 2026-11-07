@@ -115,7 +115,7 @@
         {
           "type": "group",
           "title": "Tech and notables",
-          "layout": "grid",
+          "layout": "compact",
           "groupBy": "difficulty",
           "children": [
             {

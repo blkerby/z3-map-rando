@@ -12,13 +12,13 @@ export interface Schema {
 
 /** Display hints a node passes down to everything below it. */
 interface Look {
-	layout?: 'list' | 'grid';
+	layout?: 'list' | 'grid' | 'compact';
 	/** Sub-headings already say the difficulty, so rows don't repeat it as a tag. */
 	hideBadge?: boolean;
 }
 
 /** A node's own display hints win over what it inherited. */
-function inherit(n: { layout?: 'list' | 'grid' }, look: Look): Look {
+function inherit(n: { layout?: 'list' | 'grid' | 'compact' }, look: Look): Look {
 	return { ...look, layout: n.layout ?? look.layout };
 }
 

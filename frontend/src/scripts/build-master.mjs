@@ -110,7 +110,7 @@ const master = {
 				{ type: 'group', title: 'Proficiencies', children: profNodes },
 				// Regrouped on the page as: <difficulty> > Tech / Notables. The title here is only a name.
 				{
-					type: 'group', title: 'Tech and notables', layout: 'grid', groupBy: 'difficulty',
+					type: 'group', title: 'Tech and notables', layout: 'compact', groupBy: 'difficulty',
 					children: [
 						{ type: 'group', title: 'Tech', children: techNodes },
 						{ type: 'group', title: 'Notables', children: notableNodes }

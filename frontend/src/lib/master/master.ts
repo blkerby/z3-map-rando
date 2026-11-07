@@ -34,8 +34,8 @@ export interface SectionNode extends NodeBase {
 	id: string;
 	title: string;
 	icon?: string; // bootstrap-icons suffix
-	/** Compact rows in columns ('grid') or one per line ('list', default). Inherited by groups below unless they set their own. */
-	layout?: 'list' | 'grid';
+	/** Compact rows in columns ('grid'), compact rows in one column ('compact'), or full rows one per line ('list', default). Inherited by groups below unless they set their own. */
+	layout?: 'list' | 'grid' | 'compact';
 	/** The whole section can be folded away (a click on its title). */
 	collapsible?: boolean;
 	/** A collapsible section starts folded. */
@@ -49,7 +49,7 @@ export interface GroupNode extends NodeBase {
 	/** Set on per-room groups so the group can link to its logic page later. */
 	room_id?: RoomId;
 	/** Overrides the layout inherited from the section or parent group. */
-	layout?: 'list' | 'grid';
+	layout?: 'list' | 'grid' | 'compact';
 	/**
 	 * Regroup by difficulty: one heading per difficulty in ladder order, and under each one the
 	 * leaves of that difficulty. If the group's children are themselves groups (e.g. "Tech" and
@@ -172,8 +172,8 @@ export function nodeKey(n: LeafNode): string {
 
 export function labelOf(n: LeafNode): string {
 	if (n.label) return n.label;
-	// Room tricks: make the place obvious, e.g. "Hera Pot Clip (Tower of Hera)".
-	if (n.type === 'toggle' && n.notable_id !== undefined && n.room_name) return `${n.name} (${n.room_name})`;
+	// Room tricks: make the place obvious, e.g. "Tower of Hera: Hera Pot Clip".
+	if (n.type === 'toggle' && n.notable_id !== undefined && n.room_name) return `${n.room_name}: ${n.name}`;
 	return n.name;
 }
 

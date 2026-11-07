@@ -13,7 +13,7 @@ interface Base {
 	/** The same heading as a path, outermost first (e.g. ["Tech", "Hard"]). */
 	headingPath?: string[];
 	/** How the rows under this heading are laid out: one per line, or compact columns. */
-	layout?: 'list' | 'grid';
+	layout?: 'list' | 'grid' | 'compact';
 	/** Small tag next to the label, e.g. a difficulty. */
 	badge?: string;
 }
