@@ -258,9 +258,9 @@
 
 <div class="preset-manager">
 	<div class="controls">
-		<label class="fw-medium" for={selectId}>Preset</label>
 		<select
 			id={selectId}
+			aria-label="Preset"
 			class="form-select form-select-sm w-auto"
 			class:changed
 			class:tweaked={!changed && store.isSelectionTweaked(section)}
@@ -359,12 +359,13 @@
 		{#if !card && changed}
 			<button
 				type="button"
-				class="btn btn-sm btn-outline-secondary"
+				class="btn btn-link btn-sm p-0 reset"
 				disabled={store.locked}
 				use:tooltip={`Put all the ${noun} back to ${current.name}.`}
+				aria-label="Reset all the {noun}"
 				onclick={() => store.resetAll()}
 			>
-				<i class="bi bi-arrow-counterclockwise"></i> Reset
+				<i class="bi bi-arrow-counterclockwise"></i>
 			</button>
 		{/if}
 
@@ -475,6 +476,10 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 0.75rem 0.75rem;
+	}
+
+	.reset {
+		text-decoration: none;
 	}
 
 	/* Same tint as a changed setting row. */

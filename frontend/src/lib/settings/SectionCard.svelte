@@ -36,12 +36,13 @@
 		{#if store.sectionChanged(section)}
 			<button
 				type="button"
-				class="btn btn-sm btn-outline-secondary card-reset"
+				class="btn btn-link btn-sm p-0 card-reset"
 				disabled={store.locked}
 				use:tooltip={`Undo the changes in ${section.title}. The other sections are not touched.`}
+				aria-label="Reset {section.title}"
 				onclick={() => store.resetSection(section)}
 			>
-				<i class="bi bi-arrow-counterclockwise"></i> Reset
+				<i class="bi bi-arrow-counterclockwise"></i>
 			</button>
 		{/if}
 	</header>
@@ -75,10 +76,10 @@
 		text-align: left;
 	}
 
-	/* Negative vertical margin: the button is taller than the title line, so without it the header grows when it appears. */
 	.card-reset {
 		flex: none;
-		margin: -0.4rem 0.75rem -0.4rem 0.25rem;
+		margin-right: 0.75rem;
+		text-decoration: none;
 	}
 
 	/* Shrinkable rather than capped, so the controls only wrap when the header is actually out of room. */
