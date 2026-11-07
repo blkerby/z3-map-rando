@@ -460,6 +460,7 @@
 						autocomplete="off"
 						maxlength={MAX_NAME}
 						placeholder="Preset name"
+						list={mode === 'save' ? `${selectId}-names` : undefined}
 						bind:this={nameInput}
 						bind:value={nameDraft}
 						oninput={() => {
@@ -467,6 +468,12 @@
 							formError = null;
 						}}
 					/>
+					<!-- Suggests your presets' names, for saving over one of them. -->
+					<datalist id="{selectId}-names">
+						{#each list.userPresets as p (p.id)}
+							<option value={p.name}></option>
+						{/each}
+					</datalist>
 					{#if formError}<div class="form-text text-danger">{formError}</div>{/if}
 					<div class="d-flex justify-content-end gap-2 mt-3">
 						<button type="button" class="btn btn-outline-secondary btn-sm" onclick={closeForm}>Cancel</button>
