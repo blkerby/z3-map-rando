@@ -64,12 +64,10 @@
 	/** Unsaved changes inside the section, besides its own pick (which the dropdown already names). */
 	const changeCount = $derived(store.countChanges(section) - (picked ? 1 : 0));
 	/**
-	 * What the section takes, with its unsaved changes and the built-in preset behind one of the player's own:
-	 * "My settings (based on Default) + 1 unsaved change".
+	 * What the section takes, with its unsaved changes: "Mine (based on Hard) + 2 tweaks + 1 unsaved change".
 	 */
 	const label = $derived(
-		(card && !picked ? store.inheritedLabel(card) : current.name) +
-			(selected ? ` (based on ${list.builtInBehind(selected).name})` : '') +
+		(card && !picked ? store.inheritedLabel(card) : store.presetLabel(section, current)) +
 			(changeCount ? ` + ${changeCount} unsaved change${changeCount === 1 ? '' : 's'}` : '')
 	);
 	/** Value of the hidden entry that shows `label` while there are unsaved changes (not a preset id). */
@@ -287,7 +285,7 @@
 			{#if list.userPresets.length}
 				<optgroup label="My presets">
 					{#each list.userPresets as p (p.id)}
-						<option value={p.id}>{p.name} (based on {list.builtInBehind(p).name})</option>
+						<option value={p.id}>{store.presetLabel(section, p)}</option>
 					{/each}
 				</optgroup>
 			{/if}

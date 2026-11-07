@@ -206,15 +206,21 @@ export class SettingsStore {
 
 	/** What a section takes, e.g. "Hard + 2 tweaks", or "Expert" when picked by hand. */
 	selectionLabel(section: Section): string {
-		if (section === this.root || this.isSelectionChanged(section)) return this.selectedPreset(section).name;
+		if (section === this.root || this.isSelectionChanged(section)) return this.presetLabel(section, this.selectedPreset(section));
 		return this.inheritedLabel(section);
 	}
 
-	/** The label of a section's choice when it isn't picked by hand, e.g. "Hard + 2 tweaks". */
+	/** The label of a section's choice when it isn't picked by hand, e.g. "Mine (based on Hard) + 2 tweaks". */
 	inheritedLabel(section: Section): string {
-		const name = this.impliedPreset(section).name;
+		const name = this.presetLabel(section, this.impliedPreset(section));
 		const n = this.tweakCount(section);
 		return n ? `${name} + ${n} tweak${n === 1 ? '' : 's'}` : name;
+	}
+
+	/** A preset's name, with the built-in preset behind it if it is one of the player's own: "Mine (based on Hard)". */
+	presetLabel(section: Section, preset: Preset): string {
+		const list = this.lists[section.id];
+		return list.isUser(preset.id) ? `${preset.name} (based on ${list.builtInBehind(preset).name})` : preset.name;
 	}
 
 	get(id: string): Value {
