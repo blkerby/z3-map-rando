@@ -19,7 +19,6 @@ export const customizationGroups: Group[] = [
 	{
 		id: 'appearance',
 		title: 'Appearance',
-		icon: 'person',
 		settings: [
 			{
 				id: 'linkSprite',
@@ -69,39 +68,12 @@ export const customizationGroups: Group[] = [
 					{ value: 'af8cde', label: 'Light violet', swatch: '#af8cde' },
 					{ value: 'd98cde', label: 'Light magenta', swatch: '#d98cde' }
 				]
-			},
-			{
-				id: 'magicColor',
-				label: 'Magic meter color',
-				kind: 'choice',
-				display: 'swatches',
-				default: 'green',
-				options: [
-					{ value: 'green', label: 'Green', swatch: '#43a047' },
-					{ value: 'blue', label: 'Blue', swatch: '#1e88e5' },
-					{ value: 'purple', label: 'Purple', swatch: '#8e24aa' },
-					{ value: 'orange', label: 'Orange', swatch: '#fb8c00' }
-				]
-			},
-			{
-				id: 'overworldPalette',
-				label: 'Overworld palette',
-				kind: 'choice',
-				display: 'cards',
-				default: 'vanilla',
-				options: [
-					{ value: 'vanilla', label: 'Vanilla', desc: 'The original colors.' },
-					{ value: 'muted', label: 'Muted', desc: 'Softer, desaturated tones.' },
-					{ value: 'vivid', label: 'Vivid', desc: 'Punchier, more saturated colors.' },
-					{ value: 'contrast', label: 'High contrast', desc: 'Easier to tell terrain apart.' }
-				]
 			}
 		]
 	},
 	{
 		id: 'interface',
 		title: 'Interface',
-		icon: 'window',
 		settings: [
 			{
 				id: 'menuSpeed',
@@ -142,7 +114,6 @@ export const customizationGroups: Group[] = [
 	{
 		id: 'audio',
 		title: 'Audio',
-		icon: 'volume-up',
 		settings: [
 			{
 				id: 'musicMode',
@@ -151,7 +122,6 @@ export const customizationGroups: Group[] = [
 				default: 'vanilla',
 				options: [
 					{ value: 'vanilla', label: 'Vanilla', desc: 'Original soundtrack.' },
-					{ value: 'shuffled', label: 'Shuffled', desc: 'Tracks swapped between areas.' },
 					{ value: 'disabled', label: 'Disabled', desc: 'Sound effects only.' }
 				]
 			},
@@ -163,7 +133,7 @@ export const customizationGroups: Group[] = [
 				options: [
 					{ value: 'vanilla', label: 'Vanilla' },
 					{ value: 'slow', label: 'Slow', desc: 'Beeps half as often.' },
-					{ value: 'off', label: 'Off', desc: 'Silences the warning.' }
+					{ value: 'off', label: 'Off', desc: 'No beeping.' }
 				]
 			}
 		]
@@ -171,7 +141,6 @@ export const customizationGroups: Group[] = [
 	{
 		id: 'accessibility',
 		title: 'Accessibility',
-		icon: 'universal-access',
 		settings: [
 			{
 				id: 'reducedFlashing',
@@ -187,8 +156,7 @@ export const customizationGroups: Group[] = [
 				default: 'vanilla',
 				options: [
 					{ value: 'vanilla', label: 'Vanilla' },
-					{ value: 'reduced', label: 'Reduced' },
-					{ value: 'off', label: 'Off' }
+					{ value: 'reduced', label: 'Reduced' }
 				]
 			}
 		]

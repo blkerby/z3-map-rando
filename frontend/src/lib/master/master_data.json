@@ -16,7 +16,6 @@
       "type": "section",
       "id": "logic",
       "title": "Logic",
-      "icon": "speedometer2",
       "children": [
         {
           "type": "group",
@@ -224,7 +223,6 @@
       "type": "section",
       "id": "map",
       "title": "Map",
-      "icon": "map",
       "children": [
         {
           "type": "choice",
@@ -251,7 +249,6 @@
       "type": "section",
       "id": "items",
       "title": "Items",
-      "icon": "box-seam",
       "layout": "grid",
       "collapsible": true,
       "collapsed": true,

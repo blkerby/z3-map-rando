@@ -265,7 +265,7 @@
 	}
 
 	.changed > .left > .label-col .dot {
-		background: var(--bs-warning);
+		background: var(--bs-success);
 	}
 
 	.left {

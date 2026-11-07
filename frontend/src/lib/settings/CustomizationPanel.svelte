@@ -47,9 +47,6 @@
 <aside id="customization-panel" class="card">
 	<div class="card-body">
 		<h2 class="h6 fw-bold mb-2">Your customization</h2>
-		<p class="small text-body-secondary mb-2">
-			Saved in this browser. It's personal to you and never part of the game link.
-		</p>
 
 		{#if changed.length}
 			<div class="small mb-2 text-body-secondary">
@@ -81,11 +78,11 @@
 					<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
 					Preparing…
 				{:else}
-					<i class="bi bi-download"></i> Download ROM
+					<i class="bi bi-download"></i> Save ROM
 				{/if}
 			</button>
 			{#if !generated}
-				<div class="form-text mt-0">Generate a game to enable the download.</div>
+				<div class="form-text mt-0">Generate game to save the ROM.</div>
 			{/if}
 		</div>
 	</div>
