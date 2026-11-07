@@ -251,6 +251,7 @@
 			id={selectId}
 			class="form-select form-select-sm w-auto"
 			class:picked
+			class:tweaked={store.isSelectionTweaked(section)}
 			use:tooltip={picked && card ? `Picked by hand. Reset goes back to “${store.inheritedLabel(card)}”.` : undefined}
 			disabled={store.locked}
 			value={shown}
@@ -464,6 +465,11 @@
 	/* Same tint as a changed setting row. */
 	.picked {
 		background-color: rgba(var(--bs-success-rgb), 0.3);
+	}
+
+	/* Same tint as a tweaked setting row. */
+	.tweaked {
+		background-color: rgba(var(--bs-info-rgb), 0.15);
 	}
 
 	.based-on {

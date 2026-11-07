@@ -50,6 +50,8 @@ interface Resolution {
 	implied: Record<string, string>;
 	/** A section to work out as if it took what the presets around it choose (its pick and any picks inside it ignored). */
 	inherit?: string;
+	/** Work out every preset as its built-in base (user presets' choices and tweaks left out). */
+	builtInOnly?: boolean;
 }
 
 /** Id of the root section: everything, with the presets for all the settings at once. */
@@ -90,7 +92,9 @@ export class SettingsStore {
 		this.resolve(this.root, this.rootPreset, {}, true, true, applied);
 		const plain = this.emptyResolution();
 		this.resolve(this.root, this.rootPreset, {}, true, false, plain);
-		return { applied: applied.values, implied: applied.implied, plain: plain.values };
+		const builtIn = { ...this.emptyResolution(), builtInOnly: true };
+		this.resolve(this.root, this.rootPreset, {}, true, true, builtIn);
+		return { applied: applied.values, implied: applied.implied, builtInImplied: builtIn.implied, plain: plain.values };
 	});
 
 	/**
@@ -181,6 +185,15 @@ export class SettingsStore {
 		return this.inheritedChanges[section.id]?.length ?? 0;
 	}
 
+	/**
+	 * Does a section that isn't picked by hand take something other than what the built-in presets behind
+	 * the selected ones would give it: a different preset chosen for it, or tweaks inside it?
+	 */
+	isSelectionTweaked(section: Section): boolean {
+		if (section === this.root || this.isSelectionChanged(section)) return false;
+		return this.tweakCount(section) > 0 || this.layers.implied[section.id] !== this.layers.builtInImplied[section.id];
+	}
+
 	/** Is this setting one of the selected presets' tweaks (see `tweaked`)? */
 	isTweaked(id: string): boolean {
 		return this.tweaked[id] === true;
@@ -240,6 +253,7 @@ export class SettingsStore {
 		out: Resolution
 	): string[] {
 		const base = this.lists[section.id].builtInBehind(preset);
+		if (out.builtInOnly) preset = base;
 		out.selections[section.id] = preset.id;
 		const decided: string[] = [];
 		for (const s of ownSettings(section)) {
@@ -414,7 +428,7 @@ export class SettingsStore {
 		for (const child of childSections(section)) {
 			const list = this.lists[child.id];
 			const implied = list.find(chosen[child.id]) ?? list.defaultPreset;
-			const current = list.find(list.selectedId) ?? implied;
+			const current = list.find(list.selectedId) ?? this.impliedPreset(child);
 			if (current.id !== implied.id) out[child.id] = current.id;
 			this.recordSelections(child, current, { ...chosen, ...out }, out);
 		}
