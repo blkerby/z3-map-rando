@@ -74,9 +74,10 @@
 	}
 
 	/* Shrinkable rather than capped, so the controls only wrap when the header is actually out of room. */
+	/* Inset like the cards' controls, so they line up with the cards' below. */
 	.section-actions {
 		flex: 0 1 auto;
-		padding: 0.3rem 0 0.3rem 0.75rem;
+		padding: 0.3rem 0.75rem;
 	}
 
 	.section-header {

@@ -523,6 +523,7 @@
 
 	/* Capped so a long label (e.g. "+ 3 unsaved changes") is cut off rather than wrapping the header. */
 	.preset-select {
+		field-sizing: content; /* as wide as the option shown, not the widest one (where supported) */
 		max-width: 26rem;
 		text-overflow: ellipsis;
 	}

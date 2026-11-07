@@ -12,8 +12,9 @@
 </script>
 
 <section id="{idPrefix}{section.id}" class="card mb-3">
-	<header class="card-header d-flex align-items-center" class:p-0={section.collapsible} class:folded={!open}>
-		<h3 class="h6 fw-bold m-0 flex-grow-1">
+	<!-- No padding on the header itself, so the controls on the right line up whether or not the card can fold. -->
+	<header class="card-header d-flex align-items-center p-0" class:folded={!open}>
+		<h3 class="h6 fw-bold m-0 flex-grow-1" class:card-title={!section.collapsible}>
 			{#if section.collapsible}
 				<button
 					type="button"
@@ -87,6 +88,16 @@
 		flex: 0 1 auto;
 		padding: 0.3rem 0.75rem 0.3rem 0;
 		font-size: 0.9rem;
+	}
+
+	/* Same padding as the toggle of a card that can fold. */
+	.card-title {
+		padding: 0.5rem 1rem;
+	}
+
+	/* A card opening another card's body gets the same gap above it as cards have below them. */
+	.card-body > :global(section.card:first-child) {
+		margin-top: 1rem;
 	}
 
 	.card-header.folded {
