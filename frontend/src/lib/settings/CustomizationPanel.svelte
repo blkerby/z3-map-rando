@@ -8,7 +8,8 @@
 		generated = false,
 		seed = null,
 		version = '',
-		onjump
+		onjump,
+		onsave
 	}: {
 		store: SettingsStore;
 		/** True once a game exists, which is when there is a ROM to download. */
@@ -17,7 +18,12 @@
 		version?: string;
 		/** Scroll to a setting (the page also clears the search and opens its section). */
 		onjump: (id: string) => void;
+		/** Save the customization as a preset (see PresetManager's `save`). */
+		onsave: () => void;
 	} = $props();
+
+	/** The selected top-level preset, if it is one of the player's own (saving goes into it). */
+	const mine = $derived(store.listFor(store.root).isUser(store.rootPreset.id) ? store.rootPreset : undefined);
 
 	const changed = $derived(
 		store.changedIds.map((id) => ({
@@ -60,8 +66,9 @@
 					</button>
 				{/each}
 			</div>
-			<button type="button" class="btn btn-link btn-sm p-0" onclick={() => store.resetAll()}>
-				Reset all
+			<button type="button" class="btn btn-link btn-sm p-0" onclick={onsave}>
+				<!-- No space after the icon, so the underline starts at the text. -->
+				<i class="bi bi-floppy me-2"></i>{mine ? `Save to “${mine.name}”` : 'Save as preset…'}
 			</button>
 		{:else}
 			<div class="small text-body-secondary">

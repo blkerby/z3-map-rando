@@ -13,7 +13,8 @@
 		ongenerate,
 		onnew,
 		onjump,
-		onjumpsection
+		onjumpsection,
+		onsave
 	}: {
 		store: SettingsStore;
 		/** True once a game exists for these settings (the settings are locked). */
@@ -29,11 +30,15 @@
 		onjump: (id: string) => void;
 		/** Scroll to a section's card. */
 		onjumpsection: (id: string) => void;
+		/** Save the settings as a preset (see PresetManager's `save`). */
+		onsave: () => void;
 	} = $props();
 
 	let copied = $state(false);
 
 	const presetName = $derived(store.rootPreset.name);
+	/** The selected top-level preset, if it is one of the player's own (saving goes into it). */
+	const mine = $derived(store.listFor(store.root).isUser(store.rootPreset.id) ? store.rootPreset : undefined);
 
 	const changed = $derived(
 		store.changedIds.map((id) => ({
@@ -102,11 +107,10 @@
 					</button>
 				{/each}
 			</div>
-			{#if !generated}
-				<button type="button" class="btn btn-link btn-sm p-0 mb-3" onclick={() => store.resetAll()}>
-					Reset all
-				</button>
-			{/if}
+			<button type="button" class="btn btn-link btn-sm p-0 mb-3" onclick={onsave}>
+				<!-- No space after the icon, so the underline starts at the text. -->
+				<i class="bi bi-floppy me-2"></i>{mine ? `Save to “${mine.name}”` : 'Save as preset…'}
+			</button>
 		{/if}
 
 		{#if tweakCount}

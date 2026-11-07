@@ -21,6 +21,10 @@
 
 	let { data }: { data: PageData } = $props();
 
+	// The top-level preset controls, which the side panels' Save buttons go through.
+	let settingsPresets = $state<PresetManager>();
+	let customPresets = $state<PresetManager>();
+
 	// The settings description is loaded once per visit (see +page.ts), so it is read once here.
 	// svelte-ignore state_referenced_locally
 	const schema = buildSchema(data.master);
@@ -303,7 +307,7 @@
 				bind:open={generateOpen}
 			>
 				{#snippet actions()}
-					<PresetManager {store} kind="settings" selectId="preset" />
+					<PresetManager bind:this={settingsPresets} {store} kind="settings" selectId="preset" />
 				{/snippet}
 				<ItemList {store} items={store.items} idPrefix="section-" />
 				{#if !generateMatches}
@@ -313,7 +317,7 @@
 
 			<CollapsibleSection id="customization" title="Customization" bind:open={customizationOpen}>
 				{#snippet actions()}
-					<PresetManager store={custom} kind="customization" selectId="custom-preset" />
+					<PresetManager bind:this={customPresets} store={custom} kind="customization" selectId="custom-preset" />
 				{/snippet}
 				<CustomizationEditor store={custom} />
 			</CollapsibleSection>
@@ -331,6 +335,7 @@
 				ongenerate={generate}
 				onnew={newGame}
 				onjump={(id) => jumpToSetting('generate', id)}
+				onsave={() => settingsPresets?.save()}
 				onjumpsection={(id) => {
 					search.query = '';
 					unfold(store, id);
@@ -343,6 +348,7 @@
 				{seed}
 				version={gameVersion}
 				onjump={(id) => jumpToSetting('customization', id)}
+				onsave={() => customPresets?.save()}
 			/>
 		</div>
 	</div>

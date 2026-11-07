@@ -166,6 +166,12 @@
 		closeForm();
 	}
 
+	/** Save the current settings: into the selected preset if it is one of the player's own, else as a new one. */
+	export function save() {
+		if (selected) updateSelected();
+		else openMode('save');
+	}
+
 	function updateSelected() {
 		menuOpen = false;
 		if (!selected) return;
