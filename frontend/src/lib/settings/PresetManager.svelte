@@ -44,6 +44,7 @@
 	let notice = $state<{ type: 'info' | 'danger'; text: string } | null>(null);
 
 	let menuEl = $state<HTMLElement>();
+	let dialog = $state<HTMLDialogElement>();
 	let nameInput = $state<HTMLInputElement>();
 	let importArea = $state<HTMLTextAreaElement>();
 	let fileInput = $state<HTMLInputElement>();
@@ -88,7 +89,6 @@
 	function onWindowKey(e: KeyboardEvent) {
 		if (e.key !== 'Escape') return;
 		if (menuOpen) menuOpen = false;
-		else if (mode) closeForm();
 	}
 
 	function closeForm() {
@@ -108,7 +108,11 @@
 		if (next === 'import') importText = '';
 	}
 
+	// Keep the native <dialog> in step with `mode`, focusing the field to type in.
 	$effect(() => {
+		if (!dialog) return;
+		if (mode && !dialog.open) dialog.showModal();
+		else if (!mode && dialog.open) dialog.close();
 		if ((mode === 'save' || mode === 'rename') && nameInput) nameInput.focus();
 		else if (mode === 'import' && importArea) importArea.focus();
 	});
@@ -403,85 +407,102 @@
 		</div>
 	{/if}
 
-	{#if mode === 'save' || mode === 'rename'}
-		<form
-			class="inline-form"
-			onsubmit={(e) => {
-				e.preventDefault();
-				submitName();
-			}}
-		>
-			<label class="form-label small mb-1" for="{selectId}-name">
-				{mode === 'save' ? `Save your current ${noun} as…` : 'Rename preset'}
-			</label>
-			<div class="d-flex flex-wrap gap-2">
-				<input
-					id="{selectId}-name"
-					class="form-control form-control-sm name-input"
-					type="text"
-					autocomplete="off"
-					maxlength={MAX_NAME}
-					placeholder="Preset name"
-					bind:this={nameInput}
-					bind:value={nameDraft}
-					oninput={() => {
-						overwriteConfirm = false;
-						formError = null;
+	<!-- A modal, so the forms don't push the header around. Escape, Cancel or a click on the backdrop closes it. -->
+	<dialog
+		bind:this={dialog}
+		class="preset-dialog"
+		aria-labelledby="{selectId}-dialog-title"
+		oncancel={(e) => {
+			e.preventDefault();
+			closeForm();
+		}}
+		onclick={(e) => {
+			if (e.target === dialog) closeForm();
+		}}
+	>
+		<div class="p-4">
+			<h2 id="{selectId}-dialog-title" class="h5 fw-bold mb-3">
+				{mode === 'save' ? 'Save preset' : mode === 'rename' ? 'Rename preset' : mode === 'delete' ? 'Delete preset' : 'Import presets'}
+			</h2>
+			{#if mode === 'save' || mode === 'rename'}
+				<form
+					onsubmit={(e) => {
+						e.preventDefault();
+						submitName();
 					}}
-				/>
-				<button type="submit" class="btn btn-primary btn-sm">
-					{mode === 'save' ? 'Save' : 'Rename'}
-				</button>
-				<button type="button" class="btn btn-outline-secondary btn-sm" onclick={closeForm}>Cancel</button>
-			</div>
-			{#if formError}<div class="form-text text-danger">{formError}</div>{/if}
-		</form>
-	{:else if mode === 'delete' && selected}
-		<div class="inline-form d-flex flex-wrap align-items-center gap-2">
-			<span class="small">Delete preset “{selected.name}”?</span>
-			<button type="button" class="btn btn-danger btn-sm" onclick={confirmDelete}>Delete</button>
-			<button type="button" class="btn btn-outline-secondary btn-sm" onclick={closeForm}>Cancel</button>
+				>
+					<label class="form-label small mb-1" for="{selectId}-name">
+						{mode === 'save' ? `Save your current ${noun} as…` : `New name for “${selected?.name}”`}
+					</label>
+					<input
+						id="{selectId}-name"
+						class="form-control form-control-sm"
+						type="text"
+						autocomplete="off"
+						maxlength={MAX_NAME}
+						placeholder="Preset name"
+						bind:this={nameInput}
+						bind:value={nameDraft}
+						oninput={() => {
+							overwriteConfirm = false;
+							formError = null;
+						}}
+					/>
+					{#if formError}<div class="form-text text-danger">{formError}</div>{/if}
+					<div class="d-flex justify-content-end gap-2 mt-3">
+						<button type="button" class="btn btn-outline-secondary btn-sm" onclick={closeForm}>Cancel</button>
+						<button type="submit" class="btn btn-primary btn-sm">
+							{mode === 'save' ? 'Save' : 'Rename'}
+						</button>
+					</div>
+				</form>
+			{:else if mode === 'delete' && selected}
+				<p class="small mb-0">Delete preset “{selected.name}”? Your current {noun} are kept.</p>
+				<div class="d-flex justify-content-end gap-2 mt-3">
+					<button type="button" class="btn btn-outline-secondary btn-sm" onclick={closeForm}>Cancel</button>
+					<button type="button" class="btn btn-danger btn-sm" onclick={confirmDelete}>Delete</button>
+				</div>
+			{:else if mode === 'import'}
+				<form
+					onsubmit={(e) => {
+						e.preventDefault();
+						formError = null;
+						runImport(importText);
+					}}
+				>
+					<label class="form-label small mb-1" for="{selectId}-import">
+						Paste a preset code, or choose an exported file
+					</label>
+					<textarea
+						id="{selectId}-import"
+						class="form-control form-control-sm"
+						rows="4"
+						spellcheck="false"
+						placeholder="Preset code or exported JSON"
+						bind:this={importArea}
+						bind:value={importText}
+						oninput={() => (formError = null)}
+					></textarea>
+					{#if formError}<div class="form-text text-danger">{formError}</div>{/if}
+					<div class="d-flex gap-2 mt-3">
+						<button type="button" class="btn btn-outline-secondary btn-sm me-auto" onclick={() => fileInput?.click()}>
+							<i class="bi bi-folder2-open"></i> Choose file…
+						</button>
+						<button type="button" class="btn btn-outline-secondary btn-sm" onclick={closeForm}>Cancel</button>
+						<button type="submit" class="btn btn-primary btn-sm" disabled={!importText.trim()}>Import</button>
+						<input
+							bind:this={fileInput}
+							type="file"
+							accept=".json,application/json"
+							class="d-none"
+							aria-label="Preset file"
+							onchange={onFile}
+						/>
+					</div>
+				</form>
+			{/if}
 		</div>
-	{:else if mode === 'import'}
-		<form
-			class="inline-form"
-			onsubmit={(e) => {
-				e.preventDefault();
-				formError = null;
-				runImport(importText);
-			}}
-		>
-			<label class="form-label small mb-1" for="{selectId}-import">
-				Paste a preset code, or choose an exported file
-			</label>
-			<textarea
-				id="{selectId}-import"
-				class="form-control form-control-sm mb-2"
-				rows="3"
-				spellcheck="false"
-				placeholder="Preset code or exported JSON"
-				bind:this={importArea}
-				bind:value={importText}
-				oninput={() => (formError = null)}
-			></textarea>
-			<div class="d-flex flex-wrap gap-2">
-				<button type="submit" class="btn btn-primary btn-sm" disabled={!importText.trim()}>Import</button>
-				<button type="button" class="btn btn-outline-secondary btn-sm" onclick={() => fileInput?.click()}>
-					<i class="bi bi-folder2-open"></i> Choose file…
-				</button>
-				<button type="button" class="btn btn-outline-secondary btn-sm" onclick={closeForm}>Cancel</button>
-				<input
-					bind:this={fileInput}
-					type="file"
-					accept=".json,application/json"
-					class="d-none"
-					aria-label="Preset file"
-					onchange={onFile}
-				/>
-			</div>
-			{#if formError}<div class="form-text text-danger">{formError}</div>{/if}
-		</form>
-	{/if}
+	</dialog>
 </div>
 
 <style>
@@ -562,15 +583,19 @@
 		opacity: 1;
 	}
 
-	.inline-form {
-		margin-top: 0.6rem;
-		padding: 0.6rem 0.75rem;
+	/* Same look as the ROM dialog. */
+	.preset-dialog {
+		width: min(28rem, calc(100vw - 2rem));
+		padding: 0;
 		border: 1px solid var(--bs-border-color);
-		border-radius: 0.5rem;
-		background: var(--bs-tertiary-bg);
+		border-radius: 0.6rem;
+		background: var(--bs-body-bg);
+		color: var(--bs-body-color);
+		font-size: 1rem; /* not the header's smaller text */
+		font-weight: normal;
 	}
 
-	.name-input {
-		max-width: 18rem;
+	.preset-dialog::backdrop {
+		background: rgb(0 0 0 / 0.55);
 	}
 </style>
