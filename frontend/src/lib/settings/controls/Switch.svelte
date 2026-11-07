@@ -1,10 +1,12 @@
 <script lang="ts">
 	let {
+		id,
 		checked,
 		label,
 		disabled = false,
 		onchange
 	}: {
+		id?: string;
 		checked: boolean;
 		label: string;
 		disabled?: boolean;
@@ -17,6 +19,7 @@
 		class="form-check-input"
 		type="checkbox"
 		role="switch"
+		{id}
 		aria-label={label}
 		{checked}
 		{disabled}

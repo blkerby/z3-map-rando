@@ -30,6 +30,15 @@
 	const details = $derived(detailsVisible && 'details' in setting ? (setting.details ?? []) : []);
 	const changedDetails = $derived(flatten(details).filter((d) => store.isChanged(d.id)));
 
+	// Two-way choices (yes/no) render as a switch too, so their label can flip them.
+	const isSwitch = $derived(
+		setting.kind === 'toggle' ||
+			(setting.kind === 'choice' &&
+				setting.options.length === 2 &&
+				setting.options.every((o) => o.value === 'yes' || o.value === 'no'))
+	);
+	const switchId = $derived(`${setting.id}-switch`);
+
 	function choiceDisplay(s: ChoiceSetting): 'cards' | 'segmented' | 'dropdown' | 'swatches' {
 		if (s.display && s.display !== 'auto') return s.display;
 		return s.options.length > 5 ? 'dropdown' : 'segmented';
@@ -45,13 +54,13 @@
 	});
 </script>
 
-<div class="setting-row" class:nested class:changed class:compact>
+<div class="setting-row" id={setting.id} class:nested class:changed class:compact>
 	<div class="left">
 	<div class="label-col">
 		{#if setting.help}
 			<i class="bi bi-info-circle help" use:tooltip={setting.help} aria-label={setting.help}></i>
 		{/if}
-		<label class="label" for={setting.id}>{setting.label}</label>
+		<label class="label" class:clickable={isSwitch && !locked} for={isSwitch ? switchId : undefined}>{setting.label}</label>
 		{#if setting.badge && !compact}<span class="badge-tag">{setting.badge}</span>{/if}
 		{#if changed && !locked}
 			<button
@@ -70,11 +79,12 @@
 	{#if setting.notes}<div class="notes">{setting.notes}</div>{/if}
 	</div>
 
-	<div class="control-col" id={setting.id}>
+	<div class="control-col">
 		{#if setting.kind === 'choice'}
 			{@const mode = choiceDisplay(setting)}
-			{#if setting.options.length === 2 && setting.options.every((o) => o.value === 'yes' || o.value === 'no')}
+			{#if isSwitch}
 				<Switch
+					id={switchId}
 					checked={value === 'yes'}
 					label={setting.label}
 					disabled={locked}
@@ -122,6 +132,7 @@
 			{/if}
 		{:else if setting.kind === 'toggle'}
 			<Switch
+				id={switchId}
 				checked={value as boolean}
 				label={setting.label}
 				disabled={locked}
@@ -264,6 +275,10 @@
 	.label {
 		font-weight: 500;
 		cursor: default;
+	}
+
+	.label.clickable {
+		cursor: pointer;
 	}
 
 	.left {
