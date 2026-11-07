@@ -287,7 +287,8 @@
 			{/if}
 		</select>
 
-		{#if selected && store.canUpdate(section)}
+		<!-- Saving a card's own preset is less common, so a card keeps it in the menu only. -->
+		{#if !card && selected && store.canUpdate(section)}
 			<button
 				type="button"
 				class="btn btn-link btn-sm p-0 icon-btn"
@@ -297,7 +298,7 @@
 			>
 				<i class="bi bi-floppy"></i>
 			</button>
-		{:else if !selected && changeCount}
+		{:else if !card && !selected && changeCount}
 			<button
 				type="button"
 				class="btn btn-link btn-sm p-0 icon-btn"
@@ -326,6 +327,18 @@
 					<button type="button" role="menuitem" class="menu-item" onclick={() => openMode('save')}>
 						<i class="bi bi-plus-circle"></i> Save current as new preset…
 					</button>
+					{#if card}
+						<button
+							type="button"
+							role="menuitem"
+							class="menu-item"
+							disabled={!store.canUpdate(section)}
+							onclick={updateSelected}
+						>
+							<i class="bi bi-floppy"></i>
+							{selected ? `Update “${selected.name}”` : 'Update preset'}
+						</button>
+					{/if}
 					<button
 						type="button"
 						role="menuitem"
