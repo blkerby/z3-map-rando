@@ -35,14 +35,30 @@ export class PresetList {
 		return this.all.find((p) => p.id === id);
 	}
 
-	/** The built-in preset with this id, or the default one. */
-	builtInOrDefault(id: unknown): Preset {
-		return this.builtIn.find((p) => p.id === id) ?? this.defaultPreset;
+	/**
+	 * A preset and the presets it is built on, the built-in one first. A base that is missing, or that would
+	 * make a loop (from a damaged file), ends the chain at the default preset.
+	 */
+	chain(preset: Preset): Preset[] {
+		const out = [preset];
+		let p = preset;
+		while (p.base !== undefined) {
+			const next = this.find(p.base);
+			p = next && !out.includes(next) ? next : this.defaultPreset;
+			out.unshift(p);
+		}
+		return out;
 	}
 
-	/** The built-in preset a preset stands on: itself if built-in, otherwise its base. */
+	/** The built-in preset at the bottom of a preset's chain: itself if built-in. */
 	builtInBehind(preset: Preset): Preset {
-		return preset.base === undefined ? preset : this.builtInOrDefault(preset.base);
+		return this.chain(preset)[0];
+	}
+
+	/** The preset a preset is built on: itself if built-in. A new preset saved from it gets this base. */
+	baseOf(preset: Preset): Preset {
+		const chain = this.chain(preset);
+		return chain[Math.max(0, chain.length - 2)];
 	}
 
 	isUser(id: string): boolean {

@@ -32,11 +32,13 @@
 		children?: Snippet;
 	} = $props();
 
-	type Mode = 'save' | 'rename' | 'delete' | 'import' | null;
+	type Mode = 'save' | 'rename' | 'switch' | 'delete' | 'import' | null;
 
 	let mode = $state<Mode>(null);
 	let menuOpen = $state(false);
 	let nameDraft = $state('');
+	/** Save: the preset to build on. Switch: the preset to switch to. */
+	let presetDraft = $state('');
 	let importText = $state('');
 	let formError = $state<string | null>(null);
 	let overwriteConfirm = $state(false);
@@ -77,7 +79,8 @@
 	 * for the "+ tweaks" entry, else the preset chosen for it.
 	 */
 	const shown = $derived(changeCount ? CURRENT : picked || !tweaks ? current.id : '');
-	const noun = $derived(card ? `${card.title.toLowerCase()} settings` : kind === 'settings' ? 'settings' : 'customization');
+	/** What these presets hold, for messages: "logic settings", "generation settings", "customization settings". */
+	const noun = $derived(`${card ? card.title.toLowerCase() : kind === 'settings' ? 'generation' : 'customization'} settings`);
 
 	// ---- Menu ---------------------------------------------------------------------
 	function onWindowClick(e: MouseEvent) {
@@ -101,7 +104,11 @@
 		formError = null;
 		overwriteConfirm = false;
 		mode = next;
-		if (next === 'save') nameDraft = '';
+		if (next === 'save') {
+			nameDraft = '';
+			presetDraft = list.baseOf(current).id; // flat by default: a sibling of one of the player's own
+		}
+		if (next === 'switch') presetDraft = current.id;
 		if (next === 'rename') nameDraft = selected?.name ?? '';
 		if (next === 'import') importText = '';
 	}
@@ -142,14 +149,20 @@
 			return;
 		}
 
+		const base = list.find(presetDraft) ?? list.baseOf(current);
 		if (clash) {
+			// Building a preset on itself, or on one built on it, would make a loop.
+			if (list.chain(base).includes(clash)) {
+				formError = `“${base.name}” is built on “${clash.name}”, so “${clash.name}” can't be built on it.`;
+				return;
+			}
 			// Two-step: the first press warns, the second replaces.
 			if (!overwriteConfirm) {
 				overwriteConfirm = true;
 				formError = `You already have a preset called “${clash.name}”. Press Save again to replace it.`;
 				return;
 			}
-			list.update(clash.id, store.capture(section));
+			list.update(clash.id, store.capture(section, base));
 			store.adoptSaved(section, clash.id);
 			closeForm();
 			return;
@@ -159,7 +172,7 @@
 			formError = `You can keep up to ${MAX_USER_PRESETS} presets. Delete some first.`;
 			return;
 		}
-		const preset = list.add(name, store.capture(section));
+		const preset = list.add(name, store.capture(section, base));
 		store.adoptSaved(section, preset.id);
 		closeForm();
 	}
@@ -177,6 +190,11 @@
 		store.adoptSaved(section, selected.id);
 	}
 
+	function confirmSwitch() {
+		store.switchPreset(section, presetDraft);
+		closeForm();
+	}
+
 	function confirmDelete() {
 		if (!selected) return;
 		store.deletePreset(section, selected.id);
@@ -188,7 +206,9 @@
 		menuOpen = false;
 		const name = changed ? 'Shared settings' : current.name;
 		try {
-			await navigator.clipboard.writeText(encodePresetCode(kind, name, store.capture(section)));
+			// Flattened onto the built-in preset behind, since others won't have the player's own.
+			const content = store.capture(section, list.builtInBehind(current));
+			await navigator.clipboard.writeText(encodePresetCode(kind, name, content));
 		} catch {
 			notice = { type: 'danger', text: "Couldn't copy to the clipboard." };
 		}
@@ -221,13 +241,18 @@
 
 		const taken = list.all.map((p) => p.name);
 		const added = [];
+		/** The ids the presets had in the file, mapped to their new ones, for presets built on each other. */
+		const newIds = new Map<string, string>();
 		let renamed = 0;
 		for (const item of result.presets.slice(0, room)) {
 			const name = uniqueName(item.name, taken);
 			if (name !== item.name) renamed++;
 			taken.push(name);
-			added.push(list.add(name, { base: item.base, sections: item.sections, values: item.values }));
+			const preset = list.add(name, { base: item.base, sections: item.sections, values: item.values });
+			if (item.id) newIds.set(item.id, preset.id);
+			added.push(preset);
 		}
+		for (const preset of added) if (preset.base && newIds.has(preset.base)) preset.base = newIds.get(preset.base);
 		const skipped = result.presets.length - added.length;
 
 		// A single preset is applied straight away so you can see what you imported.
@@ -356,14 +381,10 @@
 						type="button"
 						role="menuitem"
 						class="menu-item"
-						disabled={!selected || store.locked}
-						onclick={() => {
-							menuOpen = false;
-							store.detachPreset(section);
-						}}
+						disabled={store.locked}
+						onclick={() => openMode('switch')}
 					>
-						<i class="bi bi-link-45deg"></i>
-						{selected ? `Detach from “${selected.name}”` : 'Detach from preset'}
+						<i class="bi bi-arrow-left-right"></i> Switch preset, keeping settings…
 					</button>
 					<button
 						type="button"
@@ -439,7 +460,7 @@
 	>
 		<div class="p-4">
 			<h2 id="{selectId}-dialog-title" class="h5 fw-bold mb-3">
-				{mode === 'save' ? 'Save preset' : mode === 'rename' ? 'Rename preset' : mode === 'delete' ? 'Delete preset' : 'Import presets'}
+				{mode === 'save' ? 'Save preset' : mode === 'rename' ? 'Rename preset' : mode === 'switch' ? 'Switch preset' : mode === 'delete' ? 'Delete preset' : 'Import presets'}
 			</h2>
 			{#if mode === 'save' || mode === 'rename'}
 				<form
@@ -472,12 +493,50 @@
 							<option value={p.name}></option>
 						{/each}
 					</datalist>
+					{#if mode === 'save'}
+						<label class="form-label small mb-1 mt-3" for="{selectId}-base">Built on</label>
+						<select
+							id="{selectId}-base"
+							class="form-select form-select-sm"
+							bind:value={presetDraft}
+							onchange={() => {
+								overwriteConfirm = false;
+								formError = null;
+							}}
+						>
+							{#each list.all as p (p.id)}
+								<option value={p.id}>{store.presetLabel(section, p)}</option>
+							{/each}
+						</select>
+						<div class="form-text">Later changes to the preset it is built on carry over to it.</div>
+					{/if}
 					{#if formError}<div class="form-text text-danger">{formError}</div>{/if}
 					<div class="d-flex justify-content-end gap-2 mt-3">
 						<button type="button" class="btn btn-outline-secondary btn-sm" onclick={closeForm}>Cancel</button>
 						<button type="submit" class="btn btn-primary btn-sm">
 							{mode === 'save' ? 'Save' : 'Rename'}
 						</button>
+					</div>
+				</form>
+			{:else if mode === 'switch'}
+				<form
+					onsubmit={(e) => {
+						e.preventDefault();
+						confirmSwitch();
+					}}
+				>
+					<label class="form-label small mb-1" for="{selectId}-switch">Switch to</label>
+					<select id="{selectId}-switch" class="form-select form-select-sm" bind:value={presetDraft}>
+						{#each list.all as p (p.id)}
+							<option value={p.id}>{store.presetLabel(section, p)}</option>
+						{/each}
+					</select>
+					<div class="form-text">
+						Your current {noun} stay as they are; where they differ from the selected preset, they will show as unsaved changes.
+					</div>
+					<div class="d-flex justify-content-end gap-2 mt-3">
+						<button type="button" class="btn btn-outline-secondary btn-sm" onclick={closeForm}>Cancel</button>
+						<button type="submit" class="btn btn-primary btn-sm">Switch</button>
 					</div>
 				</form>
 			{:else if mode === 'delete' && selected}

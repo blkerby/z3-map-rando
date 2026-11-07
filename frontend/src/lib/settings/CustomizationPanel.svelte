@@ -53,7 +53,7 @@
 
 <aside id="customization-panel" class="card">
 	<div class="card-body">
-		<h2 class="h6 fw-bold mb-2">Your customization</h2>
+		<h2 class="h6 fw-bold mb-2">Customization settings</h2>
 
 		{#if changed.length}
 			<div class="small mb-2 text-body-secondary">

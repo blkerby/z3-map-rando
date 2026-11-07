@@ -94,7 +94,13 @@ export class SettingsStore {
 		this.resolve(this.root, this.rootPreset, {}, true, false, plain);
 		const builtIn = { ...this.emptyResolution(), builtInOnly: true };
 		this.resolve(this.root, this.rootPreset, {}, true, true, builtIn);
-		return { applied: applied.values, implied: applied.implied, builtInImplied: builtIn.implied, plain: plain.values };
+		return {
+			applied: applied.values,
+			selections: applied.selections,
+			implied: applied.implied,
+			builtInImplied: builtIn.implied,
+			plain: plain.values
+		};
 	});
 
 	/**
@@ -217,10 +223,10 @@ export class SettingsStore {
 		return n ? `${name} + ${n} tweak${n === 1 ? '' : 's'}` : name;
 	}
 
-	/** A preset's name, with the built-in preset behind it if it is one of the player's own: "Mine (based on Hard)". */
+	/** A preset's name, with the preset it is built on if it is one of the player's own: "Mine (based on Hard)". */
 	presetLabel(section: Section, preset: Preset): string {
 		const list = this.lists[section.id];
-		return list.isUser(preset.id) ? `${preset.name} (based on ${list.builtInBehind(preset).name})` : preset.name;
+		return list.isUser(preset.id) ? `${preset.name} (based on ${list.baseOf(preset).name})` : preset.name;
 	}
 
 	get(id: string): Value {
@@ -239,13 +245,13 @@ export class SettingsStore {
 	}
 
 	/**
-	 * Work out a section with `preset` applied, into `out`: its own settings come from the preset (or its
-	 * base); each section inside takes the preset chosen for it (by `outer`, the choices of the presets
-	 * around this one, which win; then by this preset; then by its base; otherwise the section's default);
-	 * then this preset's tweaks go on top.
+	 * Work out a section with `preset` applied, into `out`: its own settings come from the built-in preset at
+	 * the bottom of its chain; each section inside takes the preset chosen for it (by `outer`, the choices of
+	 * the presets around this one, which win; then by the presets in the chain, nearest first; otherwise the
+	 * section's default); then the chain's tweaks go on top, nearest last.
 	 *
 	 * With `follow`, a section inside that has a preset picked by hand takes that preset instead, plainly:
-	 * this preset's choices and tweaks don't reach into it. Without `follow`, picks are ignored. With `tweaks` false, this preset's own tweaks are left
+	 * this preset's choices and tweaks don't reach into it. Without `follow`, picks are ignored. With `tweaks` false, the chain's tweaks are left
 	 * out (not those of presets inside it).
 	 *
 	 * Returns the ids of the settings this preset decides (where its tweaks apply).
@@ -258,15 +264,19 @@ export class SettingsStore {
 		tweaks: boolean,
 		out: Resolution
 	): string[] {
-		const base = this.lists[section.id].builtInBehind(preset);
-		if (out.builtInOnly) preset = base;
+		let chain = this.lists[section.id].chain(preset);
+		const base = chain[0];
+		if (out.builtInOnly) {
+			preset = base;
+			chain = [base];
+		}
 		out.selections[section.id] = preset.id;
 		const decided: string[] = [];
 		for (const s of ownSettings(section)) {
 			out.values[s.id] = base.values[s.id] ?? this.defaults[s.id];
 			decided.push(s.id);
 		}
-		const chosen = { ...base.sections, ...(preset === base ? undefined : preset.sections), ...outer };
+		const chosen = { ...chosenBy(chain), ...outer };
 		for (const child of childSections(section)) {
 			const list = this.lists[child.id];
 			const implied = list.find(chosen[child.id]) ?? list.defaultPreset;
@@ -279,8 +289,10 @@ export class SettingsStore {
 			}
 			decided.push(...this.resolve(child, implied, chosen, followChild, true, out));
 		}
-		if (tweaks && preset !== base) {
-			for (const [id, v] of Object.entries(preset.values)) if (decided.includes(id)) out.values[id] = v;
+		if (tweaks) {
+			for (const p of chain.slice(1)) {
+				for (const [id, v] of Object.entries(p.values)) if (decided.includes(id)) out.values[id] = v;
+			}
 		}
 		return decided;
 	}
@@ -413,12 +425,12 @@ export class SettingsStore {
 	// ---- User presets -----------------------------------------------------------
 
 	/**
-	 * What a user preset for this section saved now would hold: the built-in preset behind the selected
-	 * one as its base, the selections inside the section that differ from what would otherwise be chosen,
-	 * and the settings that differ from what those give.
+	 * What a user preset for this section built on `base` would hold now: the selections inside the section
+	 * that differ from what `base` would choose, and the settings that differ from what those give. By
+	 * default `base` is the one the selected preset is built on, so saving a new preset from one of the
+	 * player's own makes a sibling of it.
 	 */
-	capture(section: Section): PresetContent {
-		const base = this.lists[section.id].builtInBehind(this.selectedPreset(section));
+	capture(section: Section, base: Preset = this.lists[section.id].baseOf(this.selectedPreset(section))): PresetContent {
 		const sections: Record<string, string> = {};
 		this.recordSelections(section, base, {}, sections);
 		const given = this.resolveFresh(section, { id: '', name: '', base: base.id, sections, values: {} }).values;
@@ -429,15 +441,25 @@ export class SettingsStore {
 
 	/** Record the current selections inside a section where they differ from what `preset` and `outer` choose. */
 	private recordSelections(section: Section, preset: Preset, outer: Record<string, string>, out: Record<string, string>) {
-		const base = this.lists[section.id].builtInBehind(preset);
-		const chosen = { ...base.sections, ...(preset === base ? undefined : preset.sections), ...outer };
+		const chosen = { ...chosenBy(this.lists[section.id].chain(preset)), ...outer };
 		for (const child of childSections(section)) {
 			const list = this.lists[child.id];
 			const implied = list.find(chosen[child.id]) ?? list.defaultPreset;
-			const current = list.find(list.selectedId) ?? this.impliedPreset(child);
+			const current = list.find(this.layers.selections[child.id]) ?? implied;
 			if (current.id !== implied.id) out[child.id] = current.id;
 			this.recordSelections(child, current, { ...chosen, ...out }, out);
 		}
+	}
+
+	/**
+	 * Select another preset for a section, keeping the current settings: where they differ from it, they
+	 * become unsaved changes. The preset the presets around it choose means taking what they choose.
+	 */
+	switchPreset(section: Section, id: string) {
+		const list = this.lists[section.id];
+		if (!list.find(id)) return;
+		const inherit = section !== this.root && id === this.impliedPreset(section).id;
+		list.selectedId = inherit ? null : id;
 	}
 
 	/** Would updating the selected preset (a user preset) change it? */
@@ -453,29 +475,30 @@ export class SettingsStore {
 	}
 
 	/**
-	 * Delete a user preset. Presets that refer to it switch to its base and take over its choices and
-	 * tweaks (unless they have their own), so their values don't change.
+	 * Delete a user preset. Presets built on it, or that pick it for a section, switch to its base and take
+	 * over its choices and tweaks (unless they have their own), so their values don't change. If it is
+	 * selected, the section switches to its base, keeping the current settings.
 	 */
 	deletePreset(section: Section, id: string) {
 		const list = this.lists[section.id];
 		const gone = list.userPresets.find((p) => p.id === id);
 		if (!gone) return;
+		const base = list.baseOf(gone);
+		for (const p of list.userPresets) {
+			if (p.base !== id) continue;
+			p.base = base.id;
+			p.sections = { ...gone.sections, ...p.sections };
+			p.values = { ...gone.values, ...p.values };
+		}
 		for (const other of Object.values(this.lists)) {
 			for (const p of other.userPresets) {
 				if (p.sections?.[section.id] !== id) continue;
-				p.sections = { ...gone.sections, ...p.sections, [section.id]: gone.base! };
+				p.sections = { ...gone.sections, ...p.sections, [section.id]: base.id };
 				p.values = { ...gone.values, ...p.values };
 			}
 		}
-		if (list.selectedId === id) this.detachPreset(section);
+		if (list.selectedId === id) this.switchPreset(section, base.id);
 		list.userPresets = list.userPresets.filter((p) => p.id !== id);
-	}
-
-	/** Switch a section from the user preset it takes to that preset's base, keeping the current settings. */
-	detachPreset(section: Section) {
-		const base = this.lists[section.id].builtInBehind(this.selectedPreset(section));
-		const inherit = section !== this.root && base.id === this.impliedPreset(section).id;
-		this.lists[section.id].selectedId = inherit ? null : base.id;
 	}
 
 	/** Load the player's presets from this browser, moving tweaks of settings that changed section (see `migrate`). */
@@ -636,6 +659,13 @@ export class SettingsStore {
 			return false;
 		}
 	}
+}
+
+/** The presets a chain of presets chooses for sections inside, the nearest preset winning. */
+function chosenBy(chain: Preset[]): Record<string, string> {
+	let out: Record<string, string> = {};
+	for (const p of chain) out = { ...out, ...p.sections };
+	return out;
 }
 
 /** Do two records hold the same entries? */

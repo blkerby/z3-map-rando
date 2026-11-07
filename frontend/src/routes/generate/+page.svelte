@@ -422,7 +422,7 @@
 		font-size: 0.92rem;
 	}
 
-	/* Both panels stick together: Your settings on top, Your customization beneath. */
+	/* Both panels stick together: Generation settings on top, Customization settings beneath. */
 	.side {
 		position: sticky;
 		top: 1rem;

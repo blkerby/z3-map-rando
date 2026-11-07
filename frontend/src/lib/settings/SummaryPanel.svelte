@@ -80,10 +80,10 @@
 
 <aside id="summary-panel" class="summary card">
 	<div class="card-body">
-		<h2 class="h6 fw-bold mb-2">{generated ? 'Your game' : 'Your settings'}</h2>
-
-		{#if generated && seed}
-			<div class="small mb-2">Seed <code class="seed">{seed}</code></div>
+		{#if generated}
+			{#if seed}<div class="small mb-2"><strong>Seed</strong> <code class="seed">{seed}</code></div>{/if}
+		{:else}
+			<h2 class="h6 fw-bold mb-2">Generation settings</h2>
 		{/if}
 
 		<div class="small mb-2 text-body-secondary">

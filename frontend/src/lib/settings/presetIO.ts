@@ -53,7 +53,8 @@ export function buildExportFile(kind: PresetKind, presets: Preset[]): string {
 			format: FORMAT,
 			version: FORMAT_VERSION,
 			kind,
-			presets: presets.map((p) => ({ name: p.name, base: p.base, sections: p.sections, values: p.values }))
+			// Ids are kept so presets built on each other can be linked up again on import.
+			presets: presets.map((p) => ({ id: p.id, name: p.name, base: p.base, sections: p.sections, values: p.values }))
 		},
 		null,
 		2
@@ -82,6 +83,8 @@ export function encodePresetCode(kind: PresetKind, name: string, content: Preset
 
 export interface ParsedPreset extends PresetContent {
 	name: string;
+	/** Its id in an exported file, which other presets in the file may be built on. */
+	id?: string;
 }
 
 export type ParseResult = { ok: true; presets: ParsedPreset[] } | { ok: false; error: string };
@@ -140,6 +143,7 @@ export function parseImport(
 		for (const item of data.presets.slice(0, MAX_IMPORT_PRESETS)) {
 			if (!isObject(item) || !isObject(item.values)) continue;
 			presets.push({
+				id: typeof item.id === 'string' ? item.id : undefined,
 				name: cleanName(item.name) || 'Imported preset',
 				base: readBase(item.base),
 				sections: readSections(item.sections),

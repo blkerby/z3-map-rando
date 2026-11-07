@@ -100,14 +100,15 @@ export type Item = Setting | Section;
  *
  * A built-in preset stands on its own: `values` are its section's own settings (only those differing from
  * the schema defaults) and `sections` picks a built-in preset for child sections (any left out get their
- * default). A user preset has a `base`: a built-in preset of the same section. Its `sections` picks presets
- * (built-in or user) for sections inside it, but only where they differ from what the base would pick, and
- * its `values` are tweaks: settings anywhere inside the section that differ from the base and those picks.
+ * default). A user preset has a `base`: another preset of the same section, built-in or user, so user presets
+ * form chains that end at a built-in one. Its `sections` picks presets (built-in or user) for sections inside
+ * it, but only where they differ from what the base would pick, and its `values` are tweaks: settings
+ * anywhere inside the section that differ from the base and those picks.
  */
 export interface Preset {
 	id: string;
 	name: string;
-	/** User presets only: the id of the built-in preset of the same section it is built on. */
+	/** User presets only: the id of the preset of the same section it is built on. */
 	base?: string;
 	/** Section id -> preset id, for sections inside this one. */
 	sections?: Record<string, string>;
