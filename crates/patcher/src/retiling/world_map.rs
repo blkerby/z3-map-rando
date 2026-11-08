@@ -133,6 +133,11 @@ pub(super) fn build_world_map(
                 tilemap[(y / 32 * 2 + x / 32) * 1024 + y % 32 * 32 + x % 32] = id;
             }
         }
+        eprintln!(
+            "{} map: {}/256 Mode 7 tiles used (including reserved blank tile)",
+            ["Light World", "Dark World"][world],
+            tile_ids.len(),
+        );
         result.graphics.extend(characters);
         result.tilemaps.extend(tilemap);
         result.palettes.extend(colors);
