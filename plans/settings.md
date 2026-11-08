@@ -121,7 +121,7 @@ The following miniature frozen bundle has only two settings. Real bundles includ
 }
 ```
 
-Resolve generically before deserializing concrete values into the internal Rust settings structs:
+For future generation, resolve generically before deserializing concrete values into the internal Rust settings structs:
 
 1. Parse and migrate the generic document, separating explicit preset selections from concrete tweaks.
 2. Start expanding the selected built-in root preset, carrying the user's explicit selections through the traversal.
@@ -155,7 +155,7 @@ Accept that bottom-up local choices may not give a globally smallest representat
 
 Use explicit, ordered migrations from old settings versions to the current interpretation. Keep version information on every persisted or portable recipe, including browser drafts, files, and copied codes. The settings interpretation version and generator release serve different purposes; record the source release or master revision separately when identifying historical built-in definitions matters.
 
-The read path is: parse the old envelope, migrate the raw recipe, validate against current definitions, resolve current built-ins, and remove redundant tweaks. Migration must run before current-schema sanitization; otherwise obsolete keys or option values can disappear before they can be translated. Malformed input and recognized historical input are different cases, and unrecognized values should not silently become current defaults.
+For editable settings intended for future generation, the read path is: parse the old envelope, migrate the raw recipe, validate against current definitions, resolve current built-ins, and remove redundant tweaks. Migration must run before current-schema sanitization; otherwise obsolete keys or option values can disappear before they can be translated. Malformed input and recognized historical input are different cases, and unrecognized values should not silently become current defaults.
 
 - Added settings inherit the current selected presets and defaults.
 - Changes to built-in defaults or presets affect inherited values automatically.
@@ -166,7 +166,37 @@ The read path is: parse the old envelope, migrate the raw recipe, validate again
 
 Simple structural migration notices can be produced by the migration itself. Reporting all effective changes since a live preset was saved would additionally require historical definitions or a resolved snapshot. That richer history and notice system is deferred. A source revision alone cannot reconstruct definitions that have not been retained.
 
-Frozen seed inspection follows the captured interpretation. Later schema changes must not erase historical values merely because the current editor no longer offers them. The appropriate historical UI description or a simpler historical inspection view is an open presentation question, separate from capturing the effective values.
+### Historical seed inspection
+
+Use the current master as a presentation guide for old seeds, with a separate migration workflow preserving the concrete meaning of the generation-time settings. The frontend should not need to consume every historical master schema. The current master supplies grouping, labels, and familiar display components where appropriate; it does not supply current preset values or determine which historical entries are allowed to survive.
+
+| Behavior | Editable settings for future generation | Historical seed inspection |
+| --- | --- | --- |
+| Built-in definitions | Current definitions | Captured definitions |
+| Inherited values | Follow current presets/defaults | Preserve generation-time meaning |
+| Newly introduced setting | Use the current selected baseline | Supply a known historical equivalent or indicate absence |
+| Obsolete setting or option | Translate for current generation where possible | Retain an explanation if no exact equivalent exists |
+| Tweak comparison | Current selected baseline | Captured baseline |
+
+The inspection path is:
+
+```text
+original frozen bundle
+  -> upgrade document/reference format without changing its interpretation
+  -> resolve captured preset definitions and concrete values
+  -> migrate concrete historical meanings into the current inspection format
+  -> present using the current master, with historical fallbacks
+```
+
+Bundle format upgrades can translate old entry or reference syntax but must not rebind references to current built-ins or insert current defaults. Resolve frozen references using their captured selection structure and values. Historical value migrations then translate identifiers, option tokens, and representations while preserving the original behavior. Share appropriate rename/conversion operations with live migration, without reusing live default-filling or sanitization unchanged.
+
+A missing new setting is not automatically equivalent to today's default. If a feature was always disabled before becoming configurable, a migration can accurately supply `false`. A newly introduced generation constraint may instead have no meaningful historical value; show that it was not applicable or recorded in that version. Removed options without an exact modern equivalent should remain inspectable with their historical label/value rather than being silently approximated or discarded.
+
+The read-only inspection model must support missing, legacy, and currently unsupported values. It should not require deserialization into today's `GenerationSettings`, whose mandatory fields and enum variants may be inappropriate for an old seed. Nor should editor sanitization erase entries simply because they are absent from the current master. Provide a simple read-only fallback using captured informational metadata and values for historical settings that no longer have a matching definition. Exact visual treatment remains a UI decision.
+
+Preserve the historical preset explanation as well as the final values. A display such as "Hard + two tweaks" refers to captured Hard, not the current built-in with the same ID. Migrate captured preset comparison values through the corresponding historical transformations and compute tweak highlighting against that baseline. Current section layout may reorganize the display without changing the values or rebasing the preset explanation against today's definitions.
+
+The backend should expose a current-format inspection response derived from the frozen record, so the frontend consumes one presentation contract rather than historical master formats. Keep the original bundle intact; this response is a projection, not a rewrite of seed history. Importing settings from the seed for a new generation starts the separate live migration/resolution workflow. The inspection projection does not itself promise identical output from a newer generator or replace the seed's authoritative patching/racing interpretation.
 
 ## Boundary 1: UI definitions and bidirectional editing
 
@@ -358,6 +388,6 @@ seed's relevant gameplay values + temporary adjustments + presentation/control p
 
 ## Scope of future implementation
 
-Implementation must reach the master definitions and stable key adapter; the root-only preset model; draft/browser storage and preset import/export; generation requests and responses; shared Rust ingestion and CLI defaults; typed settings conversion and generator consumers; and frozen seed construction/inspection. Customization work must distinguish saved presentation/control preferences from temporary Gameplay adjustments, project narrow patch inputs through the shared annotation, and retain compatibility with the seed's original interpretation. The design must leave room for captured declarative racing constraints without requiring their full implementation now.
+Implementation must reach the master definitions and stable key adapter; the root-only preset model; draft/browser storage and preset import/export; generation requests and responses; shared Rust ingestion and CLI defaults; typed settings conversion and generator consumers; and frozen seed construction/inspection. Historical inspection needs a current-format read-only projection preserving old concrete meanings and captured preset baselines, distinct from live recipe migration. Customization work must distinguish saved presentation/control preferences from temporary Gameplay adjustments, project narrow patch inputs through the shared annotation, and retain compatibility with the seed's original interpretation. The design must leave room for captured declarative racing constraints without requiring their full implementation now.
 
 The immediate next design work is to settle authored master assembly, handwritten versus generated Rust types, the two mapping boundaries, the location and sharing of migration/resolution code, the customization annotation and compatibility relationships, the remaining key vocabulary, and live/frozen envelope versioning. Other exact UI operations, parentless presets, private sub-presets, user inheritance chains, recursive freezing operations, richer historical notices, and racing enforcement/marking are deferred. Do not implement those extensions merely to preserve flexibility.
