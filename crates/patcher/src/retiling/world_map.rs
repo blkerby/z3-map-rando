@@ -1,8 +1,11 @@
 use super::{
-    areas::{Placement, ThemeArea},
-    graphics::Palette,
+    areas::{Placement, ThemeArea, select_areas},
+    graphics::{Palette, resolve_palettes},
 };
-use crate::graphics::encode_bgr555;
+use crate::{
+    graphics::{TileGraphicResolver, encode_bgr555},
+    import::Importer,
+};
 use anyhow::{Context, Result, ensure};
 use retiling_catalog::{Background, PaletteId, RetilingCatalog};
 use seed_data::WorldLayout;
@@ -12,6 +15,18 @@ pub struct CompiledWorldMap {
     pub graphics: Vec<u8>,
     pub tilemaps: Vec<u8>,
     pub palettes: Vec<u8>,
+}
+
+/// Compile just the Mode 7 maps, without allocating gameplay graphics or patching a ROM.
+pub fn compile_world_map(
+    catalog: &RetilingCatalog,
+    importer: &Importer,
+    layout: &WorldLayout,
+) -> Result<CompiledWorldMap> {
+    let mut graphics = TileGraphicResolver::create(importer);
+    let palettes = resolve_palettes(catalog, &mut graphics)?;
+    let selected = select_areas(catalog, layout)?;
+    build_world_map(&selected.areas, &palettes, layout, catalog)
 }
 
 pub(super) fn build_world_map(

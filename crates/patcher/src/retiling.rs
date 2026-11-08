@@ -17,7 +17,7 @@ mod graphics;
 mod maps;
 mod rain;
 mod world_map;
-pub use world_map::CompiledWorldMap;
+pub use world_map::{CompiledWorldMap, compile_world_map};
 
 use allocation::{
     CHARACTER_CAPACITY, allocate_characters, allocate_palettes, build_scrollable_transition_pairs,

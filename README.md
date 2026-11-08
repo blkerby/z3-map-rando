@@ -55,6 +55,18 @@ Generation uses the selected tech, proficiency, and notable settings and require
 
 Progressive swords, shields, gloves, mail, and boomerangs upgrade one level per pickup, capped at the highest tier. Visible pickups show the next upgrade. When both are owned, highlight Mushroom/Powder or Shovel/Ocarina in the item menu and press Y to switch between them. Shared-slot ownership is saved at `$7EF38C` using ALTTPR's tracker-compatible bit layout. ROM behavior still differs from the logical model: keys and fairy exchanges use vanilla behavior. Silver Arrows uses Bow and Silver Arrows, which also grants the bow. Equipment receipt messages retain vanilla text pending replacement. The CLI and patcher library apply the saved layout and items using the current patch catalog. See [the CLI design](plans/cli.md) for bundled builds and argument behavior.
 
+# How to render Mode 7 map PNGs
+
+Build the retiling and logic catalogs as above, then run:
+
+```sh
+cargo run -p render_world_maps -- --rom path/to/vanilla.sfc --theme Desert --count 10 --rng 12345
+```
+
+This writes 512×512 PNGs including the cloud border for both worlds: `vanilla-light.png`, `vanilla-dark.png`, and `random-0001-light.png` / `random-0001-dark.png` through the requested count. Output defaults to `build/world-maps`; use `--output-dir <DIR>` to change it. Existing files with the same names are overwritten. The ROM is read only to resolve referenced graphics; it is not patched. Random layouts use the same pool sampler and compatible edge-variant selector as seed generation, with no reachability checks or item placement. The PNGs show the map artwork without player or dungeon markers.
+
+Use `--count 0` for vanilla only; this does not require a logic catalog or map pool. `--map-pool`, `--logic-catalog`, and `--retiling-catalog` override the default paths `maps/map_pool.bin`, `build/logic_catalog.bin`, and `build/retiling_catalog.bin`. Omit `--rng` to choose and print a random numeric seed. Themes use their authored areas, as in seed generation; Desert is the default.
+
 # How to test current engine changes
 
 Clone the repo:
