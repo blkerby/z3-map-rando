@@ -6,31 +6,33 @@ This document records the settings model agreed during design discussion. JSON f
 
 Use a common JSON interpretation for browser storage, import/export, and generation requests. Every released version should accept settings from any previous released version through explicit migration. The primary behavior is to follow evolving built-in presets and defaults while retaining the user's differences. Reproducing historical generator behavior from an editable settings document is not the primary goal.
 
-Generated seeds have a different requirement: their settings must remain inspectable as they were interpreted at generation time. Preserve those concrete settings and enough frozen preset definitions to explain them. Public seed records must not expose private preset names or other arbitrary user metadata. No account system is planned, so creators and other viewers receive the same public representation.
+Generated seeds have a different requirement: their settings must remain inspectable as they were interpreted at generation time. Preserve those concrete settings and enough frozen preset definitions to explain them. Gameplay adjustments made while patching are temporary and specific to that seed; saved customization presets contain presentation/control preferences. Future racing rulesets should be generic JSON constraints captured with the seed, independent of generation compatibility checks. Public seed records must not expose private preset names or other arbitrary user metadata. No account system is planned, so creators and other viewers receive the same public representation.
 
 ## Preset semantics
 
 - User-defined presets exist only at root scope.
 - Every user preset is based directly on one built-in root preset. User presets cannot inherit from other user presets, and parentless user presets are deferred.
-- A user preset can choose built-in presets for sections such as Logic and override individual settings anywhere in the configuration.
+- A user preset can choose built-in presets for sections such as Skill assumptions and override individual settings anywhere in the configuration.
 - Built-in presets retain their section hierarchy and composition. Their definitions and the master description drive resolution; particular presets such as Hard are not hard-coded in the resolver.
 - Saving a new preset from an existing user preset copies its built-in base, effective section selections, and tweaks. It creates an independently editable sibling, without a reference to the original user preset.
 - Inherited values follow current built-in definitions. New settings inherit values from the applicable current presets and defaults.
 - An explicit tweak represents a difference from its current inherited baseline. If migration or a preset update makes it equal to that baseline, remove it. There is no hidden per-setting pinning behavior.
 - Compare tweaks against the baseline after applying section preset selections, rather than against raw schema defaults.
 
-The deliberate limitation is that users cannot independently reuse private Logic presets or share a private baseline across several configurations. Repeated personal tweaks must be maintained separately. Built-in section presets provide the supported composition mechanism.
+The section containing techniques, notables, and proficiencies is named "Skill assumptions", with stable section identifier `skill` and preset selector `skill_preset`. Logic is a broader concept: item progression rules, such as which locations may contain high-tier items and how many high-tier items may appear per stem, belong in their own section rather than Skill assumptions.
 
-The distinction between a saved tweak and an unsaved edit remains useful. Exact save, reset, section-selection, and other UI operations are deferred; they should not introduce additional inheritance semantics implicitly.
+The deliberate limitation is that users cannot independently reuse private skill presets or share a private baseline across several configurations. Repeated personal tweaks must be maintained separately. Built-in section presets provide the supported composition mechanism.
+
+The distinction between a saved tweak and an unsaved edit remains useful. Patch-time Gameplay adjustments are excluded from saved customization presets and have the seed as their baseline instead. Other exact save, reset, section-selection, and UI operations are deferred; they should not introduce additional inheritance semantics implicitly.
 
 ## Setting identity and JSON values
 
-Store settings as a flat map of stable identifiers to entries. Each entry has a `value` and may have informational metadata such as `name`:
+Store settings as a flat map of stable identifiers to entries. Concrete setting entries have a `value` and may have informational metadata such as `name`:
 
 ```json
 {
-  "mapLayout": {
-    "value": "randomized"
+  "map_layout": {
+    "value": "random"
   },
   "tech.5": {
     "name": "canBombBoost",
@@ -41,11 +43,13 @@ Store settings as a flat map of stable identifiers to entries. Each entry has a 
 
 The identifier determines identity. `name` is ignored when interpreting values and can be omitted. Regenerate informational names from trusted definitions on export and when constructing a public seed record. A historical name can remain readable without becoming a permanent operational identifier.
 
-Use stable authored IDs for techniques, proficiencies, and room-scoped notables. Ordinary settings can have descriptive stable identifiers. The exact key vocabulary, including item identities and prefixes, remains to be settled. Dotted keys denote identities or semantic namespaces, not paths that must track the UI's current layout.
+Use stable authored IDs for techniques, proficiencies, and room-scoped notables. Ordinary setting keys and preset selector keys use `snake_case`, matching Rust field naming where applicable. Structured identifiers such as `tech.5` are reserved for dynamic families handled generically. The exact family key vocabulary, including item identities and prefixes, remains to be settled. Keys do not track the UI's current layout.
 
 Use the same entry shape for all serialized values rather than accepting both scalars and wrapped entries. Internal UI state can still store scalars. Labels, grouping, control types, option descriptions, section membership, and validation information remain in the master description; do not reproduce the section tree in settings documents.
 
-Reserved keys identify composition explicitly. A provisional convention is `$base` for a built-in root base, `$sections` for built-in selections keyed by section ID, and `{ "$ref": "..." }` for a reference. Ordinary string values never become references implicitly. Reference identifiers are stable; their display names are informational.
+Preset selector entries contain `preset` instead of `value`. For example, `"root_preset": { "preset": "root_default" }` selects the built-in root preset, and `"skill_preset": { "preset": "skill_hard" }` selects a built-in Skill assumptions preset. This is the single reference mechanism for both root and child selections. Each entry supplies either a concrete value or a preset reference, not both. Ordinary string values never become references implicitly. Reference identifiers are stable; their display names are informational.
+
+The master identifies selector slots and their relationships. The resolver uses those definitions rather than hard-coded knowledge of particular selector names. Preset selectors are consumed during resolution and do not become fields in `GenerationSettings` or `CustomizationSettings`; only the resulting concrete values proceed to typed settings deserialization.
 
 ## Definition ownership and assembled masters
 
@@ -78,9 +82,9 @@ HTTP cache validation does not settle the separate question of an editor remaini
 
 ## Live settings and frozen seed bundles
 
-An editable settings document records a version, the release or master revision it was saved against, its built-in root base, section selections, and setting tweaks. Built-in references resolve against the current definitions after migration. Do not embed historical built-in contents in ordinary saved settings merely to preserve history.
+An editable settings document records a version, the release or master revision it was saved against, a flat recipe containing its root preset selection, child preset selections, and setting tweaks. Built-in references resolve against the current definitions after migration. Do not embed historical built-in contents in ordinary saved settings merely to preserve history.
 
-A frozen seed bundle records one anonymous root recipe and a registry of the built-in definitions needed to resolve it. References resolve exclusively within that bundle. Capture defaults as concrete values in the frozen built-in definitions and make otherwise implicit child selections explicit. Include required hidden or fixed generation values as well. This makes the effective values self-contained without embedding the master's section tree.
+A frozen seed bundle records one anonymous root recipe and a registry of the built-in definitions actually reached after applying its selection overrides. Followed references resolve exclusively within that bundle. An overridden selection can remain in a captured definition without its unused target being included. Capture defaults as concrete values in the frozen built-in definitions and make otherwise implicit child selections explicit. Include required hidden or fixed generation values as well. This makes the effective values self-contained without embedding the master's section tree. The bundle describes the generated configuration, not a complete library for evaluating alternative selections.
 
 The following miniature frozen bundle has only two settings. Real bundles include every definition and value needed to resolve the actual generation inputs. Envelope names and the distinction between live and frozen document contexts remain provisional.
 
@@ -88,36 +92,26 @@ The following miniature frozen bundle has only two settings. Real bundles includ
 {
   "version": 1,
   "root": {
-    "$base": {
-      "$ref": "builtin/root/default"
+    "root_preset": {
+      "preset": "root_default"
     },
-    "$sections": {
-      "logic": {
-        "$ref": "builtin/logic/hard"
-      }
+    "skill_preset": {
+      "preset": "skill_hard"
     },
-    "mapLayout": {
+    "map_layout": {
       "value": "vanilla"
     }
   },
   "presets": {
-    "builtin/root/default": {
-      "$sections": {
-        "logic": {
-          "$ref": "builtin/logic/basic"
-        }
+    "root_default": {
+      "skill_preset": {
+        "preset": "skill_basic"
       },
-      "mapLayout": {
-        "value": "randomized"
+      "map_layout": {
+        "value": "random"
       }
     },
-    "builtin/logic/basic": {
-      "tech.5": {
-        "name": "canBombBoost",
-        "value": false
-      }
-    },
-    "builtin/logic/hard": {
+    "skill_hard": {
       "tech.5": {
         "name": "canBombBoost",
         "value": true
@@ -127,9 +121,17 @@ The following miniature frozen bundle has only two settings. Real bundles includ
 }
 ```
 
-Generic resolution combines inherited section selections and explicit values, resolves the selected children, and applies explicit values over the child results. More-derived selections and values take precedence. Root tweaks can therefore override values supplied by any child. Changing a child selection must replace the inherited selection before expansion, so values from the previous child do not leak into the result. A merge of already resolved value maps is insufficient to preserve these semantics.
+Resolve generically before deserializing concrete values into the internal Rust settings structs:
 
-Live resolution uses the master to supply omitted defaults and selections. Frozen resolution uses the captured, explicit definitions. Missing references in a frozen bundle are errors, rather than opportunities to substitute current built-ins. Importing a seed's settings for a new generation is a separate migration and live-resolution operation; inspecting the old seed must not update it.
+1. Parse and migrate the generic document, separating explicit preset selections from concrete tweaks.
+2. Start expanding the selected built-in root preset, carrying the user's explicit selections through the traversal.
+3. At each child selector, choose the user's explicit selection if present; otherwise use the selection supplied by the enclosing preset or the applicable default. Enclosing preset selections take precedence over defaults supplied inside their descendants.
+4. Resolve the chosen child presets and combine their concrete values with the enclosing preset's values.
+5. Apply the user's concrete tweaks over the selected built-in configuration, then normalize redundant tweaks and deserialize the complete scalar values into typed settings.
+
+In the example, `skill_hard` replaces the inherited `skill_basic` selection before that child is expanded. Basic contributes no concrete values and its definition is therefore omitted from the bundle. JSON property order has no effect: the explicit `skill_preset` selection wins whether it appears before or after `root_preset`. Root tweaks can override values supplied by any child. A merge of independently resolved preset value maps is insufficient because values from a replaced preset could otherwise linger.
+
+Live resolution uses the master to supply omitted defaults and selections. Frozen resolution uses the captured, explicit definitions. A missing reference is an error if resolution actually follows it, rather than an opportunity to substitute current built-ins; an overridden reference need not have a bundled target. Importing a seed's settings for a new generation is a separate migration and live-resolution operation; inspecting the old seed must not update it.
 
 The backend currently stores concrete `Settings` in `SeedData.settings`. How that field and the frozen explanatory bundle coexist, or whether one becomes derived from the other, remains an implementation decision. Both must describe exactly the inputs actually used. An exact settings record does not itself promise identical output from a different generator release.
 
@@ -143,7 +145,7 @@ Choose explanatory built-in bases using a bottom-up process:
 2. For a section, compare its directly owned concrete values with candidate built-ins.
 3. Prefer the candidate requiring the fewest setting tweaks; among equally good candidates, prefer fewer explicit child-selection overrides.
 4. Use a stable catalog-defined tie-break, without preferring the creator's private base.
-5. Work upward to the root, collect all tweaks into the anonymous root recipe, and capture the required built-in definitions.
+5. Work upward to the root, collect all tweaks into the anonymous root recipe, and capture only the built-in definitions reached when resolving that recipe with its selection overrides.
 
 This produces one anonymous custom root, not anonymous custom presets throughout the hierarchy. The same effective settings and built-in revision should produce the same public settings representation regardless of how the creator reached them. The chosen bases explain the result and do not claim to record the creator's selections. They never alter the generated values or modify the creator's saved recipe.
 
@@ -248,6 +250,8 @@ There are two degrees of single-source ownership. With a handwritten flat Serde 
 
 If chosen, generate flat `GenerationSettings` and `CustomizationSettings` types, plus enums for closed, statically defined choices, from the randomizer-owned definitions. Generated types derive the appropriate Serde and ordinary Rust traits. Keep dynamic tech/notable/proficiency families as typed collections with one generic family adapter; do not generate fields or enum variants per upstream technique. Asset-populated choices may likewise need stable ID/string types validated against the assembled master rather than compile-time variants per asset.
 
+The customization annotation on generation settings can also drive the narrow patch-input fields and their projection from seed settings. This is a mechanical subset selection from the shared definitions, rather than a hand-written assignment for every gameplay feature. Presentation/control preset values and temporary Gameplay adjustments remain separate sources even when they ultimately populate one resolved patch-input struct.
+
 The generator needs a small, explicit mapping from semantic value kinds to Rust types, including integer versus fractional values. It must map stable JSON keys and choice tokens to valid, unambiguous Rust field/variant identifiers while preserving the wire spelling through Serde. Choose straightforward naming conventions and report source keys when generation fails. Documentation comments can come from authored help text. Defaults, numeric constraints, and built-in preset resolution remain owned by the definitions/resolver rather than independently maintained generated policy.
 
 Run generation before compiling the types' crate. A small Rust `build.rs` can read local authored definitions, write generated modules under Cargo's `OUT_DIR`, declare its input files with `rerun-if-changed`, and include those modules in the crate. This follows [Cargo's code-generation pattern](https://doc.rust-lang.org/cargo/reference/build-script-examples.html#code-generation) and [build-script output rules](https://doc.rust-lang.org/cargo/reference/build-scripts.html#outputs-of-the-build-script). The generator must not depend on the backend executable or the types it is generating. There should be no network access or running service requirement for Rust type generation, and no dependency on compiling full logic/retiling assets merely to declare ordinary fields.
@@ -264,16 +268,96 @@ The typed internal model need not have the same shape as the wire format. Keep o
 
 ## Customization settings
 
-Customization should use a master description supplied by the randomizer, with the same definition/entry conventions and generic frontend controls as generation settings. Replace `src/lib/settings/customizationSchema.ts` as an authoritative setting list; it currently contains sample cosmetic settings and option lists directly in TypeScript. Keep generation and customization as separate logical settings domains, with separate resolved Rust structs and requests appropriate to their consumers. They may be served together while retaining that separation.
+Customization should use a master description supplied by the randomizer, with the same definition/entry conventions and generic frontend controls as generation settings. Replace `src/lib/settings/customizationSchema.ts` as an authoritative setting list; it currently contains sample cosmetic settings and option lists directly in TypeScript. Keep generation and patching as distinct consumers with narrow resolved Rust inputs. Their descriptions may be served together, and a setting may participate in both contexts without duplicating its authored definition.
 
-Generation settings determine the saved game and its logic assumptions. Customization settings apply while producing the player's ROM and can be selected independently for an existing seed. A setting belongs to generation if it changes assumptions used to produce the game, even if its implementation ultimately writes ROM bytes. Physical implementation in the patcher is not sufficient reason to classify it as customization.
+### Ownership and customization annotation
+
+Settings changing gameplay rules belong to generation from the outset, even if the current logic does not yet model their consequences. Record their chosen values with the seed as its intended gameplay behavior. Movement abilities, combat rules, and resource behavior are examples. Customization-only settings concern presentation and personal control preferences that do not change those game rules.
+
+A feature such as preserving dash speed through transitions has one definition but two possible concrete values: the seed's recorded generation value and the effective patch-time value after an optional adjustment. They may differ legitimately. This is separate from Skill assumptions: whether the game provides an ability and whether the player can execute a strat using it are different questions.
+
+Initially use one annotation on a generation setting to indicate that it is exposed for temporary customization and included in the patcher's effective settings. A possible spelling is `customizable: true`; the exact syntax remains open, and it may instead be an object containing its compatibility relationship. Do not introduce independent "consumed by patcher" and "overrideable" flags without a concrete setting requiring that distinction. Customization-only presentation/control settings are already patch inputs.
+
+The annotation is semantic metadata, independent of UI section membership. A Gameplay section in generation and a parallel customization Gameplay section can be derived from the same definitions. Reorganizing the UI must not change the setting's ownership, identity, or inclusion in saved presets.
+
+Not everything consumed by the patcher is an adjustable setting. World layout, item placements, and other fixed generation results remain seed facts. A setting whose change requires regeneration should not be exposed through the patch-only adjustment mechanism merely because its effects ultimately involve ROM writes. If a genuine configuration field is needed by the patcher but should never be adjustable, reconsider whether separate annotations earn their weight then.
+
+### Effective patch inputs and generation compatibility
+
+A shared coordinator, used by CLI and backend callers, projects only the relevant generation values from the seed, combines them with temporary Gameplay adjustments and presentation/control preferences, and evaluates compatibility. The patcher receives the resulting concrete patch settings and required seed artifacts, without needing arbitrary generation settings such as tech/notable assumptions. Interpretation and compatibility policy belong outside the low-level patching implementation.
+
+For a feature whose enabled behavior only adds capabilities, the directional relationship can be:
+
+| Recorded generation value | Effective patch value | Interpretation |
+| --- | --- | --- |
+| Disabled | Disabled | Matches generation |
+| Disabled | Enabled | Adds a capability without invalidating the assumed abilities |
+| Enabled | Enabled | Honors the generation assumption |
+| Enabled | Disabled | May invalidate the generation assumptions |
+
+Compatibility is feature-specific; do not infer that every gameplay modification only adds capabilities. Other features may require equality or another defined relationship. A potentially incompatible adjustment does not prove the seed is unbeatable, since generation may not actually have needed the ability. Whether to reject it or permit it with a warning is an open product decision.
+
+Recorded gameplay behavior and modeled logic assumptions are not identical. When a later release begins modeling an existing feature, compatibility handling for old seeds must respect the original generation semantics rather than retroactively claiming that an older generator assumed a capability it never modeled. Define any conservative warnings or historical compatibility translations deliberately.
+
+### Gameplay adjustments and persistence
+
+Patch-time Gameplay adjustments are excluded from saved customization presets and their imports/exports. Someone generating their own seed selects the intended gameplay settings during generation; someone opening another person's seed initially follows that seed's recorded gameplay settings. Loading or saving a presentation/control preset must not capture, replace, or propagate Gameplay adjustments.
+
+Adjustments apply only to the current seed and should survive repeated patching and page refreshes. Use one active-seed draft in `sessionStorage`, tagged with the seed's identity and containing only values differing from that seed's settings. Restore it only when the seed identity matches. Switching seeds discards the previous draft and starts from the new seed's recorded values; switching A to B and back to A does not restore a history of old adjustments. `sessionStorage` survives page reloads and is scoped to a tab, but the seed check is application behavior rather than a browser guarantee. See [MDN's sessionStorage documentation](https://developer.mozilla.org/en-US/docs/Web/API/Window/sessionStorage).
+
+This is temporary draft storage rather than a reusable preference or a change to the shared seed record. Restored adjustments remain visibly marked and receive the same compatibility checks as new edits. Persist only the normal versioned override data needed for that seed, not a collection of saved per-seed presets.
+
+With no reusable Gameplay preferences, the earlier Follow seed/Enabled/Disabled preference model is unnecessary. A control can show the effective value, highlight a difference from the seed, and reset to the seed's value. An override equal to the seed value is redundant and can be removed. Exact controls remain a UI decision.
+
+### Existing implementation and presentation/control presets
 
 The existing patcher `PatchSettings` is a small patch-time configuration containing `transition_asset_phase`, rather than an implementation of the frontend's sample cosmetic list. Decide which settings are actually user-facing before replacing that list; moving placeholder definitions into JSON does not implement their effects. Asset-derived choices, such as supported sprites, should come from the corresponding supported asset definitions when available rather than a second hard-coded frontend list.
 
-Use the same migration and preset mechanisms where applicable, with domain identity carried by the document/request context. Settle customization persistence, versioning, and supported patcher capabilities separately from generation. Historical seed settings remain frozen while the user's patch-time customization is interpreted for the patcher being used; do not automatically bind the customization vocabulary to the seed's old generation master. Exact preset UI operations and whether customization later needs special value types remain open.
+Use the same migration and preset mechanisms for saved presentation/control preferences where applicable, with domain identity carried by the document/request context. Their persistence is separate from the temporary active-seed Gameplay draft. Historical seed settings remain frozen while the user's patch-time customization is interpreted for the patcher being used; do not automatically bind the customization vocabulary to the seed's old generation master. Exact preset UI operations and whether customization later needs special value types remain open.
+
+## Future racing rulesets
+
+Keep racing conformance separate from generation compatibility. A patch-time change can preserve the ability to complete a seed yet violate the race's restrictions. Rulesets can constrain any applicable patch-time setting, including presentation choices, rather than only Gameplay adjustments.
+
+Define rulesets as versioned JSON constraints keyed by stable setting IDs, evaluated by generic code. A particular tournament's rules should require data rather than a special branch in Rust. The following is a provisional example, not a requirement to implement rulesets immediately:
+
+```json
+{
+  "version": 1,
+  "constraints": {
+    "preserve_dash_speed": {
+      "match_seed": true
+    },
+    "link_sprite": {
+      "allowed_values": ["link"]
+    },
+    "menu_speed": {
+      "disallowed_values": ["instant"]
+    }
+  }
+}
+```
+
+`match_seed: true` requires the effective patch value to equal the seed's recorded generation value. `allowed_values` requires membership in the given set. `disallowed_values` forbids membership in the given set. All constraints present on a setting apply together: a value listed in both sets is forbidden. A setting without a constraint has no additional restriction from this ruleset, while ordinary validation and generation compatibility still apply. Validate rule keys and operands against the relevant definitions; matching a seed value is meaningful only where such a value was recorded.
+
+Start with a small constraint vocabulary. Numeric bounds, conditions, and relationships between settings can be added when an actual ruleset requires them. There is no need for a general expression language initially. New operators require evaluator code; a new ruleset using existing operators does not.
+
+Evaluate the final concrete patch configuration, after inherited seed values, temporary Gameplay adjustments, and presentation/control preferences are resolved. A customization operation resulting in the same effective value is not itself a violation. Produce structured findings identifying the setting, constraint, expected value or allowed/disallowed set, and actual value. Preserve generation compatibility findings and racing findings as distinct results.
+
+Capture the applied ruleset definition and interpretation version with the seed, rather than referring only to the latest definition of a named ruleset. Later changes to a race's rules must not reinterpret existing seeds. Public ruleset metadata follows the same restrictions on arbitrary user text as the rest of the public seed representation.
+
+Conformance evaluation does not choose enforcement. Future behavior could reject nonconforming customization, permit it with an in-game indication on the title screen and/or menu, or use another explicitly selected policy. No enforcement policy is selected yet. Keep the final status available to whichever layer implements that policy; the patcher need not implement the generic evaluator or consume the full generation configuration merely to apply an indication. Full ruleset enforcement and in-game marking are deferred.
+
+```text
+seed's relevant gameplay values + temporary adjustments + presentation/control preferences
+  -> effective patch settings
+  -> generation compatibility findings and racing conformance findings
+  -> enforcement decision
+  -> narrow patch inputs and any required status indication
+```
 
 ## Scope of future implementation
 
-Implementation must reach the master definitions and stable key adapter; the root-only preset model; draft/browser storage and preset import/export; generation requests and responses; shared Rust ingestion and CLI defaults; typed settings conversion and generator consumers; and frozen seed construction/inspection. Cosmetic settings need the same boundary decisions where applicable, while their separation from generation settings remains intact.
+Implementation must reach the master definitions and stable key adapter; the root-only preset model; draft/browser storage and preset import/export; generation requests and responses; shared Rust ingestion and CLI defaults; typed settings conversion and generator consumers; and frozen seed construction/inspection. Customization work must distinguish saved presentation/control preferences from temporary Gameplay adjustments, project narrow patch inputs through the shared annotation, and retain compatibility with the seed's original interpretation. The design must leave room for captured declarative racing constraints without requiring their full implementation now.
 
-The immediate next design work is to settle authored master assembly, handwritten versus generated Rust types, the two mapping boundaries, the location and sharing of migration/resolution code, the reserved JSON syntax, and live/frozen envelope versioning. Exact UI operations, parentless presets, private sub-presets, user inheritance chains, recursive freezing operations, and richer historical notices are deferred. Do not implement those extensions merely to preserve flexibility.
+The immediate next design work is to settle authored master assembly, handwritten versus generated Rust types, the two mapping boundaries, the location and sharing of migration/resolution code, the customization annotation and compatibility relationships, the remaining key vocabulary, and live/frozen envelope versioning. Other exact UI operations, parentless presets, private sub-presets, user inheritance chains, recursive freezing operations, richer historical notices, and racing enforcement/marking are deferred. Do not implement those extensions merely to preserve flexibility.
