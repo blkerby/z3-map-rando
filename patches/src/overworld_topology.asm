@@ -86,6 +86,10 @@ PreparePhysicalCameraIndices:
 
 InitializePhysicalSpriteOrigin:
     PHP
+    SEP #$20
+    LDA.w $040A
+    AND.b #$40
+    STA.l !OverworldSpriteWorld
     REP #$30
     PHX
     LDA.w $040A

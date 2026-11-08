@@ -11,6 +11,9 @@ endmacro
 ; $08 past mushroom, $04 shovel, $02 inactive ocarina, $01 active ocarina.
 !InventoryTracking = $7EF38C
 
+; World of the loaded overworld sprite set, retained until its replacement.
+!OverworldSpriteWorld = $7FF18B
+
 ; Items for the vanilla thrown-gift sprites, whose subtype remains unchanged.
 %export_symbol(CatfishItem, catfish_item, $B08040)
 %export_symbol(KingZoraItem, king_zora_item, $B08041)

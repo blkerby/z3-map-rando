@@ -439,7 +439,7 @@ ReadHeartItem:
     TAX
     PLA
     LDA.l !SlotToArea,X
-    ORA.l $7EF3CA
+    ORA.l !OverworldSpriteWorld
 .find_screen
     LDX.b #$09
 .next_screen
