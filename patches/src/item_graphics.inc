@@ -43,11 +43,15 @@ hook_convert_item_graphics:
     JML RecordItemGraphics
     NOP #2
 
-; Run after the vanilla item upload. Entry is A8/X16/Y16 with DB=$00.
-org $808B22
+; Run even when $0710 skips ordinary graphics DMA, before CGRAM and OAM.
+; Entry is A8/X16/Y16 with DB=$00.
+org $808B87
 hook_upload_heart_pickup:
-    JSL UploadHeartPickup
-    NOP #2
+    JML UploadHeartPickup
+org $808B8B
+return_upload_pickup_before_cgram:
+org $808BAA
+return_upload_pickup_before_oam:
 
 org $85EE78
 hook_draw_mushroom_item:
@@ -131,7 +135,6 @@ RecordItemGraphics:
     JML $80D555
 
 UploadHeartPickup:
-    STA.w $420B ; Run hi-jacked instruction: finish the native item DMA first.
     PHP
     PHX
     PHY
@@ -163,8 +166,14 @@ UploadHeartPickup:
     PLY
     PLX
     PLP
-    LDA.w $0AF4 ; Run hi-jacked instruction
-    RTL
+
+    ; Run hi-jacked instructions:
+    LDA.b $15
+    BEQ .skip_cgram
+
+    JML return_upload_pickup_before_cgram
+.skip_cgram
+    JML return_upload_pickup_before_oam
 
 ; Resolve the next tier before comparing cached artwork. Previewing never grants.
 SelectPickupReceipt:
@@ -578,6 +587,18 @@ DrawHeartPieceItem:
     LDA.b ($90),Y
     CMP.b #$F0
     BEQ .done
+    ; Offscreen sprites must not replace the visible pickup's shared tiles.
+    CLC
+    ADC.b #$10
+    CMP.b #$F0
+    BCS .done
+    REP #$20
+    LDA.b $00
+    CLC
+    ADC.w #$000F
+    CMP.w #$010F
+    SEP #$20
+    BCS .done
     JSL ReadHeartItem
     JSL SelectPickupReceipt
     JSL PrepareHeartPickupGraphics

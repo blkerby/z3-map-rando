@@ -425,6 +425,22 @@ ReadHeartItem:
     BRA .finish
 .outdoors
     LDA.b $8A
+    CMP.b #$80
+    BCS .find_screen
+    ; The outgoing sprite stays in its physical room after $8A changes.
+    LDA.w $0D20,X
+    AND.b #$0E
+    ASL A
+    ASL A
+    PHA
+    LDA.w $0D30,X
+    LSR A
+    ORA $01,s
+    TAX
+    PLA
+    LDA.l !SlotToArea,X
+    ORA.l $7EF3CA
+.find_screen
     LDX.b #$09
 .next_screen
     CMP.l HeartItemScreens,X
