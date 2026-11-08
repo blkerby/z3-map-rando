@@ -126,6 +126,28 @@ pub(crate) fn apply_topology(
         }
     }
 
+    // Gravestone activation and animation positions follow the cemetery.
+    let anchor = anchors[0x14];
+    let dx = (i16::from(anchor % 8) - 4) * 512;
+    let dy = (i16::from(anchor / 8) - 2) * 512;
+    for (address, count, delta) in [
+        (0x899926, 8, dy),
+        (0x899936, 15, dx),
+        (0x899954, 15, dy),
+        (0x899972, 15, dx),
+    ] {
+        for index in 0..count {
+            let address = address + index * 2;
+            context.write(
+                SnesAddr(address).into(),
+                read_word(address)
+                    .wrapping_add_signed(delta)
+                    .to_le_bytes()
+                    .to_vec(),
+            )?;
+        }
+    }
+
     // Outdoor trigger positions and the seven sets of Mode 7 objective markers.
     // The first waterfall trigger is indoors and the last follower trigger is
     // inside the special Master Sword grove; their coordinate spaces stay fixed.
