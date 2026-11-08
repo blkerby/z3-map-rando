@@ -32,7 +32,10 @@ $A0F000-$A0F03F new_game.asm (reserved for initial game state)
 $A0F040-$A0F05F mothula_sword.asm (reserved for sword damage selection)
 $A0F060-$A0F0FF item_inventory.asm (reserved for shared-slot ownership tracking)
 $A0F100-$A0F1FF item_menu_toggle.asm (reserved for Y-button item switching)
-$A0F200-$A0FFFF [FREE]
+$A0F200-$A0F3FF overworld_topology.asm (reserved for physical area origins)
+$A0F400-$A0F4FF overworld_world_map.asm (reserved for world map loading)
+$A0F500-$A0F57F world_state.asm (reserved for death recovery and loaded world context)
+$A0F580-$A0FFFF [FREE]
 
 Bank $A1
 $A18000-$A1FFFF top-left Map16 definition words

@@ -88,6 +88,7 @@ pub struct PatchIps {
     pub overworld_vram: Ips,
     pub overworld_world_map: Ips,
     pub rom_size: Ips,
+    pub world_state: Ips,
 }
 
 /// Exported ASM interface consumed by Rust. Addresses are SNES addresses,
