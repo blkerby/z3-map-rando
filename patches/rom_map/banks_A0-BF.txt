@@ -3,8 +3,8 @@ $A08000-$A0800F overworld_map16_properties.asm (overworld-only shallow-water spr
 $A08010-$A0803F [FREE]
 $A08040-$A08057 fastrom_extra.asm (FastROM startup and NMI entry)
 $A08058-$A0807F [FREE]
-$A08080-$A080FD mirror_bg1_hdma.asm (independent BG1 mirror-wave HDMA table)
-$A080FE-$A0817F [FREE]
+$A08080-$A0811B mirror_bg1_hdma.asm (independent BG1 mirror-wave HDMA table and completion check)
+$A0811C-$A0817F [FREE]
 $A08180-$A0830E bg3_tilemap.asm (BG3 layout and row streaming)
 $A0830F-$A0837F [FREE]
 $A08380-$A08395 nmi_optimize.asm (conditional OAM upload)

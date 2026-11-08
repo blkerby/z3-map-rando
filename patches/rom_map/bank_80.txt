@@ -28,3 +28,4 @@ $80DACD-$80DAD0 overworld_bg_tilemaps.asm (defer Agahnim-warp destination subscr
 $80E1F0-$80E1F5 overworld_assets.asm (skip generated area graphics)
 $80E259-$80E25D overworld_vram.asm (dynamic background-graphics destination)
 $80F861-$80F864 overworld_bg_tilemaps.asm (finalize generated BG1 scroll during interfaces)
+$80FF7C-$80FF7F mirror_bg1_hdma.asm (require all four mirror-wave tail samples to match the base scroll)
