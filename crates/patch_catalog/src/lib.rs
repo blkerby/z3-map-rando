@@ -64,6 +64,7 @@ pub struct Ips {
 #[serde(deny_unknown_fields)]
 pub struct PatchIps {
     pub bg3_tilemap: Ips,
+    pub disable_quickwarp: Ips,
     pub fastrom_base: Ips,
     pub fastrom_extra: Ips,
     pub item_inventory: Ips,
