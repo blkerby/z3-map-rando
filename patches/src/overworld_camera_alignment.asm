@@ -270,10 +270,24 @@ ApplyOverworldCameraAlignment:
 
     CPX.w #$0006
     BEQ .delta_y
-    LDX.w #$0001
-    BRA .store_delta
+    LDX.w #$0004
+    BRA .shift_triggers
 .delta_y
     LDX.w #$0000
+.shift_triggers
+    ; Keep the follow point fixed on screen when the camera is aligned.
+    LDA.w $0618,X
+    CLC
+    ADC.b $04
+    STA.w $0618,X
+    LDA.w $061A,X
+    CLC
+    ADC.b $04
+    STA.w $061A,X
+
+    CPX.w #$0000
+    BEQ .store_delta
+    LDX.w #$0001
 .store_delta
     SEP #$20
     LDA.b $04
