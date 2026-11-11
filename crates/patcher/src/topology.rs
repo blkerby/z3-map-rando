@@ -221,6 +221,22 @@ pub(crate) fn apply_topology(
                 .to_vec(),
         )?;
     }
+    // All bat waypoints follow the Pyramid, including those outside its bounds.
+    let anchor = anchors[0x1b];
+    let dx = (i16::from(anchor % 8) - 3) * 512;
+    let dy = (i16::from(anchor / 8) - 3) * 512;
+    for (address, delta) in [(0x9af590, dx), (0x9af598, dy)] {
+        for index in 0..4 {
+            let address = address + index * 2;
+            context.write(
+                SnesAddr(address).into(),
+                read_word(address)
+                    .wrapping_add_signed(delta)
+                    .to_le_bytes()
+                    .to_vec(),
+            )?;
+        }
+    }
     // Separate high-byte immediates for the vane, Kiki, and Pyramid bat cutscene.
     for (address, source, vertical) in [
         (0x898d51, 0x18u8, true),

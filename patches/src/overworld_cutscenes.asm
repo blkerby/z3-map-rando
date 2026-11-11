@@ -67,6 +67,13 @@ assert pc() == $9BC2B3
 org $9BC2DD
 return_create_pyramid_hole:
 
+; The generated redraw replaces the vanilla $1000/$14 stripe upload.
+org $9BC2F4
+    BRA return_create_pyramid_hole_end
+
+org $9BC2F8
+return_create_pyramid_hole_end:
+
 ; Replace the vanilla Turtle Rock portal Map16 write with the generated layer.
 org $9BCAA1
 hook_create_turtle_rock_portal:

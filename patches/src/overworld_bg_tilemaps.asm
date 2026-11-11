@@ -667,6 +667,12 @@ org $8285B9
     NOP
 assert pc() == $8285C2
 
+; Module18_GanonEmerges queues the Pyramid hole outside ordinary gameplay.
+org $829E22
+hook_finalize_ganon_cutscene:
+    JML DrawGanonCutsceneRedraw
+assert pc() == $829E26
+
 ; Credits_LoadCoolBackground resets its overlay scroll after loading it in
 ; vanilla. Reset both live and finalized scrolls first so the ring is built at
 ; the position the scene will display.
@@ -2233,6 +2239,28 @@ BG1StreamVertical:
 
     PLP
     RTL
+
+; Flush the generated hole redraw before the cutscene hands control to DrawLink.
+; Frame-local renderer scratch $00-$0F is free; preserve registers and widths.
+DrawGanonCutsceneRedraw:
+    PHP
+    REP #$30
+    PHA
+    PHX
+    PHY
+
+    LDY.w #$0000
+    JSR AppendCutsceneRedraw
+    CPY.w #$0000
+    BEQ .done
+    JSR BGFinishList
+
+.done
+    PLY
+    PLX
+    PLA
+    PLP
+    JML $8DA18E                 ; Run hi-jacked instruction
 
 ; Append visible cutscene and live-overlay cells after both layers' edge updates.
 ; The segment emitter preserves $00/$02/$04/$0C/$0E for the window and bounds.
