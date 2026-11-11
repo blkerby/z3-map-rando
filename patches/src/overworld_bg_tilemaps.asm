@@ -3429,30 +3429,104 @@ assert PreloadAlignedTransitionEdge == !PreloadAlignedTransitionEdge
     REP #$30
     PHX
     PHY
-    LDA.b $E2
-    PHA
-    LDA.b $E8
-    PHA
     LDA.w $011E
     PHA
     LDA.w $0122
     PHA
 
-    ; Render the snap's entering edge while the source Map16 data is resident.
+    ; The bounded alignment fits the tilemap's offscreen rows/columns.
     LDY.w #$0000
     CPX.w #$0006
     BEQ .vertical
     LDA.w $011E
+    LSR A
+    LSR A
+    LSR A
+    STA.b $04
+    LDA.w $011E
     CLC
     ADC.l !TransitionCameraSnap
-    JSL BG2StreamHorizontal
+    STA.w $011E
+    LSR A
+    LSR A
+    LSR A
+    SEC
+    SBC.b $04
+    PHA
+    JSR BG2SelectRenderer
+    JSR BG2CalculateLogicalWindowOrigin
+    PLA
+    BEQ .finish
+    BMI .left
+    STA.b $04
+    LDA.b $00
+    CLC
+    ADC.w #$0021
+    SEC
+    SBC.b $04
+    AND.w #$007F
+    BRA .first_column
+.left
+    EOR.w #$FFFF
+    INC A
+    STA.b $04
+    LDA.b $00
+.first_column
+    STA.b $06
+.next_column
+    LDA.b $06
+    STA.b $0E
+    JSR BGEmitColumn
+    LDA.b $06
+    INC A
+    AND.w #$007F
+    STA.b $06
+    DEC.b $04
+    BNE .next_column
     BRA .finish
 
 .vertical
     LDA.w $0122
+    LSR A
+    LSR A
+    LSR A
+    STA.b $04
+    LDA.w $0122
     CLC
     ADC.l !TransitionCameraSnap
-    JSL BG2StreamVertical
+    STA.w $0122
+    LSR A
+    LSR A
+    LSR A
+    SEC
+    SBC.b $04
+    PHA
+    JSR BG2SelectRenderer
+    JSR BG2CalculateLogicalWindowOrigin
+    PLA
+    BEQ .finish
+    BMI .up
+    STA.b $04
+    LDA.b $02
+    CLC
+    ADC.w #$001D
+    SEC
+    SBC.b $04
+    AND.w #$007F
+    STA.b $02
+    BRA .next_row
+.up
+    EOR.w #$FFFF
+    INC A
+    STA.b $04
+.next_row
+    JSR BGEmitRow
+    INC.b $02
+    LDA.b $02
+    AND.w #$007F
+    STA.b $02
+    DEC.b $04
+    BNE .next_row
 
 .finish
     CPY.w #$0000
@@ -3464,10 +3538,6 @@ assert PreloadAlignedTransitionEdge == !PreloadAlignedTransitionEdge
     STA.w $0122
     PLA
     STA.w $011E
-    PLA
-    STA.b $E8
-    PLA
-    STA.b $E2
     PLY
     PLX
     PLP

@@ -1,4 +1,4 @@
-; Align the source camera before destination setup replaces its Map16 data.
+; Preload source tiles, prepare the destination, then align before main scrolling.
 lorom
 incsrc "symbols.inc"
 
@@ -13,10 +13,14 @@ org $82A932
 hook_prepare_overworld_transition:
     JML PrepareAlignedOverworldTransition
 
-; Ordinary transitions skip phase $05; use it to hold source-side alignment.
+; Ordinary transitions skip phase $05; use it to wait for source-side preloading.
 ; Mosaic phase $13 still dispatches to vanilla StartOverworldScrollTransition.
 org $82A30E
-    dw hook_align_overworld_transition
+    dw hook_preload_overworld_transition
+
+org $82AAD9
+hook_run_overworld_transition_scroll:
+    JML RunAlignedOverworldScroll
 
 ; OverworldScrollTransition has already saved DB and selected bank $82.
 ; Preserve X/Y and widths, then run its displaced frame counter/direction load.
@@ -27,8 +31,8 @@ hook_begin_overworld_transition_scroll:
     NOP
 
 org !free_space_bank_82_start
-hook_align_overworld_transition:
-    JML AlignOverworldTransitionCamera
+hook_preload_overworld_transition:
+    JML PreloadOverworldTransitionCamera
 assert pc() <= !free_space_bank_82_end
 
 org !free_space_bank_a0_start
@@ -91,13 +95,13 @@ PrepareAlignedOverworldTransition:
     CLC
     ADC.b $04
     CMP.b $E2,X
-    BCC .align
+    BCC .prepare
     LDA.b $04
     CMP.b $E2,X
-    BCC .ready
-    BEQ .ready
+    BCS .prepare
+    LDA.b $E2,X
 
-.align
+.prepare
     STA.l !TransitionCameraTarget
     PLY
     PLX
@@ -106,7 +110,7 @@ PrepareAlignedOverworldTransition:
     SEP #$30
     LDA.b #$05
     STA.b $11
-    JML AlignOverworldTransitionCamera
+    JML PreloadOverworldTransitionCamera
 
 .ready
     PLY
@@ -119,7 +123,7 @@ PrepareAlignedOverworldTransition:
 
     JML $82A936
 
-AlignOverworldTransitionCamera:
+PreloadOverworldTransitionCamera:
     REP #$30
     LDX.w #$0000
     LDA.w $0418
@@ -127,61 +131,18 @@ AlignOverworldTransitionCamera:
     BCS .have_axis
     LDX.w #$0006
 .have_axis
-    ; Finish this frame's player-driven camera movement before aligning.
-    CPX.w #$0006
-    BEQ .check_delta_y
-    LDA.l !BackgroundDeltaX
-    BRA .check_delta
-.check_delta_y
+    ; Finish both source-camera axes before changing the active room identity.
     LDA.l !BackgroundDeltaY
-.check_delta
-    AND.w #$00FF
     BNE .wait
 
     LDA.l !TransitionCameraTarget
     SEC
     SBC.b $E2,X
-    BPL .positive
-    CMP.w #$FFF8
-    BCS .ready
-    LDA.w #$FFF8
-    BRA .move
-.positive
-    CMP.w #$0009
-    BCC .ready
-    LDA.w #$0008
-.move
-    STA.b $04
-    CLC
-    ADC.b $E2,X
-    STA.b $E2,X
-    LDA.b $E0,X
-    CLC
-    ADC.b $04
-    STA.b $E0,X
-
-    CPX.w #$0006
-    BEQ .delta_y
-    LDX.w #$0001
-    BRA .store_delta
-.delta_y
-    LDX.w #$0000
-.store_delta
-    SEP #$20
-    LDA.b $04
-    STA.l !BackgroundDeltaY,X
-    STA.w $069E,X
-.wait
-    SEP #$30
-    JML $82A929                 ; Return through the transition handler's RTS.
-
-.ready
     STA.l !TransitionCameraSnap
+    BEQ .begin_setup
     LDA.b $18
     AND.w #$00FF
     BNE .wait                  ; Finish any queued source stripe before preloading.
-    LDA.l !TransitionCameraSnap
-    BEQ .begin_setup
     JSL !PreloadAlignedTransitionEdge
 .begin_setup
     REP #$30
@@ -195,6 +156,58 @@ AlignOverworldTransitionCamera:
     STY.b $02
     STZ.b $03
     JML $82A936                 ; Begin vanilla setup with the source still active.
+
+.wait
+    SEP #$30
+    JML $82A929                 ; Return through the transition handler's RTS.
+
+RunAlignedOverworldScroll:
+    JSL $87E68F                 ; Run hi-jacked instruction
+
+    PHP
+    REP #$30
+    PHX
+    LDA.b $11
+    AND.w #$00FF
+    CMP.w #$0006
+    BNE .scroll
+    LDA.w $0126
+    AND.w #$00FF
+    BNE .scroll
+    LDA.l !TransitionCameraSnap
+    BPL .positive
+    CMP.w #$FFF8
+    BCS .scroll
+    LDA.w #$FFF8
+    BRA .align
+.positive
+    CMP.w #$0009
+    BCC .scroll
+    LDA.w #$0008
+.align
+    STA.b $04
+    LDA.l !TransitionCameraSnap
+    SEC
+    SBC.b $04
+    STA.l !TransitionCameraSnap
+
+    LDX.w #$0000
+    LDA.w $0418
+    AND.w #$00FF
+    CMP.w #$0002
+    BCC .have_axis
+    LDX.w #$0006
+.have_axis
+    LDA.b $04
+    JSR ApplyOverworldCameraAlignment
+    PLX
+    PLP
+    JML $82A929                 ; Hold the main scroll counter and asset schedule.
+
+.scroll
+    PLX
+    PLP
+    JML $82AADD
 
 SnapAlignedOverworldCamera:
     PHP
@@ -217,12 +230,28 @@ SnapAlignedOverworldCamera:
     BCC .have_axis
     LDX.w #$0006
 .have_axis
+    LDA.l !TransitionCameraSnap
+    JSR ApplyOverworldCameraAlignment
+.done
+    PLX
+    PLP
+
+    ; Run hi-jacked instructions:
+    INC.w $0126
+    LDA.w $0418
+
+    RTL
+
+; A is the signed delta; X selects horizontal (0) or vertical (6). A/X/Y are
+; 16-bit. Clobbers A/X and $04; preserves Y and register widths.
+ApplyOverworldCameraAlignment:
+    STA.b $04
     LDA.b $E2,X
     CLC
-    ADC.l !TransitionCameraSnap
+    ADC.b $04
     STA.b $E2,X
 
-    ; The source strip was preloaded before setup; only stream the main axis.
+    ; The source strips are already resident; suppress destination-map streaming.
     CPX.w #$0006
     BEQ .finalize_y
     CLC
@@ -236,7 +265,7 @@ SnapAlignedOverworldCamera:
 .finalized
     LDA.b $E0,X
     CLC
-    ADC.l !TransitionCameraSnap
+    ADC.b $04
     STA.b $E0,X
 
     CPX.w #$0006
@@ -247,16 +276,9 @@ SnapAlignedOverworldCamera:
     LDX.w #$0000
 .store_delta
     SEP #$20
-    LDA.l !TransitionCameraSnap
+    LDA.b $04
     STA.l !BackgroundDeltaY,X
     STA.w $069E,X
-.done
-    PLX
-    PLP
-
-    ; Run hi-jacked instructions:
-    INC.w $0126
-    LDA.w $0418
-
-    RTL
+    REP #$20
+    RTS
 assert pc() <= !free_space_bank_a0_end
