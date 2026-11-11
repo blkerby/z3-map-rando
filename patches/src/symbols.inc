@@ -126,3 +126,13 @@ endmacro
 !CutsceneRedrawMaxX = $7ECC87
 !CutsceneRedrawMinY = $7ECC89
 !CutsceneRedrawMaxY = $7ECC8B
+
+; Perpendicular target and remaining first-scroll-frame delta.
+!TransitionCameraTarget = $7ECC8D
+!TransitionCameraSnap = $7ECC8F
+!BackgroundDeltaY = $7ECC7B
+!BackgroundDeltaX = $7ECC7C
+
+; Preload the source BG2 edge for TransitionCameraSnap. X is the camera-axis
+; offset (0 for X, 6 for Y); A/X/Y are 16-bit, X/Y are preserved.
+!PreloadAlignedTransitionEdge = $A09800

@@ -42,8 +42,6 @@ incsrc "symbols.inc"
 !BackgroundSettings = $7ECC72
 !BackgroundPositionX = $7ECC77
 !BackgroundPositionY = $7ECC79
-!BackgroundDeltaY = $7ECC7B
-!BackgroundDeltaX = $7ECC7C
 !MirrorFixedColor = $7EC90E
 
 ; Overworld_OperateCameraScroll
@@ -2024,6 +2022,50 @@ BG2StreamVertical:
     JSR BGStreamVerticalEdge
 
 .done
+    LDA.l !TransitionCameraSnap
+    BEQ .return
+    LDA.b $11
+    AND.w #$00FF
+    CMP.w #$0006
+    BNE .return
+    LDA.w $0126
+    AND.w #$00FF
+    CMP.w #$0001
+    BNE .return
+
+    ; East/south already seeded a destination margin at the old perpendicular
+    ; position. Refresh it at the snapped position beside this frame's new edge.
+    LDA.w $0418
+    AND.w #$00FF
+    CMP.w #$0001
+    BEQ .seed_south
+    CMP.w #$0003
+    BNE .clear_snap
+    JSR BG2SelectRenderer
+    JSR BG2CalculateLogicalWindowOrigin
+    LDA.b $00
+    CLC
+    ADC.w #$001F
+    AND.w #$007F
+    STA.b $06
+    STA.b $0E
+    JSR BGEmitColumn
+    BRA .clear_snap
+
+.seed_south
+    JSR BG2SelectRenderer
+    JSR BG2CalculateLogicalWindowOrigin
+    LDA.b $02
+    CLC
+    ADC.w #$001B
+    AND.w #$007F
+    STA.b $02
+    JSR BGEmitRow
+
+.clear_snap
+    LDA.w #$0000
+    STA.l !TransitionCameraSnap
+.return
     PLX
     PLA
 
@@ -3379,4 +3421,55 @@ BG1BuildMirrorMargins:
     PLP
     RTS
 
+assert pc() <= !PreloadAlignedTransitionEdge
+org !PreloadAlignedTransitionEdge
+PreloadAlignedTransitionEdge:
+assert PreloadAlignedTransitionEdge == !PreloadAlignedTransitionEdge
+    PHP
+    REP #$30
+    PHX
+    PHY
+    LDA.b $E2
+    PHA
+    LDA.b $E8
+    PHA
+    LDA.w $011E
+    PHA
+    LDA.w $0122
+    PHA
+
+    ; Render the snap's entering edge while the source Map16 data is resident.
+    LDY.w #$0000
+    CPX.w #$0006
+    BEQ .vertical
+    LDA.w $011E
+    CLC
+    ADC.l !TransitionCameraSnap
+    JSL BG2StreamHorizontal
+    BRA .finish
+
+.vertical
+    LDA.w $0122
+    CLC
+    ADC.l !TransitionCameraSnap
+    JSL BG2StreamVertical
+
+.finish
+    CPY.w #$0000
+    BEQ .restore
+    JSR BGFinishList
+
+.restore
+    PLA
+    STA.w $0122
+    PLA
+    STA.w $011E
+    PLA
+    STA.b $E8
+    PLA
+    STA.b $E2
+    PLY
+    PLX
+    PLP
+    RTL
 assert pc() <= !free_space_bank_a0_end

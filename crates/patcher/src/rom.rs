@@ -277,6 +277,7 @@ fn prepare_retiling(
         &patches.patches.overworld_map16_properties,
         &patches.patches.bg3_tilemap,
         &patches.patches.overworld_bg_tilemaps,
+        &patches.patches.overworld_camera_alignment,
         &patches.patches.nmi_optimize,
         &patches.patches.mirror_bg1_hdma,
         &patches.patches.overworld_vram,

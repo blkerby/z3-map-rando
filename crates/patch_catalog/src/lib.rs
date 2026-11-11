@@ -78,6 +78,7 @@ pub struct PatchIps {
     pub overworld_assets: Ips,
     pub overworld_bg_color: Ips,
     pub overworld_bg_tilemaps: Ips,
+    pub overworld_camera_alignment: Ips,
     pub overworld_cutscenes: Ips,
     pub overworld_dynamic_tiles: Ips,
     pub overworld_entrances: Ips,
