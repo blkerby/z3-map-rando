@@ -176,14 +176,14 @@ RunAlignedOverworldScroll:
     BNE .scroll
     LDA.l !TransitionCameraSnap
     BPL .positive
-    CMP.w #$FFF8
+    CMP.w #$FFFE
     BCS .scroll
-    LDA.w #$FFF8
+    LDA.w #$FFFE
     BRA .align
 .positive
-    CMP.w #$0009
+    CMP.w #$0003
     BCC .scroll
-    LDA.w #$0008
+    LDA.w #$0002
 .align
     STA.b $04
     LDA.l !TransitionCameraSnap
