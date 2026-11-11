@@ -64,7 +64,7 @@ pub fn patch_rom(
     let mut output = rom.to_vec();
     let (mut patcher, _) =
         prepare_retiling(&mut output, &seed.world_layout, retiling, patches, settings)?;
-    crate::items::apply_items(&mut patcher, &seed.item_placements, patches)?;
+    crate::items::apply_items(&mut patcher, rom, &seed.item_placements, patches)?;
     patcher.apply(&mut output)?;
     output[0x7fd7] = 0x0c;
     finalize_rom(&mut output);

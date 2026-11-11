@@ -65,8 +65,25 @@ $A78342-$A78350 generated cutscene script pointer directory
 $A78351-$A784D0 generated cutscene overlay pointer directory
 $A784D1-$A9FFFF generated overworld asset metadata
 
-Banks $AA-$B7
-$AA8000-$B7FFFF generated overworld palette and character payloads
+Banks $AA-$AF
+$AA8000-$AFFFFF [FREE]
+
+Bank $B0
+$B08000-$B08159 item_placements.asm (seed-specific assigned items and prize types)
+$B0815A-$B0FFFF [FREE]
+
+Bank $B1
+$B18000-$B185C5 [FREE]
+$B185C6-$B185E1 copied vanilla dungeon masks for receipt initialization
+$B185E2-$B1891D [FREE]
+$B1891E-$B18929 copied vanilla bottle receipt/refill IDs
+$B1892A-$B19FFF [FREE]
+$B1A000-$B1A9FF item_receipt_tables.inc (eight 256-entry receipt tables; vanilla prefixes copied by patcher)
+$B1AA00-$B1C6FF item_receipt_tables.inc (128-byte item graphics entries; vanilla graphics converted by patcher)
+$B1C700-$B1FFFF [FREE]
+
+Banks $B2-$B7
+$B28000-$B7FFFF [FREE]
 
 Bank $B8
 $B88000-$B8FFFF flat Map16 submaps 0-15

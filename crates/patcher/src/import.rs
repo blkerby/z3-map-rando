@@ -910,29 +910,66 @@ impl Importer {
         })
     }
 
+    /// Convert graphics IDs $00-$38 to four 4bpp tiles in native item-buffer order.
+    pub(crate) fn read_item_graphics(&self) -> Result<Vec<u8>> {
+        let mut sheets = Vec::new();
+        for sheet in 0x5A..=0x5D {
+            sheets.push(self.read_sprite_graphics_sheet(sheet)?);
+        }
+        let mut graphics = Vec::with_capacity(0x39 * 128);
+        for id in 0..0x39 {
+            let upper_sheet = if id == 0x23 || id >= 0x37 {
+                3
+            } else if id == 0x0C || id >= 0x24 {
+                2
+            } else {
+                1
+            };
+            let offset = self.rom.read_u16((SnesAddr(0x00D4A9) + id * 2).into())? as usize;
+            for row in [0, 0x180] {
+                let mut source = offset + row;
+                for _ in 0..2 {
+                    let sheet = if source < 0x600 { 0 } else { upper_sheet };
+                    let tile = source % 0x600 / 24;
+                    graphics.extend_from_slice(&encode_4bpp_tile(&sheets[sheet][tile], true));
+                    source += 24;
+                    // The native converter skips a sprite row when the tile pair wraps.
+                    if source & 0x78 == 0 {
+                        source += 0x180;
+                    }
+                }
+            }
+        }
+        Ok(graphics)
+    }
+
+    fn read_sprite_graphics_sheet(&self, sheet: u8) -> Result<Vec<[[u8; 8]; 8]>> {
+        let bank = self
+            .rom
+            .read_u8((self.constants.sprite_gfx_bank_addr + u32::from(sheet)).into())?;
+        let high = self
+            .rom
+            .read_u8((self.constants.sprite_gfx_high_addr + u32::from(sheet)).into())?;
+        let low = self
+            .rom
+            .read_u8((self.constants.sprite_gfx_low_addr + u32::from(sheet)).into())?;
+        let data = decompress(
+            &self.rom,
+            SnesAddr::from_bytes(bank, high, low).into(),
+            false,
+        )?;
+        ensure!(
+            data.len() == 0x600,
+            "unexpected sprite graphics sheet {sheet:02X} length: {}",
+            data.len()
+        );
+        Ok(decode_3bpp_tiles(&data))
+    }
+
     fn sprite_sheet_rows(&mut self, sheet: u8) -> Result<&Vec<[u8; 512]>> {
         if !self.sprite_character_rows.contains_key(&sheet) {
-            let bank = self
-                .rom
-                .read_u8((self.constants.sprite_gfx_bank_addr + u32::from(sheet)).into())?;
-            let high = self
-                .rom
-                .read_u8((self.constants.sprite_gfx_high_addr + u32::from(sheet)).into())?;
-            let low = self
-                .rom
-                .read_u8((self.constants.sprite_gfx_low_addr + u32::from(sheet)).into())?;
-            let data = decompress(
-                &self.rom,
-                SnesAddr::from_bytes(bank, high, low).into(),
-                false,
-            )?;
-            ensure!(
-                data.len() == 0x600,
-                "unexpected sprite graphics sheet {sheet:02X} length: {}",
-                data.len()
-            );
+            let tiles = self.read_sprite_graphics_sheet(sheet)?;
             let right_palette = matches!(sheet, 0x52 | 0x53 | 0x5a | 0x5b | 0x5c | 0x5e | 0x5f);
-            let tiles = decode_3bpp_tiles(&data);
             let mut rows = Vec::with_capacity(4);
             for tiles in tiles.chunks_exact(16) {
                 let mut row = [0; 512];

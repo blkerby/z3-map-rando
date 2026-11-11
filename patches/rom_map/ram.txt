@@ -21,4 +21,7 @@ $7ECC7B-$7ECC7C overworld_bg_tilemaps.asm (independent signed-byte BG1 Y/X camer
 $7ECC7D-$7ECC81 overworld_cutscenes.asm (script cursor, wait counter, and shake state)
 $7ECC82-$7ECC82 overworld_bg_tilemaps.asm (displayed OBJ palettes 0-3 rain mode)
 $7EF38C-$7EF38C item_inventory.asm, item_menu_toggle.asm (ALTTPR-compatible saved ownership: blue/red boomerang, current mushroom, powder, past mushroom, shovel, inactive/active ocarina)
+$7FF180-$7FF18A item_placements.asm (pickup graphics cache metadata)
 $7FF18B-$7FF18B overworld_topology.asm, item_placements.asm (world of the currently loaded overworld sprite set)
+$7FF200-$7FF27F item_placements.asm (heart-piece carrier graphics)
+$7FF280-$7FF2FF item_placements.asm (saved dynamic item graphics during heart-piece preparation)

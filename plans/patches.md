@@ -123,6 +123,12 @@ The builder packages the typed manifest alongside the assembled IPS bytes. The s
 - `fastrom_base.asm` mechanically converts vanilla ROM accesses to their FastROM mirrors
 - `fastrom_extra.asm` enables FastROM and contains the related startup, NMI, title-screen timing, processor-bank, processor-flag, and credits-loading fixes that are not mechanical address conversions.
 
+### Item receipts and graphics
+
+The unified item receipt tables reserve 256 entries per property in bank `$B1`, starting at the exported `ItemReceiptTables` address `$B1A000`. The patcher copies the eight vanilla table prefixes from the verified input ROM, and ASM writes Half Magic's `$4E` entries. The initializer uses the receipt-table bank and reads mirrors of the vanilla dungeon-mask and bottle lookup data at matching bank-local offsets. Other constructors and receipt animation use their native data banks and access the expanded tables through long addresses.
+
+Item graphics use a fixed 128-byte 4bpp ROM array at the exported `ItemGraphics` address `$B1AA00`, indexed by graphics ID. The patcher converts vanilla graphics IDs `$00-$38` from the input ROM, and ASM supplies the Half Magic artwork at `$39`. Both native item-loading entry points use the shared array loader, including animated rupee frames.
+
 ### Overworld map and gameplay
 
 - `mothula_sword.asm` gives L4 the same damage as L3 against Mothula: 8 HP for slashes/dashes, 4 HP for pokes, and zero for spins.

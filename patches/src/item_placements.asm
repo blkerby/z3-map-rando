@@ -5,7 +5,7 @@
 ;
 ; Receipt hooks enter with 8-bit A/X/Y. Helpers preserve X unless the displaced
 ; vanilla receipt already clobbers it; no direct-page scratch is introduced.
-; $7EF3D4-$7EF3D8 are unused bytes in the vanilla saved-game block.
+; $7EF3D4-$7EF3D7 are unused bytes in the vanilla saved-game block.
 
 lorom
 incsrc "symbols.inc"
@@ -15,7 +15,6 @@ incsrc "symbols.inc"
 !NpcFlags = $7EF3D4
 !EventFlags = $7EF3D5
 !SmithSword = $7EF3D7
-!HalfMagicReceipt = $7EF3D8
 
 ; Source itemAddress slots reserved for the non-chest item tables.
 !CaveItems = $B08000
@@ -187,14 +186,32 @@ org $88C3DF
     CMP.b #$FF
 org $88C434
     CMP.b #$FF
-org $898497
-    db $05 ; Use normal sword OAM properties instead of pedestal-specific ones.
 
-; HalfMagic uses the small magic receipt artwork and its vanilla Bat message,
-; but must not perform the small magic refill at the end of that animation.
-org $88C4E6
-hook_finish_magic_receipt:
-    JML FinishMagicReceipt
+org $8799F7
+hook_initialize_item_receipt:
+    JSL BeginItemReceipt
+org $8985E5
+return_allocate_receipt_sprite:
+
+org $88C5E5
+hook_read_receipt_message:
+    JSL ReadReceiptMessage
+    NOP #2
+
+org $898A36
+hook_select_tossed_item_graphics:
+    JSL ReadReceiptGraphics
+    NOP
+org $898AE9
+hook_select_donation_graphics:
+    JSL ReadReceiptGraphics
+    NOP
+org $898BCD
+hook_select_falling_item_graphics:
+    JSL ReadReceiptGraphics
+    NOP
+
+incsrc "item_receipt_tables.inc"
 
 org !free_space_bank_a0_start
 
@@ -625,19 +642,6 @@ GrantAssignedItem:
     BNE .not_master_sword
     LDY.b #$01
 .not_master_sword
-    CPY.b #$4E
-    BNE GrantNativeItem
-    LDA.b #$01
-    STA.l $7EF37B
-    STA.l !HalfMagicReceipt
-    LDY.b #$45
-    JSL GrantNativeItem
-    LDA.b #$0F
-    LDY.b #$01
-    JSL $85E219
-    CLC
-    RTL
-
 GrantNativeItem:
     ; Run hi-jacked instructions. PHK at the relocated address would select
     ; bank $A0, so load the original table bank explicitly instead.
@@ -647,6 +651,38 @@ GrantNativeItem:
     PLB
     LDA.b $4D
     JML $8799A2
+
+; Receipt initialization uses the receipt-table bank. Its native exit
+; restores the saved DB before returning to the caller.
+BeginItemReceipt:
+    ; Run hi-jacked instructions. Select the table bank instead of PHK.
+    PHB
+    PHA
+    LDA.b #!ItemReceiptTables>>16
+    PHA
+    PLB
+    PLA
+
+    JML return_allocate_receipt_sprite
+
+; Other constructors use DB=$89 for their own tables. Preserve X/Y/DB and
+; scratch except the displaced graphics-ID store. Entry is A8/X8/Y8.
+ReadReceiptGraphics:
+    PHX
+    TYX
+    LDA.l ItemReceiptGraphics,X ; Run hi-jacked instruction
+    PLX
+    STA.b $72 ; Run hi-jacked instruction
+    RTL
+
+; Entry is A16/X8/Y8, with Y already holding twice the receipt ID.
+ReadReceiptMessage:
+    PHX
+    TYX
+    LDA.l ItemReceiptMessages,X ; Run hi-jacked instruction
+    PLX
+    CMP.w #$FFFF ; Run hi-jacked instruction
+    RTL
 
 ; Resolve without granting so previews and collection select the same tier.
 ; Entry is A8/X8/Y8. Preserve X/Y/DB and leave direct-page scratch untouched.
@@ -714,21 +750,6 @@ ProgressiveGloveReceipts:
     db $1B,$1C,$1C
 ProgressiveBoomerangReceipts:
     db $0C,$2A,$2A
-
-FinishMagicReceipt:
-    CMP.b #$45 ; Run hi-jacked instruction
-    BNE .not_magic
-    LDA.l !HalfMagicReceipt
-    BEQ .refill
-    LDA.b #$00
-    STA.l !HalfMagicReceipt
-    LDA.b #$45
-    JML $88C4F7
-.refill
-    LDA.b #$45
-    JML $88C4EA
-.not_magic
-    JML $88C4F7
 
 incsrc "item_graphics.inc"
 

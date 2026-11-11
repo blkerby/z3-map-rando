@@ -136,3 +136,8 @@ endmacro
 ; Preload the source BG2 strips for TransitionCameraSnap. X is the camera-axis
 ; offset (0 for X, 6 for Y); A/X/Y are 16-bit, X/Y are preserved.
 !PreloadAlignedTransitionEdge = $A09800
+
+; Unified receipt tables, including room for all 256 receipt IDs.
+%export_symbol(ItemReceiptTables, item_receipt_tables, $B1A000)
+!ItemReceiptValues = !ItemReceiptTables+$700
+%export_symbol(ItemGraphics, item_graphics, $B1AA00)

@@ -4,10 +4,9 @@
 ; No equipment/follower slots are borrowed. Native receipt IDs and carrier
 ; subtypes stay unchanged; only their displayed artwork is selected here.
 ;
-; $7FF180-$7FF47F lies in documented free WRAM. The heart-piece buffer holds
+; $7FF180-$7FF2FF lies in documented free WRAM. The heart-piece buffer holds
 ; four 4bpp tiles; a second buffer preserves the shared item image while loading
-; a heart-piece preview. Three cached rupee frames avoid decompressing their
-; sheets repeatedly during animation. Narrow images have transparent right tiles.
+; a heart-piece preview. Narrow images have transparent right tiles.
 
 !PickupReceipt = $7FF180
 !LoadedPickupGfx = $7FF181
@@ -16,13 +15,11 @@
 !HeartPickupValid = $7FF184
 !DrawHeartPickup = $7FF185
 !DrawAssignedMilestone = $7FF186
-!RupeeGraphicsValid = $7FF187
 !LoadedPickupReceipt = $7FF188
 !PickupPreviewValid = $7FF189
 !HeartPickupReceipt = $7FF18A
 !HeartPickupBuffer = $7FF200
 !SavedItemBuffer = $7FF280
-!RupeeGraphicsBuffer = $7FF300
 ItemGraphicsCodeStart:
 
 ; ClearOAMBuffer's loop returns to its second instruction, so keep that routine
@@ -36,12 +33,13 @@ hook_initialize_pickup_graphics:
     JML InitializePickupGraphics
     NOP
 
-; Both the decompression loader and the receipt's rupee animation enter this
-; converter. Recording every write makes previews reload after native receipts.
-org $80D54F
-hook_convert_item_graphics:
-    JML RecordItemGraphics
-    NOP #2
+org $80D52D
+hook_load_item_graphics:
+    JML LoadItemGraphics
+
+org $80D51B
+hook_load_rupee_frame:
+    JML LoadItemGraphics
 
 ; Run even when $0710 skips ordinary graphics DMA, before CGRAM and OAM.
 ; Entry is A8/X16/Y16 with DB=$00.
@@ -110,7 +108,6 @@ InitializePickupGraphics:
     STA.l !PickupGfxValid
     STA.l !HeartPickupValid
     STA.l !DrawHeartPickup
-    STA.l !RupeeGraphicsValid
     STA.l !PickupPreviewValid
     ; Run hi-jacked instructions. PHK must select the original table bank.
     PHB
@@ -120,19 +117,46 @@ InitializePickupGraphics:
     LDA.b #$80
     JML $80E315
 
-RecordItemGraphics:
-    PLA ; Run hi-jacked instruction
+; Entry is A8/X8/Y8. Preserve X/Y/DB/P and direct-page scratch.
+; Every graphics ID selects one 128-byte ROM entry, including rupee frames.
+LoadItemGraphics:
+    PHP
+    PHB
+    PHX
+    PHY
     STA.l !LoadedPickupGfx
+    REP #$30
+    AND.w #$00FF
+    XBA
+    LSR A
+    CLC
+    ADC.w #!ItemGraphics&$FFFF
+    TAY
+    SEP #$20
+    LDA.b #!ItemGraphics>>16
     PHA
+    PLB
+    REP #$20
+    LDX.w #$0000
+.copy
+    LDA.w $0000,Y
+    STA.l $7EBD40,X
+    INY
+    INY
+    INX
+    INX
+    CPX.w #$0080
+    BCC .copy
+    SEP #$30
     LDA.b #$01
     STA.l !PickupGfxValid
     LDA.b #$00
     STA.l !PickupPreviewValid
-    PLA
-    ; Run hi-jacked instructions:
-    REP #$21
-    AND.w #$00FF
-    JML $80D555
+    PLY
+    PLX
+    PLB
+    PLP
+    RTL
 
 UploadHeartPickup:
     PHP
@@ -184,16 +208,13 @@ SelectPickupReceipt:
 +   CMP.b #$49
     BNE +
     LDA.b #$00 ; Use the Fighter Sword preview's common palette and color remap.
-+   CMP.b #$4E
-    BNE +
-    LDA.b #$45
 +   STA.l !PickupReceipt
     RTL
 
 ReadPickupGraphics:
     LDA.l !PickupReceipt
     TAX
-    LDA.l $8983FE,X
+    LDA.l ItemReceiptGraphics,X
     CMP.b #$24
     BNE .done
     LDA.b $1A
@@ -220,7 +241,7 @@ ReadPickupPalette:
     LDA.l PickupEquipmentPalettes,X
     BRA .done
 .native
-    LDA.l $898496,X
+    LDA.l ItemReceiptPalettes,X
 .done
     PLX
     RTL
@@ -240,12 +261,10 @@ PickupEquipmentColors:
     db $00,$01,$02,$03,$04,$05,$02,$03 ; Fire Shield
     db $00,$01,$02,$03,$01,$05,$06,$07 ; Mirror Shield
 
-; The loader changes A/X/Y/DB and direct-page $00-$0F/$BD-$BE/$C8-$CD. Preserve the
-; caller's coordinates, OAM pointers, and scratch; decompression runs only when
-; the requested image differs from the current cache (including rupee frames).
+; Preserve the caller's coordinates and scratch used by equipment color remapping.
+; Artwork reloads when its receipt or graphics ID differs from the cached preview.
 PreparePickupGraphics:
     PHP
-    PHB
     PHX
     PHY
     REP #$20
@@ -254,13 +273,6 @@ PreparePickupGraphics:
     LDA.b $04 : PHA
     LDA.b $06 : PHA
     LDA.b $08 : PHA
-    LDA.b $0A : PHA
-    LDA.b $0C : PHA
-    LDA.b $0E : PHA
-    LDA.b $BD : PHA
-    LDA.b $C8 : PHA
-    LDA.b $CA : PHA
-    LDA.b $CC : PHA
     SEP #$20
     LDA.l !PickupGfxValid
     BEQ .load
@@ -274,15 +286,7 @@ PreparePickupGraphics:
     BEQ .pad
 .load
     JSR ReadPickupGraphics
-    CMP.b #$24
-    BCC .single_image
-    CMP.b #$27
-    BCS .single_image
-    JSR PrepareRupeeGraphics
-    BRA .prepared
-.single_image
     JSL $80D52D
-.prepared
     JSR RemapEquipmentGraphics
     LDA.l !PickupReceipt
     STA.l !LoadedPickupReceipt
@@ -291,7 +295,7 @@ PreparePickupGraphics:
 .pad
     LDA.l !PickupReceipt
     TAX
-    LDA.l $89844A,X
+    LDA.l ItemReceiptWidths,X
     BNE .done
     LDX.b #$1F
     LDA.b #$00
@@ -302,13 +306,6 @@ PreparePickupGraphics:
     BPL .clear_right
 .done
     REP #$20
-    PLA : STA.b $CC
-    PLA : STA.b $CA
-    PLA : STA.b $C8
-    PLA : STA.b $BD
-    PLA : STA.b $0E
-    PLA : STA.b $0C
-    PLA : STA.b $0A
     PLA : STA.b $08
     PLA : STA.b $06
     PLA : STA.b $04
@@ -317,7 +314,6 @@ PreparePickupGraphics:
     SEP #$20
     PLY
     PLX
-    PLB
     PLP
     RTL
 
@@ -388,73 +384,6 @@ RemapEquipmentGraphics:
     BCC .row
     SEP #$10
 .done
-    RTS
-
-; Prepare all three frames together while their decompressed sheets are resident.
-; $06-$08/X/Y are scratch here, protected by PreparePickupGraphics's stack frame.
-PrepareRupeeGraphics:
-    LDA.l !RupeeGraphicsValid
-    BNE .select_frame
-    LDA.b #$24
-    JSL $80D52D
-.save_frame
-    LDA.l !LoadedPickupGfx
-    SEC
-    SBC.b #$24
-    REP #$20
-    AND.w #$00FF
-    XBA
-    LSR A
-    CLC
-    ADC.w #!RupeeGraphicsBuffer
-    STA.b $06
-    SEP #$20
-    LDA.b #$7F
-    STA.b $08
-    REP #$10
-    LDX.w #$007F
-.copy_frame
-    LDA.l $7EBD40,X
-    TXY
-    STA.b [$06],Y
-    DEX
-    BPL .copy_frame
-    SEP #$10
-    LDA.l !LoadedPickupGfx
-    CMP.b #$26
-    BEQ .ready
-    INC A
-    JSL $80D51B
-    BRA .save_frame
-.ready
-    LDA.b #$01
-    STA.l !RupeeGraphicsValid
-.select_frame
-    JSR ReadPickupGraphics
-    STA.l !LoadedPickupGfx
-    SEC
-    SBC.b #$24
-    REP #$20
-    AND.w #$00FF
-    XBA
-    LSR A
-    CLC
-    ADC.w #!RupeeGraphicsBuffer
-    STA.b $06
-    SEP #$20
-    LDA.b #$7F
-    STA.b $08
-    REP #$10
-    LDX.w #$007F
-.load_frame
-    TXY
-    LDA.b [$06],Y
-    STA.l $7EBD40,X
-    DEX
-    BPL .load_frame
-    SEP #$10
-    LDA.b #$01
-    STA.l !PickupGfxValid
     RTS
 
 PrepareHeartPickupGraphics:
@@ -528,7 +457,7 @@ WritePickupBody:
     PLA
     LDA.l !PickupReceipt
     TAX
-    LDA.l $89844A,X
+    LDA.l ItemReceiptWidths,X
     BNE .done
     ; Center an 8x16 image in the carrier's existing 16x16 footprint.
     LDY.b #$00
@@ -658,7 +587,7 @@ DrawGroveItem:
     JSL PreparePickupGraphics
     LDA.l !PickupReceipt
     TAX
-    LDA.l $89844A,X
+    LDA.l ItemReceiptWidths,X
     BNE .wide
     LDY.b #$00
     LDA.b ($90),Y
@@ -723,5 +652,5 @@ ReadMilestonePalette:
     BEQ .native
     JML ReadPickupPalette
 .native
-    LDA.l $898496,X ; Run hi-jacked instruction
+    LDA.l ItemReceiptPalettes,X ; Run hi-jacked instruction
     RTL

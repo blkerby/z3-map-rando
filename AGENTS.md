@@ -25,6 +25,7 @@
 
 - In hooked code, always check all used registers and scratch RAM to see if they are free or if they need to be saved/restored.
 - Be careful with stack-affecting operations such as PHA/PLA, JSR/RTS, JSL/RTL: make sure they are properly balanced under all possible control flow paths.
+- Use the rom_map to keep track of what space is available in the ROM and RAM. Update it when making changes.
 
 ## Style
 

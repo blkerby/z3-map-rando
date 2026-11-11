@@ -23,7 +23,8 @@ hook_give_mushroom:
 
 org !free_space_bank_a0_start
 
-; A/X/Y are 8-bit, DB is $89, Y is the receipt, and $00-$02 is its destination.
+; A/X/Y are 8-bit, DB is the receipt-table bank, Y is the receipt, and
+; $00-$02 is its destination.
 ; Preserve X/Y/DB and scratch RAM; only the vanilla inventory write uses $00.
 GrantTrackedInventoryItem:
     CPY.b #$0C
@@ -68,7 +69,7 @@ GrantTrackedInventoryItem:
     STA.l !InventoryTracking
 .grant
     ; Run hi-jacked instructions:
-    LDA.w $857A,Y
+    LDA.w !ItemReceiptValues,Y
     BMI .done
     STA.b [$00]
 
