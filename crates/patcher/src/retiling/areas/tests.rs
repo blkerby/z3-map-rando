@@ -140,6 +140,7 @@ fn compose_collision(
 // Distinct combinations must produce distinct paired-world collision layers;
 // light-only and light-and-mirror count as one geometry choice. Specialized
 // variants participate in uniqueness checks but do not yet have aperture profiles.
+// Uniqueness failures report one pair per room with the fewest differing slots.
 // Failures report the area, edge, variant, tile range, and an example combination.
 //
 // Run: cargo test -p patcher --release check_overworld_edge_geometry -- --nocapture
@@ -198,19 +199,13 @@ fn check_overworld_edge_geometry() -> Result<()> {
             prepare_collision(&catalog, area_id + 0x40),
         ];
         let mut selection = vec![0; slots.len()];
-        let mut seen = BTreeMap::<[u8; 32], Vec<(String, String)>>::new();
+        let mut seen = BTreeMap::<[u8; 32], Vec<Vec<(String, String)>>>::new();
+        let mut duplicate: Option<(usize, [Vec<(String, String)>; 2])> = None;
         'combinations: loop {
             let mut edges = Vec::new();
-            let mut geometry_edges = Vec::new();
             for (slot, &index) in slots.iter().zip(&selection) {
                 let variant = &slot.variants[index];
                 edges.push((slot.name.clone(), variant.clone()));
-                let geometry_variant = if variant == "light-and-mirror" {
-                    "light-only"
-                } else {
-                    variant
-                };
-                geometry_edges.push((slot.name.clone(), geometry_variant.to_owned()));
             }
             let mut combined = Vec::new();
             for (world, area) in [0, 0x40].into_iter().zip(&collision_areas) {
@@ -281,18 +276,36 @@ fn check_overworld_edge_geometry() -> Result<()> {
             }
             configurations += 1;
             let fingerprint = Sha256::digest(&combined).into();
-            if let Some(previous) = seen.get(&fingerprint) {
-                if previous != &geometry_edges {
-                    failures.insert(
-                        format!(
-                            "{}: identical collision layers for {previous:?} and {geometry_edges:?}",
-                            room.name
-                        ),
-                        edges.clone(),
-                    );
+            // A one-slot difference is already globally minimal for this room.
+            if duplicate.as_ref().is_none_or(|(count, _)| *count > 1) {
+                let previous_combinations = seen.entry(fingerprint).or_default();
+                for previous in previous_combinations.iter() {
+                    let mut differences = 0;
+                    let mut different_geometry = false;
+                    for ((_, before), (_, after)) in previous.iter().zip(&edges) {
+                        if before != after {
+                            differences += 1;
+                            if !matches!(
+                                (before.as_str(), after.as_str()),
+                                ("light-only", "light-and-mirror")
+                                    | ("light-and-mirror", "light-only")
+                            ) {
+                                different_geometry = true;
+                            }
+                        }
+                    }
+                    if different_geometry
+                        && duplicate
+                            .as_ref()
+                            .is_none_or(|(count, _)| differences < *count)
+                    {
+                        duplicate = Some((differences, [previous.clone(), edges.clone()]));
+                        if differences == 1 {
+                            break;
+                        }
+                    }
                 }
-            } else {
-                seen.insert(fingerprint, geometry_edges);
+                previous_combinations.push(edges.clone());
             }
             for index in (0..selection.len()).rev() {
                 selection[index] += 1;
@@ -302,6 +315,15 @@ fn check_overworld_edge_geometry() -> Result<()> {
                 selection[index] = 0;
             }
             break;
+        }
+        if let Some((differences, [first, second])) = duplicate {
+            failures.insert(
+                format!(
+                    "{}: identical collision layers for {first:?} and {second:?} ({differences} differing slots)",
+                    room.name
+                ),
+                second,
+            );
         }
     }
     eprintln!("Checked {configurations} paired-world configurations and {apertures} apertures.");
