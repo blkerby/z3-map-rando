@@ -533,12 +533,15 @@ name = "patcher"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "catalog_builder",
  "common_types",
  "patch_catalog",
  "retiling_catalog",
  "seed_data",
  "serde",
+ "serde_json",
  "sha2",
+ "tempfile",
 ]
 
 [[package]]

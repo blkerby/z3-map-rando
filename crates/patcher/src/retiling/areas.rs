@@ -1,7 +1,9 @@
 use super::{BackgroundSettings, TileKey, graphics::Palette};
 use crate::graphics::encode_bgr555;
 use anyhow::{Context, Result, ensure};
-use retiling_catalog::{Background, CutsceneAction, CutsceneEvent, PaletteId, RetilingCatalog};
+use retiling_catalog::{
+    Background, CutsceneAction, CutsceneEvent, Layer, PaletteId, RetilingCatalog,
+};
 use seed_data::WorldLayout;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -55,6 +57,19 @@ pub(super) struct SelectedAreas {
     pub(super) bg1_variants: Vec<Bg1Variant>,
     pub(super) background_settings: BTreeMap<usize, BackgroundSettings>,
     pub(super) cutscenes: Vec<ThemeCutscene>,
+}
+
+fn is_overworld_overlay(area_id: usize, layer: &Layer) -> bool {
+    matches!(
+        (area_id, layer.name.as_str()),
+        (0x02, "Lumberjack")
+            | (0x07, "Turtle Rock Portal")
+            | (0x18, "Bird Statue")
+            | (0x3b | 0x7b, "Drained")
+            | (0x58, "Thieves' Town")
+            | (0x5b, "Pyramid Hole")
+            | (0x62, "Hidden Stairs")
+    ) && layer.background == Background::Bg2
 }
 
 pub(super) fn select_areas(
@@ -160,16 +175,7 @@ pub(super) fn select_areas(
                     flip: placement.flip as u8,
                 });
             }
-            let is_overworld_overlay = matches!(
-                (area_id, layer.name.as_str()),
-                (0x02, "Lumberjack")
-                    | (0x07, "Turtle Rock Portal")
-                    | (0x18, "Bird Statue")
-                    | (0x3b | 0x7b, "Drained")
-                    | (0x58, "Thieves' Town")
-                    | (0x5b, "Pyramid Hole")
-                    | (0x62, "Hidden Stairs")
-            ) && layer.background == Background::Bg2;
+            let is_overworld_overlay = is_overworld_overlay(area_id, layer);
             if cutscene_layer_names.contains(&layer.name) || is_overworld_overlay {
                 ensure!(
                     layer.background == Background::Bg2,
@@ -323,3 +329,6 @@ pub(super) fn select_areas(
         cutscenes,
     })
 }
+
+#[cfg(test)]
+mod tests;
