@@ -35,7 +35,7 @@ $A0F060-$A0F0FF item_inventory.asm (reserved for shared-slot ownership tracking)
 $A0F100-$A0F1FF item_menu_toggle.asm (reserved for Y-button item switching)
 $A0F200-$A0F3FF overworld_topology.asm (reserved for physical area origins)
 $A0F400-$A0F4FF overworld_world_map.asm (reserved for world map loading)
-$A0F500-$A0F57F world_state.asm (reserved for loaded world context and mountain visits)
+$A0F500-$A0F57F world_state.asm (reserved for loaded world context, mountain visits, and recovery follower loss)
 $A0F580-$A0F8FF overworld_camera_alignment.asm (reserved for transition camera and follow-threshold alignment)
 $A0F900-$A0FAFF new_game.asm (reserved for initial state, restart menus, and priest initialization)
 $A0FB00-$A0FFFF [FREE]

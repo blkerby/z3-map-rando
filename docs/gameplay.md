@@ -10,8 +10,8 @@ Small and Big Keys remain at vanilla key locations, and Waterfall/Pyramid fairy 
 
 ## Saving and restarting
 
-Save-and-quit and outdoor/cave deaths retain the current world regardless of Agahnim progress. Light World restarts offer Link's House, Sanctuary after entering it, and Mountain Cave after reaching Light World Death Mountain. Dark World restarts offer the Pyramid, plus Link's House when the Mirror is missing.
+Save-and-quit and outdoor/cave deaths lose every follower and retain the current world regardless of Agahnim progress. Light World restarts offer Link's House, Sanctuary after entering it, and Mountain Cave after reaching Light World Death Mountain. Dark World restarts offer the Pyramid, plus Link's House when the Mirror is missing.
 
-The menu uses English labels and substitutes the saved player name in the house option. A single available destination loads directly. Dungeon deaths retain their entrance restart, including with Zelda or the Old Man following; Ganon's room uses outdoor recovery.
+The menu uses English labels and substitutes the saved player name in the house option. A single available destination loads directly. Dungeon deaths retain their entrance restart and vanilla follower handling, including retaining Zelda or the Old Man; Ganon's room uses outdoor recovery and loses every follower.
 
 The Sanctuary priest remains alive and available for healing and Zelda's rescue regardless of sword level or Agahnim progress.

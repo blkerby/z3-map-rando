@@ -363,7 +363,11 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                 to_vertex_idx: catalog.start_vertex_idx,
                 requirement: Requirement::make_and(vec![
                     Requirement::LoseFollowers(FollowerMask::make([
+                        Follower::Zelda,
+                        Follower::OldMan,
                         Follower::Blind,
+                        Follower::Dwarf,
+                        Follower::PurpleChest,
                         Follower::SuperBomb,
                     ])),
                     Requirement::ResetHealthToFull,

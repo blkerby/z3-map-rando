@@ -1,2 +1,3 @@
 $89F520-$89F521 world_state.asm (preserve world and bunny context through recovery)
+$89F544-$89F547 world_state.asm (lose all followers on save-and-quit and outdoor/cave death)
 $89F5AF-$89F5B0 new_game.asm (use the dungeon entrance with a Zelda follower)
