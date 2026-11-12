@@ -1,5 +1,5 @@
 ; New saves begin with Zelda rescued. Restart choices depend on the saved
-; world and visited destinations; dungeon deaths retain their entrance.
+; world and visited destinations; dungeon deaths and Mirror retain their entrance.
 lorom
 incsrc "symbols.inc"
 
@@ -106,10 +106,14 @@ SelectStartingLocation:
     JMP LoadHouseSpawn
 
 .resume
+    LDA.l $7EC011             ; Indoor Mirror warps leave an active mosaic fade.
+    BNE .dungeon
     LDA.w $010A
     BEQ .menu
     LDA.w $04AA
     BNE .menu
+
+.dungeon
     JML $828118               ; Continue at the dungeon entrance.
 
 .menu

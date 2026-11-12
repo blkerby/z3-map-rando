@@ -37,7 +37,7 @@ $A0F200-$A0F3FF overworld_topology.asm (reserved for physical area origins)
 $A0F400-$A0F4FF overworld_world_map.asm (reserved for world map loading)
 $A0F500-$A0F57F world_state.asm (reserved for loaded world context, mountain visits, and recovery follower loss)
 $A0F580-$A0F8FF overworld_camera_alignment.asm (reserved for transition camera and follow-threshold alignment)
-$A0F900-$A0FAFF new_game.asm (reserved for initial state, restart menus, and priest initialization)
+$A0F900-$A0FAFF new_game.asm (reserved for initial state, restart menus, dungeon Mirror returns, and priest initialization)
 $A0FB00-$A0FFFF [FREE]
 
 Bank $A1
