@@ -1,0 +1,17 @@
+# Prototype gameplay
+
+The prototype randomizes items and overworld layouts, with broader gameplay verification still outstanding. The following item and restart behavior applies to patched seeds.
+
+## Items
+
+Swords, shields, gloves, mail, and boomerangs upgrade one level per pickup, capped at the highest tier. Visible pickups show the next upgrade. When both are owned, highlight Mushroom/Powder or Shovel/Ocarina in the item menu and press Y to switch between them.
+
+Small and Big Keys remain at vanilla key locations, and Waterfall/Pyramid fairy exchanges stay fixed. Keys and fairy exchanges still use vanilla ROM behavior, which differs from the logical model's door-specific Small Keys and progressive equipment. Silver Arrows also grants the bow. Equipment receipt messages retain vanilla text pending replacement.
+
+## Saving and restarting
+
+Save-and-quit and outdoor/cave deaths retain the current world regardless of Agahnim progress. Light World restarts offer Link's House, Sanctuary after entering it, and Mountain Cave after reaching Light World Death Mountain. Dark World restarts offer the Pyramid, plus Link's House when the Mirror is missing.
+
+The menu uses English labels and substitutes the saved player name in the house option. A single available destination loads directly. Dungeon deaths retain their entrance restart, including with Zelda or the Old Man following; Ganon's room uses outdoor recovery.
+
+The Sanctuary priest remains alive and available for healing and Zelda's rescue regardless of sword level or Agahnim progress.

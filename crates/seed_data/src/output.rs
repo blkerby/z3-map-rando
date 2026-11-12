@@ -7,6 +7,8 @@ use std::io::{BufReader, BufWriter, Read, Write};
 /// Current saved-seed format; independent of generator and catalog versions.
 pub const SEED_FORMAT_VERSION: u32 = 1;
 
+/// Saved layout and typed placements allow patching with the current catalogs
+/// without the map pool or generation RNG.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SeedData {
     pub format_version: u32,
