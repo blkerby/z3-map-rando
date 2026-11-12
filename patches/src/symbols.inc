@@ -137,6 +137,9 @@ endmacro
 ; offset (0 for X, 6 for Y); A/X/Y are 16-bit, X/Y are preserved.
 !PreloadAlignedTransitionEdge = $A09800
 
+; Saved spawn unlocks: bit 0 is Sanctuary entered; bit 1 is Light World mountain reached.
+!SpawnVisitFlags = $7EF3D6
+
 ; Unified receipt tables, including room for all 256 receipt IDs.
 %export_symbol(ItemReceiptTables, item_receipt_tables, $B1A000)
 !ItemReceiptValues = !ItemReceiptTables+$700

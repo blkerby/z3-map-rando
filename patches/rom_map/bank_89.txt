@@ -1,0 +1,2 @@
+$89F520-$89F521 world_state.asm (preserve world and bunny context through recovery)
+$89F5AF-$89F5B0 new_game.asm (use the dungeon entrance with a Zelda follower)

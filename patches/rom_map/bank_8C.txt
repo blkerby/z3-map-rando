@@ -3,4 +3,5 @@ $8CC208-$8CC20B overworld_vram.asm (restore default layout before intro graphics
 $8CC999-$8CC99A overworld_assets.asm (keep credits initialization blank)
 $8CCC89-$8CCC8C bg3_tilemap.asm (use 64x32 BG3 for file select)
 $8CCDA1-$8CCDA4 bg3_tilemap.asm (clear both file-select BG3 blocks)
+$8CDBBC-$8CDBBF new_game.asm (initialize rescued-Zelda story progress)
 $8CFF4F-$8CFF5A overworld_assets.asm (skip vanilla auxiliary BG palette loads)

@@ -1,2 +1,8 @@
+$85DA49-$85DA4C new_game.asm (record Sanctuary visits and keep the priest alive)
+$85DA7B-$85DA7C new_game.asm (select priest dialogue independently of sword level)
+$85DF67-$85DF68 new_game.asm (keep story progress when receiving Uncle's equipment)
+$85EBCF-$85EBD0 new_game.asm (keep Zelda available regardless of sword level)
+$85EC40-$85EC40 new_game.asm (keep castle Zelda available after rescue)
+$85EDE1-$85EDE2 new_game.asm (keep story progress when completing Zelda's rescue)
 $85FAC2-$85FAC5 overworld_map16_properties.asm (ReadOverworldTileType quadrant lookup)
 $85FAC6-$85FAC9 [FREE] (remainder of vanilla ReadOverworldTileType)
