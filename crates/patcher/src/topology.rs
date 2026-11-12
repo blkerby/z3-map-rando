@@ -33,6 +33,13 @@ pub(crate) fn apply_topology(
         }
     }
     let mut context = patcher.context("overworld topology");
+    // Adjust the castle main door exit down 8 px, so Link doesn't immediately walk back
+    // inside after exiting. Vanilla uses code that checks specific graphics tiles and
+    // Link's direction to prevent reentry, but we ripped out those checks for retiling.
+    // We could have added some special new marker in the collision layer, but adjusting
+    // the exit is simpler and has only a tiny player-visible effect. It makes it
+    // consistent with other exits in the game, which don't overlap their entry trigger.
+    let castle_main_exit_y = 0x06d4u16;
     context.write(
         SnesAddr(patches.symbols.slot_to_area).into(),
         owners.to_vec(),
@@ -42,6 +49,10 @@ pub(crate) fn apply_topology(
         anchors.to_vec(),
     )?;
     if layout.rooms.is_empty() {
+        context.write(
+            SnesAddr(0x82ddbb).into(),
+            castle_main_exit_y.to_le_bytes().to_vec(),
+        )?;
         return Ok(());
     }
     for (address, axis, bias) in [
@@ -92,12 +103,14 @@ pub(crate) fn apply_topology(
             (0x82df8f, dx),
         ] {
             let address = address + index * 2;
+            let coordinate = if address == 0x82ddbb {
+                castle_main_exit_y
+            } else {
+                read_word(address)
+            };
             context.write(
                 SnesAddr(address).into(),
-                read_word(address)
-                    .wrapping_add_signed(delta)
-                    .to_le_bytes()
-                    .to_vec(),
+                coordinate.wrapping_add_signed(delta).to_le_bytes().to_vec(),
             )?;
         }
     }
