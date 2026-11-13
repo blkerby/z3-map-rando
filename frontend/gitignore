@@ -1,0 +1,21 @@
+node_modules
+.DS_Store
+Thumbs.db
+
+# SvelteKit / Vite
+.svelte-kit
+build
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Env files (keep an .env.example if you add one)
+.env
+.env.*
+!.env.example
+
+# Game ROMs: never commit these (copyrighted)
+*.sfc
+*.smc
+*.rom
+*.ips
+*.bps

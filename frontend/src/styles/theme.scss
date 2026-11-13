@@ -1,0 +1,36 @@
+// Shared accent colors (same in both worlds)
+$primary:   #d4a017; // Triforce gold
+$secondary: #6b6a5c; // Stone
+$success:   #3f9142; // Rupee green
+$info:      #2f80c8; // Hyrule blue
+$warning:   #e07b1a; // Fire orange
+$danger:    #c62f2f; // Heart red
+
+// Light World
+$body-bg:           #f4edd3;
+$body-color:        #2e2a1c;
+$body-secondary-bg: #e8dfb8;
+$body-tertiary-bg:  #faf6e6;
+$border-color:      #cdbf8a;
+$link-color:        #8a5a00;
+$link-hover-color:  #5e3e00;
+
+// Dark World (sampled from the game map)
+$body-bg-dark:           #31251e; // near-black outline brown
+$body-color-dark:        #e3dcb8; // pale sand (lightened for reading)
+$body-secondary-bg-dark: #472d1c; // deep brown
+$body-tertiary-bg-dark:  #332218; // between body and secondary
+$border-color-dark:      #6a512f; // dirt brown
+$link-color-dark:        #aaaa76; // light sand path color
+$link-hover-color-dark:  #cfcf9c;
+
+// Slider track: use the border color because the default (secondary-bg) doesn't
+// stand out enough on tinted rows, e.g. changed settings.
+$form-range-track-bg: var(--bs-border-color);
+
+@import 'bootstrap/scss/bootstrap';
+
+// Custom bits that change per world
+[data-bs-theme='light'] .navbar-world { background-color: #2f6b34; } // grass green, 2f6b34
+[data-bs-theme='dark']  .navbar-world { background-color: #3f4f2d; } // forest, 3f4f2d
+.tooltip-inner { text-align: left; }
