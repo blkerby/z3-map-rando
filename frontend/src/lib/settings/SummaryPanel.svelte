@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import type { SettingsStore } from './store.svelte';
-	import type { Section } from './types';
+	import type { Path } from './tree';
 
 	let {
 		store,
+		problems = [],
 		generated = false,
 		generating = false,
 		error = null,
@@ -13,10 +14,12 @@
 		ongenerate,
 		onnew,
 		onjump,
-		onjumpsection,
+		onjumpcard,
 		onsave
 	}: {
 		store: SettingsStore;
+		/** Reasons the current settings can't be generated. */
+		problems?: string[];
 		/** True once a game exists for these settings (the settings are locked). */
 		generated?: boolean;
 		generating?: boolean;
@@ -26,49 +29,46 @@
 		shareHash?: string | null;
 		ongenerate: () => void;
 		onnew: () => void;
-		/** Scroll to a setting (the page also clears the search and opens its section). */
-		onjump: (id: string) => void;
-		/** Scroll to a section's card. */
-		onjumpsection: (id: string) => void;
+		/** Scroll to a setting (the page also clears the search and opens its card). */
+		onjump: (path: Path) => void;
+		/** Scroll to a card. */
+		onjumpcard: (id: string) => void;
 		/** Save the settings as a preset (see PresetManager's `save`). */
 		onsave: () => void;
 	} = $props();
 
 	let copied = $state(false);
 
-	const presetName = $derived(store.rootPreset.name);
-	/** The selected top-level preset, if it is one of the player's own (saving goes into it). */
-	const mine = $derived(store.listFor(store.root).isUser(store.rootPreset.id) ? store.rootPreset : undefined);
+	const presetName = $derived(store.presetName);
+	/** The selected preset, if it is one of the player's own (saving goes into it). */
+	const mine = $derived(store.userPreset(store.selectedId));
+	const changeCount = $derived(store.changeCount);
 
-	const changed = $derived(
-		store.changedIds.map((id) => ({
-			id,
-			label: store.byId[id]?.label ?? id,
-			value: store.display(id)
-		}))
-	);
-	const picked = $derived(store.changedSections);
-	const changeCount = $derived(changed.length + picked.length);
-
-	/** The selected presets' tweaks, by the section they are in. */
+	/** The selected preset's tweaks, grouped by scope: the root's own settings, then each child scope. */
 	const tweakGroups = $derived.by(() => {
-		const groups: { section: Section; rows: { id: string; label: string; value: string }[] }[] = [];
-		for (const id of store.tweakedIds) {
-			if (store.isChanged(id)) continue; // listed as a change instead
-			const section = store.ownerOf[id];
-			let group = groups.find((g) => g.section === section);
+		const groups: { title: string; paths: Path[] }[] = [];
+		for (const path of store.tweakedPaths) {
+			const scope = store.scopeOf(path);
+			const title = scope ? `${scope.label}: ${store.scopeLabel(scope)}` : presetName;
+			let group = groups.find((g) => g.title === title);
 			if (!group) {
-				group = { section, rows: [] };
+				group = { title, paths: [] };
 				groups.push(group);
 			}
-			group.rows.push({ id, label: store.byId[id]?.label ?? id, value: store.display(id) });
+			group.paths.push(path);
 		}
 		return groups;
 	});
-	const tweakCount = $derived(tweakGroups.reduce((n, g) => n + g.rows.length, 0));
+	const tweakCount = $derived(store.tweakedPaths.length);
 	/** Folded or unfolded by hand; otherwise open only while there are no unsaved changes, so those stand out. */
 	let tweaksOpenByHand = $state<boolean | null>(null);
 	const tweaksOpen = $derived(tweaksOpenByHand ?? changeCount === 0);
+
+	/** The card a scope's preset picker is in. */
+	function cardOfScope(scopeId: string): string {
+		for (const c of Object.values(store.controls)) if (c.path[0] === scopeId && c.cardId) return c.cardId;
+		return scopeId;
+	}
 
 	async function copyLink() {
 		if (!shareHash) return;
@@ -96,14 +96,14 @@
 
 		{#if changeCount}
 			<div class="chips mb-2">
-				{#each picked as sec (sec.id)}
-					<button type="button" class="chip" onclick={() => onjumpsection(sec.id)}>
-						{sec.title} preset: <strong>{store.selectedPreset(sec).name}</strong>
+				{#each store.pickedScopes as scope (scope.id)}
+					<button type="button" class="chip" onclick={() => onjumpcard(cardOfScope(scope.id))}>
+						{scope.label} preset: <strong>{store.selectedScopePreset(scope).label}</strong>
 					</button>
 				{/each}
-				{#each changed as c (c.id)}
-					<button type="button" class="chip" onclick={() => onjump(c.id)}>
-						{c.label}: <strong>{c.value}</strong>
+				{#each store.changedPaths as path (path.join('/'))}
+					<button type="button" class="chip" onclick={() => onjump(path)}>
+						{store.label(path)}: <strong>{store.display(path)}</strong>
 					</button>
 				{/each}
 			</div>
@@ -114,26 +114,17 @@
 		{/if}
 
 		{#if tweakCount}
-			<button
-				type="button"
-				class="tweaks-toggle"
-				aria-expanded={tweaksOpen}
-				onclick={() => (tweaksOpenByHand = !tweaksOpen)}
-			>
+			<button type="button" class="tweaks-toggle" aria-expanded={tweaksOpen} onclick={() => (tweaksOpenByHand = !tweaksOpen)}>
 				<i class="bi" class:bi-chevron-down={tweaksOpen} class:bi-chevron-right={!tweaksOpen}></i>
 				{tweakCount} tweak{tweakCount === 1 ? '' : 's'} in <strong>{presetName}</strong>
 			</button>
 			{#if tweaksOpen}
-				{#each tweakGroups as g (g.section.id)}
-					<div class="tweak-group">
-						{g.section === store.root
-							? presetName
-							: `${g.section.title}: ${store.selectionLabel(g.section)}`}
-					</div>
+				{#each tweakGroups as g (g.title)}
+					<div class="tweak-group">{g.title}</div>
 					<div class="chips mb-2">
-						{#each g.rows as c (c.id)}
-							<button type="button" class="chip tweak" onclick={() => onjump(c.id)}>
-								{c.label}: <strong>{c.value}</strong>
+						{#each g.paths as path (path.join('/'))}
+							<button type="button" class="chip tweak" onclick={() => onjump(path)}>
+								{store.label(path)}: <strong>{store.display(path)}</strong>
 							</button>
 						{/each}
 					</div>
@@ -144,7 +135,7 @@
 		{#if error}
 			<div class="alert alert-danger small py-2 px-3" role="alert">{error}</div>
 		{/if}
-		{#each store.problems as problem (problem)}
+		{#each problems as problem (problem)}
 			<div class="alert alert-warning small py-2 px-3" role="alert">{problem}</div>
 		{/each}
 
@@ -162,7 +153,7 @@
 				<button
 					type="button"
 					class="btn btn-primary"
-					disabled={generating || store.problems.length > 0}
+					disabled={generating || problems.length > 0}
 					onclick={ongenerate}
 				>
 					{#if generating}

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { tooltip } from '$lib/tooltip';
 	import type { SettingsStore } from './store.svelte';
+	import type { Path } from './tree';
 	import { downloadRom } from '$lib/game';
 
 	let {
@@ -16,22 +17,15 @@
 		generated?: boolean;
 		seed?: string | null;
 		version?: string;
-		/** Scroll to a setting (the page also clears the search and opens its section). */
-		onjump: (id: string) => void;
+		/** Scroll to a setting (the page also clears the search and opens its card). */
+		onjump: (path: Path) => void;
 		/** Save the customization as a preset (see PresetManager's `save`). */
 		onsave: () => void;
 	} = $props();
 
-	/** The selected top-level preset, if it is one of the player's own (saving goes into it). */
-	const mine = $derived(store.listFor(store.root).isUser(store.rootPreset.id) ? store.rootPreset : undefined);
-
-	const changed = $derived(
-		store.changedIds.map((id) => ({
-			id,
-			label: store.byId[id]?.label ?? id,
-			value: store.display(id)
-		}))
-	);
+	/** The selected preset, if it is one of the player's own (saving goes into it). */
+	const mine = $derived(store.userPreset(store.selectedId));
+	const changed = $derived(store.changedPaths);
 
 	// ---- Download ROM (stub: see downloadRom in $lib/game) ---------------------
 	let downloading = $state(false);
@@ -57,12 +51,12 @@
 
 		{#if changed.length}
 			<div class="small mb-2 text-body-secondary">
-				{changed.length} change{changed.length === 1 ? '' : 's'} from <strong>{store.presetSummary}</strong>
+				{changed.length} change{changed.length === 1 ? '' : 's'} from <strong>{store.presetName}</strong>
 			</div>
 			<div class="chips mb-2">
-				{#each changed as c (c.id)}
-					<button type="button" class="chip" onclick={() => onjump(c.id)}>
-						{c.label}: <strong>{c.value}</strong>
+				{#each changed as path (path.join('/'))}
+					<button type="button" class="chip" onclick={() => onjump(path)}>
+						{store.label(path)}: <strong>{store.display(path)}</strong>
 					</button>
 				{/each}
 			</div>
@@ -72,7 +66,7 @@
 			</button>
 		{:else}
 			<div class="small text-body-secondary">
-				Everything matches <strong>{store.presetSummary}</strong>.
+				Everything matches <strong>{store.presetName}</strong>.
 			</div>
 		{/if}
 

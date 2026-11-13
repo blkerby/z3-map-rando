@@ -1,62 +1,92 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import { tooltip } from '$lib/tooltip';
-	import ItemList from './ItemList.svelte';
-	import PresetManager from './PresetManager.svelte';
-	import type { SettingsStore } from './store.svelte';
-	import type { Section } from './types';
+	import ScopePicker from './ScopePicker.svelte';
+	import { getStore, setCardId } from './context';
+	import type { Scope } from './store.svelte';
 
-	let { store, section, idPrefix }: { store: SettingsStore; section: Section; idPrefix: string } = $props();
+	// A card of settings. Registers itself with the store for page navigation, and its settings register
+	// as being in it, for its change count, search and jumping to a setting.
+	let {
+		id,
+		title,
+		icon,
+		collapsible = false,
+		collapsed = false,
+		scope,
+		header,
+		children
+	}: {
+		id: string;
+		title: string;
+		/** bootstrap-icons suffix, e.g. "map". */
+		icon?: string;
+		collapsible?: boolean;
+		/** A collapsible card starts folded. */
+		collapsed?: boolean;
+		/** The child scope whose preset is picked in this card's header. */
+		scope?: Scope;
+		/** Shown at the top of the body, e.g. a status line. */
+		header?: Snippet;
+		children: Snippet;
+	} = $props();
 
-	const open = $derived(store.isOpen(section));
-	const pool = $derived(store.poolOf(section));
+	const store = getStore();
+	// svelte-ignore state_referenced_locally
+	setCardId(id);
+	// svelte-ignore state_referenced_locally
+	const card = { id, title, icon, collapsed: collapsible && collapsed };
+	$effect(() => store.registerCard(card));
+
+	const open = $derived(store.isOpen(card));
+	const changes = $derived(store.countCardChanges(id, scope));
+	const hidden = $derived(store.query.trim() !== '' && store.countMatches(id) === 0);
 </script>
 
-<section id="{idPrefix}{section.id}" class="card mb-3">
+<section id="{store.idPrefix}section-{id}" class="card mb-3" {hidden}>
 	<!-- No padding on the header itself, so the controls on the right line up whether or not the card can fold. -->
 	<header class="card-header d-flex align-items-center p-0" class:folded={!open}>
-		<h3 class="h6 fw-bold m-0 flex-grow-1" class:card-title={!section.collapsible}>
-			{#if section.collapsible}
+		<h3 class="h6 fw-bold m-0 flex-grow-1" class:card-title={!collapsible}>
+			{#if collapsible}
 				<button
 					type="button"
 					class="card-toggle"
 					aria-expanded={open}
-					aria-controls="{idPrefix}body-{section.id}"
-					onclick={() => (store.opened[section.id] = !open)}
+					aria-controls="{store.idPrefix}body-{id}"
+					onclick={() => (store.opened[id] = !open)}
 				>
 					<i class="bi" class:bi-chevron-down={open} class:bi-chevron-right={!open}></i>
-					<span>{section.title}</span>
+					<span>{title}</span>
+					{#if !open && changes}<span class="changes">{changes} changed</span>{/if}
 				</button>
 			{:else}
-				{section.title}
+				{title}
 			{/if}
 		</h3>
-		<!-- In the header, so the card's preset can be seen and changed while it is folded. -->
-		<div class="card-presets">
-			<PresetManager {store} {section} kind={section.id} selectId="{idPrefix}preset-{section.id}" />
-		</div>
-		{#if store.sectionChanged(section)}
+		{#if scope}
+			<!-- In the header, so the preset can be seen and changed while the card is folded. -->
+			<div class="card-presets">
+				<ScopePicker {store} {scope} selectId="{store.idPrefix}preset-{id}" />
+			</div>
+		{/if}
+		{#if changes}
 			<button
 				type="button"
 				class="btn btn-link btn-sm p-0 card-reset"
 				disabled={store.locked}
-				use:tooltip={`Undo the changes in ${section.title}. The other sections are not touched.`}
-				aria-label="Reset {section.title}"
-				onclick={() => store.resetSection(section)}
+				use:tooltip={`Undo the changes in ${title}. The other sections are not touched.`}
+				aria-label="Reset {title}"
+				onclick={() => store.resetCard(id, scope)}
 			>
 				<i class="bi bi-arrow-counterclockwise"></i>
 			</button>
 		{/if}
 	</header>
-	{#if open}
-		<div class="card-body py-1" id="{idPrefix}body-{section.id}">
-			{#if pool}
-				<div class="pool-bar" class:text-danger={pool.used > pool.total}>
-					{pool.used} of {pool.total} item locations filled{pool.used < pool.total ? ' (the rest are left empty)' : ''}.
-				</div>
-			{/if}
-			<ItemList {store} items={section.items} {idPrefix} />
-		</div>
-	{/if}
+	<!-- Kept mounted while folded, so its settings stay known to the summary and search. -->
+	<div class="card-body py-1" id="{store.idPrefix}body-{id}" hidden={!open}>
+		{@render header?.()}
+		{@render children()}
+	</div>
 </section>
 
 <style>
@@ -77,6 +107,12 @@
 		text-align: left;
 	}
 
+	.changes {
+		font-size: 0.75rem;
+		font-weight: 400;
+		opacity: 0.7;
+	}
+
 	.card-reset {
 		flex: none;
 		margin-right: 0.75rem;
@@ -95,18 +131,7 @@
 		padding: 0.5rem 1rem;
 	}
 
-	/* A card opening another card's body gets the same gap above it as cards have below them. */
-	.card-body > :global(section.card:first-child) {
-		margin-top: 1rem;
-	}
-
 	.card-header.folded {
 		border-bottom: 0;
-	}
-
-	.pool-bar {
-		padding: 0.5rem 0;
-		font-size: 0.8rem;
-		opacity: 0.9;
 	}
 </style>

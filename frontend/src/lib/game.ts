@@ -1,4 +1,4 @@
-import type { Value } from '$lib/settings/types';
+import type { Tree } from '$lib/settings/tree';
 
 /**
  * Version of the generator the page was built against. Shared links record it so a
@@ -59,7 +59,7 @@ export interface GenerateResult {
  *
  * Throw an Error with a user-readable message on failure; the page shows it.
  */
-export async function generateGame(settings: Record<string, Value>): Promise<GenerateResult> {
+export async function generateGame(settings: Tree): Promise<GenerateResult> {
 	void settings;
 	await new Promise((resolve) => setTimeout(resolve, 1200));
 	return { seed: randomSeed() };
@@ -69,7 +69,7 @@ export interface RomRequest {
 	seed: string;
 	version: string;
 	/** The player's cosmetic choices (never part of the game link). */
-	customization: Record<string, Value>;
+	customization: Tree;
 }
 
 /**

@@ -25,6 +25,15 @@ The deliberate limitation is that users cannot independently reuse private skill
 
 The distinction between a saved tweak and an unsaved edit remains useful. Patch-time Gameplay adjustments are excluded from saved customization presets and have the seed as their baseline instead. Other exact save, reset, section-selection, and UI operations are deferred; they should not introduce additional inheritance semantics implicitly.
 
+### Tweaks and unsaved changes in the editor
+
+The editor distinguishes two kinds of differences, and the frontend (`frontend/src/lib/settings/store.svelte.ts`) implements them:
+
+- **Unsaved changes** are differences from the selected preset as applied, including its tweaks. They get a strong (green) shade, a per-setting reset, and chips at the top of the summary panel, whose "Save" writes them into the selected user preset.
+- **Tweaks** are the selected user preset's own differences from its baseline (its built-in base and section selections). They get a weak (cyan) shade and a collapsible "Tweaks" list in the summary panel, grouped by section, which starts open only while there are no unsaved changes. A setting that is both shows the strong shade.
+- A section such as Skill assumptions either takes what the root preset chooses for it, shown as e.g. "Hard + 2 tweaks", or has a built-in preset picked by hand, which it takes plainly. The pick itself is one unsaved change. Picking plain "Hard" is how the root preset's tweaks in that section are removed; resetting goes back to "Hard + 2 tweaks".
+- Resets only undo unsaved changes; tweaks are removed by picking a plain preset or by changing a value and saving.
+
 ## Setting identity and JSON values
 
 Store settings as a flat map of stable identifiers to entries. Concrete setting entries have a `value` and may have informational metadata such as `name`:

@@ -34,3 +34,12 @@ $form-range-track-bg: var(--bs-border-color);
 [data-bs-theme='light'] .navbar-world { background-color: #2f6b34; } // grass green, 2f6b34
 [data-bs-theme='dark']  .navbar-world { background-color: #3f4f2d; } // forest, 3f4f2d
 .tooltip-inner { text-align: left; }
+
+// Browsers draw a dropdown's open list with the dropdown's own background. Changed dropdowns get a
+// translucent tint, which would leave the list light under light text in the dark theme, so give the
+// options the solid page colors.
+.form-select option,
+.form-select optgroup {
+	background-color: var(--bs-body-bg);
+	color: var(--bs-body-color);
+}

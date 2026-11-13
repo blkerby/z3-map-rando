@@ -1,13 +1,15 @@
-use common_types::{Item, SourceRoomId};
+use common_types::Item;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
+/// Generation settings, in the shape of `data/settings.json`.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Settings {
     pub map_layout: MapLayoutSetting,
-    pub proficiencies: Vec<ProficiencySetting>,
-    pub tech: Vec<TechSetting>,
-    pub notables: Vec<NotableSetting>,
-    pub item_pool: Vec<ItemPoolEntry>,
+    pub skill: SkillSettings,
+    /// Number of pickups to place per ordinary item. Dungeon items and prizes use separate
+    /// placement phases.
+    pub item_pool: BTreeMap<Item, u32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -17,40 +19,19 @@ pub enum MapLayoutSetting {
     Random,
 }
 
+/// Skill assumptions, keyed by stable z3-json-data identities.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ProficiencySetting {
-    /// Stable ID from tech.json.
-    pub tech_id: u32,
-    /// Informational; does not determine identity or affect logic.
-    pub name: String,
-    pub level: u32,
+pub struct SkillSettings {
+    /// Proficiency level by tech ID.
+    pub proficiencies: BTreeMap<u32, u32>,
+    /// Enabled flag by tech ID.
+    pub tech: BTreeMap<u32, bool>,
+    pub notables: NotableSettings,
 }
 
+/// Enabled flags of notables, keyed by room ID and then by room-scoped notable ID.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TechSetting {
-    /// Stable ID from z3-json-data tech.json.
-    pub tech_id: u32,
-    /// Informational; does not determine identity or affect logic.
-    pub name: String,
-    pub enabled: bool,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct NotableSetting {
-    /// Stable room identity; notable IDs and names are scoped to this room.
-    pub room_id: SourceRoomId,
-    pub notable_id: u32,
-    /// Informational; does not determine identity or affect logic.
-    pub name: String,
-    pub enabled: bool,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ItemPoolEntry {
-    /// Ordinary item to place; dungeon items and prizes use separate placement phases.
-    /// Flatten the tagged item so JSON remains {"name": "Sword", "count": 3}.
-    #[serde(flatten)]
-    pub item: Item,
-    /// Number of pickups to place.
-    pub count: u32,
+pub struct NotableSettings {
+    pub overworld: BTreeMap<u32, BTreeMap<u32, bool>>,
+    pub underworld: BTreeMap<u32, BTreeMap<u32, bool>>,
 }

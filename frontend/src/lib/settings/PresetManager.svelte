@@ -2,7 +2,6 @@
 	import type { Snippet } from 'svelte';
 	import { tooltip } from '$lib/tooltip';
 	import type { SettingsStore } from './store.svelte';
-	import type { Section } from './types';
 	import {
 		MAX_IMPORT_BYTES,
 		MAX_NAME,
@@ -16,16 +15,15 @@
 		type PresetKind
 	} from './presetIO';
 
+	// The root preset controls: built-in presets and the player's own, with save, rename, switch, delete,
+	// share and import.
 	let {
 		store,
-		section: card,
 		kind,
 		selectId = 'preset',
 		children
 	}: {
 		store: SettingsStore;
-		/** Manage this card's own presets instead of the presets for all the settings. */
-		section?: Section;
 		kind: PresetKind;
 		selectId?: string;
 		/** Extra controls shown at the end of the row (e.g. a search box). */
@@ -37,7 +35,7 @@
 	let mode = $state<Mode>(null);
 	let menuOpen = $state(false);
 	let nameDraft = $state('');
-	/** Save: the preset to build on. Switch: the preset to switch to. */
+	/** Switch: the preset to switch to. */
 	let presetDraft = $state('');
 	let importText = $state('');
 	let formError = $state<string | null>(null);
@@ -51,36 +49,22 @@
 	let importArea = $state<HTMLTextAreaElement>();
 	let fileInput = $state<HTMLInputElement>();
 
-	/** The section whose presets these are: the card's, or the root (all the settings). */
-	const section = $derived(card ?? store.root);
-	const list = $derived(store.listFor(section));
-	/** The preset the section takes (picked by hand, or chosen by the presets around it). */
-	const current = $derived(store.selectedPreset(section));
-	/** The same, if it is one of the player's own. */
-	const selected = $derived(list.isUser(current.id) ? current : undefined);
-	/** A card that isn't picked by hand, where the presets around it change something: "Hard + 2 tweaks". */
-	const tweaks = $derived(card ? store.tweakCount(card) : 0);
-	/** The card's preset was picked by hand: an unsaved change. */
-	const picked = $derived(store.isSelectionChanged(section));
-	const changed = $derived(store.sectionChanged(section));
-	/** Unsaved changes inside the section, besides its own pick (which the dropdown already names). */
-	const changeCount = $derived(store.countChanges(section) - (picked ? 1 : 0));
-	/**
-	 * What the section takes, with its unsaved changes: "Mine (based on Hard) + 2 tweaks + 1 unsaved change".
-	 */
-	const label = $derived(
-		(card && !picked ? store.inheritedLabel(card) : store.presetLabel(section, current)) +
-			(changeCount ? ` + ${changeCount} unsaved change${changeCount === 1 ? '' : 's'}` : '')
-	);
-	/** Value of the hidden entry that shows `label` while there are unsaved changes (not a preset id). */
+	/** The selected preset, if it is one of the player's own. */
+	const selected = $derived(store.userPreset(store.selectedId));
+	const changeCount = $derived(store.changeCount);
+	/** What the dropdown shows while there are unsaved changes: "Mine + 2 unsaved changes". */
+	const label = $derived(`${store.presetName} + ${changeCount} unsaved change${changeCount === 1 ? '' : 's'}`);
+	/** Value of the hidden entry that shows `label` (not a preset id). */
 	const CURRENT = '*current';
-	/**
-	 * What the dropdown shows: the entry for the unsaved changes, else the preset picked by hand, else ""
-	 * for the "+ tweaks" entry, else the preset chosen for it.
-	 */
-	const shown = $derived(changeCount ? CURRENT : picked || !tweaks ? current.id : '');
-	/** What these presets hold, for messages: "logic settings", "generation settings", "customization settings". */
-	const noun = $derived(`${card ? card.title.toLowerCase() : kind === 'settings' ? 'generation' : 'customization'} settings`);
+	/** What these presets hold, for messages. */
+	const noun = $derived(`${kind === 'settings' ? 'generation' : 'customization'} settings`);
+
+	/** "Mine (based on Default)" for the player's own presets when there is more than one built-in. */
+	function presetLabel(id: string, name: string): string {
+		const preset = store.userPreset(id);
+		if (!preset || store.rootPresets.length < 2) return name;
+		return `${name} (based on ${store.builtIn(preset.document.preset)?.label ?? store.rootPresets[0].label})`;
+	}
 
 	// ---- Menu ---------------------------------------------------------------------
 	function onWindowClick(e: MouseEvent) {
@@ -88,8 +72,7 @@
 	}
 
 	function onWindowKey(e: KeyboardEvent) {
-		if (e.key !== 'Escape') return;
-		if (menuOpen) menuOpen = false;
+		if (e.key === 'Escape' && menuOpen) menuOpen = false;
 	}
 
 	function closeForm() {
@@ -104,11 +87,8 @@
 		formError = null;
 		overwriteConfirm = false;
 		mode = next;
-		if (next === 'save') {
-			nameDraft = '';
-			presetDraft = list.baseOf(current).id; // flat by default: a sibling of one of the player's own
-		}
-		if (next === 'switch') presetDraft = current.id;
+		if (next === 'save') nameDraft = '';
+		if (next === 'switch') presetDraft = store.selectedId;
 		if (next === 'rename') nameDraft = selected?.name ?? '';
 		if (next === 'import') importText = '';
 	}
@@ -129,14 +109,12 @@
 			formError = 'Give the preset a name.';
 			return;
 		}
-		if (list.builtIn.some((p) => sameName(p.name, name))) {
+		if (store.rootPresets.some((p) => sameName(p.label, name))) {
 			formError = `“${name}” is a built-in preset name. Please choose another.`;
 			return;
 		}
 		const renaming = mode === 'rename';
-		const clash = list.userPresets.find(
-			(p) => sameName(p.name, name) && !(renaming && p.id === selected?.id)
-		);
+		const clash = store.userPresets.find((p) => sameName(p.name, name) && !(renaming && p.id === selected?.id));
 
 		if (renaming) {
 			if (!selected) return;
@@ -144,36 +122,28 @@
 				formError = 'You already have a preset with that name.';
 				return;
 			}
-			list.rename(selected.id, name);
+			store.renamePreset(selected.id, name);
 			closeForm();
 			return;
 		}
 
-		const base = list.find(presetDraft) ?? list.baseOf(current);
 		if (clash) {
-			// Building a preset on itself, or on one built on it, would make a loop.
-			if (list.chain(base).includes(clash)) {
-				formError = `“${base.name}” is built on “${clash.name}”, so “${clash.name}” can't be built on it.`;
-				return;
-			}
 			// Two-step: the first press warns, the second replaces.
 			if (!overwriteConfirm) {
 				overwriteConfirm = true;
 				formError = `You already have a preset called “${clash.name}”. Press Save again to replace it.`;
 				return;
 			}
-			list.update(clash.id, store.capture(section, base));
-			store.adoptSaved(section, clash.id);
+			store.updatePreset(clash.id);
 			closeForm();
 			return;
 		}
 
-		if (list.userPresets.length >= MAX_USER_PRESETS) {
+		if (store.userPresets.length >= MAX_USER_PRESETS) {
 			formError = `You can keep up to ${MAX_USER_PRESETS} presets. Delete some first.`;
 			return;
 		}
-		const preset = list.add(name, store.capture(section, base));
-		store.adoptSaved(section, preset.id);
+		store.updatePreset(store.addPreset(name, {}).id);
 		closeForm();
 	}
 
@@ -185,30 +155,25 @@
 
 	function updateSelected() {
 		menuOpen = false;
-		if (!selected) return;
-		list.update(selected.id, store.capture(section));
-		store.adoptSaved(section, selected.id);
+		if (selected) store.updatePreset(selected.id);
 	}
 
 	function confirmSwitch() {
-		store.switchPreset(section, presetDraft);
+		store.switchPreset(presetDraft);
 		closeForm();
 	}
 
 	function confirmDelete() {
-		if (!selected) return;
-		store.deletePreset(section, selected.id);
+		if (selected) store.deletePreset(selected.id);
 		closeForm();
 	}
 
 	// ---- Share: copy code / export file / import ---------------------------------
 	async function copyCode() {
 		menuOpen = false;
-		const name = changed ? 'Shared settings' : current.name;
+		const name = changeCount ? 'Shared settings' : store.presetName;
 		try {
-			// Flattened onto the built-in preset behind, since others won't have the player's own.
-			const content = store.capture(section, list.builtInBehind(current));
-			await navigator.clipboard.writeText(encodePresetCode(kind, name, content));
+			await navigator.clipboard.writeText(encodePresetCode(kind, name, store.capture()));
 		} catch {
 			notice = { type: 'danger', text: "Couldn't copy to the clipboard." };
 		}
@@ -216,7 +181,7 @@
 
 	function exportAll() {
 		menuOpen = false;
-		const blob = new Blob([buildExportFile(kind, list.userPresets)], { type: 'application/json' });
+		const blob = new Blob([buildExportFile(kind, store.userPresets)], { type: 'application/json' });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
@@ -228,35 +193,30 @@
 	}
 
 	function runImport(text: string) {
-		const result = parseImport(text, kind, (raw) => store.sanitize(raw));
+		const result = parseImport(text, kind, (raw) => store.readDocument(raw));
 		if (!result.ok) {
 			formError = result.error;
 			return;
 		}
-		const room = MAX_USER_PRESETS - list.userPresets.length;
+		const room = MAX_USER_PRESETS - store.userPresets.length;
 		if (room <= 0) {
 			formError = `You already have ${MAX_USER_PRESETS} presets. Delete some first.`;
 			return;
 		}
 
-		const taken = list.all.map((p) => p.name);
+		const taken = [...store.rootPresets.map((p) => p.label), ...store.userPresets.map((p) => p.name)];
 		const added = [];
-		/** The ids the presets had in the file, mapped to their new ones, for presets built on each other. */
-		const newIds = new Map<string, string>();
 		let renamed = 0;
 		for (const item of result.presets.slice(0, room)) {
 			const name = uniqueName(item.name, taken);
 			if (name !== item.name) renamed++;
 			taken.push(name);
-			const preset = list.add(name, { base: item.base, sections: item.sections, values: item.values });
-			if (item.id) newIds.set(item.id, preset.id);
-			added.push(preset);
+			added.push(store.addPreset(name, item.document));
 		}
-		for (const preset of added) if (preset.base && newIds.has(preset.base)) preset.base = newIds.get(preset.base);
 		const skipped = result.presets.length - added.length;
 
 		// A single preset is applied straight away so you can see what you imported.
-		if (added.length === 1 && !store.locked) store.applyPreset(added[0].id, section);
+		if (added.length === 1 && !store.locked) store.applyPreset(added[0].id);
 
 		if (renamed || skipped) {
 			let text2 = `Imported ${added.length} preset${added.length === 1 ? '' : 's'}`;
@@ -289,35 +249,29 @@
 			id={selectId}
 			aria-label="Preset"
 			class="form-select form-select-sm w-auto preset-select"
-			class:changed
-			class:tweaked={!changed && store.isSelectionTweaked(section)}
-			use:tooltip={picked && card ? `Picked by hand. Reset goes back to “${store.inheritedLabel(card)}”.` : undefined}
+			class:changed={changeCount > 0}
 			disabled={store.locked}
-			value={shown}
-			onchange={(e) => store.applyPreset(e.currentTarget.value, section)}
+			value={changeCount ? CURRENT : store.selectedId}
+			onchange={(e) => store.applyPreset(e.currentTarget.value)}
 		>
 			{#if changeCount}
 				<option value={CURRENT} hidden disabled>{label}</option>
 			{/if}
-			{#if card && tweaks}
-				<option value="">{store.inheritedLabel(card)}</option>
-			{/if}
 			<optgroup label="Built-in">
-				{#each list.builtIn as p (p.id)}
-					<option value={p.id}>{p.name}</option>
+				{#each store.rootPresets as p (p.id)}
+					<option value={p.id}>{p.label}</option>
 				{/each}
 			</optgroup>
-			{#if list.userPresets.length}
+			{#if store.userPresets.length}
 				<optgroup label="My presets">
-					{#each list.userPresets as p (p.id)}
-						<option value={p.id}>{store.presetLabel(section, p)}</option>
+					{#each store.userPresets as p (p.id)}
+						<option value={p.id}>{presetLabel(p.id, p.name)}</option>
 					{/each}
 				</optgroup>
 			{/if}
 		</select>
 
-		<!-- Saving a card's own preset is less common, so a card keeps it in the menu only. -->
-		{#if !card && selected && store.canUpdate(section)}
+		{#if selected && store.canUpdate}
 			<button
 				type="button"
 				class="btn btn-link btn-sm p-0 icon-btn"
@@ -327,7 +281,7 @@
 			>
 				<i class="bi bi-floppy"></i>
 			</button>
-		{:else if !card && !selected && changeCount}
+		{:else if !selected && changeCount}
 			<button
 				type="button"
 				class="btn btn-link btn-sm p-0 icon-btn"
@@ -356,56 +310,20 @@
 					<button type="button" role="menuitem" class="menu-item" onclick={() => openMode('save')}>
 						<i class="bi bi-plus-circle"></i> Save current as new preset…
 					</button>
-					{#if card}
-						<button
-							type="button"
-							role="menuitem"
-							class="menu-item"
-							disabled={!store.canUpdate(section)}
-							onclick={updateSelected}
-						>
-							<i class="bi bi-floppy"></i>
-							{selected ? `Update “${selected.name}”` : 'Update preset'}
-						</button>
-					{/if}
-					<button
-						type="button"
-						role="menuitem"
-						class="menu-item"
-						disabled={!selected}
-						onclick={() => openMode('rename')}
-					>
+					<button type="button" role="menuitem" class="menu-item" disabled={!selected} onclick={() => openMode('rename')}>
 						<i class="bi bi-pencil"></i> Rename…
 					</button>
-					<button
-						type="button"
-						role="menuitem"
-						class="menu-item"
-						disabled={store.locked}
-						onclick={() => openMode('switch')}
-					>
+					<button type="button" role="menuitem" class="menu-item" disabled={store.locked} onclick={() => openMode('switch')}>
 						<i class="bi bi-arrow-left-right"></i> Switch preset, keeping settings…
 					</button>
-					<button
-						type="button"
-						role="menuitem"
-						class="menu-item"
-						disabled={!selected}
-						onclick={() => openMode('delete')}
-					>
+					<button type="button" role="menuitem" class="menu-item" disabled={!selected} onclick={() => openMode('delete')}>
 						<i class="bi bi-trash"></i> Delete…
 					</button>
 					<hr class="menu-sep" />
 					<button type="button" role="menuitem" class="menu-item" onclick={copyCode}>
 						<i class="bi bi-clipboard"></i> Copy {noun} as code
 					</button>
-					<button
-						type="button"
-						role="menuitem"
-						class="menu-item"
-						disabled={!list.userPresets.length}
-						onclick={exportAll}
-					>
+					<button type="button" role="menuitem" class="menu-item" disabled={!store.userPresets.length} onclick={exportAll}>
 						<i class="bi bi-box-arrow-up"></i> Export my presets…
 					</button>
 					<button type="button" role="menuitem" class="menu-item" onclick={() => openMode('import')}>
@@ -415,13 +333,12 @@
 			{/if}
 		</div>
 
-		<!-- A card's own Reset sits in its header (see the generate page), so this is only for the top-level preset. -->
-		{#if !card && changed}
+		{#if changeCount}
 			<button
 				type="button"
 				class="btn btn-link btn-sm p-0 icon-btn"
 				disabled={store.locked}
-				use:tooltip={`Put all the ${noun} back to ${current.name}.`}
+				use:tooltip={`Put all the ${noun} back to ${store.presetName}.`}
 				aria-label="Reset all the {noun}"
 				onclick={() => store.resetAll()}
 			>
@@ -432,7 +349,7 @@
 		{@render children?.()}
 	</div>
 
-	{#if !card && store.storageFailed}
+	{#if store.storageFailed}
 		<div class="alert alert-danger small py-1 px-2 mt-2 mb-0" role="status">
 			Your presets couldn't be saved in this browser (storage may be full or blocked). Export them to keep a backup.
 		</div>
@@ -440,8 +357,7 @@
 	{#if notice}
 		<div class="alert alert-{notice.type} small py-1 px-2 mt-2 mb-0 d-flex align-items-center" role="status">
 			<span class="me-auto">{notice.text}</span>
-			<button type="button" class="btn-close btn-sm" aria-label="Dismiss" onclick={() => (notice = null)}
-			></button>
+			<button type="button" class="btn-close btn-sm" aria-label="Dismiss" onclick={() => (notice = null)}></button>
 		</div>
 	{/if}
 
@@ -489,33 +405,14 @@
 					/>
 					<!-- Suggests your presets' names, for saving over one of them. -->
 					<datalist id="{selectId}-names">
-						{#each list.userPresets as p (p.id)}
+						{#each store.userPresets as p (p.id)}
 							<option value={p.name}></option>
 						{/each}
 					</datalist>
-					{#if mode === 'save'}
-						<label class="form-label small mb-1 mt-3" for="{selectId}-base">Built on</label>
-						<select
-							id="{selectId}-base"
-							class="form-select form-select-sm"
-							bind:value={presetDraft}
-							onchange={() => {
-								overwriteConfirm = false;
-								formError = null;
-							}}
-						>
-							{#each list.all as p (p.id)}
-								<option value={p.id}>{store.presetLabel(section, p)}</option>
-							{/each}
-						</select>
-						<div class="form-text">Later changes to the preset it is built on carry over to it.</div>
-					{/if}
 					{#if formError}<div class="form-text text-danger">{formError}</div>{/if}
 					<div class="d-flex justify-content-end gap-2 mt-3">
 						<button type="button" class="btn btn-outline-secondary btn-sm" onclick={closeForm}>Cancel</button>
-						<button type="submit" class="btn btn-primary btn-sm">
-							{mode === 'save' ? 'Save' : 'Rename'}
-						</button>
+						<button type="submit" class="btn btn-primary btn-sm">{mode === 'save' ? 'Save' : 'Rename'}</button>
 					</div>
 				</form>
 			{:else if mode === 'switch'}
@@ -527,8 +424,11 @@
 				>
 					<label class="form-label small mb-1" for="{selectId}-switch">Switch to</label>
 					<select id="{selectId}-switch" class="form-select form-select-sm" bind:value={presetDraft}>
-						{#each list.all as p (p.id)}
-							<option value={p.id}>{store.presetLabel(section, p)}</option>
+						{#each store.rootPresets as p (p.id)}
+							<option value={p.id}>{p.label}</option>
+						{/each}
+						{#each store.userPresets as p (p.id)}
+							<option value={p.id}>{presetLabel(p.id, p.name)}</option>
 						{/each}
 					</select>
 					<div class="form-text">
@@ -614,11 +514,6 @@
 	/* Same tint as a changed setting row. */
 	.changed {
 		background-color: rgba(var(--bs-success-rgb), 0.3);
-	}
-
-	/* Same tint as a tweaked setting row. */
-	.tweaked {
-		background-color: rgba(var(--bs-info-rgb), 0.15);
 	}
 
 	.menu-wrap {

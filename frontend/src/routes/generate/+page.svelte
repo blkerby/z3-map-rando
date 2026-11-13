@@ -2,37 +2,38 @@
 	import { onMount, tick } from 'svelte';
 	import { replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import CustomizationSettings from '$lib/customization/CustomizationSettings.svelte';
+	import { customizationModel } from '$lib/customization/model';
+	import GenerationSettings from '$lib/generation/GenerationSettings.svelte';
+	import { ITEM_LOCATIONS, countPoolItems, generationModel } from '$lib/generation/data';
 	import CollapsibleSection from '$lib/settings/CollapsibleSection.svelte';
-	import CustomizationEditor from '$lib/settings/CustomizationEditor.svelte';
 	import CustomizationPanel from '$lib/settings/CustomizationPanel.svelte';
-	import ItemList from '$lib/settings/ItemList.svelte';
 	import PresetManager from '$lib/settings/PresetManager.svelte';
+	import SettingsProvider from '$lib/settings/SettingsProvider.svelte';
 	import SummaryPanel from '$lib/settings/SummaryPanel.svelte';
-	import { customizationItems, customizationPresets } from '$lib/settings/customizationSchema';
-	import { buildSchema } from '$lib/master/adapter';
-	import type { PageData } from './$types';
 	import { SearchState } from '$lib/settings/search.svelte';
 	import { SettingsStore } from '$lib/settings/store.svelte';
-	import type { Item } from '$lib/settings/types';
+	import { pathKey, type Path } from '$lib/settings/tree';
 	import { useRomStore } from '$lib/rom/store.svelte';
 	import { GENERATOR_VERSION, buildHash, generateGame, parseHash } from '$lib/game';
 
 	const rom = useRomStore();
 
-	let { data }: { data: PageData } = $props();
-
 	// The top-level preset controls, which the side panels' Save buttons go through.
 	let settingsPresets = $state<PresetManager>();
 	let customPresets = $state<PresetManager>();
 
-	// The settings description is loaded once per visit (see +page.ts), so it is read once here.
-	// svelte-ignore state_referenced_locally
-	const schema = buildSchema(data.master);
-
 	// One search box filters both stores.
 	const search = new SearchState();
-	const store = new SettingsStore(schema.items, schema.presets, search);
-	const custom = new SettingsStore(customizationItems, customizationPresets, search);
+	const store = new SettingsStore(generationModel, 'gen-', search);
+	const custom = new SettingsStore(customizationModel, 'custom-', search);
+
+	/** Reasons the current settings can't be generated. */
+	const problems = $derived.by(() => {
+		const used = countPoolItems(store);
+		if (used <= ITEM_LOCATIONS) return [];
+		return [`Item pool: ${used} items is more than the ${ITEM_LOCATIONS} item locations. Lower some counts.`];
+	});
 
 	// ---- Phases -------------------------------------------------------------
 	// configure: no game yet, settings are editable, Generate section is open.
@@ -57,11 +58,7 @@
 			? `This game was made with generator ${gameVersion}, but this site is running ${GENERATOR_VERSION}. The map may not match.`
 			: null
 	);
-	const shareHash = $derived(
-		generated && seed
-			? buildHash({ version: gameVersion, seed, settings: store.serialize() })
-			: null
-	);
+	const shareHash = $derived(generated && seed ? buildHash({ version: gameVersion, seed, settings: store.serialize() }) : null);
 
 	function enterGenerated(newSeed: string, version: string) {
 		seed = newSeed;
@@ -72,16 +69,19 @@
 		customizationOpen = true;
 	}
 
-	// ---- Draft: survive a refresh while editing -----------------------------
+	// ---- Storage ------------------------------------------------------------
 	// The URL hash is NOT written while editing. It only exists once a game does,
 	// so "has a hash" reliably means "this is a generated game".
 	const DRAFT_KEY = 'alttp-maprando:draft';
 	const PRESETS_KEY = 'alttp-maprando:presets:settings';
+	// Customization is personal: saved in this browser only, never part of the game link, never locked.
+	const CUSTOM_KEY = 'alttp-maprando:customization';
+	const CUSTOM_PRESETS_KEY = 'alttp-maprando:presets:customization';
 
 	function loadDraft() {
 		try {
-			const code = sessionStorage.getItem(DRAFT_KEY);
-			if (code) store.load(code);
+			const draft = sessionStorage.getItem(DRAFT_KEY);
+			if (draft) store.loadDraft(draft);
 		} catch {
 			/* storage unavailable: start fresh */
 		}
@@ -96,22 +96,45 @@
 	}
 
 	$effect(() => {
-		const code = store.serialize({ keepPreset: true }); // tracked: re-runs on any change
+		const draft = store.serializeDraft(); // tracked: re-runs on any change
 		if (!ready || phase !== 'configure') return;
 		try {
-			sessionStorage.setItem(DRAFT_KEY, code);
+			sessionStorage.setItem(DRAFT_KEY, draft);
 		} catch {
 			/* ignore */
 		}
 	});
 
 	$effect(() => {
-		JSON.stringify(Object.values(store.lists).map((l) => l.userPresets)); // tracked: re-runs when any preset changes
-		if (ready) store.saveUserPresets(PRESETS_KEY, data.master.version);
+		const draft = custom.serializeDraft(); // tracked: re-runs on any change
+		if (!ready) return;
+		try {
+			localStorage.setItem(CUSTOM_KEY, draft);
+		} catch {
+			/* ignore */
+		}
+	});
+
+	$effect(() => {
+		JSON.stringify(store.userPresets); // tracked: re-runs when any preset changes
+		if (ready) store.saveUserPresets(PRESETS_KEY);
+	});
+
+	$effect(() => {
+		JSON.stringify(custom.userPresets); // tracked: re-runs when any preset changes
+		if (ready) custom.saveUserPresets(CUSTOM_PRESETS_KEY);
 	});
 
 	onMount(() => {
-		store.loadUserPresets(PRESETS_KEY, data.master.version); // before the draft, which may name one of them
+		// Presets before the drafts, which may name one of them.
+		store.loadUserPresets(PRESETS_KEY);
+		custom.loadUserPresets(CUSTOM_PRESETS_KEY);
+		try {
+			const draft = localStorage.getItem(CUSTOM_KEY);
+			if (draft) custom.loadDraft(draft);
+		} catch {
+			/* storage unavailable: start from defaults */
+		}
 		if (location.hash.length > 1) {
 			const link = parseHash(location.hash);
 			if (link && store.load(link.settings)) {
@@ -129,7 +152,7 @@
 	// ---- Actions ------------------------------------------------------------
 	async function generate() {
 		if (generating || generated) return;
-		if (store.problems.length) return; // the button is disabled too; this covers any other caller
+		if (problems.length) return; // the button is disabled too; this covers any other caller
 		// ROM first: nothing is requested from the server until the player has a valid ROM loaded.
 		if (!(await rom.require())) return;
 		if (generating || generated) return; // state may have changed while the dialog was open
@@ -138,14 +161,9 @@
 		linkError = null;
 		store.locked = true; // freeze the settings while the server works
 		try {
-			// Hidden settings are not shown or put in links, but the server still needs their fixed values.
-			const result = await generateGame({ ...schema.hidden, ...$state.snapshot(store.values) });
+			const result = await generateGame($state.snapshot(store.values));
 			enterGenerated(result.seed, GENERATOR_VERSION);
-			const hash = buildHash({
-				version: GENERATOR_VERSION,
-				seed: result.seed,
-				settings: store.serialize()
-			});
+			const hash = buildHash({ version: GENERATOR_VERSION, seed: result.seed, settings: store.serialize() });
 			replaceState(resolve(`/generate#${hash}`), {});
 			clearDraft();
 			await tick();
@@ -192,11 +210,6 @@
 		else customizationOpen = true;
 	}
 
-	/** Unfold the cards holding an item (a setting or a card, by id), and the card itself. */
-	function unfold(settings: SettingsStore, id: string) {
-		for (const sec of settings.pathTo(id)) settings.opened[sec.id] = true;
-	}
-
 	// Buttons instead of #anchors, so the URL hash keeps holding the game link.
 	async function goTo(section: Section, elementId: string) {
 		openSection(section);
@@ -210,36 +223,37 @@
 		window.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
-	/** From a summary chip: clear the search so the setting is visible, open its section, scroll to it. */
-	async function jumpToSetting(section: Section, id: string) {
+	/** Clear the search, open a card and scroll to it. */
+	function jumpToCard(settings: SettingsStore, section: Section, cardId: string) {
+		search.query = '';
+		settings.opened[cardId] = true;
+		goTo(section, `${settings.idPrefix}section-${cardId}`);
+	}
+
+	/** From a summary chip: clear the search so the setting is visible, open its card, scroll to it. */
+	async function jumpToSetting(settings: SettingsStore, section: Section, path: Path) {
 		search.query = '';
 		openSection(section);
-		// If the setting sits in a folded card, unfold it first.
-		unfold(section === 'generate' ? store : custom, id);
+		const cardId = settings.controls[pathKey(path)]?.cardId;
+		if (cardId) settings.opened[cardId] = true;
 		await tick();
-		// Nested settings live inside a collapsed expander; jumping to the top-level parent is enough.
-		(document.getElementById(id) ?? document.getElementById(id.split('.')[0]))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		document.getElementById(settings.elementId(path))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 	}
 </script>
 
-<!-- Links to the cards in a list of items, nested cards indented under their parent. -->
-{#snippet navLinks(settings: SettingsStore, items: Item[], page: Section, idPrefix: string, depth: number)}
-	{#each items as item (`${item.kind}|${item.id}`)}
-		{#if item.kind === 'section' && settings.matches(item)}
+<!-- Links to a store's cards. -->
+{#snippet navLinks(settings: SettingsStore, page: Section)}
+	{#each settings.cards as card (card.id)}
+		{#if !searching || settings.countMatches(card.id)}
 			<button
 				type="button"
 				class="nav-link-btn sub"
-				style:padding-left="{0.6 + 0.8 * depth}rem"
-				class:active={activeId === `${idPrefix}${item.id}`}
-				onclick={() => {
-					unfold(settings, item.id);
-					goTo(page, `${idPrefix}${item.id}`);
-				}}
+				class:active={activeId === `${settings.idPrefix}section-${card.id}`}
+				onclick={() => jumpToCard(settings, page, card.id)}
 			>
-				{#if item.icon}<i class="bi bi-{item.icon}"></i>{/if}
-				{item.title}
+				{#if card.icon}<i class="bi bi-{card.icon}"></i>{/if}
+				{card.title}
 			</button>
-			{@render navLinks(settings, item.items, page, idPrefix, depth + 1)}
 		{/if}
 	{/each}
 {/snippet}
@@ -285,7 +299,7 @@
 			>
 				Generate
 			</button>
-			{@render navLinks(store, store.items, 'generate', 'section-', 1)}
+			{@render navLinks(store, 'generate')}
 
 			<button
 				type="button"
@@ -295,7 +309,7 @@
 			>
 				Customization
 			</button>
-			{@render navLinks(custom, custom.items, 'customization', 'custom-section-', 1)}
+			{@render navLinks(custom, 'customization')}
 		</nav>
 
 		<div class="content">
@@ -309,7 +323,7 @@
 				{#snippet actions()}
 					<PresetManager bind:this={settingsPresets} {store} kind="settings" selectId="preset" />
 				{/snippet}
-				<ItemList {store} items={store.items} idPrefix="section-" />
+				<SettingsProvider {store}><GenerationSettings /></SettingsProvider>
 				{#if !generateMatches}
 					<p class="text-body-secondary">No settings match “{search.query}”.</p>
 				{/if}
@@ -319,7 +333,10 @@
 				{#snippet actions()}
 					<PresetManager bind:this={customPresets} store={custom} kind="customization" selectId="custom-preset" />
 				{/snippet}
-				<CustomizationEditor store={custom} />
+				<SettingsProvider store={custom}><CustomizationSettings /></SettingsProvider>
+				{#if !customMatches}
+					<p class="text-body-secondary">No customization options match “{search.query}”.</p>
+				{/if}
 			</CollapsibleSection>
 		</div>
 
@@ -327,6 +344,7 @@
 		<div class="side">
 			<SummaryPanel
 				{store}
+				{problems}
 				{generated}
 				{generating}
 				{error}
@@ -334,20 +352,16 @@
 				{shareHash}
 				ongenerate={generate}
 				onnew={newGame}
-				onjump={(id) => jumpToSetting('generate', id)}
+				onjump={(path) => jumpToSetting(store, 'generate', path)}
 				onsave={() => settingsPresets?.save()}
-				onjumpsection={(id) => {
-					search.query = '';
-					unfold(store, id);
-					goTo('generate', `section-${id}`);
-				}}
+				onjumpcard={(id) => jumpToCard(store, 'generate', id)}
 			/>
 			<CustomizationPanel
 				store={custom}
 				{generated}
 				{seed}
 				version={gameVersion}
-				onjump={(id) => jumpToSetting('customization', id)}
+				onjump={(path) => jumpToSetting(custom, 'customization', path)}
 				onsave={() => customPresets?.save()}
 			/>
 		</div>

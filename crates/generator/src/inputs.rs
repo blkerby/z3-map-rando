@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow, bail, ensure};
-use common_types::{DoorId, Item};
+use common_types::{DoorId, Item, SourceRoomId, read_item_records};
 use hashbrown::HashMap;
 use logic_catalog::{DoorIndex, ItemLocationIndex, LockKind, LogicCatalog};
 use seed_data::Settings;
@@ -59,8 +59,19 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         notable_enabled: vec![false; catalog.notables.len()],
         proficiency_levels: vec![0; catalog.techs.len()],
     };
+    let mut items_by_name = HashMap::new();
+    for record in read_item_records() {
+        items_by_name.insert(record.upstream_name, record.name);
+        for name in record.other_names {
+            items_by_name.insert(name, record.name);
+        }
+    }
     for item in &catalog.items {
-        inputs.items.push(resolve_item(&item.name));
+        let item = match items_by_name.get(&item.name) {
+            Some(&item) => Some(item),
+            None => resolve_non_pool_item(&item.name),
+        };
+        inputs.items.push(item);
     }
     for _ in &catalog.dungeons {
         inputs.dungeons.push(DungeonInputs::default());
@@ -148,8 +159,8 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         }
     }
 
-    for entry in &settings.item_pool {
-        match entry.item {
+    for (&item, &count) in &settings.item_pool {
+        match item {
             Item::SmallKey { .. }
             | Item::BigKey
             | Item::Map
@@ -165,12 +176,12 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
             | Item::Crystal6
             | Item::Crystal7 => bail!(
                 "item {:?} is not allowed in the ordinary item pool; dungeon items and prizes use separate placement phases",
-                entry.item,
+                item,
             ),
             _ => {}
         }
-        for _ in 0..entry.count {
-            inputs.ordinary_pool.push(entry.item);
+        for _ in 0..count {
+            inputs.ordinary_pool.push(item);
         }
     }
     // Preserve the prototype's existing pool-size behavior.
@@ -185,79 +196,49 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
     for (index, tech) in catalog.techs.iter().enumerate() {
         tech_indices.insert(tech.tech_id, index);
     }
-    for setting in &settings.tech {
+    for (tech_id, &enabled) in &settings.skill.tech {
         let index = tech_indices
-            .get(&setting.tech_id)
-            .ok_or_else(|| anyhow!("unknown tech ID: {}", setting.tech_id))?;
-        inputs.tech_enabled[*index] = setting.enabled;
+            .get(tech_id)
+            .ok_or_else(|| anyhow!("unknown tech ID: {tech_id}"))?;
+        inputs.tech_enabled[*index] = enabled;
     }
     let mut notable_indices = HashMap::new();
     for (index, notable) in catalog.notables.iter().enumerate() {
         let room_id = catalog.room(notable.room_idx).room_id.unwrap();
         notable_indices.insert((room_id, notable.notable_id), index);
     }
-    for setting in &settings.notables {
-        let index = notable_indices
-            .get(&(setting.room_id, setting.notable_id))
-            .ok_or_else(|| {
-                anyhow!(
-                    "unknown notable ID {} in room {:?}",
-                    setting.notable_id,
-                    setting.room_id,
-                )
-            })?;
-        inputs.notable_enabled[*index] = setting.enabled;
+    let notables = &settings.skill.notables;
+    let mut notable_settings = Vec::new();
+    for (&room, room_notables) in &notables.overworld {
+        notable_settings.push((SourceRoomId::Overworld(room), room_notables));
     }
-    for setting in &settings.proficiencies {
+    for (&room, room_notables) in &notables.underworld {
+        notable_settings.push((SourceRoomId::Underworld(room), room_notables));
+    }
+    for (room_id, room_notables) in notable_settings {
+        for (&notable_id, &enabled) in room_notables {
+            let index = notable_indices
+                .get(&(room_id, notable_id))
+                .ok_or_else(|| anyhow!("unknown notable ID {notable_id} in room {room_id:?}"))?;
+            inputs.notable_enabled[*index] = enabled;
+        }
+    }
+    for (tech_id, &level) in &settings.skill.proficiencies {
         let index = tech_indices
-            .get(&setting.tech_id)
-            .ok_or_else(|| anyhow!("unknown proficiency tech ID: {}", setting.tech_id))?;
-        inputs.proficiency_levels[*index] = setting.level;
+            .get(tech_id)
+            .ok_or_else(|| anyhow!("unknown proficiency tech ID: {tech_id}"))?;
+        inputs.proficiency_levels[*index] = level;
     }
     Ok(inputs)
 }
 
-fn resolve_item(name: &str) -> Option<Item> {
+/// Resolve upstream names of items outside `data/items.json`.
+fn resolve_non_pool_item(name: &str) -> Option<Item> {
     Some(match name {
-        "Sword" | "L1Sword" | "L2Sword" | "MasterSword" | "L3Sword" | "L4Sword"
-        | "ProgressiveSword" => Item::Sword,
-        "Shield" | "BlueShield" | "RedShield" | "MirrorShield" | "ProgressiveShield" => {
-            Item::Shield
-        }
-        "Glove" | "PowerGlove" | "TitansMitt" | "ProgressiveGlove" => Item::Glove,
-        "Mail" | "BlueMail" | "RedMail" | "ProgressiveArmor" => Item::Mail,
-        "Boomerang" | "BlueBoomerang" | "RedBoomerang" => Item::Boomerang,
-        "FireRod" => Item::FireRod,
-        "IceRod" => Item::IceRod,
-        "Hammer" => Item::Hammer,
-        "Hookshot" => Item::Hookshot,
-        "Bow" => Item::Bow,
-        "MagicPowder" => Item::MagicPowder,
-        "Bombos" => Item::Bombos,
-        "Ether" => Item::Ether,
-        "Quake" => Item::Quake,
-        "Lamp" => Item::Lamp,
-        "Shovel" => Item::Shovel,
-        "CaneOfSomaria" => Item::CaneOfSomaria,
-        "CaneOfByrna" => Item::CaneOfByrna,
-        "Cape" => Item::Cape,
-        "MagicMirror" => Item::MagicMirror,
-        "BookOfMudora" => Item::BookOfMudora,
-        "Flippers" => Item::Flippers,
-        "MoonPearl" => Item::MoonPearl,
-        "BugCatchingNet" => Item::BugCatchingNet,
-        "Mushroom" => Item::Mushroom,
-        "Bottle" => Item::Bottle,
-        "PegasusBoots" => Item::PegasusBoots,
         "SilverArrows" | "BowAndSilverArrows" => Item::SilverArrows,
-        "Ocarina" | "OcarinaInactive" => Item::Ocarina,
-        "HalfMagic" => Item::HalfMagic,
-        "OneArrow" => Item::Arrow,
         "OneBomb" => Item::Bomb,
         "Heart" => Item::Heart,
         "SmallMagic" => Item::SmallMagic,
-        "ThreeBombs" => Item::ThreeBombs,
-        "TenArrows" => Item::TenArrows,
         "TenBombs" => Item::TenBombs,
         "Bee" => Item::Bee,
         "Fairy" => Item::Fairy,
@@ -265,12 +246,6 @@ fn resolve_item(name: &str) -> Option<Item> {
         "RedPotion" => Item::RedPotion,
         "GreenPotion" => Item::GreenPotion,
         "BluePotion" => Item::BluePotion,
-        "OneRupee" => Item::OneRupee,
-        "FiveRupees" => Item::FiveRupees,
-        "TwentyRupees" => Item::TwentyRupees,
-        "FiftyRupees" => Item::FiftyRupees,
-        "OneHundredRupees" => Item::OneHundredRupees,
-        "ThreeHundredRupees" => Item::ThreeHundredRupees,
         "Compass" => Item::Compass,
         "BigKey" => Item::BigKey,
         "Map" => Item::Map,
@@ -285,9 +260,6 @@ fn resolve_item(name: &str) -> Option<Item> {
         "Crystal6" => Item::Crystal6,
         "Crystal7" => Item::Crystal7,
         "Triforce" => Item::Triforce,
-        "BossHeartContainer" => Item::BossHeartContainer,
-        "SanctuaryHeartContainer" => Item::SanctuaryHeartContainer,
-        "PieceOfHeart" => Item::PieceOfHeart,
         "BombUpgrade5" => Item::BombUpgrade5,
         "BombUpgrade10" => Item::BombUpgrade10,
         "BombUpgrade50" => Item::BombUpgrade50,

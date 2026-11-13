@@ -1,677 +1,570 @@
-import type { Item, Preset, Section, Setting, Value } from './types';
-import { PresetList, type PresetContent } from './presetList.svelte';
-import { readStoredPresets } from './presetIO';
+import { untrack } from 'svelte';
 import { SearchState } from './search.svelte';
+import { cloneTree, getAt, isTree, leafPaths, pathKey, setAt, startsWith, type Path, type Tree, type Value } from './tree';
 
-/** Flatten settings and their nested `details` into one list. */
-export function flatten(settings: Setting[]): Setting[] {
-	return settings.flatMap((s) => [s, ...('details' in s && s.details ? flatten(s.details) : [])]);
+/**
+ * Settings and presets, following docs/data-formats/settings.md:
+ *
+ * - The root scope has built-in presets (complete settings) and the player's own presets. Child scopes
+ *   (e.g. `skill`) have built-in presets only, each complete over its subtree.
+ * - A settings document holds the built-in root `preset`, a `preset` selection inside each child scope
+ *   object that differs from what the root preset selects, and tweaks: values that differ from that
+ *   baseline. A user preset is a name plus such a document.
+ * - Two comparisons: unsaved changes are differences from the selected preset as applied (with its tweaks);
+ *   tweaks are differences between that and the same baseline without the preset's tweaks.
+ * - A child scope either takes what the selected root preset chooses for it ("Hard + 2 tweaks"), or has a
+ *   preset picked by hand, which it takes plainly; the pick itself is an unsaved change.
+ *
+ * The store knows settings only by path. Labels and value formatting come from the controls on the page,
+ * which register themselves while mounted (see `register`).
+ */
+
+export const FORMAT_VERSION = 1;
+
+export interface ScopePreset {
+	id: string;
+	label: string;
+	/** Complete values of the scope's subtree. */
+	settings: Tree;
 }
 
-/** A section's own settings (with their details), leaving out nested sections. */
-export function ownSettings(section: Section): Setting[] {
-	const out: Setting[] = [];
-	for (const item of section.items) if (item.kind !== 'section') out.push(...flatten([item]));
-	return out;
+export interface RootPreset {
+	id: string;
+	label: string;
+	/** Complete values of every setting; child scope subtrees are replaced by the selected scope presets. */
+	settings: Tree;
+	/** Scope id -> built-in preset of that scope. Scopes left out take their first preset. */
+	scopes: Record<string, string>;
 }
 
-/** Every setting in a list of items (with their details), nested sections included. */
-export function settingsIn(items: Item[]): Setting[] {
-	const out: Setting[] = [];
-	for (const item of items) out.push(...(item.kind === 'section' ? settingsIn(item.items) : flatten([item])));
-	return out;
+/** A child scope: the settings under `settings[id]`. */
+export interface Scope {
+	id: string;
+	label: string;
+	presets: ScopePreset[];
 }
 
-/** Every section in a list of items, nested ones included, parents first. */
-function sectionsIn(items: Item[]): Section[] {
-	const out: Section[] = [];
-	for (const item of items) if (item.kind === 'section') out.push(item, ...sectionsIn(item.items));
-	return out;
+export interface SettingsModel {
+	/** Built-in root presets; the first is the default. */
+	rootPresets: RootPreset[];
+	scopes: Scope[];
 }
 
-/** The sections directly inside a section. */
-function childSections(section: Section): Section[] {
-	const out: Section[] = [];
-	for (const item of section.items) if (item.kind === 'section') out.push(item);
-	return out;
+export interface UserPreset {
+	id: string;
+	name: string;
+	/** A settings document (without `format_version`). */
+	document: Tree;
 }
 
-/** Item locations used by a section's counts (see Section.pool). */
-export interface PoolStatus {
-	total: number;
-	used: number;
+/** What a mounted control tells the store about its setting. */
+export interface ControlInfo {
+	path: Path;
+	label: string;
+	notes?: string;
+	/** The card it is shown in. */
+	cardId?: string;
+	/** Text for a value, for summaries and chips. */
+	format: (value: Value) => string;
 }
 
-/** What applying a preset gives: every setting's value and the preset selected in every section. */
-interface Resolution {
-	values: Record<string, Value>;
-	selections: Record<string, string>;
-	/** For each section inside: the preset the presets around it choose for it. */
-	implied: Record<string, string>;
-	/** A section to work out as if it took what the presets around it choose (its pick and any picks inside it ignored). */
-	inherit?: string;
-	/** Work out every preset as its built-in base (user presets' choices and tweaks left out). */
-	builtInOnly?: boolean;
+export interface CardInfo {
+	id: string;
+	title: string;
+	icon?: string;
+	collapsed?: boolean;
 }
-
-/** Id of the root section: everything, with the presets for all the settings at once. */
-const ROOT_ID = 'root';
 
 export class SettingsStore {
-	/** Everything, as one section: its items are the top-level settings and sections, its presets are for all the settings. */
-	readonly root: Section;
-	/** The top-level list: loose settings and sections. */
-	readonly items: Item[];
-	/** Every section below the root, nested ones included, parents first. */
-	readonly sections: Section[];
-	/** The presets for each section (the root included), by section id. */
-	readonly lists: Record<string, PresetList> = {};
-	readonly all: Setting[];
-	/** Lookup by id. Null-prototype so ids from untrusted links like "constructor" can't match. */
-	readonly byId: Record<string, Setting | undefined>;
-	readonly defaults: Record<string, Value>;
-	/** The section each setting belongs to directly (the root for settings outside any section), by setting id. */
-	readonly ownerOf: Record<string, Section> = {};
-
-	values = $state<Record<string, Value>>({});
-	/** Shared search box state (the same object may be shared with other stores). */
+	readonly model: SettingsModel;
+	/** Prefix for element ids, so two stores on one page don't collide. */
+	readonly idPrefix: string;
 	readonly search: SearchState;
+	/** Every setting's path, in the default preset's order. */
+	readonly leaves: Path[];
+
+	values = $state<Tree>({});
+	/** The selected root preset: built-in or one of the player's own. */
+	selectedId = $state('');
+	/** Child scope id -> preset picked by hand, or null when it takes what the root preset chooses. */
+	scopePicks = $state<Record<string, string | null>>({});
+	userPresets = $state<UserPreset[]>([]);
 	/** When true the settings are read-only (a game has been generated from them). */
 	locked = $state(false);
-	/**
-	 * Cards the player has opened or folded by hand, by section id. Cards not in here use their default:
-	 * open, unless the section says `collapsed`. Searching opens every card with a match.
-	 */
+	/** Cards folded or unfolded by hand, by card id. */
 	opened = $state<Record<string, boolean>>({});
 	/** Set when the player's presets couldn't be saved in this browser. */
 	storageFailed = $state(false);
+	/** Mounted controls, by path key. */
+	controls = $state.raw<Record<string, ControlInfo>>({});
+	/** Mounted cards, in page order. */
+	cards = $state.raw<CardInfo[]>([]);
 
-	/** The values the selected presets give, and what they choose for each section (see `resolve`). */
 	private readonly layers = $derived.by(() => {
-		const applied = this.emptyResolution();
-		this.resolve(this.root, this.rootPreset, {}, true, true, applied);
-		const plain = this.emptyResolution();
-		this.resolve(this.root, this.rootPreset, {}, true, false, plain);
-		const builtIn = { ...this.emptyResolution(), builtInOnly: true };
-		this.resolve(this.root, this.rootPreset, {}, true, true, builtIn);
+		const doc = this.selectedDocument;
 		return {
-			applied: applied.values,
-			selections: applied.selections,
-			implied: applied.implied,
-			builtInImplied: builtIn.implied,
-			plain: plain.values
+			applied: this.resolve(doc, this.scopePicks, true),
+			plain: this.resolve(doc, this.scopePicks, false),
+			// The same with no scope picked by hand, for what the scopes would inherit.
+			inherited: this.resolve(doc, {}, true),
+			inheritedPlain: this.resolve(doc, {}, false)
 		};
 	});
 
-	/**
-	 * For each section: the settings inside it that the presets around it change from the preset they
-	 * choose for it (with their tweaks, and their picks for sections inside it), had it not been picked by hand.
-	 */
-	private readonly inheritedChanges = $derived.by(() => {
-		const out: Record<string, string[]> = {};
-		for (const sec of this.sections) {
-			const inherited = this.emptyResolution(sec.id);
-			this.resolve(this.root, this.rootPreset, {}, true, true, inherited);
-			const plain = this.resolveFresh(sec, this.impliedPreset(sec)).values;
-			const ids: string[] = [];
-			for (const s of settingsIn(sec.items)) if (inherited.values[s.id] !== plain[s.id]) ids.push(s.id);
-			out[sec.id] = ids;
-		}
-		return out;
-	});
-
-	/**
-	 * Settings the selected presets set differently from the preset shown for their section: the tweaks
-	 * behind "Hard + 2 tweaks" in sections that aren't picked by hand, and the top-level preset's tweaks of
-	 * settings outside any section.
-	 */
-	private readonly tweaked = $derived.by(() => {
-		const out: Record<string, boolean> = {};
-		for (const sec of this.sections) {
-			if (this.isSelectionChanged(sec)) continue;
-			for (const id of this.inheritedChanges[sec.id]) out[id] = true;
-		}
-		for (const s of ownSettings(this.root)) if (this.applied[s.id] !== this.plain[s.id]) out[s.id] = true;
-		return out;
-	});
-
-	constructor(items: Item[], presets: Preset[], search: SearchState = new SearchState()) {
+	constructor(model: SettingsModel, idPrefix: string, search: SearchState = new SearchState()) {
+		this.model = model;
+		this.idPrefix = idPrefix;
 		this.search = search;
-		this.items = items;
-		this.root = { kind: 'section', id: ROOT_ID, title: 'All settings', presets, items };
-		this.sections = sectionsIn(items);
-		for (const sec of [this.root, ...this.sections]) this.lists[sec.id] = new PresetList(sec.presets, sec.defaultPreset);
-		this.lists[ROOT_ID].selectedId = this.lists[ROOT_ID].defaultId;
-		this.all = settingsIn(items);
-		for (const sec of [this.root, ...this.sections]) for (const s of ownSettings(sec)) this.ownerOf[s.id] = sec;
-		this.byId = Object.assign(Object.create(null), Object.fromEntries(this.all.map((s) => [s.id, s])));
-		this.defaults = Object.fromEntries(this.all.map((s) => [s.id, s.default]));
-		this.values = this.resolveFresh(this.root, this.rootPreset).values;
+		this.leaves = leafPaths(model.rootPresets[0].settings);
+		this.selectedId = model.rootPresets[0].id;
+		for (const scope of model.scopes) this.scopePicks[scope.id] = null;
+		this.values = this.resolve(this.selectedDocument, {}, true);
 	}
 
 	get query(): string {
 		return this.search.query;
 	}
 
-	set query(value: string) {
-		this.search.query = value;
+	// ---- Presets and their baselines ---------------------------------------------
+
+	get rootPresets(): RootPreset[] {
+		return this.model.rootPresets;
 	}
 
-	listFor(section: Section): PresetList {
-		return this.lists[section.id];
+	builtIn(id: unknown): RootPreset | undefined {
+		return this.model.rootPresets.find((p) => p.id === id);
 	}
 
-	/** The selected presets, e.g. "Default · Logic: Hard + 2 tweaks". */
-	get presetSummary(): string {
-		let out = this.rootPreset.name;
-		for (const sec of this.sections) out += ` · ${sec.title}: ${this.selectionLabel(sec)}`;
-		return out;
+	userPreset(id: unknown): UserPreset | undefined {
+		return this.userPresets.find((p) => p.id === id);
 	}
 
-	/** The selected top-level preset. */
-	get rootPreset(): Preset {
-		const list = this.lists[ROOT_ID];
-		return list.find(list.selectedId) ?? list.defaultPreset;
+	isUser(id: string): boolean {
+		return this.userPreset(id) !== undefined;
 	}
 
-	/** The preset the presets around a section choose for it. */
-	impliedPreset(section: Section): Preset {
-		const list = this.lists[section.id];
-		return list.find(this.layers.implied[section.id]) ?? list.defaultPreset;
+	/** The selected root preset's name. */
+	get presetName(): string {
+		return this.userPreset(this.selectedId)?.name ?? this.builtIn(this.selectedId)?.label ?? '';
 	}
 
-	/** The preset a section takes: the one picked for it by hand, otherwise the one chosen for it. */
-	selectedPreset(section: Section): Preset {
-		if (section === this.root) return this.rootPreset;
-		return this.lists[section.id].find(this.lists[section.id].selectedId) ?? this.impliedPreset(section);
+	/** The selected root preset as a settings document. */
+	get selectedDocument(): Tree {
+		return this.userPreset(this.selectedId)?.document ?? { preset: this.selectedId };
 	}
 
-	/** How many settings inside a section the presets around it change (see `inheritedChanges`). */
-	tweakCount(section: Section): number {
-		return this.inheritedChanges[section.id]?.length ?? 0;
+	/** The built-in root preset behind a document. */
+	private rootOf(doc: Tree): RootPreset {
+		return this.builtIn(doc.preset) ?? this.model.rootPresets[0];
 	}
 
-	/**
-	 * Does a section that isn't picked by hand take something other than what the built-in presets behind
-	 * the selected ones would give it: a different preset chosen for it, or tweaks inside it?
-	 */
-	isSelectionTweaked(section: Section): boolean {
-		if (section === this.root || this.isSelectionChanged(section)) return false;
-		return this.tweakCount(section) > 0 || this.layers.implied[section.id] !== this.layers.builtInImplied[section.id];
+	/** The built-in root preset behind the selected one: itself if built-in. */
+	get basePreset(): RootPreset {
+		return this.rootOf(this.selectedDocument);
 	}
 
-	/** Is this setting one of the selected presets' tweaks (see `tweaked`)? */
-	isTweaked(id: string): boolean {
-		return this.tweaked[id] === true;
+	scopePreset(scope: Scope, id: unknown): ScopePreset | undefined {
+		return scope.presets.find((p) => p.id === id);
 	}
 
-	/** Ids of the selected presets' tweaks. */
-	get tweakedIds(): string[] {
-		return this.all.filter((s) => this.isTweaked(s.id)).map((s) => s.id);
+	/** The preset a document chooses for a scope: its own selection, else its root preset's. */
+	private chosenFor(doc: Tree, scope: Scope): string {
+		const own = getAt(doc, [scope.id, 'preset']);
+		if (this.scopePreset(scope, own)) return own as string;
+		return this.rootOf(doc).scopes[scope.id] ?? scope.presets[0].id;
 	}
 
-	/** What a section takes, e.g. "Hard + 2 tweaks", or "Expert" when picked by hand. */
-	selectionLabel(section: Section): string {
-		if (section === this.root || this.isSelectionChanged(section)) return this.presetLabel(section, this.selectedPreset(section));
-		return this.inheritedLabel(section);
+	/** The preset the selected root preset chooses for a scope. */
+	impliedScopePreset(scope: Scope): ScopePreset {
+		return this.scopePreset(scope, this.chosenFor(this.selectedDocument, scope))!;
 	}
 
-	/** The label of a section's choice when it isn't picked by hand, e.g. "Mine (based on Hard) + 2 tweaks". */
-	inheritedLabel(section: Section): string {
-		const name = this.presetLabel(section, this.impliedPreset(section));
-		const n = this.tweakCount(section);
-		return n ? `${name} + ${n} tweak${n === 1 ? '' : 's'}` : name;
-	}
-
-	/** A preset's name, with the preset it is built on if it is one of the player's own: "Mine (based on Hard)". */
-	presetLabel(section: Section, preset: Preset): string {
-		const list = this.lists[section.id];
-		return list.isUser(preset.id) ? `${preset.name} (based on ${list.baseOf(preset).name})` : preset.name;
-	}
-
-	get(id: string): Value {
-		return this.values[id];
-	}
-
-	set(id: string, value: Value) {
-		if (this.locked) return;
-		this.values[id] = value;
-	}
-
-	// ---- Working out what presets give ------------------------------------------
-
-	private emptyResolution(inherit?: string): Resolution {
-		return { values: { ...this.defaults }, selections: {}, implied: {}, inherit };
+	/** The preset a scope takes: picked by hand, otherwise the one chosen for it. */
+	selectedScopePreset(scope: Scope): ScopePreset {
+		return this.scopePreset(scope, this.scopePicks[scope.id]) ?? this.impliedScopePreset(scope);
 	}
 
 	/**
-	 * Work out a section with `preset` applied, into `out`: its own settings come from the built-in preset at
-	 * the bottom of its chain; each section inside takes the preset chosen for it (by `outer`, the choices of
-	 * the presets around this one, which win; then by the presets in the chain, nearest first; otherwise the
-	 * section's default); then the chain's tweaks go on top, nearest last.
-	 *
-	 * With `follow`, a section inside that has a preset picked by hand takes that preset instead, plainly:
-	 * this preset's choices and tweaks don't reach into it. Without `follow`, picks are ignored. With `tweaks` false, the chain's tweaks are left
-	 * out (not those of presets inside it).
-	 *
-	 * Returns the ids of the settings this preset decides (where its tweaks apply).
+	 * The values a document gives: its root preset, the scope presets it chooses (or `picks`), and with
+	 * `tweaks` its values on top, except inside picked scopes, which take their preset plainly.
 	 */
-	private resolve(
-		section: Section,
-		preset: Preset,
-		outer: Record<string, string>,
-		follow: boolean,
-		tweaks: boolean,
-		out: Resolution
-	): string[] {
-		let chain = this.lists[section.id].chain(preset);
-		const base = chain[0];
-		if (out.builtInOnly) {
-			preset = base;
-			chain = [base];
-		}
-		out.selections[section.id] = preset.id;
-		const decided: string[] = [];
-		for (const s of ownSettings(section)) {
-			out.values[s.id] = base.values[s.id] ?? this.defaults[s.id];
-			decided.push(s.id);
-		}
-		const chosen = { ...chosenBy(chain), ...outer };
-		for (const child of childSections(section)) {
-			const list = this.lists[child.id];
-			const implied = list.find(chosen[child.id]) ?? list.defaultPreset;
-			out.implied[child.id] = implied.id;
-			const followChild = follow && child.id !== out.inherit;
-			const picked = followChild ? list.find(list.selectedId) : undefined;
-			if (picked) {
-				this.resolve(child, picked, {}, true, true, out);
-				continue;
-			}
-			decided.push(...this.resolve(child, implied, chosen, followChild, true, out));
+	private resolve(doc: Tree, picks: Record<string, string | null>, tweaks: boolean): Tree {
+		const out = cloneTree(this.rootOf(doc).settings);
+		const picked: Path[] = [];
+		for (const scope of this.model.scopes) {
+			const pick = this.scopePreset(scope, picks[scope.id]);
+			if (pick) picked.push([scope.id]);
+			const preset = pick ?? this.scopePreset(scope, this.chosenFor(doc, scope))!;
+			out[scope.id] = cloneTree(preset.settings);
 		}
 		if (tweaks) {
-			for (const p of chain.slice(1)) {
-				for (const [id, v] of Object.entries(p.values)) if (decided.includes(id)) out.values[id] = v;
+			for (const path of this.leaves) {
+				if (picked.some((p) => startsWith(path, p))) continue;
+				const v = getAt(doc, path);
+				if (typeof v === typeof getAt(out, path)) setAt(out, path, v as Value);
 			}
 		}
-		return decided;
-	}
-
-	/** A section with a preset applied as if just selected (current selections inside it ignored). */
-	private resolveFresh(section: Section, preset: Preset): Resolution {
-		const out = this.emptyResolution();
-		this.resolve(section, preset, {}, false, true, out);
 		return out;
 	}
 
 	/** The values the selected presets give. Differences from these are unsaved changes. */
-	get applied(): Record<string, Value> {
+	get applied(): Tree {
 		return this.layers.applied;
 	}
 
-	/** The values the selected presets give without the top-level preset's own tweaks. */
-	get plain(): Record<string, Value> {
+	/** The values the selected presets give without the root preset's tweaks. */
+	get plain(): Tree {
 		return this.layers.plain;
 	}
 
-	// ---- Item locations -----------------------------------------------------------
+	// ---- Values -----------------------------------------------------------------
 
-	poolOf(section: Section): PoolStatus | null {
-		if (!section.pool) return null;
-		let used = 0;
-		for (const s of ownSettings(section)) if (s.kind === 'number') used += Number(this.values[s.id]) || 0;
-		return { total: section.pool.total, used };
+	get(path: Path): Value {
+		return getAt(this.values, path) as Value;
 	}
 
-	/** Reasons the current settings can't be generated. Empty when everything is fine. */
-	get problems(): string[] {
-		const out: string[] = [];
-		for (const sec of this.sections) {
-			const p = this.poolOf(sec);
-			if (p && p.used > p.total) {
-				out.push(`${sec.title}: ${p.used} items is more than the ${p.total} item locations. Lower some counts.`);
-			}
-		}
-		for (const s of this.all) {
-			if (s.kind !== 'number' || !s.poolItem) continue;
-			const pooled = Number(this.values[s.poolItem]) || 0;
-			if (Number(this.values[s.id]) > pooled) {
-				out.push(`${s.label}: starting with ${this.values[s.id]} is more than the item pool has (${pooled}).`);
-			}
-		}
-		return out;
+	set(path: Path, value: Value) {
+		if (this.locked) return;
+		setAt(this.values, path, value);
 	}
-
-	// ---- Unsaved changes ------------------------------------------------------------
 
 	/** Does this setting differ from what the selected presets give? */
-	isChanged(id: string): boolean {
-		return this.values[id] !== this.applied[id];
+	isChanged(path: Path): boolean {
+		return getAt(this.values, path) !== getAt(this.applied, path);
 	}
 
-	/** Was this section's preset picked by hand (rather than taking what the presets around it choose)? */
-	isSelectionChanged(section: Section): boolean {
-		if (section === this.root) return false;
-		return this.lists[section.id].find(this.lists[section.id].selectedId) !== undefined;
+	/** Is this setting one of the selected root preset's tweaks (and not changed since)? */
+	isTweaked(path: Path): boolean {
+		return !this.isChanged(path) && getAt(this.applied, path) !== getAt(this.plain, path);
 	}
 
-	/** Ids that differ from the selected presets. */
-	get changedIds(): string[] {
-		return this.all.filter((s) => this.isChanged(s.id)).map((s) => s.id);
+	get changedPaths(): Path[] {
+		return this.leaves.filter((p) => this.isChanged(p));
 	}
 
-	/** Sections picked by hand (their selection is an unsaved change). */
-	get changedSections(): Section[] {
-		return this.sections.filter((sec) => this.isSelectionChanged(sec));
+	get tweakedPaths(): Path[] {
+		return this.leaves.filter((p) => this.isTweaked(p));
 	}
 
-	/** How many unsaved changes there are in this section: changed settings and sections picked by hand, inside it included. */
-	countChanges(section: Section): number {
+	/** The child scope a setting is in, if any. */
+	scopeOf(path: Path): Scope | undefined {
+		return this.model.scopes.find((s) => s.id === path[0]);
+	}
+
+	isScopePicked(scope: Scope): boolean {
+		return this.scopePicks[scope.id] !== null;
+	}
+
+	/** Scopes with a preset picked by hand (each is an unsaved change). */
+	get pickedScopes(): Scope[] {
+		return this.model.scopes.filter((s) => this.isScopePicked(s));
+	}
+
+	/** How many settings in a scope the root preset's tweaks change, when it isn't picked by hand. */
+	inheritedTweakCount(scope: Scope): number {
+		const { inherited, inheritedPlain } = this.layers;
 		let n = 0;
-		for (const sec of [section, ...sectionsIn(section.items)]) if (this.isSelectionChanged(sec)) n++;
-		for (const s of settingsIn(section.items)) if (this.isChanged(s.id)) n++;
+		for (const p of this.leaves) if (p[0] === scope.id && getAt(inherited, p) !== getAt(inheritedPlain, p)) n++;
 		return n;
 	}
 
-	/** Has anything in this section (its selection, settings and sections inside included) changed? */
-	sectionChanged(section: Section): boolean {
-		return this.countChanges(section) > 0;
+	/** How many settings in a scope the root preset's tweaks change (none when it is picked by hand). */
+	scopeTweakCount(scope: Scope): number {
+		return this.isScopePicked(scope) ? 0 : this.inheritedTweakCount(scope);
 	}
 
-	reset(id: string) {
-		if (this.locked) return;
-		this.values[id] = this.applied[id];
+	/** Does a scope that isn't picked by hand take something other than the built-in base would give it? */
+	isScopeTweaked(scope: Scope): boolean {
+		if (this.isScopePicked(scope)) return false;
+		return this.scopeTweakCount(scope) > 0 || this.impliedScopePreset(scope).id !== this.chosenFor({ preset: this.basePreset.id }, scope);
 	}
 
-	/** Undo the unsaved changes in one section (selections inside it included), leaving everything else alone. */
-	resetSection(section: Section) {
+	/** What a scope takes when it isn't picked by hand, e.g. "Hard + 2 tweaks". */
+	inheritedScopeLabel(scope: Scope): string {
+		const n = this.inheritedTweakCount(scope);
+		const name = this.impliedScopePreset(scope).label;
+		return n ? `${name} + ${n} tweak${n === 1 ? '' : 's'}` : name;
+	}
+
+	/** What a scope takes: "Expert" when picked by hand, else e.g. "Hard + 2 tweaks". */
+	scopeLabel(scope: Scope): string {
+		return this.isScopePicked(scope) ? this.selectedScopePreset(scope).label : this.inheritedScopeLabel(scope);
+	}
+
+	/** Unsaved changes: changed settings and picked scopes. */
+	get changeCount(): number {
+		return this.changedPaths.length + this.pickedScopes.length;
+	}
+
+	reset(path: Path) {
 		if (this.locked) return;
-		for (const sec of [section, ...sectionsIn(section.items)]) if (sec !== this.root) this.lists[sec.id].selectedId = null;
-		const applied = this.applied;
-		for (const s of settingsIn(section.items)) this.values[s.id] = applied[s.id];
+		setAt(this.values, path, getAt(this.applied, path) as Value);
+	}
+
+	/** Undo the unsaved changes in a card: its settings, and the pick of its scope. */
+	resetCard(cardId: string, scope?: Scope) {
+		if (this.locked) return;
+		if (scope) this.scopePicks[scope.id] = null;
+		for (const c of Object.values(this.controls)) if (c.cardId === cardId) this.reset(c.path);
+	}
+
+	/** How many unsaved changes a card holds (its scope's pick included). */
+	countCardChanges(cardId: string, scope?: Scope): number {
+		let n = scope && this.isScopePicked(scope) ? 1 : 0;
+		for (const c of Object.values(this.controls)) if (c.cardId === cardId && this.isChanged(c.path)) n++;
+		return n;
 	}
 
 	resetAll() {
-		this.resetSection(this.root);
+		if (this.locked) return;
+		for (const scope of this.model.scopes) this.scopePicks[scope.id] = null;
+		this.values = cloneTree(this.applied);
+	}
+
+	/** Select a root preset and take its values. */
+	applyPreset(id: string) {
+		if (this.locked || (!this.builtIn(id) && !this.isUser(id))) return;
+		this.selectedId = id;
+		this.resetAll();
+	}
+
+	/** Select another root preset, keeping the current values: where they differ, they become unsaved changes. */
+	switchPreset(id: string) {
+		if (this.builtIn(id) || this.isUser(id)) this.selectedId = id;
 	}
 
 	/**
-	 * Pick a preset for a section and take its values (and the presets it chooses for sections inside
-	 * it). An empty id, or the preset the presets around it choose when they change nothing in it, means
-	 * taking what they choose.
+	 * Pick a preset for a scope and take its values. '' means taking what the root preset chooses, as does
+	 * picking that same preset when the root preset changes nothing in it.
 	 */
-	applyPreset(id: string, section: Section) {
-		if (this.locked) return;
-		const list = this.lists[section.id];
-		if (id !== '' && !list.find(id)) return;
-		const inherit = section !== this.root && (id === '' || (id === this.impliedPreset(section).id && this.tweakCount(section) === 0));
-		this.adoptPreset(section, inherit ? null : id);
+	pickScopePreset(scope: Scope, id: string) {
+		if (this.locked || (id !== '' && !this.scopePreset(scope, id))) return;
+		const inherit = id === '' || (id === this.impliedScopePreset(scope).id && this.inheritedTweakCount(scope) === 0);
+		this.scopePicks[scope.id] = inherit ? null : id;
 		const applied = this.applied;
-		for (const s of settingsIn(section.items)) this.values[s.id] = applied[s.id];
+		for (const p of this.leaves) if (p[0] === scope.id) setAt(this.values, p, getAt(applied, p) as Value);
 	}
 
-	/** Make `id` (null: what the presets around it choose) a section's selection, with the sections inside it taking what it chooses. */
-	private adoptPreset(section: Section, id: string | null) {
-		this.lists[section.id].selectedId = id;
-		for (const sec of sectionsIn(section.items)) this.lists[sec.id].selectedId = null;
+	// ---- Settings documents -------------------------------------------------------
+
+	/**
+	 * The current settings as a document based on the built-in behind the selected preset, so it never refers
+	 * to the player's own presets: the scope selections that differ from that built-in's, and the values that
+	 * differ from what those give.
+	 */
+	capture(): Tree {
+		const base = this.basePreset;
+		const doc: Tree = { preset: base.id };
+		for (const scope of this.model.scopes) {
+			const id = this.selectedScopePreset(scope).id;
+			if (id !== this.chosenFor({ preset: base.id }, scope)) doc[scope.id] = { preset: id };
+		}
+		const given = this.resolve(doc, {}, false);
+		for (const path of this.leaves) {
+			const v = getAt(this.values, path) as Value;
+			if (v !== getAt(given, path)) setAt(doc, path, v);
+		}
+		return doc;
 	}
 
-	/** After saving or updating a preset for a section from the current settings: make it the section's selection. */
-	adoptSaved(section: Section, id: string) {
-		const inherit = section !== this.root && !this.isSelectionChanged(section) && id === this.impliedPreset(section).id;
-		this.adoptPreset(section, inherit ? null : id);
+	/**
+	 * Read a settings document from untrusted input, leniently: unknown presets fall back to the default, and
+	 * unknown settings or values of the wrong type are dropped.
+	 */
+	readDocument(raw: unknown): Tree {
+		const doc: Tree = { preset: this.builtIn(getAt(raw, ['preset']))?.id ?? this.model.rootPresets[0].id };
+		for (const scope of this.model.scopes) {
+			const preset = this.scopePreset(scope, getAt(raw, [scope.id, 'preset']));
+			if (preset) doc[scope.id] = { preset: preset.id };
+		}
+		const defaults = this.model.rootPresets[0].settings;
+		for (const path of this.leaves) {
+			const v = getAt(raw, path);
+			if (typeof v === typeof getAt(defaults, path) && (typeof v !== 'number' || Number.isFinite(v))) setAt(doc, path, v as Value);
+		}
+		return doc;
+	}
+
+	/**
+	 * Take the values a document gives, with its built-in preset selected. Its scope selections become picks
+	 * and its tweaks unsaved changes.
+	 */
+	loadDocument(doc: Tree) {
+		this.selectedId = this.rootOf(doc).id;
+		for (const scope of this.model.scopes) {
+			const id = this.chosenFor(doc, scope);
+			this.scopePicks[scope.id] = id === this.chosenFor({ preset: this.selectedId }, scope) ? null : id;
+		}
+		this.values = this.resolve(doc, {}, true);
+	}
+
+	/** The current settings for a share link. */
+	serialize(): string {
+		return toBase64Url(JSON.stringify({ format_version: FORMAT_VERSION, ...this.capture() }));
+	}
+
+	/** Load a share link's settings. (Not blocked by `locked`: used to open shared games.) */
+	load(code: string): boolean {
+		try {
+			this.loadDocument(this.readDocument(JSON.parse(fromBase64Url(code))));
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	/** The current settings and selections, for keeping a draft in this browser. */
+	serializeDraft(): string {
+		return JSON.stringify({ selected: this.selectedId, picks: this.scopePicks, document: this.capture() });
+	}
+
+	loadDraft(text: string) {
+		try {
+			const draft = JSON.parse(text);
+			this.loadDocument(this.readDocument(draft.document));
+			this.switchPreset(draft.selected);
+			for (const scope of this.model.scopes) {
+				this.scopePicks[scope.id] = this.scopePreset(scope, getAt(draft, ['picks', scope.id]))?.id ?? null;
+			}
+		} catch {
+			/* unreadable draft: keep the defaults */
+		}
 	}
 
 	// ---- User presets -----------------------------------------------------------
 
-	/**
-	 * What a user preset for this section built on `base` would hold now: the selections inside the section
-	 * that differ from what `base` would choose, and the settings that differ from what those give. By
-	 * default `base` is the one the selected preset is built on, so saving a new preset from one of the
-	 * player's own makes a sibling of it.
-	 */
-	capture(section: Section, base: Preset = this.lists[section.id].baseOf(this.selectedPreset(section))): PresetContent {
-		const sections: Record<string, string> = {};
-		this.recordSelections(section, base, {}, sections);
-		const given = this.resolveFresh(section, { id: '', name: '', base: base.id, sections, values: {} }).values;
-		const values: Record<string, Value> = {};
-		for (const s of settingsIn(section.items)) if (this.values[s.id] !== given[s.id]) values[s.id] = this.values[s.id];
-		return { base: base.id, sections, values };
+	/** Would saving into the selected preset (one of the player's own) change it? */
+	get canUpdate(): boolean {
+		const preset = this.userPreset(this.selectedId);
+		return preset !== undefined && JSON.stringify(this.capture()) !== JSON.stringify(preset.document);
 	}
 
-	/** Record the current selections inside a section where they differ from what `preset` and `outer` choose. */
-	private recordSelections(section: Section, preset: Preset, outer: Record<string, string>, out: Record<string, string>) {
-		const chosen = { ...chosenBy(this.lists[section.id].chain(preset)), ...outer };
-		for (const child of childSections(section)) {
-			const list = this.lists[child.id];
-			const implied = list.find(chosen[child.id]) ?? list.defaultPreset;
-			const current = list.find(this.layers.selections[child.id]) ?? implied;
-			if (current.id !== implied.id) out[child.id] = current.id;
-			this.recordSelections(child, current, { ...chosen, ...out }, out);
-		}
+	addPreset(name: string, document: Tree): UserPreset {
+		const preset = { id: newPresetId(), name, document };
+		this.userPresets.push(preset);
+		return this.userPresets[this.userPresets.length - 1];
 	}
 
-	/**
-	 * Select another preset for a section, keeping the current settings: where they differ from it, they
-	 * become unsaved changes. The preset the presets around it choose means taking what they choose.
-	 */
-	switchPreset(section: Section, id: string) {
-		const list = this.lists[section.id];
-		if (!list.find(id)) return;
-		const inherit = section !== this.root && id === this.impliedPreset(section).id;
-		list.selectedId = inherit ? null : id;
+	/** Save the current settings into one of the player's presets and select it. */
+	updatePreset(id: string) {
+		const preset = this.userPreset(id);
+		if (!preset) return;
+		preset.document = this.capture();
+		this.selectedId = id;
+		for (const scope of this.model.scopes) this.scopePicks[scope.id] = null;
 	}
 
-	/** Would updating the selected preset (a user preset) change it? */
-	canUpdate(section: Section): boolean {
-		const saved = this.selectedPreset(section);
-		if (!this.lists[section.id].isUser(saved.id)) return false;
-		const now = this.capture(section);
-		return (
-			now.base !== saved.base ||
-			!sameEntries(now.sections ?? {}, saved.sections ?? {}) ||
-			!sameEntries(now.values, saved.values)
-		);
+	renamePreset(id: string, name: string) {
+		const preset = this.userPreset(id);
+		if (preset) preset.name = name;
 	}
 
-	/**
-	 * Delete a user preset. Presets built on it, or that pick it for a section, switch to its base and take
-	 * over its choices and tweaks (unless they have their own), so their values don't change. If it is
-	 * selected, the section switches to its base, keeping the current settings.
-	 */
-	deletePreset(section: Section, id: string) {
-		const list = this.lists[section.id];
-		const gone = list.userPresets.find((p) => p.id === id);
-		if (!gone) return;
-		const base = list.baseOf(gone);
-		for (const p of list.userPresets) {
-			if (p.base !== id) continue;
-			p.base = base.id;
-			p.sections = { ...gone.sections, ...p.sections };
-			p.values = { ...gone.values, ...p.values };
-		}
-		for (const other of Object.values(this.lists)) {
-			for (const p of other.userPresets) {
-				if (p.sections?.[section.id] !== id) continue;
-				p.sections = { ...gone.sections, ...p.sections, [section.id]: base.id };
-				p.values = { ...gone.values, ...p.values };
-			}
-		}
-		if (list.selectedId === id) this.switchPreset(section, base.id);
-		list.userPresets = list.userPresets.filter((p) => p.id !== id);
+	/** Delete one of the player's presets. If it is selected, its built-in base is selected, keeping the current values. */
+	deletePreset(id: string) {
+		if (this.selectedId === id) this.selectedId = this.basePreset.id;
+		this.userPresets = this.userPresets.filter((p) => p.id !== id);
 	}
 
-	/** Load the player's presets from this browser, moving tweaks of settings that changed section (see `migrate`). */
-	loadUserPresets(key: string, version: number) {
-		let data: { version?: unknown; lists?: Record<string, unknown> } = {};
+	loadUserPresets(key: string) {
+		let data: unknown;
 		try {
-			data = JSON.parse(localStorage.getItem(key) ?? '{}') ?? {};
+			data = JSON.parse(localStorage.getItem(key) ?? '{}');
 		} catch {
 			/* storage unavailable or unreadable: start without saved presets */
 		}
-		for (const [secId, list] of Object.entries(this.lists)) {
-			list.userPresets = readStoredPresets(data.lists?.[secId], (v) => this.sanitize(v));
-		}
-		if (typeof data.version === 'number' && data.version < version) this.migrate();
+		this.userPresets = this.readPresets(getAt(data, ['presets']));
 	}
 
-	/** Save the player's presets in this browser. */
-	saveUserPresets(key: string, version: number) {
-		const lists: Record<string, Preset[]> = {};
-		for (const [secId, list] of Object.entries(this.lists)) if (list.userPresets.length) lists[secId] = list.userPresets;
+	saveUserPresets(key: string) {
 		try {
-			localStorage.setItem(key, JSON.stringify({ version, lists }));
+			localStorage.setItem(key, JSON.stringify({ format_version: FORMAT_VERSION, presets: this.userPresets }));
 			this.storageFailed = false;
 		} catch {
 			this.storageFailed = true;
 		}
 	}
 
-	/**
-	 * After settings have moved between sections: a section preset's tweak of a setting that is no longer
-	 * inside the section moves up into the presets that refer to it (unless they have their own), so they
-	 * keep the same values. With nothing referring to it, it stays, unused, in case the setting moves back.
-	 */
-	private migrate() {
-		for (const section of this.sections) {
-			const inside = settingsIn(section.items).map((s) => s.id);
-			for (const preset of this.lists[section.id].userPresets) {
-				for (const [id, v] of Object.entries(preset.values)) {
-					if (inside.includes(id)) continue;
-					let moved = false;
-					for (const other of Object.values(this.lists)) {
-						for (const p of other.userPresets) {
-							if (p.sections?.[section.id] !== preset.id) continue;
-							if (!(id in p.values)) p.values[id] = v;
-							moved = true;
-						}
-					}
-					if (moved) delete preset.values[id];
-				}
-			}
-		}
-	}
-
-	/** Keep only known, correctly-typed values from untrusted input (only those given; nothing is filled in). */
-	sanitize(raw: unknown): Record<string, Value> {
-		const out: Record<string, Value> = {};
-		if (typeof raw !== 'object' || raw === null) return out;
-		for (const [id, val] of Object.entries(raw)) {
-			const s = this.byId[id];
-			if (!s) continue;
-			if (s.kind === 'choice' && typeof val === 'string' && s.options.some((o) => o.value === val)) {
-				out[id] = val;
-			} else if (s.kind === 'toggle' && typeof val === 'boolean') {
-				out[id] = val;
-			} else if (s.kind === 'level' && typeof val === 'number' && s.levels.some((l) => l.value === val)) {
-				out[id] = val;
-			} else if (s.kind === 'number' && typeof val === 'number' && Number.isFinite(val)) {
-				out[id] = Math.min(s.max, Math.max(s.min, val));
-			}
+	/** Read stored presets back, discarding anything malformed. */
+	private readPresets(raw: unknown): UserPreset[] {
+		const out: UserPreset[] = [];
+		if (!Array.isArray(raw)) return out;
+		for (const item of raw) {
+			if (!isTree(item) || typeof item.name !== 'string') continue;
+			const id = typeof item.id === 'string' && /^user-[a-z0-9]{4,32}$/.test(item.id) && !out.some((p) => p.id === item.id) ? item.id : newPresetId();
+			out.push({ id, name: item.name, document: this.readDocument(item.document) });
 		}
 		return out;
 	}
 
-	// ---- Display and search -------------------------------------------------------
+	// ---- Controls, cards and search -----------------------------------------------
 
-	/** Human-readable label for a value, for summaries and chips. */
-	display(id: string): string {
-		const s = this.byId[id];
-		const v = this.values[id];
-		if (!s) return String(v);
-		if (s.kind === 'choice') return s.options.find((o) => o.value === v)?.label ?? String(v);
-		if (s.kind === 'toggle') return v ? 'On' : 'Off';
-		if (s.kind === 'level') return s.levels.find((l) => l.value === v)?.label ?? String(v);
-		return String(v);
+	/** Called by a control while it is mounted. Returns the function that unregisters it. */
+	register(info: ControlInfo): () => void {
+		const key = pathKey(info.path);
+		this.controls = untrack(() => ({ ...this.controls, [key]: info }));
+		return () => {
+			if (this.controls[key] !== info) return;
+			const { [key]: _, ...rest } = this.controls;
+			void _;
+			this.controls = rest;
+		};
 	}
 
-	/** Does this setting (or any of its details), or anything in this section, match the search box? */
-	matches(item: Item): boolean {
+	registerCard(card: CardInfo): () => void {
+		this.cards = untrack(() => [...this.cards, card]);
+		return () => (this.cards = this.cards.filter((c) => c !== card));
+	}
+
+	/** A setting's label, from its control. */
+	label(path: Path): string {
+		return this.controls[pathKey(path)]?.label ?? pathKey(path);
+	}
+
+	/** A setting's current value as text, from its control. */
+	display(path: Path): string {
+		const v = this.get(path);
+		return this.controls[pathKey(path)]?.format(v) ?? String(v);
+	}
+
+	elementId(path: Path): string {
+		return this.idPrefix + pathKey(path);
+	}
+
+	/** Does a control match the search box? */
+	matches(info: ControlInfo): boolean {
 		const q = this.query.trim().toLowerCase();
 		if (!q) return true;
-		const settings = item.kind === 'section' ? settingsIn(item.items) : flatten([item]);
-		return settings.some(
-			(x) => x.label.toLowerCase().includes(q) || x.id.toLowerCase().includes(q) || (x.notes ?? '').toLowerCase().includes(q)
-		);
+		return [info.label, info.notes ?? '', pathKey(info.path)].some((s) => s.toLowerCase().includes(q));
 	}
 
-	/** How many rows (settings, not counting their details) match the search box, nested sections included. */
-	countMatches(items: Item[] = this.items): number {
+	/** How many controls (in one card, if given) match the search box. */
+	countMatches(cardId?: string): number {
 		let n = 0;
-		for (const item of items) {
-			if (item.kind === 'section') n += this.countMatches(item.items);
-			else if (this.matches(item)) n++;
-		}
+		for (const c of Object.values(this.controls)) if ((cardId === undefined || c.cardId === cardId) && this.matches(c)) n++;
 		return n;
 	}
 
-	/** The sections holding an item (a setting or section, by id), outermost first. Empty for a top-level item. */
-	pathTo(id: string, items: Item[] = this.items): Section[] {
-		for (const item of items) {
-			if (item.kind !== 'section') continue;
-			if (item.id === id) return [item];
-			const inner = this.pathTo(id, item.items);
-			if (inner.length || ownSettings(item).some((s) => s.id === id)) return [item, ...inner];
-		}
-		return [];
-	}
-
-	/** Is this card unfolded (by hand, by default, or because the search box has a match in it)? */
-	isOpen(section: Section): boolean {
-		if (!section.collapsible || this.query.trim()) return true;
-		return this.opened[section.id] ?? !section.collapsed;
-	}
-
-	// ---- Links and drafts -----------------------------------------------------------
-
-	/**
-	 * Compact string of the current settings: the selected presets and the values that differ from the
-	 * schema defaults. Share links can't use the player's own presets, since other people don't have them,
-	 * so they name the built-in preset behind each; pass `keepPreset` for local storage, where the
-	 * selected presets should be remembered.
-	 */
-	serialize(opts: { keepPreset?: boolean } = {}): string {
-		const s: Record<string, string | null> = {};
-		for (const [secId, list] of Object.entries(this.lists)) {
-			const picked = list.find(list.selectedId);
-			s[secId] = !picked ? null : opts.keepPreset ? picked.id : list.builtInBehind(picked).id;
-		}
-		const v: Record<string, Value> = {};
-		for (const x of this.all) if (this.values[x.id] !== x.default) v[x.id] = this.values[x.id];
-		const json = JSON.stringify({ s, v });
-		return btoa(unescape(encodeURIComponent(json)))
-			.replace(/\+/g, '-')
-			.replace(/\//g, '_')
-			.replace(/=+$/, '');
-	}
-
-	/** Load a settings string. Unknown ids and wrong types are ignored. (Not blocked by `locked`: used to open shared games.) */
-	load(code: string): boolean {
-		try {
-			const b64 = code.replace(/-/g, '+').replace(/_/g, '/');
-			const json = decodeURIComponent(escape(atob(b64)));
-			const { s, v } = JSON.parse(json) as { s?: Record<string, unknown>; v: unknown };
-			for (const [secId, list] of Object.entries(this.lists)) list.selectedId = list.find(s?.[secId])?.id ?? null;
-			this.lists[ROOT_ID].selectedId ??= this.lists[ROOT_ID].defaultId;
-			this.values = { ...this.defaults, ...this.sanitize(v) };
-			return true;
-		} catch {
-			return false;
-		}
+	/** Is this card unfolded (by hand, by default, or because the search box is in use)? */
+	isOpen(card: CardInfo): boolean {
+		if (this.query.trim()) return true;
+		return this.opened[card.id] ?? !card.collapsed;
 	}
 }
 
-/** The presets a chain of presets chooses for sections inside, the nearest preset winning. */
-function chosenBy(chain: Preset[]): Record<string, string> {
-	let out: Record<string, string> = {};
-	for (const p of chain) out = { ...out, ...p.sections };
-	return out;
+function newPresetId(): string {
+	const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+	const bytes = crypto.getRandomValues(new Uint8Array(10));
+	return 'user-' + Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
 }
 
-/** Do two records hold the same entries? */
-function sameEntries(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
-	const keys = Object.keys(a);
-	if (keys.length !== Object.keys(b).length) return false;
-	for (const k of keys) if (!(k in b) || a[k] !== b[k]) return false;
-	return true;
+export function toBase64Url(text: string): string {
+	let binary = '';
+	for (const byte of new TextEncoder().encode(text)) binary += String.fromCharCode(byte);
+	return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+export function fromBase64Url(code: string): string {
+	const b64 = code.replace(/-/g, '+').replace(/_/g, '/');
+	const binary = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4));
+	return new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(binary, (c) => c.charCodeAt(0)));
 }

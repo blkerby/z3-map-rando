@@ -1,6 +1,6 @@
-# ALTTP Map Randomizer
+# ALTTP Map Randomizer frontend
 
-Web UI for a *A Link to the Past* map randomizer (SvelteKit + Svelte 5 + Bootstrap).
+Web UI for the randomizer (SvelteKit + Svelte 5 + Bootstrap), built as static files with `adapter-static`.
 
 ## Develop
 
@@ -8,19 +8,15 @@ Web UI for a *A Link to the Past* map randomizer (SvelteKit + Svelte 5 + Bootstr
 npm install
 npm run dev
 npm run check   # type-check (svelte-check)
+npm run build   # static site in build/
 ```
 
-## How the Generate page works
+## Settings
 
-Every setting on the page comes from one file, `src/lib/master/master_data.json`
-(tech, notables, proficiencies, map options, item counts). The page reads it through
-`loadMaster()` in `src/lib/master/load.ts`; the generator is meant to read the same file.
+The settings data is imported at build time from the randomizer's `data/` directory (the `$data` alias): `settings.json` holds the default settings, `tech_data.json` and `notable_data.json` the difficulties that skill presets are derived from, and `items.json` the item pool's items. See [`docs/data-formats`](../docs/data-formats/) for the settings document format.
 
-- Format: `src/lib/master/master.ts` (types) and `adapter.ts` (file -> page).
-- The Item Pool's counts may not add up to more than `itemLocations` (fewer leaves locations empty),
-  and no Starting Items count may exceed its Item Pool count.
+The Generate page is written directly as Svelte components (`src/lib/generation/GenerationSettings.svelte`, `src/lib/customization/CustomizationSettings.svelte`). Each setting component names its path in the settings (e.g. `['skill', 'tech', '5']`) and registers its label with the settings store while mounted, which is how the summary panel and search know about it. The store (`src/lib/settings/store.svelte.ts`) handles presets, tweaks, and unsaved changes by path.
 
 ## ROM
 
-You need your own copy of the game. The file stays in the browser (IndexedDB) and is never
-uploaded. ROMs are git-ignored; do not commit them.
+You need your own copy of the game. The file stays in the browser (IndexedDB) and is never uploaded. ROMs are git-ignored; do not commit them.

@@ -2,7 +2,7 @@
 
 mod item;
 
-pub use item::Item;
+pub use item::{Item, ItemRecord, read_item_records};
 
 use serde::{Deserialize, Serialize};
 use type_hash::TypeHash;

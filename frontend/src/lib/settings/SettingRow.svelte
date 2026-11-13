@@ -1,208 +1,85 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import { tooltip } from '$lib/tooltip';
-	import SettingRow from './SettingRow.svelte';
-	import Segmented from './controls/Segmented.svelte';
-	import Cards from './controls/Cards.svelte';
-	import Swatches from './controls/Swatches.svelte';
-	import Switch from './controls/Switch.svelte';
-	import Slider from './controls/Slider.svelte';
-	import Level from './controls/Level.svelte';
-	import NumberInput from './controls/NumberInput.svelte';
-	import { flatten, type SettingsStore } from './store.svelte';
-	import type { ChoiceSetting, Setting } from './types';
+	import { getCardId, getCompact, getStore } from './context';
+	import { getAt, type Path, type Value } from './tree';
 
+	// The frame shared by every setting component: label, help, reset, shading, and registration with the
+	// store (which is how the summary panel and search know about the setting).
 	let {
-		setting,
-		store,
-		nested = false,
-		compact = false
-	}: { setting: Setting; store: SettingsStore; nested?: boolean; compact?: boolean } = $props();
+		path,
+		label,
+		help,
+		notes,
+		badge,
+		format,
+		labelFor,
+		control,
+		nested
+	}: {
+		path: Path;
+		label: string;
+		/** Longer explanation, shown in a tooltip. */
+		help?: string;
+		/** Short descriptor shown in small text under the label. Searchable. */
+		notes?: string;
+		/** Small tag next to the label, e.g. a difficulty. */
+		badge?: string;
+		format: (value: Value) => string;
+		/** Id of a switch the label toggles. */
+		labelFor?: string;
+		control: Snippet;
+		/** Rows shown indented underneath (e.g. options of a toggle). */
+		nested?: Snippet;
+	} = $props();
 
-	let open = $state(false);
+	const store = getStore();
+	const cardId = getCardId();
+	const compact = getCompact();
 
-	const locked = $derived(store.locked);
-	const value = $derived(store.get(setting.id));
-	const changed = $derived(store.isChanged(setting.id));
-	/** One of the selected presets' tweaks (shaded cyan, unlike the green of an unsaved change). */
-	const tweaked = $derived(!changed && store.isTweaked(setting.id));
-	// Details can be gated on the parent's value (e.g. controller mapping only when "Custom").
-	const detailsVisible = $derived(
-		!('detailsWhen' in setting) || setting.detailsWhen === undefined || value === setting.detailsWhen
-	);
-	const details = $derived(detailsVisible && 'details' in setting ? (setting.details ?? []) : []);
-	const changedDetails = $derived(flatten(details).filter((d) => store.isChanged(d.id)));
+	const info = $derived({ path, label, notes, cardId, format });
+	$effect(() => store.register(info));
 
-	// Two-way choices (yes/no) render as a switch too, so their label can flip them.
-	const isSwitch = $derived(
-		setting.kind === 'toggle' ||
-			(setting.kind === 'choice' &&
-				setting.options.length === 2 &&
-				setting.options.every((o) => o.value === 'yes' || o.value === 'no'))
-	);
-	const switchId = $derived(`${setting.id}-switch`);
-
-	function choiceDisplay(s: ChoiceSetting): 'cards' | 'segmented' | 'dropdown' | 'swatches' {
-		if (s.display && s.display !== 'auto') return s.display;
-		return s.options.length > 5 ? 'dropdown' : 'segmented';
-	}
-
-	const selectedDesc = $derived(
-		setting.kind === 'choice' ? setting.options.find((o) => o.value === value)?.desc : undefined
-	);
-
-	// Auto-open the details if the user is searching for something inside them.
-	$effect(() => {
-		if (store.query.trim() && details.some((d) => store.matches(d))) open = true;
-	});
+	const changed = $derived(store.isChanged(path));
+	/** One of the selected preset's tweaks (shaded cyan, unlike the green of an unsaved change). */
+	const tweaked = $derived(store.isTweaked(path));
 </script>
 
-<div class="setting-row" id={setting.id} class:nested class:changed class:tweaked class:compact>
+<div class="setting-row" id={store.elementId(path)} class:changed class:tweaked class:compact hidden={!store.matches(info)}>
 	<div class="left">
-	<div class="label-col">
-		{#if setting.help}
-			<i class="bi bi-info-circle help" use:tooltip={setting.help} aria-label={setting.help}></i>
-		{/if}
-		<label class="label" class:clickable={isSwitch && !locked} for={isSwitch ? switchId : undefined}>{setting.label}</label>
-		{#if setting.badge && !compact}<span class="badge-tag">{setting.badge}</span>{/if}
-		{#if changed && !locked}
-			<button
-				type="button"
-				class="btn btn-link btn-sm p-0 reset"
-				use:tooltip={`Reset to ${store.applied[setting.id]}`}
-				aria-label="Reset {setting.label}"
-				onclick={() => store.reset(setting.id)}
-			>
-				<i class="bi bi-arrow-counterclockwise"></i>
-			</button>
-		{/if}
-	</div>
-	<!-- In compact rows the name needs the room, so the tag drops to a small second line. -->
-	{#if setting.badge && compact}<div class="badge-sub">{setting.badge}</div>{/if}
-	{#if setting.notes}<div class="notes">{setting.notes}</div>{/if}
+		<div class="label-col">
+			{#if help}
+				<i class="bi bi-info-circle help" use:tooltip={help} aria-label={help}></i>
+			{/if}
+			<label class="label" class:clickable={labelFor && !store.locked} for={labelFor}>{label}</label>
+			{#if badge && !compact}<span class="badge-tag">{badge}</span>{/if}
+			{#if changed && !store.locked}
+				<button
+					type="button"
+					class="btn btn-link btn-sm p-0 reset"
+					use:tooltip={`Reset to ${format(getAt(store.applied, path) as Value)}`}
+					aria-label="Reset {label}"
+					onclick={() => store.reset(path)}
+				>
+					<i class="bi bi-arrow-counterclockwise"></i>
+				</button>
+			{/if}
+		</div>
+		<!-- In compact rows the name needs the room, so the tag drops to a small second line. -->
+		{#if badge && compact}<div class="badge-sub">{badge}</div>{/if}
+		{#if notes}<div class="notes">{notes}</div>{/if}
 	</div>
 
 	<div class="control-col">
-		{#if setting.kind === 'choice'}
-			{@const mode = choiceDisplay(setting)}
-			{#if isSwitch}
-				<Switch
-					id={switchId}
-					checked={value === 'yes'}
-					label={setting.label}
-					disabled={locked}
-					onchange={(v) => store.set(setting.id, v ? 'yes' : 'no')}
-				/>
-			{:else if mode === 'cards'}
-				<Cards
-					options={setting.options}
-					value={value as string}
-					label={setting.label}
-					disabled={locked}
-					onchange={(v) => store.set(setting.id, v)}
-				/>
-			{:else if mode === 'swatches'}
-				<Swatches
-					options={setting.options}
-					value={value as string}
-					label={setting.label}
-					disabled={locked}
-					columns={Math.min(12, setting.options.length)}
-					onchange={(v) => store.set(setting.id, v)}
-				/>
-			{:else if mode === 'dropdown'}
-				<select
-					class="form-select form-select-sm w-auto"
-					disabled={locked}
-					value={value as string}
-					onchange={(e) => store.set(setting.id, e.currentTarget.value)}
-				>
-					{#each setting.options as o (o.value)}
-						<option value={o.value}>{o.label}</option>
-					{/each}
-				</select>
-			{:else}
-				<Segmented
-					options={setting.options}
-					value={value as string}
-					label={setting.label}
-					disabled={locked}
-					onchange={(v) => store.set(setting.id, v)}
-				/>
-			{/if}
-			{#if selectedDesc && mode !== 'cards'}
-				<div class="desc">{selectedDesc}</div>
-			{/if}
-		{:else if setting.kind === 'toggle'}
-			<Switch
-				id={switchId}
-				checked={value as boolean}
-				label={setting.label}
-				disabled={locked}
-				onchange={(v) => store.set(setting.id, v)}
-			/>
-		{:else if setting.kind === 'level'}
-			<Level
-				levels={setting.levels}
-				value={value as number}
-				label={setting.label}
-				disabled={locked}
-				onchange={(v) => store.set(setting.id, v)}
-			/>
-		{:else if setting.display === 'input'}
-			<NumberInput
-				value={value as number}
-				min={setting.min}
-				max={setting.max}
-				step={setting.step}
-				label={setting.label}
-				disabled={locked}
-				onchange={(v) => store.set(setting.id, v)}
-			/>
-		{:else}
-			<Slider
-				value={value as number}
-				min={setting.min}
-				max={setting.max}
-				step={setting.step}
-				unit={setting.unit}
-				label={setting.label}
-				disabled={locked}
-				onchange={(v) => store.set(setting.id, v)}
-			/>
-		{/if}
-
-		{#if details.length}
-			<button
-				type="button"
-				class="details-toggle"
-				aria-expanded={open}
-				onclick={() => (open = !open)}
-			>
-				<i class="bi" class:bi-chevron-right={!open} class:bi-chevron-down={open}></i>
-				<span>Customize</span>
-				{#if !open}
-					<span class="summary">
-						{#if changedDetails.length}
-							{changedDetails.map((d) => `${d.label}: ${store.display(d.id)}`).join(' · ')}
-						{:else}
-							all defaults
-						{/if}
-					</span>
-				{/if}
-			</button>
-			{#if open}
-				<div class="details">
-					{#each details as d (d.id)}
-						<SettingRow setting={d} {store} nested />
-					{/each}
-				</div>
-			{/if}
+		{@render control()}
+		{#if nested}
+			<div class="nested">{@render nested()}</div>
 		{/if}
 	</div>
 </div>
 
 <style>
-	/* Label on top, control underneath, full width, at every nesting level. */
+	/* Label on top, control underneath, full width. */
 	.setting-row {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
@@ -214,6 +91,10 @@
 		position: relative;
 	}
 
+	.setting-row[hidden] {
+		display: none;
+	}
+
 	.setting-row.changed {
 		background: rgba(var(--bs-success-rgb), 0.25);
 	}
@@ -223,13 +104,8 @@
 		background: rgba(var(--bs-info-rgb), 0.15);
 	}
 
-	.setting-row.nested {
-		gap: 0.25rem;
-		padding-block: 0.55rem;
-	}
-
-	/* Hairline between top-level rows. Drawn separately, since a border would curve with the row's rounded corners. */
-	:global(.setting-row:not(.nested) + .setting-row:not(.nested):not(.compact)::before) {
+	/* Hairline between full rows. Drawn separately, since a border would curve with the row's rounded corners. */
+	:global(.setting-row:not(.compact) + .setting-row:not(.compact)::before) {
 		content: '';
 		position: absolute;
 		inset: 0 0 auto;
@@ -308,31 +184,7 @@
 		min-width: 0;
 	}
 
-	.desc {
-		margin-top: 0.3rem;
-		font-size: 0.82rem;
-		opacity: 0.7;
-	}
-
-	.details-toggle {
-		display: flex;
-		align-items: center;
-		gap: 0.4rem;
-		margin-top: 0.4rem;
-		padding: 0;
-		border: 0;
-		background: none;
-		color: var(--bs-link-color);
-		font-size: 0.85rem;
-		text-align: left;
-	}
-
-	.summary {
-		color: var(--bs-body-color);
-		opacity: 0.6;
-	}
-
-	.details {
+	.nested:not(:empty) {
 		margin-top: 0.4rem;
 		padding-left: 0.9rem;
 		border-left: 2px solid var(--bs-border-color);

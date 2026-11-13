@@ -6,7 +6,7 @@ use type_hash::TypeHash;
 /// Progressive equipment grants one upgrade per pickup, independent of pickup order.
 /// Inventory activation events and internal receipts are not placed items.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, TypeHash)]
-#[serde(tag = "name")]
+#[serde(rename_all = "snake_case")]
 pub enum Item {
     // Progressive equipment
     Sword,
@@ -50,8 +50,7 @@ pub enum Item {
     BluePotion,
 
     // Health and resource upgrades
-    BossHeartContainer,
-    SanctuaryHeartContainer,
+    HeartContainer,
     PieceOfHeart,
     HalfMagic,
     BombUpgrade5,
@@ -98,4 +97,20 @@ pub enum Item {
 
     // Goal items
     Triforce,
+}
+
+/// A randomizer item that settings can put in the item pool, as defined in `data/items.json`.
+/// Its other fields (count limits, display category, and placement tier) are not used by Rust yet.
+#[derive(Clone, Debug, Deserialize)]
+pub struct ItemRecord {
+    pub name: Item,
+    /// The z3-json-data item name used for this item's receipt when patching.
+    pub upstream_name: String,
+    /// Further z3-json-data item names that vanilla locations use for this item.
+    pub other_names: Vec<String>,
+}
+
+/// Read the item records bundled from `data/items.json`.
+pub fn read_item_records() -> Vec<ItemRecord> {
+    serde_json::from_str(include_str!("../../../data/items.json")).unwrap()
 }

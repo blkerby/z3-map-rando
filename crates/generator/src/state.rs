@@ -184,9 +184,7 @@ impl GlobalState {
                 self.ocarina = OcarinaState::Inactive;
                 Some(D::Ocarina)
             }
-            Item::BossHeartContainer | Item::SanctuaryHeartContainer
-                if self.health_capacity < 160 =>
-            {
+            Item::HeartContainer if self.health_capacity < 160 => {
                 self.health_capacity = (self.health_capacity + 8).min(160);
                 Some(D::Health)
             }
@@ -285,8 +283,7 @@ impl GlobalState {
             | Item::Mail
             | Item::Boomerang
             | Item::Ocarina
-            | Item::BossHeartContainer
-            | Item::SanctuaryHeartContainer
+            | Item::HeartContainer
             | Item::Arrow
             | Item::TenArrows
             | Item::Bomb

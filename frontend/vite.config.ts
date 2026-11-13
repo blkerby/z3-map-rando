@@ -1,8 +1,10 @@
-import adapter from '@sveltejs/adapter-auto';
+import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+	// The settings data is bundled from the randomizer's `data/` directory, outside this one.
+	server: { fs: { allow: ['../data'] } },
 	css: {
 		preprocessorOptions: {
 			scss: {
@@ -21,10 +23,9 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 
-			// adapter-auto only supports some environments, see https://svelte.dev/docs/kit/adapter-auto for a list.
-			// If your environment is not supported, or you settled on a specific environment, switch out the adapter.
-			// See https://svelte.dev/docs/kit/adapters for more information about adapters.
-			adapter: adapter()
+			// Static files for the randomizer's server to host. The Generate page is client-only (see its +page.ts).
+			adapter: adapter(),
+			alias: { $data: '../data' }
 		})
 	]
 });
