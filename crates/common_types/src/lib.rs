@@ -36,6 +36,19 @@ pub struct ItemLocationId {
     pub item_id: u32,
 }
 
+/// The Waterfall of Wishing and Pyramid fairies' upgrade locations, in the order
+/// of the `FairyItems` ROM table.
+pub const FAIRY_UPGRADE_LOCATIONS: [ItemLocationId; 2] = [
+    ItemLocationId {
+        room_id: SourceRoomId::Underworld(12),
+        item_id: 1,
+    },
+    ItemLocationId {
+        room_id: SourceRoomId::Underworld(69),
+        item_id: 1,
+    },
+];
+
 /// Authored door identity, independent of catalog ordering and ROM addresses.
 #[derive(
     Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, TypeHash,

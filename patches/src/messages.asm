@@ -4,8 +4,8 @@
 lorom
 incsrc "symbols.inc"
 
-!free_space_bank_a0_start = $A09900
-!free_space_bank_a0_end = $A09E00
+!free_space_bank_aa_start = $AA8000
+!free_space_bank_aa_end = $AA9000
 
 'A' = $AA : 'B' = $AB : 'C' = $AC : 'D' = $AD : 'E' = $AE : 'F' = $AF
 'G' = $B0 : 'H' = $B1 : 'I' = $B2 : 'J' = $B3 : 'K' = $B4 : 'L' = $B5
@@ -30,7 +30,7 @@ hook_parse_message:
 org $8EEE98
 return_parse_message:
 
-org !free_space_bank_a0_start
+org !free_space_bank_aa_start
 
 ResolveMessage:
     LDA.w $1CF0
@@ -90,6 +90,14 @@ CustomMessages:
     dw MessageLakeHyliaFairyOffer
     dw MessageLakeHyliaFairyWish
     dw MessageLakeHyliaFairyNoBottle
+    dw MessageFairyBoomerangOffer, MessageFairyBoomerangMissing, MessageFairyBoomerangUpgrade, MessageFairyBoomerangReturn
+    dw MessageFairyMailOffer, MessageFairyMailMissing, MessageFairyMailUpgrade, MessageFairyMailReturn
+    dw MessageFairyShieldOffer, MessageFairyShieldMissing, MessageFairyShieldUpgrade, MessageFairyShieldReturn
+    dw MessageFairySwordOffer, MessageFairySwordMissing, MessageFairySwordUpgrade, MessageFairySwordReturn
+    dw MessageFairyBowOffer, MessageFairyBowMissing, MessageFairyBowUpgrade, MessageFairyBowReturn
+    dw MessageFairyGlovesOffer, MessageFairyGlovesMissing, MessageFairyGlovesUpgrade, MessageFairyGlovesReturn
+    dw MessageFairyBombsOffer, MessageFairyBombsMissing, MessageFairyBombsUpgrade, MessageFairyBombsReturn
+    dw MessageFairyArrowsOffer, MessageFairyArrowsMissing, MessageFairyArrowsUpgrade, MessageFairyArrowsReturn
 
 ; Start-menu labels substitute the saved player name in the house option.
 macro spawn_message_house()
@@ -135,4 +143,57 @@ MessageLakeHyliaFairyNoBottle:
     db "YOU HAVE AN", !Row3
     db "EMPTY BOTTLE.", !End
 
-assert pc() <= !free_space_bank_a0_end
+; Waterfall and Pyramid fairy messages for each item class: the offer, the
+; missing prerequisite, and the reply after the item is thrown.
+macro fairy_offer(class, name)
+MessageFairy<class>Offer:
+    db "THROW <name>?", !Row2
+    db "  ", !Arrow, " YES", !Row3
+    db "    NO", !ChooseLowerTwo, !End
+endmacro
+
+macro fairy_replies(class, name, prerequisite)
+MessageFairy<class>Missing:
+    db "COME BACK WHEN", !Row2
+    db "YOU HAVE", !Row3
+    db "<prerequisite>.", !End
+
+MessageFairy<class>Upgrade:
+    db "I SEE YOU", !Row2
+    db "DROPPED YOUR", !Row3
+    db "<name>.", !WaitForKey, !Scroll
+    db "I WILL GIVE", !Scroll
+    db "YOU SOMETHING", !Scroll
+    db "BETTER.", !End
+
+MessageFairy<class>Return:
+    db "I SEE YOU", !Row2
+    db "DROPPED YOUR", !Row3
+    db "<name>.", !WaitForKey, !Scroll
+    db "I WILL GIVE IT", !Scroll
+    db "BACK.", !End
+endmacro
+
+; "THROW BOOMERANG?" does not fit in one row.
+MessageFairyBoomerangOffer:
+    db "THROW YOUR", !Row2
+    db "BOOMERANG?", !Row3
+    db "  ", !Arrow, " YES", !Scroll
+    db "    NO", !ChooseLowerTwo, !End
+%fairy_replies(Boomerang, "BOOMERANG", "A BOOMERANG")
+%fairy_offer(Mail, "MAIL")
+%fairy_replies(Mail, "MAIL", "BLUE MAIL")
+%fairy_offer(Shield, "SHIELD")
+%fairy_replies(Shield, "SHIELD", "A SHIELD")
+%fairy_offer(Sword, "SWORD")
+%fairy_replies(Sword, "SWORD", "A SWORD")
+%fairy_offer(Bow, "BOW")
+%fairy_replies(Bow, "BOW", "A BOW")
+%fairy_offer(Gloves, "GLOVES")
+%fairy_replies(Gloves, "GLOVES", "GLOVES")
+%fairy_offer(Bombs, "BOMBS")
+%fairy_replies(Bombs, "BOMBS", "BOMBS")
+%fairy_offer(Arrows, "ARROWS")
+%fairy_replies(Arrows, "ARROWS", "ARROWS")
+
+assert pc() <= !free_space_bank_aa_end

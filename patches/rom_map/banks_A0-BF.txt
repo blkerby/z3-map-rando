@@ -12,9 +12,8 @@ $A08380-$A08395 nmi_optimize.asm (conditional OAM upload)
 $A08396-$A086FF [FREE]
 $A08700-$A088BC overworld_map_data.asm (flat Map16 loaders)
 $A088BD-$A088FF [FREE]
-$A08900-$A09584 overworld_bg_tilemaps.asm (rain palette handling, BG1/BG2 renderers, and transition helpers)
-$A09585-$A098FF [FREE]
-$A09900-$A09DFF messages.asm (reserved for custom message text)
+$A08900-$A098FF overworld_bg_tilemaps.asm (rain palette handling, BG1/BG2 renderers, and transition helpers)
+$A09900-$A09DFF [FREE]
 $A09E00-$A09F3F theme_check generated overworld backdrop colors
 $A09F40-$A0A0C0 overworld_animations.asm (generated animation runtime)
 $A0A0C1-$A0A1C6 overworld_entrances.asm (area-local entrance runtime)
@@ -70,11 +69,13 @@ $A78351-$A784D0 generated cutscene overlay pointer directory
 $A784D1-$A9FFFF generated overworld asset metadata
 
 Banks $AA-$AF
-$AA8000-$AFFFFF [FREE]
+$AA8000-$AA8FFF messages.asm (custom message resolution and text)
+$AA9000-$AFFFFF [FREE]
 
 Bank $B0
 $B08000-$B08159 item_placements.asm (seed-specific assigned items and prize types)
-$B0815A-$B0FFFF [FREE]
+$B0815A-$B0815B fairy_ponds.asm (seed-specific Waterfall and Pyramid fairy upgrade receipts)
+$B0815C-$B0FFFF [FREE]
 
 Bank $B1
 $B18000-$B18005 item_receipt_tables.inc (bottle refill receipts)

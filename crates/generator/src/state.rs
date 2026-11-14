@@ -155,6 +155,22 @@ impl GlobalState {
         })
     }
 
+    /// Whether a Great Fairy can grant this item: one of her item classes whose
+    /// prerequisite is owned (see plans/fairies.md).
+    pub fn can_upgrade_at_fairy(&self, item: Item) -> bool {
+        match item {
+            Item::Boomerang => self.boomerang_level >= 1,
+            Item::Mail => self.mail_level >= 1,
+            Item::Shield => self.shield_level >= 1,
+            Item::Sword => self.sword_level >= 1,
+            Item::Bow => self.unique_items[UniqueItem::Bow as usize],
+            Item::Glove => self.glove_level >= 1,
+            Item::BombCapacityUpgrade => self.bomb_capacity > 0,
+            Item::ArrowCapacityUpgrade => self.arrow_capacity > 0,
+            _ => false,
+        }
+    }
+
     /// Grant an assumed non-key inventory item without collecting a location.
     pub(crate) fn grant_non_key_item(&mut self, item: Item) -> Option<GlobalDependency> {
         use GlobalDependency as D;
@@ -230,8 +246,10 @@ impl GlobalState {
             Item::IceRod => Some(D::Item(UniqueItem::IceRod as usize)),
             Item::Hammer => Some(D::Item(UniqueItem::Hammer as usize)),
             Item::Hookshot => Some(D::Item(UniqueItem::Hookshot as usize)),
-            Item::Bow => Some(D::Item(UniqueItem::Bow as usize)),
-            Item::SilverArrows => Some(D::Item(UniqueItem::SilverArrows as usize)),
+            Item::Bow if !self.unique_items[UniqueItem::Bow as usize] => {
+                Some(D::Item(UniqueItem::Bow as usize))
+            }
+            Item::Bow => Some(D::Item(UniqueItem::SilverArrows as usize)),
             Item::MagicPowder => Some(D::Item(UniqueItem::MagicPowder as usize)),
             Item::Bombos => Some(D::Item(UniqueItem::Bombos as usize)),
             Item::Ether => Some(D::Item(UniqueItem::Ether as usize)),

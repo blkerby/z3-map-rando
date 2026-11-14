@@ -1,2 +1,3 @@
+$86C431-$86C435 fairy_ponds.asm (Waterfall and Pyramid fairy state machine)
 $86C454-$86C458 fairy_ponds.asm (Lake Hylia fairy state machine)
 $86E81A-$86E81D overworld_map16_properties.asm (sprite tile collision lookup hook)

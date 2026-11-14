@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow, bail, ensure};
-use common_types::{DoorId, Item, SourceRoomId};
+use common_types::{DoorId, FAIRY_UPGRADE_LOCATIONS, Item, SourceRoomId};
 use hashbrown::HashMap;
 use logic_catalog::{DoorIndex, ItemLocationIndex, LockKind, LogicCatalog};
 use seed_data::{Settings, StartingItems};
@@ -20,8 +20,10 @@ pub struct GenerationInputs {
     pub dungeons: Vec<DungeonInputs>,
     /// Eligible ordinary slots, including the slots originally holding Maps and Compasses.
     pub ordinary_locations: Vec<ItemLocationIndex>,
+    /// Great Fairy upgrade locations, filled from the ordinary pool before other locations.
+    pub fairy_locations: Vec<ItemLocationIndex>,
     pub ordinary_pool: Vec<Item>,
-    /// Vanilla Big Keys and fairy-exchange items. Small Keys are assigned later.
+    /// Vanilla Big Keys. Small Keys are assigned later.
     pub fixed_items: BTreeMap<ItemLocationIndex, Item>,
     pub prize_locations: Vec<ItemLocationIndex>,
     pub prize_pool: Vec<Item>,
@@ -52,6 +54,7 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         door_indices: HashMap::new(),
         dungeons: Vec::new(),
         ordinary_locations: Vec::new(),
+        fairy_locations: Vec::new(),
         ordinary_pool: Vec::new(),
         fixed_items: BTreeMap::new(),
         prize_locations: Vec::new(),
@@ -102,12 +105,9 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         }
         let item = inputs.items[location.vanilla_item_idx.0 as usize]
             .ok_or_else(|| anyhow!("unknown item identity: {item_name}"))?;
-        // Waterfall and Pyramid exchanges remain fixed, including progressive equipment items.
-        if matches!(
-            (location.id.room_id, location.id.item_id),
-            (common_types::SourceRoomId::Underworld(12 | 69), 1 | 2)
-        ) {
-            inputs.fixed_items.insert(location_idx, item);
+        if FAIRY_UPGRADE_LOCATIONS.contains(&location.id) {
+            inputs.fairy_locations.push(location_idx);
+            ordinary_location_count += 1;
             continue;
         }
         match item {

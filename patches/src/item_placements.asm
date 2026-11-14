@@ -13,7 +13,6 @@ incsrc "symbols.inc"
 !free_space_bank_a0_start = $A0C000
 !free_space_bank_a0_end = $A0F000
 !NpcFlags = $7EF3D4
-!EventFlags = $7EF3D5
 !SmithSword = $7EF3D7
 
 ; Source itemAddress slots reserved for the non-chest item tables.
@@ -692,7 +691,8 @@ ReadReceiptMessage:
 
 ; Resolve without granting so previews and collection select the same tier.
 ; Entry is A8/X8/Y8. Preserve X/Y/DB and leave direct-page scratch untouched.
-; $5E-$61 match the source catalog; $62 is the local progressive boomerang.
+; $5E-$61 match the source catalog; $62 is the local progressive boomerang, and
+; $64 is ALTTPR's progressive bow.
 ResolveProgressiveItem:
     CMP.b #$5E
     BNE .not_sword
@@ -735,12 +735,23 @@ ResolveProgressiveItem:
     RTL
 .not_glove
     CMP.b #$62
-    BNE .done
+    BNE .not_boomerang
     PHX
     LDA.l $7EF341
     TAX
     LDA.l ProgressiveBoomerangReceipts,X
     PLX
+    RTL
+.not_boomerang
+    CMP.b #$64
+    BNE .done
+    ; Any owned bow, with or without arrows, becomes the silver bow.
+    LDA.l $7EF340
+    BEQ .bow
+    LDA.b #$3B
+    RTL
+.bow
+    LDA.b #$0B
 .done
     RTL
 

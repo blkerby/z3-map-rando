@@ -50,7 +50,6 @@
 		half_magic: 'Half Magic',
 		bomb_capacity_upgrade: 'Bomb Capacity Upgrade',
 		arrow_capacity_upgrade: 'Arrow Capacity Upgrade',
-		silver_arrows: 'Silver Arrows',
 		arrow: 'Arrow (1)',
 		three_bombs: 'Bombs (3)',
 		ten_arrows: 'Arrows (10)',

@@ -14,14 +14,14 @@ pub enum Item {
     Glove,
     Mail,
     Boomerang,
+    /// The Bow, then Silver Arrows.
+    Bow,
 
     // Unique items
     FireRod,
     IceRod,
     Hammer,
     Hookshot,
-    Bow,
-    SilverArrows,
     MagicPowder,
     Bombos,
     Ether,

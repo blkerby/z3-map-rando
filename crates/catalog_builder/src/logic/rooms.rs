@@ -274,6 +274,9 @@ fn compile_room_items(
             indices.items.insert(item.id, Effect::ActivateOcarina);
             continue;
         }
+        if crate::items::RETIRED_ITEM_LOCATIONS.contains(&ItemLocationId { room_id, item_id: item.id }) {
+            continue;
+        }
         let item_location_idx = ItemLocationIndex(catalog.item_locations.len() as u32);
         indices
             .items
@@ -510,7 +513,10 @@ fn collect_strat_effects(
 ) -> Vec<Effect> {
     let mut effects = Vec::new();
     for id in &strat.collects_items {
-        effects.push(indices.items[id]);
+        // Retired item locations have no effect.
+        if let Some(&effect) = indices.items.get(id) {
+            effects.push(effect);
+        }
     }
     for name in &strat.sets_flags {
         effects.push(Effect::SetFlag(compiler.flags[name]));

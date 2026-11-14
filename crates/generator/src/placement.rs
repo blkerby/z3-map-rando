@@ -93,8 +93,9 @@ impl PlacementState {
     ) -> Result<PlacementStep> {
         let mut candidate = self.clone();
         let dungeon_count = candidate.place_dungeon_items(inputs, rng);
+        let fairy_count = candidate.place_fairy_items(inputs, rng);
         let ordinary_count = candidate.place_ordinary_items(inputs, rng);
-        if dungeon_count == 0 && ordinary_count == 0 {
+        if dungeon_count == 0 && fairy_count == 0 && ordinary_count == 0 {
             return Ok(PlacementStep::Failed(
                 "no collectible unfilled ordinary locations remain",
             ));
@@ -112,7 +113,7 @@ impl PlacementState {
         if check_candidate_progression(self, &candidate) {
             *self = candidate;
             Ok(PlacementStep::Accepted)
-        } else if ordinary_count == 0 {
+        } else if fairy_count == 0 && ordinary_count == 0 {
             Ok(PlacementStep::Failed(
                 "mandatory Map/Compass placements consumed every collectible slot without exposing another item location",
             ))
@@ -150,7 +151,34 @@ impl PlacementState {
         placed_count
     }
 
+    /// Fill collectible Great Fairy slots with pool items she can grant, given the
+    /// committed inventory; return the number filled. A slot without an eligible
+    /// item waits for a later wave.
+    fn place_fairy_items(&mut self, inputs: &GenerationInputs, rng: &mut impl Rng) -> usize {
+        let mut count = 0;
+        for &location_idx in &inputs.fairy_locations {
+            let index = location_idx.0 as usize;
+            if !self.global.reachable_item_locations[index] || self.placements[index].is_some() {
+                continue;
+            }
+            let mut eligible = Vec::new();
+            for (pool_index, &item) in self.ordinary_pool.iter().enumerate() {
+                if self.global.can_upgrade_at_fairy(item) {
+                    eligible.push(pool_index);
+                }
+            }
+            if eligible.is_empty() {
+                continue;
+            }
+            let pool_index = eligible[rng.random_range(0..eligible.len())];
+            self.placements[index] = Some(self.ordinary_pool.swap_remove(pool_index));
+            count += 1;
+        }
+        count
+    }
+
     /// Fill remaining collectible ordinary slots in catalog order; return the number filled.
+    /// Randomly chosen fairy items are held back, one per unfilled fairy slot.
     fn place_ordinary_items(&mut self, inputs: &GenerationInputs, rng: &mut impl Rng) -> usize {
         let mut locations = Vec::new();
         for &location_idx in &inputs.ordinary_locations {
@@ -159,13 +187,46 @@ impl PlacementState {
                 locations.push(location_idx);
             }
         }
+        let mut reserved = Vec::new();
+        for &location_idx in &inputs.fairy_locations {
+            if self.placements[location_idx.0 as usize].is_some() {
+                continue;
+            }
+            let mut candidates = Vec::new();
+            for (pool_index, &item) in self.ordinary_pool.iter().enumerate() {
+                if check_fairy_item(item) {
+                    candidates.push(pool_index);
+                }
+            }
+            if candidates.is_empty() {
+                break;
+            }
+            let pool_index = candidates[rng.random_range(0..candidates.len())];
+            reserved.push(self.ordinary_pool.swap_remove(pool_index));
+        }
         let count = locations.len();
         let items = sample_items(&mut self.ordinary_pool, count, rng);
         for (location_idx, item) in locations.into_iter().zip(items) {
             self.placements[location_idx.0 as usize] = Some(item);
         }
+        self.ordinary_pool.extend(reserved);
         count
     }
+}
+
+/// Check whether an item belongs to a Great Fairy item class, regardless of inventory.
+fn check_fairy_item(item: Item) -> bool {
+    matches!(
+        item,
+        Item::Boomerang
+            | Item::Mail
+            | Item::Shield
+            | Item::Sword
+            | Item::Bow
+            | Item::Glove
+            | Item::BombCapacityUpgrade
+            | Item::ArrowCapacityUpgrade
+    )
 }
 
 /// Sample `count` items without replacement and remove them from the pool.

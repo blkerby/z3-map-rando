@@ -15,7 +15,7 @@ pub struct SeedData {
     pub metadata: SeedMetadata,
     pub settings: Settings,
     pub world_layout: WorldLayout,
-    /// Final placements of all pickups, including maps, compasses, keys, prizes, and fairy-exchange items.
+    /// Final placements of all pickups, including maps, compasses, keys, prizes, and Great Fairy upgrades.
     pub item_placements: Vec<ItemPlacement>,
 }
 

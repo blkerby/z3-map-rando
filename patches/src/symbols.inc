@@ -14,9 +14,16 @@ endmacro
 ; World of the loaded overworld sprite set, retained until its replacement.
 !OverworldSpriteWorld = $7FF18B
 
+; Saved event bits: $01 Bat, $02 Powder, $04 Smith, $08 Waterfall fairy upgrade,
+; $10 Pyramid fairy upgrade, $20 Ether, $40 Bombos.
+!EventFlags = $7EF3D5
+
 ; Items for the vanilla thrown-gift sprites, whose subtype remains unchanged.
 %export_symbol(CatfishItem, catfish_item, $B08040)
 %export_symbol(KingZoraItem, king_zora_item, $B08041)
+
+; Receipts of the Waterfall and Pyramid fairies' upgrades (fairy_ponds.asm).
+%export_symbol(FairyItems, fairy_items, $B0815A)
 
 ; Generated flat Map16 maps and their screen, alternate-background, and rain
 ; pointers. The patcher allocates map payloads in banks C0-C9.
@@ -150,6 +157,9 @@ endmacro
 !MessageLakeHyliaFairyOffer = $0200
 !MessageLakeHyliaFairyWish = $0201
 !MessageLakeHyliaFairyNoBottle = $0202
+; Waterfall and Pyramid fairy messages are numbered 4 * class + kind from here,
+; with kinds 0 offer, 1 missing prerequisite, 2 upgrade, and 3 return.
+!FirstFairyMessage = $0203
 
 ; Saved spawn unlocks: bit 0 is Sanctuary entered; bit 1 is Light World mountain reached.
 !SpawnVisitFlags = $7EF3D6

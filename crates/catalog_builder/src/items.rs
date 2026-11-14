@@ -1,7 +1,20 @@
 use anyhow::{Context, Result};
-use common_types::Item;
+use common_types::{Item, ItemLocationId, SourceRoomId};
 use serde::Deserialize;
 use std::{fs, path::Path};
+
+/// Source item entries without a randomizer location. The second items of the
+/// Waterfall of Wishing and Pyramid fairies are replaced by one upgrade per fairy.
+pub const RETIRED_ITEM_LOCATIONS: [ItemLocationId; 2] = [
+    ItemLocationId {
+        room_id: SourceRoomId::Underworld(12),
+        item_id: 2,
+    },
+    ItemLocationId {
+        room_id: SourceRoomId::Underworld(69),
+        item_id: 2,
+    },
+];
 
 /// A record of the randomizer's item definitions (`items` in catalog-build.toml).
 #[derive(Deserialize)]

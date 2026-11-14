@@ -1,6 +1,6 @@
 # Great Fairy upgrades
 
-Status: the Lake Hylia fairy and starting items are implemented; the Waterfall and Pyramid fairies are planned. This replaces the vanilla item exchanges at the Waterfall of Wishing and Pyramid fairies, and the capacity shop at the Lake Hylia fairy. All three use sprite `$72` (`Sprite_72_FairyPond`); see [items.md](items.md) for the vanilla receipt system.
+Status: implemented. This replaces the vanilla item exchanges at the Waterfall of Wishing and Pyramid fairies, and the capacity shop at the Lake Hylia fairy. All three use sprite `$72` (`Sprite_72_FairyPond`); see [items.md](items.md) for the vanilla receipt system.
 
 ## Waterfall and Pyramid fairies
 
@@ -12,7 +12,7 @@ Each fairy offers a single upgrade for one of eight item classes, selected durin
 | mail | Blue Mail | `Mail` | Red Mail |
 | shield | Fighter Shield | `Shield` | Mirror Shield |
 | sword | Fighter Sword | `Sword` | Golden Sword |
-| bow | Bow | `SilverArrows` | Silver Arrows owned |
+| bow | Bow | `Bow` (progressive: Bow, then Silver Arrows) | Silver Arrows owned |
 | glove | Power Glove | `Glove` | Titan's Mitt |
 | bomb | Nonzero bomb capacity | `BombCapacityUpgrade` | Capacity 99 |
 | arrow | Nonzero arrow capacity | `ArrowCapacityUpgrade` | Capacity 99 |
@@ -21,28 +21,28 @@ Green Mail does not count as having mail. Bomb and arrow capacity are nonzero fr
 
 ### Dialogue
 
-Simplify the vanilla sequence (`UpgradeFairy_*` in `bank_06.asm`), dropping the item-selection menu and the liar branches:
+Implemented in `fairy_ponds.asm`, replacing the vanilla sequence (`UpgradeFairy_*` in `bank_06.asm`) without the item-selection menu or the liar branches. After Link throws the item, the fairy rises from the pond with her music, as in vanilla, and replies. She then fades away before any upgrade is granted.
 
-1. On contact, she asks "Throw <item>?" with "Yes"/"No" options, naming the fairy's class. "No" ends the sequence immediately.
-2. If Link has none of the class, she says "Come back when you have <item>." and the sequence ends.
+1. On contact, if Link has none of the class, she says "Come back when you have <item>." and the sequence ends.
+2. Otherwise she asks "Throw <item>?" with "Yes"/"No" options, naming the fairy's class. "No" ends the sequence immediately.
 3. If the class is not maxed and her upgrade is unused, Link throws the item in, and she says "I see you dropped your <item>. I will give you something better." She then grants the placed item through a regular item receipt, so progressive receipts resolve to the next tier. Mark her upgrade as used in a saved bit.
 4. If the class is maxed or her upgrade is already used, Link throws the item in, and she says "I see you dropped your <item>. I will give it back." No item is displayed or granted.
 
-The thrown item keeps its inventory value; only the toss animation shows it leaving. The receipt performs the upgrade. The text uses custom English messages with the class name substituted, rendered like the existing English spawn menu.
+The thrown item keeps its inventory value; only the toss animation shows it leaving. The receipt performs the upgrade. Each class has its own four messages in `messages.asm`, naming it BOOMERANG, MAIL, SHIELD, SWORD, BOW, GLOVES, BOMBS, or ARROWS; "THROW BOOMERANG?" does not fit one row, so it spans two. The used upgrades are `!EventFlags` bits `$08` (Waterfall) and `$10` (Pyramid).
 
 ### Placement
 
-Use item 1 of the Waterfall of Wishing (room 12) and of the Pyramid Great Fairy (room 69) as the two fairy locations, and retire both item 2 locations without reusing their IDs. Saved placements hold the received item, for example `Item::Sword`. The patcher writes each fairy's class to a ROM table from the placements, and the catalog stops clearing these locations' ROM addresses.
+Item 1 of the Waterfall of Wishing (room 12) and of the Pyramid Great Fairy (room 69) are the two fairy locations (`FAIRY_UPGRADE_LOCATIONS`), and both item 2 locations are retired (`RETIRED_ITEM_LOCATIONS`) without reusing their IDs. Saved placements hold the received item, for example `Item::Sword`. The patcher writes each placed receipt to `FairyItems`, from which the ROM derives the fairy's class.
 
-Remove the fixed fairy-exchange handling from `crates/generator/src/inputs.rs`. In each wave, the generator attempts the fairy locations first:
+In each wave, the generator attempts the fairy locations first:
 
 - A fairy location can receive one of the eight class items if the fairy is reachable, an instance remains in the pool, and the minimum level required for that class was collectible in a previous step.
 - If no class is eligible, defer the location to a later wave.
 - When filling other locations, keep at least as many class items in the pool as there are unfilled fairy locations.
 
-The logical requirement for collecting a fairy location is the class requirement in the table above, replacing the z3-json-data strat requirements (`Boomerang`, `shieldExact`, or none).
+The logical requirement for collecting a fairy location is the class requirement in the table above, which placement guarantees. The z3-json-data strats themselves become free: their `h_greatFairyFreeUpgrades` helper compiles to `Free`.
 
-The four formerly fixed items return to the pool: sword 4, shield 3, boomerang 2, and silver_arrows 1. Two Twenty Rupees are removed to keep the pool equal to the location count, since four fixed locations become two ordinary ones.
+The four formerly fixed items return to the pool: sword 4, shield 3, boomerang 2, and bow 2. Two Twenty Rupees are removed to keep the pool equal to the location count, since four fixed locations become two ordinary ones.
 
 ## Lake Hylia fairy
 

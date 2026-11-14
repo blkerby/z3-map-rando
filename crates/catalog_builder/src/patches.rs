@@ -1,5 +1,6 @@
 use crate::z3_json_data::{self, collect_source_files, read_source};
 use anyhow::{Context, Result, bail};
+use common_types::FAIRY_UPGRADE_LOCATIONS;
 use patch_catalog::{
     Ips, ItemEncoding, ItemLocation, ItemLocationId, PatchCatalog, PatchIps, PatchSymbols,
     SourceRoomId,
@@ -262,6 +263,7 @@ fn read_item_encodings(source_directory: &Path) -> Result<BTreeMap<String, ItemE
     // These specific randomizer receipts are not individual shared-data records.
     for (name, receipt_id) in [
         ("ProgressiveBoomerang", 0x62),
+        ("ProgressiveBow", 0x64),
         ("Triforce", 0x6A),
     ] {
         encodings.insert(
@@ -296,6 +298,13 @@ fn read_item_locations(
             if item.item == "OcarinaActive" {
                 continue;
             }
+            let id = ItemLocationId {
+                room_id,
+                item_id: item.id,
+            };
+            if crate::items::RETIRED_ITEM_LOCATIONS.contains(&id) {
+                continue;
+            }
             let mut rom_addresses = Vec::new();
             if let Some(address) = &item.item_address {
                 rom_addresses.push(u32::from_str_radix(address.trim_start_matches("0x"), 16)?);
@@ -326,13 +335,7 @@ fn read_item_locations(
                     0xC6FC + index,
                 ];
             }
-            if item.item == "SmallKey"
-                || item.item == "BigKey"
-                || matches!(
-                    (room_id, item.id),
-                    (SourceRoomId::Underworld(12 | 69), 1 | 2)
-                )
-            {
+            if item.item == "SmallKey" || item.item == "BigKey" {
                 rom_addresses.clear();
             }
             // These gifts keep their vanilla sprite subtype as a placeholder.
@@ -340,18 +343,15 @@ fn read_item_locations(
             let item_address = match (room_id, item.id) {
                 (SourceRoomId::Overworld(7), 1) => Some(symbols.catfish_item),
                 (SourceRoomId::Underworld(104), 1) => Some(symbols.king_zora_item),
-                _ => None,
+                _ => FAIRY_UPGRADE_LOCATIONS
+                    .iter()
+                    .position(|&fairy| fairy == id)
+                    .map(|index| symbols.fairy_items + index as u32),
             };
             if let Some(address) = item_address {
                 rom_addresses = vec![((address & 0x7f0000) >> 1) | (address & 0x7fff)];
             }
-            locations.insert(
-                ItemLocationId {
-                    room_id,
-                    item_id: item.id,
-                },
-                ItemLocation { rom_addresses },
-            );
+            locations.insert(id, ItemLocation { rom_addresses });
         }
     }
     Ok(locations)

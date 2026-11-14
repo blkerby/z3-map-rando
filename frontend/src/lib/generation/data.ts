@@ -37,7 +37,7 @@ export const settingsData = settingsDataJson as SettingsData;
 export const DIFFICULTIES = settingsData.difficulties;
 
 /** Number of ordinary item locations: the most items the item pool can hold. */
-export const ITEM_LOCATIONS = 149;
+export const ITEM_LOCATIONS = 151;
 
 export const items = settingsData.items;
 

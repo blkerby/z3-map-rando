@@ -135,9 +135,11 @@ Item graphics use a fixed 128-byte 4bpp ROM array at the exported `ItemGraphics`
 
 ### Messages and Great Fairy ponds
 
-`messages.asm` owns the message parser hook. It replaces the vanilla start-menu messages with destination-dependent English text, and resolves message IDs from `$0200` to custom English text in the native uppercase font, 14 characters per row. Choices use the vanilla arrow messages, so choice text starts in column 4.
+`messages.asm` owns the message parser hook. It replaces the vanilla start-menu messages with destination-dependent English text, and resolves message IDs from `$0200` to custom English text in the native uppercase font, 14 characters per row. Its code and text are in bank `$AA`. Choices use the vanilla arrow messages, so choice text starts in column 4.
 
-`fairy_ponds.asm` replaces the Lake Hylia fairy's states with a free bottle exchange (see [fairies.md](fairies.md)). Its refill receipts `$B8` (fairy) and `$B9` (golden bee) fill the first empty bottle through the vanilla refill loop, which reads a relocated list including the golden bee.
+`fairy_ponds.asm` replaces the Lake Hylia fairy's states with a free bottle exchange (see [fairies.md](fairies.md)). Its refill receipts `$B8` (fairy) and `$B9` (golden bee) fill the first empty bottle through the vanilla refill loop, which reads a relocated list including the golden bee. The Waterfall and Pyramid fairies each grant the upgrade placed in `FairyItems` once, recording it in `!EventFlags` bits `$08` and `$10`; the patcher writes their placed receipts like other item locations.
+
+The progressive bow receipt `$64`, matching ALTTPR, resolves to the Bow (`$0B`) or, with any bow owned, to the silver bow (`$3B`).
 
 ### Overworld map and gameplay
 

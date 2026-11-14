@@ -52,7 +52,11 @@ impl Compiler {
         let operation = match source {
             z3_json_data::Requirement::Named(name) => {
                 match name.as_str() {
-                    "free" | "h_MothulaVulnerableToGoldSword" => return Requirement::Free,
+                    // Great Fairy upgrades need no specific thrown item; the generator
+                    // places only upgrades whose prerequisite was already collected.
+                    "free" | "h_MothulaVulnerableToGoldSword" | "h_greatFairyFreeUpgrades" => {
+                        return Requirement::Free;
+                    }
                     "never" => return Requirement::Never,
                     "BigKey" => return Requirement::BigKey(room.dungeon_idx.unwrap()),
                     "Bottle" => return Requirement::Bottles(1),
