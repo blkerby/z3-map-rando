@@ -262,12 +262,6 @@ fn read_item_encodings(source_directory: &Path) -> Result<BTreeMap<String, ItemE
     // These specific randomizer receipts are not individual shared-data records.
     for (name, receipt_id) in [
         ("ProgressiveBoomerang", 0x62),
-        ("BombUpgrade5", 0x51),
-        ("BombUpgrade10", 0x52),
-        ("BombUpgrade50", 0x4C),
-        ("ArrowUpgrade5", 0x53),
-        ("ArrowUpgrade10", 0x54),
-        ("ArrowUpgrade70", 0x4D),
         ("Triforce", 0x6A),
     ] {
         encodings.insert(

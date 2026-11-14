@@ -202,28 +202,12 @@ impl GlobalState {
                     None
                 }
             }
-            Item::BombUpgrade5 => {
-                self.bomb_capacity = (self.bomb_capacity + 5).min(50);
+            Item::BombCapacityUpgrade => {
+                self.bomb_capacity = (self.bomb_capacity + 5).min(99);
                 Some(D::Bombs)
             }
-            Item::BombUpgrade10 => {
-                self.bomb_capacity = (self.bomb_capacity + 10).min(50);
-                Some(D::Bombs)
-            }
-            Item::BombUpgrade50 => {
-                self.bomb_capacity = 50;
-                Some(D::Bombs)
-            }
-            Item::ArrowUpgrade5 => {
-                self.arrow_capacity = (self.arrow_capacity + 5).min(70);
-                Some(D::Arrows)
-            }
-            Item::ArrowUpgrade10 => {
-                self.arrow_capacity = (self.arrow_capacity + 10).min(70);
-                Some(D::Arrows)
-            }
-            Item::ArrowUpgrade70 => {
-                self.arrow_capacity = 70;
+            Item::ArrowCapacityUpgrade => {
+                self.arrow_capacity = (self.arrow_capacity + 5).min(99);
                 Some(D::Arrows)
             }
             // These receipts all create a bottle, including the filled-bottle items.

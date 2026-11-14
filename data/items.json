@@ -28,6 +28,8 @@
   {"name": "glove", "upstream_name": "ProgressiveGlove", "other_names": ["PowerGlove", "TitansMitt"], "min": 0, "max": 2, "category": "upgrades", "tier": "major"},
   {"name": "mail", "upstream_name": "ProgressiveArmor", "other_names": ["BlueMail", "RedMail"], "min": 0, "max": 2, "category": "upgrades", "tier": "high"},
   {"name": "half_magic", "upstream_name": "HalfMagic", "other_names": [], "min": 0, "max": 1, "category": "upgrades", "tier": "high"},
+  {"name": "bomb_capacity_upgrade", "upstream_name": "BombCapacityUpgrade", "other_names": [], "min": 0, "max": null, "category": "upgrades", "tier": "minor"},
+  {"name": "arrow_capacity_upgrade", "upstream_name": "ArrowCapacityUpgrade", "other_names": [], "min": 0, "max": null, "category": "upgrades", "tier": "minor"},
   {"name": "silver_arrows", "upstream_name": "SilverArrows", "other_names": ["BowAndSilverArrows"], "min": 0, "max": 1, "category": "upgrades", "tier": "major"},
   {"name": "arrow", "upstream_name": "OneArrow", "other_names": [], "min": 0, "max": null, "category": "ammo", "tier": "junk"},
   {"name": "three_bombs", "upstream_name": "ThreeBombs", "other_names": [], "min": 0, "max": null, "category": "ammo", "tier": "junk"},

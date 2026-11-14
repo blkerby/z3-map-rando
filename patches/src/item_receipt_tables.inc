@@ -1,5 +1,5 @@
 ; Unified 256-entry receipt tables. The patcher copies the vanilla prefixes
-; from the input ROM; ASM writes only the Half Magic entries below.
+; from the input ROM; ASM writes only the custom entries below.
 ; Native receipt initialization uses DB=$B1. Its unchanged dungeon-mask and
 ; bottle lookup tables are mirrored at $B185C6/$B1891E by the patcher.
 
@@ -30,6 +30,10 @@ assert ItemGraphics == !ItemGraphics
 skip ($39*$80)
 HalfMagicGraphics:
     incsrc "half_magic_graphics.inc"
+BombCapacityUpgradeGraphics:
+    incsrc "bomb_capacity_upgrade_graphics.inc"
+ArrowCapacityUpgradeGraphics:
+    incsrc "arrow_capacity_upgrade_graphics.inc"
 assert pc() <= !free_space_bank_b1_end
 
 org ItemReceiptOffsetsY+$4E
@@ -48,6 +52,42 @@ org ItemReceiptValues+$4E
     db $01
 org ItemReceiptMessages+($4E*2)
     dw $010F
+
+; Capacity upgrades write nothing through the generic table; see
+; capacity_upgrades.asm. They show no message.
+org ItemReceiptOffsetsY+$51
+    db $FC
+org ItemReceiptOffsetsX+$51
+    db $00
+org ItemReceiptGraphics+$51
+    db $3A
+org ItemReceiptWidths+$51
+    db $02
+org ItemReceiptPalettes+$51
+    db $02
+org ItemReceiptDestinations+($51*2)
+    dw $F370
+org ItemReceiptValues+$51
+    db $FF
+org ItemReceiptMessages+($51*2)
+    dw $FFFF
+
+org ItemReceiptOffsetsY+$53
+    db $FC
+org ItemReceiptOffsetsX+$53
+    db $00
+org ItemReceiptGraphics+$53
+    db $3B
+org ItemReceiptWidths+$53
+    db $02
+org ItemReceiptPalettes+$53
+    db $04
+org ItemReceiptDestinations+($53*2)
+    dw $F371
+org ItemReceiptValues+$53
+    db $FF
+org ItemReceiptMessages+($53*2)
+    dw $FFFF
 
 ; Long indexed reads can address the replacement tables directly.
 org $86C4DF

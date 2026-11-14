@@ -87,6 +87,11 @@ InitializeGameState:
     SEP #$20
     LDA.b #$02
     STA.l $7003C5,X
+    ; Starting bomb and arrow capacities (see capacity_upgrades.asm).
+    LDA.b #10
+    STA.l $700370,X
+    LDA.b #30
+    STA.l $700371,X
     REP #$20
 
     ; Run hi-jacked instructions:

@@ -1,0 +1,3 @@
+$9EE19D-$9EE19E capacity_upgrades.asm (bomb shop capacity check)
+$9EF2B6-$9EF2B7 capacity_upgrades.asm (shop arrow capacity check)
+$9EF2F7-$9EF2F8 capacity_upgrades.asm (shop bomb capacity check)

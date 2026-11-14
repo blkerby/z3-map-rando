@@ -137,6 +137,11 @@ endmacro
 ; offset (0 for X, 6 for Y); A/X/Y are 16-bit, X/Y are preserved.
 !PreloadAlignedTransitionEdge = $A09800
 
+; Raises bomb ($51 in Y) or arrow ($53 in Y) capacity and queues the same
+; amount of ammo. Entry is A8/X8/Y8; preserves X/Y/DB.
+; Defined in capacity_upgrades.asm.
+!UpgradeCapacity = $A0FB00
+
 ; Saved spawn unlocks: bit 0 is Sanctuary entered; bit 1 is Light World mountain reached.
 !SpawnVisitFlags = $7EF3D6
 

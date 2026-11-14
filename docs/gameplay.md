@@ -4,7 +4,7 @@ The prototype randomizes items and overworld layouts, with broader gameplay veri
 
 ## Items
 
-Swords, shields, gloves, mail, and boomerangs upgrade one level per pickup, capped at the highest tier. Visible pickups show the next upgrade. When both are owned, highlight Mushroom/Powder or Shovel/Ocarina in the item menu and press Y to switch between them.
+Swords, shields, gloves, mail, and boomerangs upgrade one level per pickup, capped at the highest tier. Bomb and arrow capacity upgrades each add 5 capacity (from a starting 10 bombs and 30 arrows, up to 99) along with 5 ammo; the Lake Hylia fairy's upgrades do the same. Visible pickups show the next upgrade. When both are owned, highlight Mushroom/Powder or Shovel/Ocarina in the item menu and press Y to switch between them.
 
 Small and Big Keys remain at vanilla key locations, and Waterfall/Pyramid fairy exchanges stay fixed. Keys and fairy exchanges still use vanilla ROM behavior, which differs from the logical model's door-specific Small Keys and progressive equipment. Silver Arrows also grants the bow. Equipment receipt messages retain vanilla text pending replacement.
 

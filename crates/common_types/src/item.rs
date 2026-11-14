@@ -53,12 +53,8 @@ pub enum Item {
     HeartContainer,
     PieceOfHeart,
     HalfMagic,
-    BombUpgrade5,
-    BombUpgrade10,
-    BombUpgrade50,
-    ArrowUpgrade5,
-    ArrowUpgrade10,
-    ArrowUpgrade70,
+    BombCapacityUpgrade,
+    ArrowCapacityUpgrade,
 
     // Resource refills
     Arrow,

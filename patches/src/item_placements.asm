@@ -642,6 +642,12 @@ GrantAssignedItem:
     BNE .not_master_sword
     LDY.b #$01
 .not_master_sword
+    CPY.b #$51
+    BEQ .capacity
+    CPY.b #$53
+    BNE GrantNativeItem
+.capacity
+    JSL !UpgradeCapacity
 GrantNativeItem:
     ; Run hi-jacked instructions. PHK at the relocated address would select
     ; bank $A0, so load the original table bank explicitly instead.

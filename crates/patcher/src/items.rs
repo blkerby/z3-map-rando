@@ -11,6 +11,7 @@ pub(crate) fn apply_items(
     placements: &[ItemPlacement],
     catalog: &PatchCatalog,
 ) -> Result<()> {
+    patcher.use_ips(&catalog.patches.capacity_upgrades)?;
     patcher.use_ips(&catalog.patches.item_inventory)?;
     patcher.use_ips(&catalog.patches.item_menu_toggle)?;
     patcher.use_ips(&catalog.patches.item_placements)?;
