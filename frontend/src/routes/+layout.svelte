@@ -59,8 +59,8 @@
 					<li class="nav-item">
 						<a
 							class="nav-link"
-							class:active={page.url.pathname === link.href}
-							aria-current={page.url.pathname === link.href ? 'page' : undefined}
+							class:active={page.route.id === link.href}
+							aria-current={page.route.id === link.href ? 'page' : undefined}
 							href={resolve(link.href)}
 						>
 							{link.label}

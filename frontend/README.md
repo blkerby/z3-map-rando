@@ -11,6 +11,26 @@ npm run check   # type-check (svelte-check)
 npm run build   # static site in build/
 ```
 
+Open the URL printed by Vite for frontend development. Its Node-based development server compiles Svelte and provides hot reload; frontend edits do not require starting or restarting the Rust server. Node is also needed to build the frontend, but is not needed to serve the built site.
+
+## Serve the built site
+
+From the repository root, after building the frontend:
+
+```sh
+cargo run --package server
+```
+
+Open `http://127.0.0.1:8080/`. The server reads `frontend/build/` from disk, so rebuilding the frontend does not require recompiling or restarting Rust; refresh the browser to see the new build. Pages use trailing slashes and are emitted as directory indexes, such as `generate/index.html`; `/generate` redirects to `/generate/`.
+
+The server accepts `--bind` and `--static-dir` (relative to the current working directory). For example, to serve a deployed build using the compiled binary:
+
+```sh
+z3-map-rando-server --bind 0.0.0.0:8080 --static-dir /path/to/frontend/build
+```
+
+Only static files are served currently. When API endpoints are added, Vite can proxy `/api/` to Rust during development while the frontend uses the same relative request URLs in both environments.
+
 ## Settings
 
 The settings data (built-in presets, skill difficulties, items) comes from `settings_data.json`, which the randomizer's catalog builder prepares from its `data/` directory (the `$settings_data` alias). `vite.config.ts` runs the builder whenever the config loads, and in dev again whenever `data/` changes, so the Rust toolchain is required. See [`docs/data-formats`](../docs/data-formats/) for the settings document format.
