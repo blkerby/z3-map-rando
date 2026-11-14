@@ -487,6 +487,8 @@ pub enum EdgeOrigin {
     ImplicitMirror,
     /// Departure to the flute hub or arrival at a flute destination.
     ImplicitFlute,
+    /// The Lake Hylia fairy's bottle exchange (randomizer custom behavior).
+    LakeHyliaBottleExchange,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -551,6 +553,8 @@ pub enum Requirement {
         /// Half Magic scales usage, not refill limits. Other resources use individual units.
         limit: u32,
     },
+    /// Discover bottled fairies from exchanging an empty bottle, without the Bug Catching Net.
+    ExchangeBottleForFairy,
     ResourceMissingAtMost {
         resource: Resource,
         /// Same units as `Refill`.

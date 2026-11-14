@@ -12,6 +12,7 @@ pub(crate) fn apply_items(
     catalog: &PatchCatalog,
 ) -> Result<()> {
     patcher.use_ips(&catalog.patches.capacity_upgrades)?;
+    patcher.use_ips(&catalog.patches.fairy_ponds)?;
     patcher.use_ips(&catalog.patches.item_inventory)?;
     patcher.use_ips(&catalog.patches.item_menu_toggle)?;
     patcher.use_ips(&catalog.patches.item_placements)?;
@@ -28,7 +29,7 @@ pub(crate) fn apply_items(
         (0x89857A, tables + 0x700, 0x4C),
         (0x88C301, tables + 0x800, 0x98),
         (0x8985C6, bank | 0x85C6, 0x1C),
-        (0x89891E, bank | 0x891E, 0x0C),
+        (0x89891E, bank | 0x891E, 0x07),
     ] {
         let start = PcAddr::from(SnesAddr(source)).0 as usize;
         let mut bytes = rom[start..start + length].to_vec();

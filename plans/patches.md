@@ -125,13 +125,19 @@ The builder packages the typed manifest alongside the assembled IPS bytes. The s
 
 ### Item receipts and graphics
 
-The unified item receipt tables reserve 256 entries per property in bank `$B1`, starting at the exported `ItemReceiptTables` address `$B1A000`. The patcher copies the eight vanilla table prefixes from the verified input ROM, and ASM writes the Half Magic (`$4E`) and capacity upgrade (`$51`, `$53`) entries. The initializer uses the receipt-table bank and reads mirrors of the vanilla dungeon-mask and bottle lookup data at matching bank-local offsets. Other constructors and receipt animation use their native data banks and access the expanded tables through long addresses.
+The unified item receipt tables reserve 256 entries per property in bank `$B1`, starting at the exported `ItemReceiptTables` address `$B1A000`. The patcher copies the eight vanilla table prefixes from the verified input ROM, and ASM writes the Half Magic (`$4E`), capacity upgrade (`$51`, `$53`), and bottle refill (`$B8`, `$B9`) entries. The initializer uses the receipt-table bank and reads mirrors of the vanilla dungeon-mask and bottle lookup data at matching bank-local offsets. Other constructors and receipt animation use their native data banks and access the expanded tables through long addresses.
 
 Item graphics use a fixed 128-byte 4bpp ROM array at the exported `ItemGraphics` address `$B1AA00`, indexed by graphics ID. The patcher converts vanilla graphics IDs `$00-$38` from the input ROM, and ASM supplies custom artwork: Half Magic at `$39`, and bomb and arrow capacity upgrades at `$3A` and `$3B`. Both native item-loading entry points use the shared array loader, including animated rupee frames.
 
 ### Ammo capacity
 
-`capacity_upgrades.asm` follows ALTTPR's format, which trackers may read: `$7EF370`/`$7EF371` hold the bomb and arrow capacities directly instead of indexes into the vanilla `CapacityUpgrades` tables. New saves start with the settings' starting capacities, which the patcher writes to the exported `StartingCapacities`. The HUD refill, the bomb shop, the shopkeeper's ammo items, and the Lake Hylia fairy use these bytes directly. Receipts `$51`/`$53` and fairy purchases call `UpgradeCapacity`, which adds 5 capacity (capped at 99) and queues 5 ammo.
+`capacity_upgrades.asm` follows ALTTPR's format, which trackers may read: `$7EF370`/`$7EF371` hold the bomb and arrow capacities directly instead of indexes into the vanilla `CapacityUpgrades` tables. New saves start with the settings' starting capacities, which the patcher writes to the exported `StartingCapacities`. The HUD refill, the bomb shop, and the shopkeeper's ammo items use these bytes directly. Receipts `$51`/`$53` call `UpgradeCapacity`, which adds 5 capacity (capped at 99) and queues 5 ammo.
+
+### Messages and Great Fairy ponds
+
+`messages.asm` owns the message parser hook. It replaces the vanilla start-menu messages with destination-dependent English text, and resolves message IDs from `$0200` to custom English text in the native uppercase font, 14 characters per row. Choices use the vanilla arrow messages, so choice text starts in column 4.
+
+`fairy_ponds.asm` replaces the Lake Hylia fairy's states with a free bottle exchange (see [fairies.md](fairies.md)). Its refill receipts `$B8` (fairy) and `$B9` (golden bee) fill the first empty bottle through the vanilla refill loop, which reads a relocated list including the golden bee.
 
 ### Overworld map and gameplay
 

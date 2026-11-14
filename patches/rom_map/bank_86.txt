@@ -1,3 +1,2 @@
-$86C6AB-$86C6B4 capacity_upgrades.asm (Lake Hylia fairy bomb upgrade)
-$86C72E-$86C737 capacity_upgrades.asm (Lake Hylia fairy arrow upgrade)
+$86C454-$86C458 fairy_ponds.asm (Lake Hylia fairy state machine)
 $86E81A-$86E81D overworld_map16_properties.asm (sprite tile collision lookup hook)

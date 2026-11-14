@@ -14,7 +14,7 @@ $A08700-$A088BC overworld_map_data.asm (flat Map16 loaders)
 $A088BD-$A088FF [FREE]
 $A08900-$A09584 overworld_bg_tilemaps.asm (rain palette handling, BG1/BG2 renderers, and transition helpers)
 $A09585-$A098FF [FREE]
-$A09900-$A09DFF [FREE]
+$A09900-$A09DFF messages.asm (reserved for custom message text)
 $A09E00-$A09F3F theme_check generated overworld backdrop colors
 $A09F40-$A0A0C0 overworld_animations.asm (generated animation runtime)
 $A0A0C1-$A0A1C6 overworld_entrances.asm (area-local entrance runtime)
@@ -39,7 +39,8 @@ $A0F500-$A0F57F world_state.asm (reserved for loaded world context, mountain vis
 $A0F580-$A0F8FF overworld_camera_alignment.asm (reserved for transition camera and follow-threshold alignment)
 $A0F900-$A0FAFF new_game.asm (reserved for initial state, starting capacities, restart menus, dungeon Mirror returns, and priest initialization)
 $A0FB00-$A0FBFF capacity_upgrades.asm (reserved for capacity upgrades)
-$A0FC00-$A0FFFF [FREE]
+$A0FC00-$A0FEFF fairy_ponds.asm (reserved for Great Fairy ponds)
+$A0FF00-$A0FFFF [FREE]
 
 Bank $A1
 $A18000-$A1FFFF top-left Map16 definition words
@@ -76,11 +77,12 @@ $B08000-$B08159 item_placements.asm (seed-specific assigned items and prize type
 $B0815A-$B0FFFF [FREE]
 
 Bank $B1
-$B18000-$B185C5 [FREE]
+$B18000-$B18005 item_receipt_tables.inc (bottle refill receipts)
+$B18006-$B185C5 [FREE]
 $B185C6-$B185E1 copied vanilla dungeon masks for receipt initialization
 $B185E2-$B1891D [FREE]
-$B1891E-$B18929 copied vanilla bottle receipt/refill IDs
-$B1892A-$B19FFF [FREE]
+$B1891E-$B18924 copied vanilla new-bottle receipt IDs
+$B18925-$B19FFF [FREE]
 $B1A000-$B1A9FF item_receipt_tables.inc (eight 256-entry receipt tables; vanilla prefixes copied by patcher)
 $B1AA00-$B1C7FF item_receipt_tables.inc (128-byte item graphics entries; vanilla graphics converted by patcher)
 $B1C800-$B1FFFF [FREE]

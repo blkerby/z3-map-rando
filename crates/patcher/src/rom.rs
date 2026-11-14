@@ -275,6 +275,7 @@ fn prepare_retiling(
         &patches.patches.fastrom_extra,
         &patches.patches.rom_size,
         &patches.patches.new_game,
+        &patches.patches.messages,
         &patches.patches.world_state,
         &patches.patches.mothula_sword,
         &patches.patches.overworld_map_data,

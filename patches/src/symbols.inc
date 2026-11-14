@@ -145,6 +145,12 @@ endmacro
 ; Starting bomb and arrow capacities, written by the patcher from the settings.
 %export_symbol(StartingCapacities, starting_capacities, $A0FAFE)
 
+; Custom message IDs, whose text is defined in messages.asm.
+!FirstCustomMessage = $0200
+!MessageLakeHyliaFairyOffer = $0200
+!MessageLakeHyliaFairyWish = $0201
+!MessageLakeHyliaFairyNoBottle = $0202
+
 ; Saved spawn unlocks: bit 0 is Sanctuary entered; bit 1 is Light World mountain reached.
 !SpawnVisitFlags = $7EF3D6
 

@@ -1,6 +1,6 @@
 # Great Fairy upgrades
 
-Status: planned. This replaces the vanilla item exchanges at the Waterfall of Wishing and Pyramid fairies, and the capacity shop at the Lake Hylia fairy. All three use sprite `$72` (`Sprite_72_FairyPond`); see [items.md](items.md) for the vanilla receipt system.
+Status: the Lake Hylia fairy and starting items are implemented; the Waterfall and Pyramid fairies are planned. This replaces the vanilla item exchanges at the Waterfall of Wishing and Pyramid fairies, and the capacity shop at the Lake Hylia fairy. All three use sprite `$72` (`Sprite_72_FairyPond`); see [items.md](items.md) for the vanilla receipt system.
 
 ## Waterfall and Pyramid fairies
 
@@ -46,25 +46,25 @@ The four formerly fixed items return to the pool: sword 4, shield 3, boomerang 2
 
 ## Lake Hylia fairy
 
-The fairy no longer sells capacity upgrades. Remove the fairy part of `capacity_upgrades.asm`.
+Implemented in `fairy_ponds.asm`, replacing the vanilla capacity shop. The fairy does not appear; the sequence runs from the pond.
 
 1. On contact, she says "Throw in a bottle and I will make your wishes come true." with "Yes"/"No" options. "No" ends the sequence immediately.
-2. If "Yes", she asks "What do you wish for?" with options "A fairy" and "A golden bee".
+2. If "Yes", she asks "Wish for" with options "Fairy" and "Golden bee". Choice text starts after the vanilla arrow in column 4, leaving 10 characters.
 3. If Link has an empty bottle, he throws it in and receives the chosen bottle contents through an item receipt. Otherwise she says "Come back when you have an empty bottle."
 
-The exchange is free and repeatable without limit.
+The exchange is free and repeatable without limit. Like vanilla, the offer repeats after a few seconds while Link stays in contact.
 
 ### Receipts
 
-Add two internal receipts, refilling an empty bottle with a fairy or a golden bee. Choose IDs unused by ALTTPR. They are not placeable, so they need no `Item` variant or `items.json` entry.
+The internal receipts `$B8` (fairy) and `$B9` (golden bee), unused by ALTTPR, refill the first empty bottle. They are not placeable, so they have no `Item` variant or `items.json` entry.
 
-Vanilla `ItemReceipt_GiveBottledItem` refills the first empty bottle with value *index + 3* for each receipt in its refill list. Index 3 (fairy, value 6) holds an unused `$FF`; put the fairy receipt there. Add a sixth entry for the golden bee (value 8) and raise the loop's starting index at `$09895A` from 4 to 5. The receipt-table bank mirrors this list at `$B18925`, and the following byte is free.
+Vanilla `ItemReceipt_GiveBottledItem` refills the first empty bottle with value *index + 3* for each receipt in its refill list. The vanilla list leaves the fairy entry (value 6) unused and has no golden bee entry (value 8). `item_receipt_tables.inc` relocates the list to `BottleRefillReceipts` with both receipts, and raises the loop's starting index at `$09895A` from 4 to 5.
 
-Their receipt table entries reuse the graphics, palette, and width of `$3D` (new bottle with fairy) and `$48` (new bottle with golden bee), with `$FF` values to skip the generic inventory write. The toss animation leaves the bottle's inventory value unchanged.
+Their receipt table entries reuse the graphics, palette, and width of `$3D` (new bottle with fairy) and `$48` (new bottle with golden bee), with `$FF` values to skip the generic inventory write and no message. The toss animation leaves the bottle's inventory value unchanged.
 
 ### Logic
 
-Reaching the Lake Hylia Great Fairy entrance node provides fairy and golden bee bottle contents, without the Bug Catching Net. The generator adds this source directly, since z3-json-data is not modified. Add a golden bee refill flag, and let `have_bottle_content` use it instead of treating golden bees as unavailable.
+The logic builder adds a Lake Hylia Great Fairy entrance-node edge with `ExchangeBottleForFairy`, which provides bottled fairies without the Bug Catching Net. Golden bees have no logical use, so they are not modeled.
 
 ## Starting items settings
 

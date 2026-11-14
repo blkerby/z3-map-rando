@@ -35,14 +35,6 @@ hook_select_underworld_restart:
 org $82D6F4
 return_check_underworld_restart:
 
-; The parser owns 16-bit A/X/Y and $04-$07. English spawn messages use
-; the same renderer and arrow messages as the vanilla start menu.
-org $8EEE88
-hook_resolve_spawn_message:
-    JML ResolveSpawnMessage
-org $8EEE98
-return_parse_message:
-
 ; Keep the receipt/dialogue accumulator and flags, but skip progress rewrites.
 org $85DF67
 hook_receive_uncle_equipment:
@@ -201,89 +193,8 @@ RecordSanctuaryVisit:
     STA.l !SpawnVisitFlags
     JML return_initialize_living_priest
 
-ResolveSpawnMessage:
-    LDA.w $1CF0
-    CMP.w #$0182
-    BEQ .two_choices
-    CMP.w #$0183
-    BNE .vanilla
-    LDA.w #SpawnMessageHouseSanctuaryMountain
-    BRA .custom
-
-.two_choices
-    LDA.l $7EF3CA
-    AND.w #$00FF
-    BNE .pyramid
-    LDA.l !SpawnVisitFlags
-    BIT.w #$0002
-    BEQ .sanctuary
-    LDA.w #SpawnMessageHouseMountain
-    BRA .custom
-
-.sanctuary
-    LDA.w #SpawnMessageHouseSanctuary
-    BRA .custom
-
-.pyramid
-    LDA.w #SpawnMessageHousePyramid
-
-.custom
-    STA.b $04
-    LDA.w #SpawnMessageHouseMountain>>16
-    STA.b $06
-    JML return_parse_message
-
-.vanilla
-    ; Run hi-jacked instructions:
-    LDA.w $1CF0
-    ASL A
-    TAX
-    LDA.l $7F71C0,X
-    STA.b $04
-    LDA.w #$001C
-    STA.b $06
-
-    JML return_parse_message
-
 SpawnPointIds:
     db $00, $01, $06
-
-; English labels use the native uppercase font and saved player-name substitution.
-macro spawn_message_house()
-    db $FE, $6D, $00, $FC, $00, $E4, $FE, $6A
-    db $D8, $BC, $FF, $B1, $B8, $BE, $BC, $AE ; 'S HOUSE
-    db $F8, $FF
-endmacro
-
-macro spawn_message_sanctuary()
-    db $BC, $AA, $B7, $AC, $BD, $BE, $AA, $BB, $C2 ; SANCTUARY
-endmacro
-
-macro spawn_message_mountain()
-    db $B6, $B8, $BE, $B7, $BD, $AA, $B2, $B7 ; MOUNTAIN
-endmacro
-
-SpawnMessageHouseSanctuary:
-    %spawn_message_house()
-    %spawn_message_sanctuary()
-    db $FE, $72, $FB
-
-SpawnMessageHouseMountain:
-    %spawn_message_house()
-    %spawn_message_mountain()
-    db $FE, $72, $FB
-
-SpawnMessageHouseSanctuaryMountain:
-    %spawn_message_house()
-    %spawn_message_sanctuary()
-    db $F9, $FF
-    %spawn_message_mountain()
-    db $FE, $71, $FB
-
-SpawnMessageHousePyramid:
-    %spawn_message_house()
-    db $B9, $C2, $BB, $AA, $B6, $B2, $AD ; PYRAMID
-    db $FE, $72, $FB
 
 assert pc() <= !StartingCapacities
 org !StartingCapacities

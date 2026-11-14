@@ -150,6 +150,7 @@ pub(crate) fn collect_requirement_dependencies(
         | Requirement::Tech(_)
         | Requirement::Notable(_)
         | Requirement::Proficiency { .. }
+        | Requirement::ExchangeBottleForFairy
         | Requirement::Follower(_)
         | Requirement::LoseFollowers(_)
         | Requirement::ResetObstacles(_)
@@ -259,6 +260,10 @@ impl Interpreter<'_> {
         }
         let succeeds = match requirement {
             Requirement::Free | Requirement::Pay(_) => true,
+            Requirement::ExchangeBottleForFairy => {
+                discoveries.refills.fairy = !self.global.refills.fairy;
+                true
+            }
             Requirement::Never => false,
             Requirement::IsNotBunny => self.is_not_bunny(world),
             Requirement::CanInteract => self.can_interact(world),

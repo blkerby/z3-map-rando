@@ -46,30 +46,6 @@ hook_check_shop_bomb_capacity:
 org $9EF2FE
 return_check_shop_bomb_capacity:
 
-; Lake Hylia fairy purchases grant the same upgrade as the shuffled items.
-; Entry is A8/X8/Y8 with X holding the fairy's sprite slot.
-org $86C6AB
-hook_upgrade_fairy_bombs:
-    LDY.b #$51
-    JSL UpgradeFairyCapacity
-    BCS return_refuse_fairy_bombs
-    BRA return_show_fairy_bombs
-org $86C6C6
-return_show_fairy_bombs:
-org $86C6CF
-return_refuse_fairy_bombs:
-
-org $86C72E
-hook_upgrade_fairy_arrows:
-    LDY.b #$53
-    JSL UpgradeFairyCapacity
-    BCS return_refuse_fairy_arrows
-    BRA return_show_fairy_arrows
-org $86C749
-return_show_fairy_arrows:
-org $86C752
-return_refuse_fairy_arrows:
-
 org !free_space_bank_a0_start
 
 ; Entry is A8/X8/Y8 with receipt $51 (bombs) or $53 (arrows) in Y.
@@ -94,41 +70,6 @@ assert UpgradeCapacity == !UpgradeCapacity
     CLC
     ADC.b #!CapacityIncrement
     STA.l $7EF375,X
-    PLX
-    RTL
-
-; Entry is A8/X8/Y8 with the capacity receipt in Y. Carry set means the
-; capacity is already full. Otherwise upgrade and store the new capacity as
-; BCD in $1CF2 for the fairy's message. Preserve X/DB; clobbers A/Y.
-UpgradeFairyCapacity:
-    PHX
-    TYA
-    AND.b #$02
-    LSR A
-    TAX
-    LDA.l $7EF370,X
-    CMP.b #!MaxCapacity
-    BCS .done
-    JSL UpgradeCapacity
-    LDA.l $7EF370,X
-    LDY.b #$00
-.tens
-    CMP.b #10
-    BCC .ones
-    SBC.b #10
-    INY
-    BRA .tens
-.ones
-    STA.l $7E1CF2
-    TYA
-    ASL A
-    ASL A
-    ASL A
-    ASL A
-    ORA.l $7E1CF2
-    STA.l $7E1CF2
-    CLC
-.done
     PLX
     RTL
 

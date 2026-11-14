@@ -141,6 +141,23 @@ pub(super) fn compile_rooms(
                 });
             }
         }
+        // The Lake Hylia fairy exchanges an empty bottle for a fairy or golden bee
+        // (fairy_ponds.asm). Golden bees have no logical use, so only fairies are modeled.
+        if room_id == SourceRoomId::Underworld(27) {
+            let vertex_idx = indices.vertices[&(1, None)];
+            catalog.edges.push(Edge {
+                from_vertex_idx: vertex_idx,
+                to_vertex_idx: vertex_idx,
+                requirement: Requirement::make_and(vec![
+                    Requirement::CanInteract,
+                    Requirement::ExchangeBottleForFairy,
+                ]),
+                effects: Box::new([]),
+            });
+            catalog.edge_metadata.push(EdgeMetadata {
+                origin: EdgeOrigin::LakeHyliaBottleExchange,
+            });
+        }
         room_indices.insert(room_id, indices);
         catalog.rooms.push(room);
     }

@@ -1,12 +1,19 @@
 ; Unified 256-entry receipt tables. The patcher copies the vanilla prefixes
 ; from the input ROM; ASM writes only the custom entries below.
 ; Native receipt initialization uses DB=$B1. Its unchanged dungeon-mask and
-; bottle lookup tables are mirrored at $B185C6/$B1891E by the patcher.
+; new-bottle lookup tables are mirrored at $B185C6/$B1891E by the patcher.
 
 !free_space_bank_b1_start = $B18000
 !free_space_bank_b1_end = $B20000
 
 org !free_space_bank_b1_start
+
+; Refill receipts, indexed by the bottle value minus 3. The vanilla list leaves
+; the fairy entry unused and lacks the golden bee.
+BottleRefillReceipts:
+    db $2E,$2F,$30,$B8,$0E,$B9
+
+assert pc() <= $B185C6
 assert pc() <= !ItemReceiptTables
 org !ItemReceiptTables
 ItemReceiptTables:
@@ -88,6 +95,32 @@ org ItemReceiptValues+$53
     db $FF
 org ItemReceiptMessages+($53*2)
     dw $FFFF
+
+; Fairy and golden bee refills of an empty bottle, granted by the Lake Hylia
+; fairy (fairy_ponds.asm). They reuse the new-bottle artwork, show no message,
+; and are applied by the bottle refill list below.
+org ItemReceiptOffsetsY+$B8
+    db $FC,$FC
+org ItemReceiptOffsetsX+$B8
+    db $00,$00
+org ItemReceiptGraphics+$B8
+    db $2B,$2C
+org ItemReceiptWidths+$B8
+    db $02,$02
+org ItemReceiptPalettes+$B8
+    db $02,$02
+org ItemReceiptDestinations+($B8*2)
+    dw $F35C,$F35C
+org ItemReceiptValues+$B8
+    db $FF,$FF
+org ItemReceiptMessages+($B8*2)
+    dw $FFFF,$FFFF
+
+; The refill loop reads BottleRefillReceipts, including the golden bee.
+org $89895A
+    LDX.b #$05
+org $89895D
+    dw BottleRefillReceipts&$FFFF
 
 ; Long indexed reads can address the replacement tables directly.
 org $86C4DF
