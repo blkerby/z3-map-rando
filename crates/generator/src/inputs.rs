@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow, bail, ensure};
-use common_types::{DoorId, Item, SourceRoomId, read_item_records};
+use common_types::{DoorId, Item, SourceRoomId};
 use hashbrown::HashMap;
 use logic_catalog::{DoorIndex, ItemLocationIndex, LockKind, LogicCatalog};
 use seed_data::Settings;
@@ -59,19 +59,8 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         notable_enabled: vec![false; catalog.notables.len()],
         proficiency_levels: vec![0; catalog.techs.len()],
     };
-    let mut items_by_name = HashMap::new();
-    for record in read_item_records() {
-        items_by_name.insert(record.upstream_name, record.name);
-        for name in record.other_names {
-            items_by_name.insert(name, record.name);
-        }
-    }
     for item in &catalog.items {
-        let item = match items_by_name.get(&item.name) {
-            Some(&item) => Some(item),
-            None => resolve_non_pool_item(&item.name),
-        };
-        inputs.items.push(item);
+        inputs.items.push(item.item);
     }
     for _ in &catalog.dungeons {
         inputs.dungeons.push(DungeonInputs::default());
@@ -230,42 +219,4 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         inputs.proficiency_levels[*index] = level;
     }
     Ok(inputs)
-}
-
-/// Resolve upstream names of items outside `data/items.json`.
-fn resolve_non_pool_item(name: &str) -> Option<Item> {
-    Some(match name {
-        "SilverArrows" | "BowAndSilverArrows" => Item::SilverArrows,
-        "OneBomb" => Item::Bomb,
-        "Heart" => Item::Heart,
-        "SmallMagic" => Item::SmallMagic,
-        "TenBombs" => Item::TenBombs,
-        "Bee" => Item::Bee,
-        "Fairy" => Item::Fairy,
-        "GoldBee" => Item::GoldBee,
-        "RedPotion" => Item::RedPotion,
-        "GreenPotion" => Item::GreenPotion,
-        "BluePotion" => Item::BluePotion,
-        "Compass" => Item::Compass,
-        "BigKey" => Item::BigKey,
-        "Map" => Item::Map,
-        "PendantOfCourage" => Item::PendantOfCourage,
-        "PendantOfWisdom" => Item::PendantOfWisdom,
-        "PendantOfPower" => Item::PendantOfPower,
-        "Crystal1" => Item::Crystal1,
-        "Crystal2" => Item::Crystal2,
-        "Crystal3" => Item::Crystal3,
-        "Crystal4" => Item::Crystal4,
-        "Crystal5" => Item::Crystal5,
-        "Crystal6" => Item::Crystal6,
-        "Crystal7" => Item::Crystal7,
-        "Triforce" => Item::Triforce,
-        "BombUpgrade5" => Item::BombUpgrade5,
-        "BombUpgrade10" => Item::BombUpgrade10,
-        "BombUpgrade50" => Item::BombUpgrade50,
-        "ArrowUpgrade5" => Item::ArrowUpgrade5,
-        "ArrowUpgrade10" => Item::ArrowUpgrade10,
-        "ArrowUpgrade70" => Item::ArrowUpgrade70,
-        _ => return None,
-    })
 }

@@ -43,7 +43,7 @@ struct SettingsData {
     proficiencies: Vec<ProficiencyData>,
     techs: Vec<TechData>,
     notables: Vec<NotableData>,
-    /// The records of `data/items.json`, unchanged.
+    /// The item records, unchanged.
     items: serde_json::Value,
     generation: PresetCatalog,
     customization: Vec<PresetFile>,

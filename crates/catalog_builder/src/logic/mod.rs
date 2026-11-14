@@ -47,6 +47,7 @@ fn collect_techs(
 /// Compile z3-json-data and write the encoded logic catalog.
 pub fn build_catalog(
     source_directory: &Path,
+    item_records: &Path,
     output_catalog: &Path,
     compression_level: i32,
 ) -> Result<()> {
@@ -75,7 +76,7 @@ pub fn build_catalog(
         event_entries: Vec::new(),
         event_exits: Vec::new(),
     };
-    let compiler = load_definitions(source_directory, &mut catalog)?;
+    let compiler = load_definitions(source_directory, item_records, &mut catalog)?;
     let room_indices = rooms::compile_rooms(source_directory, &mut catalog, &compiler)?;
     connections::build_connections(source_directory, &room_indices, &mut catalog)?;
     build_flute_travel(&mut catalog);
@@ -140,7 +141,19 @@ fn build_flute_travel(catalog: &mut LogicCatalog) {
     }
 }
 
-fn load_definitions(source_directory: &Path, catalog: &mut LogicCatalog) -> Result<Compiler> {
+fn load_definitions(
+    source_directory: &Path,
+    item_records: &Path,
+    catalog: &mut LogicCatalog,
+) -> Result<Compiler> {
+    let mut randomizer_items = BTreeMap::new();
+    for record in crate::items::read_item_records(item_records)? {
+        let item = record.item()?;
+        randomizer_items.insert(record.upstream_name, item);
+        for name in record.other_names {
+            randomizer_items.insert(name, item);
+        }
+    }
     let mut compiler = Compiler {
         items: BTreeMap::new(),
         flags: BTreeMap::new(),
@@ -162,7 +175,11 @@ fn load_definitions(source_directory: &Path, catalog: &mut LogicCatalog) -> Resu
         for item in category.items {
             let item_idx = ItemIndex(catalog.items.len() as u32);
             compiler.items.insert(item.name.clone(), item_idx);
-            catalog.items.push(ItemDefinition { name: item.name });
+            let resolved = randomizer_items.get(&item.name).copied().flatten();
+            catalog.items.push(ItemDefinition {
+                name: item.name,
+                item: resolved,
+            });
         }
     }
     for name in items.flags.items {

@@ -28,6 +28,7 @@
   {"name": "glove", "upstream_name": "ProgressiveGlove", "other_names": ["PowerGlove", "TitansMitt"], "min": 0, "max": 2, "category": "upgrades", "tier": "major"},
   {"name": "mail", "upstream_name": "ProgressiveArmor", "other_names": ["BlueMail", "RedMail"], "min": 0, "max": 2, "category": "upgrades", "tier": "high"},
   {"name": "half_magic", "upstream_name": "HalfMagic", "other_names": [], "min": 0, "max": 1, "category": "upgrades", "tier": "high"},
+  {"name": "silver_arrows", "upstream_name": "SilverArrows", "other_names": ["BowAndSilverArrows"], "min": 0, "max": 1, "category": "upgrades", "tier": "major"},
   {"name": "arrow", "upstream_name": "OneArrow", "other_names": [], "min": 0, "max": null, "category": "ammo", "tier": "junk"},
   {"name": "three_bombs", "upstream_name": "ThreeBombs", "other_names": [], "min": 0, "max": null, "category": "ammo", "tier": "junk"},
   {"name": "ten_arrows", "upstream_name": "TenArrows", "other_names": [], "min": 0, "max": null, "category": "ammo", "tier": "junk"},
@@ -38,5 +39,19 @@
   {"name": "one_hundred_rupees", "upstream_name": "OneHundredRupees", "other_names": [], "min": 0, "max": null, "category": "rupees", "tier": "junk"},
   {"name": "three_hundred_rupees", "upstream_name": "ThreeHundredRupees", "other_names": [], "min": 0, "max": null, "category": "rupees", "tier": "minor"},
   {"name": "heart_container", "upstream_name": "SanctuaryHeartContainer", "other_names": ["BossHeartContainer"], "min": 0, "max": 17, "category": "hearts", "tier": "mid"},
-  {"name": "piece_of_heart", "upstream_name": "PieceOfHeart", "other_names": [], "min": 0, "max": 68, "category": "hearts", "tier": "minor"}
+  {"name": "piece_of_heart", "upstream_name": "PieceOfHeart", "other_names": [], "min": 0, "max": 68, "category": "hearts", "tier": "minor"},
+  {"name": "map", "upstream_name": "Map", "other_names": [], "min": 0, "max": null, "category": "dungeon", "tier": null},
+  {"name": "compass", "upstream_name": "Compass", "other_names": [], "min": 0, "max": null, "category": "dungeon", "tier": null},
+  {"name": "small_key", "upstream_name": "SmallKey", "other_names": [], "min": 0, "max": null, "category": "dungeon", "tier": null},
+  {"name": "big_key", "upstream_name": "BigKey", "other_names": [], "min": 0, "max": null, "category": "dungeon", "tier": null},
+  {"name": "pendant_of_courage", "upstream_name": "PendantOfCourage", "other_names": [], "min": 0, "max": 1, "category": "prize", "tier": null},
+  {"name": "pendant_of_wisdom", "upstream_name": "PendantOfWisdom", "other_names": [], "min": 0, "max": 1, "category": "prize", "tier": null},
+  {"name": "pendant_of_power", "upstream_name": "PendantOfPower", "other_names": [], "min": 0, "max": 1, "category": "prize", "tier": null},
+  {"name": "crystal1", "upstream_name": "Crystal1", "other_names": [], "min": 0, "max": 1, "category": "prize", "tier": null},
+  {"name": "crystal2", "upstream_name": "Crystal2", "other_names": [], "min": 0, "max": 1, "category": "prize", "tier": null},
+  {"name": "crystal3", "upstream_name": "Crystal3", "other_names": [], "min": 0, "max": 1, "category": "prize", "tier": null},
+  {"name": "crystal4", "upstream_name": "Crystal4", "other_names": [], "min": 0, "max": 1, "category": "prize", "tier": null},
+  {"name": "crystal5", "upstream_name": "Crystal5", "other_names": [], "min": 0, "max": 1, "category": "prize", "tier": null},
+  {"name": "crystal6", "upstream_name": "Crystal6", "other_names": [], "min": 0, "max": 1, "category": "prize", "tier": null},
+  {"name": "crystal7", "upstream_name": "Crystal7", "other_names": [], "min": 0, "max": 1, "category": "prize", "tier": null}
 ]

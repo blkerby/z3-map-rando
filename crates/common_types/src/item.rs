@@ -98,19 +98,3 @@ pub enum Item {
     // Goal items
     Triforce,
 }
-
-/// A randomizer item that settings can put in the item pool, as defined in `data/items.json`.
-/// Its other fields (count limits, display category, and placement tier) are not used by Rust yet.
-#[derive(Clone, Debug, Deserialize)]
-pub struct ItemRecord {
-    pub name: Item,
-    /// The z3-json-data item name used for this item's receipt when patching.
-    pub upstream_name: String,
-    /// Further z3-json-data item names that vanilla locations use for this item.
-    pub other_names: Vec<String>,
-}
-
-/// Read the item records bundled from `data/items.json`.
-pub fn read_item_records() -> Vec<ItemRecord> {
-    serde_json::from_str(include_str!("../../../data/items.json")).unwrap()
-}

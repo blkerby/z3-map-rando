@@ -2,7 +2,7 @@
 //! - IPS patches pre-built from ASM
 //! - item data extracted from z3-json-data.
 
-pub use common_types::{ItemLocationId, SourceRoomId};
+pub use common_types::{Item, ItemLocationId, SourceRoomId};
 
 use serde::{Deserialize, Serialize};
 use std::{
@@ -47,8 +47,10 @@ pub struct PatchCatalog {
     pub patches: PatchIps,
     pub symbols: PatchSymbols,
     pub item_locations: BTreeMap<ItemLocationId, ItemLocation>,
-    /// Keys are item names from `z3-json-data/items.json` plus project-local receipts.
-    pub items: BTreeMap<String, ItemEncoding>,
+    /// Encodings of the randomizer's items, except Small Keys.
+    pub items: BTreeMap<Item, ItemEncoding>,
+    /// The encoding shared by all Small Keys.
+    pub small_key: ItemEncoding,
 }
 
 /// A complete IPS payload with its diagnostic name.

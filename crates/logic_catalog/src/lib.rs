@@ -1,6 +1,6 @@
 //! A compact catalog of the z3-json-data data, processed into the
 //! randomizer's graph-oriented format
-pub use common_types::{ItemLocationId, SourceRoomId};
+pub use common_types::{Item, ItemLocationId, SourceRoomId};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -711,6 +711,10 @@ pub struct ItemLocation {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ItemDefinition {
     pub name: String,
+    /// The randomizer item this z3-json-data item is, resolved from the randomizer's item definitions.
+    /// None for anonymous Small Keys (their door is assigned during generation) and for items the
+    /// randomizer does not place, such as activation events like `OcarinaActive`.
+    pub item: Option<Item>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -772,6 +776,7 @@ pub fn compute_schema_hash() -> Result<u64> {
         // Each enum must be traced explicitly to discover all of its variants,
         // including those not encountered while tracing the root's first variants.
         tracer.trace_simple_type::<SourceRoomId>()?;
+        tracer.trace_simple_type::<Item>()?;
         tracer.trace_simple_type::<RoomKind>()?;
         tracer.trace_simple_type::<World>()?;
         tracer.trace_simple_type::<BoundaryEndpoint>()?;

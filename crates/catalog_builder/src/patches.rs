@@ -162,6 +162,7 @@ pub fn build_catalog(
     asm_directory: &Path,
     asar_source: &Path,
     source_directory: &Path,
+    item_records: &Path,
     output_directory: &Path,
     asar_executable: Option<&Path>,
     compression_level: i32,
@@ -172,22 +173,44 @@ pub fn build_catalog(
         output_directory,
         asar_executable,
     )?;
-    package_catalog(built, source_directory, output_directory, compression_level)
+    package_catalog(
+        built,
+        source_directory,
+        item_records,
+        output_directory,
+        compression_level,
+    )
 }
 
 pub(crate) fn package_catalog(
     built: BuiltPatches,
     source_directory: &Path,
+    item_records: &Path,
     output_directory: &Path,
     compression_level: i32,
 ) -> Result<()> {
-    let items = read_item_encodings(source_directory)?;
-    let item_locations = read_item_locations(source_directory, &built.symbols, &items)?;
+    let encodings = read_item_encodings(source_directory)?;
+    let item_locations = read_item_locations(source_directory, &built.symbols, &encodings)?;
+    let mut items = BTreeMap::new();
+    let mut small_key = None;
+    for record in crate::items::read_item_records(item_records)? {
+        let encoding = encodings
+            .get(&record.upstream_name)
+            .with_context(|| format!("no z3-json-data item {}", record.upstream_name))?
+            .clone();
+        match record.item()? {
+            Some(item) => {
+                items.insert(item, encoding);
+            }
+            None => small_key = Some(encoding),
+        }
+    }
     let catalog = PatchCatalog {
         patches: built.patches,
         symbols: built.symbols,
         item_locations,
         items,
+        small_key: small_key.context("no small_key item record")?,
     };
     write_catalog(
         &catalog,

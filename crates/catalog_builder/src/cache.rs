@@ -103,8 +103,14 @@ impl CatalogCache {
         let output = self.config.output_directory.join("logic_catalog.bin");
         let mut fingerprint = self.create_fingerprint(LOGIC_CODE_INPUTS);
         let clean = hash_repository(&mut fingerprint, source)?;
+        hash_input(&mut fingerprint, &fs::read(&self.config.items)?);
         update_catalog(&output, fingerprint, clean, || {
-            logic::build_catalog(source, &output, self.config.compression_level)
+            logic::build_catalog(
+                source,
+                &self.config.items,
+                &output,
+                self.config.compression_level,
+            )
         })
     }
 
@@ -133,6 +139,7 @@ impl CatalogCache {
         )?;
         let mut fingerprint = self.create_fingerprint(PATCH_CODE_INPUTS);
         let clean = hash_repository(&mut fingerprint, &self.config.logic_source)?;
+        hash_input(&mut fingerprint, &fs::read(&self.config.items)?);
         let mut artifacts = Vec::new();
         for entry in fs::read_dir(self.config.output_directory.join("patches"))? {
             let path = entry?.path();
@@ -156,6 +163,7 @@ impl CatalogCache {
             patches::package_catalog(
                 built,
                 &self.config.logic_source,
+                &self.config.items,
                 &self.config.output_directory,
                 self.config.compression_level,
             )

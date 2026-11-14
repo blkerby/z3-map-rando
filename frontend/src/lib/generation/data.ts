@@ -27,7 +27,8 @@ export interface ItemRecord {
 	/** The most the player can make use of; null for no limit. */
 	max: number | null;
 	category: string;
-	tier: string;
+	/** Placement tier; null for dungeon items and prizes. */
+	tier: string | null;
 }
 
 export const settingsData = settingsDataJson as SettingsData;
@@ -39,6 +40,10 @@ export const DIFFICULTIES = settingsData.difficulties;
 export const ITEM_LOCATIONS = 149;
 
 export const items = settingsData.items;
+
+/** Items the item pool can hold: all but dungeon items and prizes, which have their own placement. */
+export const poolItems: ItemRecord[] = [];
+for (const item of items) if (item.category !== 'dungeon' && item.category !== 'prize') poolItems.push(item);
 
 // Member IDs as they appear in setting paths.
 
@@ -65,6 +70,6 @@ export const generationModel: SettingsModel = { rootPresets, scopes: [skillScope
 /** How many items the item pool holds. */
 export function countPoolItems(store: SettingsStore): number {
 	let n = 0;
-	for (const item of items) n += store.get(['item_pool', item.name]) as number;
+	for (const item of poolItems) n += store.get(['item_pool', item.name]) as number;
 	return n;
 }

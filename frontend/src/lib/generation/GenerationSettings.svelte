@@ -6,7 +6,7 @@
 	import SectionCard from '$lib/settings/SectionCard.svelte';
 	import ToggleSetting from '$lib/settings/ToggleSetting.svelte';
 	import { getStore } from '$lib/settings/context';
-	import { DIFFICULTIES, ITEM_LOCATIONS, countPoolItems, items, notables, proficiencies, skillScope, tech } from './data';
+	import { DIFFICULTIES, ITEM_LOCATIONS, countPoolItems, notables, poolItems, proficiencies, skillScope, tech } from './data';
 
 	const store = getStore();
 
@@ -48,6 +48,7 @@
 		glove: 'Glove',
 		mail: 'Mail',
 		half_magic: 'Half Magic',
+		silver_arrows: 'Silver Arrows',
 		arrow: 'Arrow (1)',
 		three_bombs: 'Bombs (3)',
 		ten_arrows: 'Arrows (10)',
@@ -107,7 +108,7 @@
 	{/snippet}
 	{#each ITEM_CATEGORIES as category (category.id)}
 		<Group heading={category.title} layout="grid">
-			{#each items.filter((i) => i.category === category.id) as item (item.name)}
+			{#each poolItems.filter((i) => i.category === category.id) as item (item.name)}
 				<CountSetting path={['item_pool', item.name]} label={ITEM_LABELS[item.name] ?? item.name} min={item.min} max={ITEM_LOCATIONS} />
 			{/each}
 		</Group>

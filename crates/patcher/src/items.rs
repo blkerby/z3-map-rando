@@ -1,9 +1,8 @@
 use crate::{Patcher, PcAddr, SnesAddr, import::Importer};
 use anyhow::{Result, anyhow};
-use common_types::{Item, read_item_records};
+use common_types::Item;
 use patch_catalog::PatchCatalog;
 use seed_data::ItemPlacement;
-use std::collections::BTreeMap;
 
 /// Add saved item writes using the current catalog's encodings and carrier hooks.
 pub(crate) fn apply_items(
@@ -41,37 +40,18 @@ pub(crate) fn apply_items(
     patcher
         .context("vanilla item graphics")
         .write(SnesAddr(catalog.symbols.item_graphics).into(), graphics)?;
-    let mut upstream_names = BTreeMap::new();
-    for record in read_item_records() {
-        upstream_names.insert(record.name, record.upstream_name);
-    }
     for placement in placements {
         let location = &catalog.item_locations[&placement.item_location_id];
         if location.rom_addresses.is_empty() {
             continue;
         }
-        let item_name = match placement.item {
-            Item::SilverArrows => "SilverArrows",
-            Item::Map => "Map",
-            Item::Compass => "Compass",
-            Item::SmallKey { .. } => "SmallKey",
-            Item::BigKey => "BigKey",
-            Item::PendantOfCourage => "PendantOfCourage",
-            Item::PendantOfWisdom => "PendantOfWisdom",
-            Item::PendantOfPower => "PendantOfPower",
-            Item::Crystal1 => "Crystal1",
-            Item::Crystal2 => "Crystal2",
-            Item::Crystal3 => "Crystal3",
-            Item::Crystal4 => "Crystal4",
-            Item::Crystal5 => "Crystal5",
-            Item::Crystal6 => "Crystal6",
-            Item::Crystal7 => "Crystal7",
-            Item::Triforce => "Triforce",
-            item => upstream_names
+        let item = match placement.item {
+            Item::SmallKey { .. } => &catalog.small_key,
+            item => catalog
+                .items
                 .get(&item)
-                .ok_or_else(|| anyhow!("no upstream name for item {item:?}"))?,
+                .ok_or_else(|| anyhow!("no encoding for item {item:?}"))?,
         };
-        let item = &catalog.items[item_name];
         let mut context = patcher.context(&format!("item {:?}", placement.item_location_id));
         if let Some(bytes) = &item.prize_patch_bytes {
             for (&address, &value) in location.rom_addresses.iter().zip(bytes) {
