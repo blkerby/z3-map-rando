@@ -46,6 +46,7 @@
 	let gameVersion = $state(GENERATOR_VERSION);
 	let generating = $state(false);
 	let error = $state<string | null>(null);
+	let generationNotices = $state<string[]>([]);
 	let linkError = $state<string | null>(null);
 	let ready = $state(false);
 
@@ -159,9 +160,11 @@
 		generating = true;
 		error = null;
 		linkError = null;
+		generationNotices = [];
 		store.locked = true; // freeze the settings while the server works
 		try {
-			const result = await generateGame($state.snapshot(store.values));
+			const result = await generateGame(store.captureDocument());
+			generationNotices = result.notices;
 			enterGenerated(result.seed, GENERATOR_VERSION);
 			const hash = buildHash({ version: GENERATOR_VERSION, seed: result.seed, settings: store.serialize() });
 			replaceState(resolve(`/generate#${hash}`), {});
@@ -178,6 +181,7 @@
 
 	// Settings stay as they were, so the player can tweak them and generate again.
 	function newGame() {
+		generationNotices = [];
 		seed = null;
 		error = null;
 		linkError = null;
@@ -259,6 +263,13 @@
 {/snippet}
 
 <main class="container my-4">
+	{#if generationNotices.length}
+		<div class="alert alert-warning small py-2 px-3" role="status">
+			{#each generationNotices as notice}
+				<div>{notice}</div>
+			{/each}
+		</div>
+	{/if}
 	{#if linkError}
 		<div class="alert alert-warning small py-2 px-3" role="alert">{linkError}</div>
 	{/if}

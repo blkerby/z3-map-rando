@@ -2,37 +2,25 @@
 //! `data/` (see `docs/data-formats/settings-data.md`).
 
 use anyhow::{Result, ensure};
-use seed_data::{Settings, SkillSettings};
+pub use seed_data::{RootPreset, SkillPreset};
 use serde::{Deserialize, Serialize};
 use std::io::{BufReader, BufWriter, Read, Write};
 use type_hash::TypeHash;
+
+mod resolve;
+pub use resolve::{SettingDefinition, SettingValues};
 
 const CATALOG_MAGIC: [u8; 8] = *b"Z3PRESET";
 const CATALOG_CONFIG: bincode_next::config::Configuration = bincode_next::config::standard();
 
 #[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
 pub struct PresetCatalog {
+    pub revision: String,
+    pub definitions: Vec<SettingDefinition>,
     /// Built-in root presets, the default first.
     pub root: Vec<RootPreset>,
     /// Built-in skill presets, derived from the difficulty classifications, easiest first.
     pub skill: Vec<SkillPreset>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
-pub struct RootPreset {
-    pub id: String,
-    pub label: String,
-    /// The skill preset this preset selects.
-    pub skill_preset: String,
-    /// Complete values, with the selected skill preset applied.
-    pub settings: Settings,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
-pub struct SkillPreset {
-    pub id: String,
-    pub label: String,
-    pub settings: SkillSettings,
 }
 
 /// Write the uncompressed envelope followed by a Zstd-compressed bincode payload.

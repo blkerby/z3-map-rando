@@ -86,7 +86,7 @@ The backend validates generation inputs authoritatively. The frontend can give i
 
 ## Revisions and persisted settings
 
-A settings data revision identifies the shared semantic definitions and preset data used by a build. Frontend and backend builds from the same sources use the same revision even if they package the data differently. The exact computation remains open; it does not depend on an HTTP response or frontend layout.
+A settings data revision identifies the shared semantic definitions and preset data used by a build. Frontend and backend builds from the same sources use the same revision even if they package the data differently. Catalog preparation computes a SHA-256 digest of the serialized semantic definitions and ordered built-in preset IDs, scope selections, and concrete values, excluding display labels. It exports the same revision through the preset catalog and `settings_data.json` under `generation.revision`; it does not depend on an HTTP response or frontend layout.
 
 Settings documents record their source revision. The backend first migrates their meaning, then applies current presets and defaults for live settings. An older frontend submits through this same generation path and receives the authoritative generated settings and any upgrade notices; see [generation](backend-api.md#generation).
 

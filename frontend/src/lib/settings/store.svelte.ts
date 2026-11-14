@@ -45,6 +45,7 @@ export interface Scope {
 }
 
 export interface SettingsModel {
+	revision?: string;
 	/** Built-in root presets; the first is the default. */
 	rootPresets: RootPreset[];
 	scopes: Scope[];
@@ -398,9 +399,16 @@ export class SettingsStore {
 		this.values = this.resolve(doc, {}, true);
 	}
 
+	/** Capture the public document with the definitions used by this frontend build. */
+	captureDocument(): Tree {
+		const document: Tree = { format_version: FORMAT_VERSION, ...this.capture() };
+		if (this.model.revision) document.revision = this.model.revision;
+		return document;
+	}
+
 	/** The current settings for a share link. */
 	serialize(): string {
-		return toBase64Url(JSON.stringify({ format_version: FORMAT_VERSION, ...this.capture() }));
+		return toBase64Url(JSON.stringify(this.captureDocument()));
 	}
 
 	/** Load a share link's settings. (Not blocked by `locked`: used to open shared games.) */

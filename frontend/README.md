@@ -29,7 +29,7 @@ The server accepts `--bind` and `--static-dir` (relative to the current working 
 z3-map-rando-server --bind 0.0.0.0:8080 --static-dir /path/to/frontend/build
 ```
 
-Only static files are served currently. When API endpoints are added, Vite can proxy `/api/` to Rust during development while the frontend uses the same relative request URLs in both environments.
+Run the Rust server alongside Vite to generate seeds during development. Vite forwards `/api/` requests to `http://127.0.0.1:8080`; use Vite's URL for hot reload. See [the backend setup](../docs/backend.md) for catalogs and seed storage configuration.
 
 ## Settings
 

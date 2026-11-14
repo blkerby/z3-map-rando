@@ -40,7 +40,10 @@ function watchSettingsData(): Plugin {
 }
 
 export default defineConfig({
-	server: { fs: { allow: [path.dirname(settingsData)] } },
+	server: {
+		fs: { allow: [path.dirname(settingsData)] },
+		proxy: { '/api/': 'http://127.0.0.1:8080' }
+	},
 	css: {
 		preprocessorOptions: {
 			scss: {

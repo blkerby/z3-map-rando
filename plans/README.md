@@ -105,7 +105,7 @@ The root [`VERSION`](../VERSION) file is the single source for the CLI, future w
 
 The shared [`seed_data`](../crates/seed_data/src/lib.rs) crate defines settings and saved seed types without depending on catalogs or the generator. The [`common_types`](../crates/common_types/src/lib.rs) crate defines stable room/item-location identities shared by seed data and catalogs. Catalog builders do not depend on saved seed types; the preset builder uses the settings types to produce complete preset settings. Saved placements contain `item_location_id` with the authored `room_id` and `item_id`, plus a typed `item` using the shared `common_types::Item` enum. A Small Key includes its stable assigned `DoorId` in that item. Logic graph indices stay internal to the logic catalog.
 
-Save the complete seed as JSON compressed with Zstd, including `WorldLayout` and excluding graphical catalog content. Settings files remain ordinary JSON. Serialization can write directly through a Zstd encoder, and `serde_json::from_reader` can deserialize from a buffered Zstd decoder without holding the entire decompressed JSON or an intermediate JSON value in memory. The decoded seed itself remains in memory.
+Save the complete seed as plain JSON, including `WorldLayout` and excluding graphical catalog content. The CLI writes and reads buffered JSON directly. Backend object storage transparently applies Zstd compression and a physical `.zst` suffix to every object; application code uses logical keys and uncompressed bytes. The decoded seed itself remains in memory.
 
 The seed has an integer `format_version`, starting at `1`, separate from the generator version. Increment it for meaningful interpretation changes: changes to field meanings or units, representation changes requiring conversion, or new essential content that cannot be reconstructed from older seed data. Also increment it when an older reader ignoring a new field would interpret the generated game incorrectly, even if the latest reader can default that field for older seeds.
 
@@ -153,7 +153,7 @@ The web backend is a Rust service built on the Rust library. It loads the logic 
 
 ### Web frontend
 
-The web frontend is a TypeScript application that requests generation and fetches stored Zstd-compressed seeds. At patching time it obtains a filtered current `RetilingCatalog` from the backend, the latest WebAssembly patcher, and its matching patch catalog, including when loading an old seed. It selects the player's ROM through a local file input, invokes the WebAssembly patching API, and offers the returned ROM bytes as a download. The ROM and output exist only on the player's system.
+The web frontend is a TypeScript application that requests generation and fetches stored seeds. At patching time it obtains a filtered current `RetilingCatalog` from the backend, the latest WebAssembly patcher, and its matching patch catalog, including when loading an old seed. It selects the player's ROM through a local file input, invokes the WebAssembly patching API, and offers the returned ROM bytes as a download. The ROM and output exist only on the player's system.
 
 ## Crate boundaries
 

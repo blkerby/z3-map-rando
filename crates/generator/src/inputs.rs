@@ -1,9 +1,20 @@
-use anyhow::{Result, anyhow, bail, ensure};
+use anyhow::{Result, anyhow, bail};
 use common_types::{DoorId, FAIRY_UPGRADE_LOCATIONS, Item, SourceRoomId};
 use hashbrown::HashMap;
 use logic_catalog::{DoorIndex, ItemLocationIndex, LockKind, LogicCatalog};
 use seed_data::{Settings, StartingItems};
 use std::collections::BTreeMap;
+
+#[derive(Debug)]
+pub struct InvalidSettings(pub String);
+
+impl std::fmt::Display for InvalidSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for InvalidSettings {}
 
 /// Indexed inputs for traversal and placement, prepared without changing the catalog.
 #[derive(Debug)]
@@ -150,6 +161,15 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         }
     }
 
+    let mut pool_count = 0_u64;
+    for &count in settings.item_pool.values() {
+        pool_count += u64::from(count);
+    }
+    if pool_count != ordinary_location_count as u64 {
+        return Err(InvalidSettings(format!(
+            "item pool contains {pool_count} items, but {ordinary_location_count} ordinary locations are required"
+        )).into());
+    }
     for (&item, &count) in &settings.item_pool {
         match item {
             Item::SmallKey { .. }
@@ -175,13 +195,6 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
             inputs.ordinary_pool.push(item);
         }
     }
-    // Preserve the prototype's existing pool-size behavior.
-    ensure!(
-        inputs.ordinary_pool.len() == ordinary_location_count,
-        "item pool contains {} items, but {} ordinary locations are available",
-        inputs.ordinary_pool.len(),
-        ordinary_location_count,
-    );
 
     let mut tech_indices = BTreeMap::new();
     for (index, tech) in catalog.techs.iter().enumerate() {

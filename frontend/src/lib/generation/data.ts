@@ -14,6 +14,7 @@ interface SettingsData {
 	notables: { world: string; room: number; room_name: string; id: number; name: string; difficulty: string }[];
 	items: ItemRecord[];
 	generation: {
+		revision: string;
 		/** The default first; settings are complete, with the selected skill preset applied. */
 		root: { id: string; label: string; skill_preset: string; settings: Tree }[];
 		skill: { id: string; label: string; settings: Tree }[];
@@ -65,7 +66,11 @@ for (const p of settingsData.generation.root) {
 	rootPresets.push({ id: p.id, label: p.label, settings: p.settings, scopes: { skill: p.skill_preset } });
 }
 
-export const generationModel: SettingsModel = { rootPresets, scopes: [skillScope] };
+export const generationModel: SettingsModel = {
+	rootPresets,
+	scopes: [skillScope],
+	revision: settingsData.generation.revision
+};
 
 /** How many items the item pool holds. */
 export function countPoolItems(store: SettingsStore): number {

@@ -9,13 +9,12 @@ Implemented: generation, patching saved seeds, and generation followed by patchi
 | Argument | Meaning | Default |
 | --- | --- | --- |
 | `--settings <PATH>` | Settings JSON used for generation | Default preset from the preset catalog |
-| `--seed <PATH>` | Existing Zstd-compressed seed JSON used for patching | Generate a new seed |
+| `--seed <PATH>` | Existing plain seed JSON used for patching | Generate a new seed |
 | `--rom <PATH>` | Vanilla ROM to patch | Generate a seed file only |
 | `--theme <NAME>` | Whole-game theme selected during generation | `Base` |
 | `--rng <U64>` | Numeric seed for item randomization | Choose randomly |
 | `--output-dir <DIR>` | Existing directory for default seed and ROM output paths | Current directory; beside the input seed for patch-only ROM output |
-| `--output-seed <PATH>` | Output path for Zstd-compressed seed JSON | `z3-map-rando-<SEED-NAME>.json.zst` |
-| `--compression-level <I32>` | Zstd compression level for the seed output | `3` |
+| `--output-seed <PATH>` | Output path for plain seed JSON | `z3-map-rando-<SEED-NAME>.json` |
 | `--output-rom <PATH>` | Output path for the patched ROM | `z3-map-rando-<SEED-NAME>.sfc` |
 | `--transition-asset-phase <PHASE>` | Patch-time transition asset loading: `pre-scroll`, `scroll`, or `post-scroll` | `scroll` |
 | `--version` | Shared project version | |
@@ -28,23 +27,23 @@ Implemented: generation, patching saved seeds, and generation followed by patchi
 | Settings or defaults | Yes | Generate, then patch | Seed file and ROM |
 | Existing seed | Yes | Patch | ROM |
 
-`--output-dir` selects the directory for default output filenames. Explicit `--output-seed` and `--output-rom` paths take precedence and are used as supplied. Without `--output-dir`, default outputs go in the current working directory, except a patch-only ROM goes beside the input seed. Explicit paths do not change the stored seed name. Seed output and compression options apply only to generation; patch-only operation does not rewrite the saved seed. Write seed JSON with indentation through a Zstd encoder using `--compression-level` (default `3`), and progress and diagnostics to stderr. When `--rom` is supplied, read and verify it before loading catalogs or generating a seed. In combined operation, save the seed file before patching. Generation-only runs without `--settings` end with a tip showing how to patch the saved seed and how to add `--rom` to the initial command to generate and patch together. Read saved seeds through a buffered Zstd decoder and `serde_json::from_reader`, without buffering the complete decompressed JSON.
+`--output-dir` selects the directory for default output filenames. Explicit `--output-seed` and `--output-rom` paths take precedence and are used as supplied. Without `--output-dir`, default outputs go in the current working directory, except a patch-only ROM goes beside the input seed. Explicit paths do not change the stored seed name. Seed output options apply only to generation; patch-only operation does not rewrite the saved seed. Write plain seed JSON with indentation, and progress and diagnostics to stderr. When `--rom` is supplied, read and verify it before loading catalogs or generating a seed. In combined operation, save the seed file before patching. Generation-only runs without `--settings` end with a tip showing how to patch the saved seed and how to add `--rom` to the initial command to generate and patch together. Read saved seeds through `BufReader` and `serde_json::from_reader`.
 
 ```sh
-# Generate a compressed seed file using default settings.
+# Generate a seed JSON file using default settings.
 z3-map-rando
 
 # Generate with custom settings and a specified numeric RNG seed.
 z3-map-rando --settings settings.json --rng 12345
 
 # Patch an existing seed.
-z3-map-rando --seed seed.json.zst --rom vanilla.sfc
+z3-map-rando --seed seed.json --rom vanilla.sfc
 
 # Generate and patch using default settings.
 z3-map-rando --rom vanilla.sfc
 
 # Override both output paths.
-z3-map-rando --rom vanilla.sfc --output-seed seed.json.zst --output-rom seed.sfc
+z3-map-rando --rom vanilla.sfc --output-seed seed.json --output-rom seed.sfc
 ```
 
 ## Prototype generation
@@ -75,7 +74,7 @@ The alphabet omits vowels and characters resembling vowels to reduce the chance 
 
 Store the numeric RNG seed as a string in JSON to preserve precision. Record the generation timestamp in RFC 3339 UTC format and the SHA-256 hashes of the complete encoded logic and retiling catalogs used for generation. Catalog hashes are provenance only; patching does not require the original catalog versions. Save placements using stable authored `room_id` and `item_id` values, not catalog indices or ROM addresses.
 
-The saved seed includes a `format_version` and stable `WorldLayout` choices, not graphical content. At patching time the CLI passes its already-loaded current `RetilingCatalog` unchanged to the patcher, which selects content using the saved layout. The patcher uses the current retiling and patch catalogs. The prototype’s typed-item migration keeps format version 1 and does not support earlier string-based seeds. Patch-time customization can therefore expose new options for existing seeds.
+The saved seed includes a `format_version` and stable `WorldLayout` choices, not graphical content. At patching time the CLI passes its already-loaded current `RetilingCatalog` unchanged to the patcher, which selects content using the saved layout. The patcher uses the current retiling and patch catalogs. The prototype’s typed-item migration uses format version 2 with a pinned settings document and captured preset baselines. Patch-time customization can therefore expose new options for existing seeds.
 
 Read the shared project version from the root [`VERSION`](../VERSION) file through `common_types::VERSION`. The CLI version output and seed metadata use this value, independent of Cargo package versions. The first component identifies a regular release and the second a rare hotfix for a severe bug: `7.0`, `7.1`, `7.2`, then `8.0`. The CLI and future web service are released together. Local development leaves `generator_commit` as `None`, without Git queries or metadata rebuild tracking. When release packaging is introduced, CI will write a release metadata file containing the version from `VERSION` and full source commit, packaged with the application for the CLI and later web backend to load. Generating and loading that file are deferred until release packaging is set up.
 

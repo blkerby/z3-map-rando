@@ -21,7 +21,7 @@ cargo run -p catalog_builder -- presets
 cargo run -p cli -- --rng 12345
 ```
 
-The CLI uses catalogs from `build/`, taking its default settings from the default preset in the preset catalog, and writes `z3-map-rando-<SEED-NAME>.json.zst` in the working directory. Omit `--rng` to choose a numeric seed randomly. Use `--preset testing` to select a root preset by ID, or `--settings settings.json` to load a settings file. Use `--theme Desert` or `--output-seed seed.json.zst` to override the theme or output path. Set `--compression-level 18` to use a higher Zstd compression level instead of the default `3`. If catalogs are stored elsewhere, specify `--logic-catalog`, `--retiling-catalog`, and `--preset-catalog`. Run `cargo run -p cli -- --help` for all arguments.
+The CLI uses catalogs from `build/`, taking its default settings from the default preset in the preset catalog, and writes `z3-map-rando-<SEED-NAME>.json` in the working directory. Omit `--rng` to choose a numeric seed randomly. Use `--preset testing` to select a root preset by ID, or `--settings settings.json` to load a settings file. Use `--theme Desert` or `--output-seed seed.json` to override the theme or output path. If catalogs are stored elsewhere, specify `--logic-catalog`, `--retiling-catalog`, and `--preset-catalog`. Run `cargo run -p cli -- --help` for all arguments.
 
 Settings default to `"map_layout": "random"`; set `"map_layout": "vanilla"` to retain vanilla connections and use the authored `Main` tiling directly. Seed generation currently supports only the Desert theme. Random generation reads the pool configured by `map_pool = "maps/map_pool.bin"` in `catalog-build.toml`; `--map-pool <PATH>` overrides it. Place the exported pool at that path before generating random maps or building a bundled CLI. Vanilla generation and patching saved seeds do not read the pool. Graphics and palette budget failures are reported during patching and do not trigger automatic map reselection.
 
@@ -37,7 +37,7 @@ cargo run -p cli -- --rom path/to/vanilla.sfc --rng 12345
 This reads and verifies the vanilla ROM before generation, saves the seed before patching, then writes `z3-map-rando-<SEED-NAME>.sfc`. Use `--output-rom output.sfc` to override the ROM filename. To patch an existing seed without generating or rewriting it:
 
 ```sh
-cargo run -p cli -- --seed seed.json.zst --rom path/to/vanilla.sfc
+cargo run -p cli -- --seed seed.json --rom path/to/vanilla.sfc
 ```
 
 Use `--output-dir <DIR>` to place both generated files in an existing directory. Explicit `--output-seed` and `--output-rom` paths take precedence over `--output-dir`. When using `--seed`, the default output ROM is saved in the same directory as the input seed unless `--output-dir` or `--output-rom` is supplied.

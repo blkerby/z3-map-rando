@@ -1,9 +1,11 @@
 use crate::config::BuildConfig;
 use anyhow::{Context, Result, anyhow};
 use common_types::SourceRoomId;
-use preset_catalog::{PresetCatalog, RootPreset, SkillPreset};
+use preset_catalog::{PresetCatalog, RootPreset, SettingDefinition, SettingValues, SkillPreset};
 use seed_data::{NotableSettings, SkillSettings};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::fmt::Write as _;
 use std::{collections::BTreeMap, fs, fs::File, io::BufWriter, path::Path};
 
 /// Difficulties ranked easiest to hardest. Others (e.g. "Ignored") never take part in skill presets.
@@ -96,9 +98,79 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
         .with_context(|| format!("reading {}", config.items.display()))?;
 
     let mut catalog = PresetCatalog {
+        revision: String::new(),
+        definitions: vec![SettingDefinition {
+            path: vec!["map_layout".to_owned()],
+            values: SettingValues::Choice(vec!["vanilla".to_owned(), "random".to_owned()]),
+        }],
         root: Vec::new(),
         skill: Vec::new(),
     };
+    for name in ["bomb_capacity", "arrow_capacity"] {
+        catalog.definitions.push(SettingDefinition {
+            path: vec!["starting_items".to_owned(), name.to_owned()],
+            values: SettingValues::Integer { min: 0, max: 99 },
+        });
+    }
+    for item in items.as_array().unwrap() {
+        if matches!(item["category"].as_str(), Some("dungeon" | "prize")) {
+            continue;
+        }
+        catalog.definitions.push(SettingDefinition {
+            path: vec![
+                "item_pool".to_owned(),
+                item["name"].as_str().unwrap().to_owned(),
+            ],
+            values: SettingValues::Integer {
+                min: item["min"].as_u64().unwrap() as u32,
+                max: u32::MAX,
+            },
+        });
+    }
+    let mut proficiency_levels: BTreeMap<u32, Vec<u32>> = BTreeMap::new();
+    for tech in &techs {
+        if let Some(level) = tech.level {
+            proficiency_levels
+                .entry(tech.tech_id)
+                .or_default()
+                .push(level);
+        } else {
+            catalog.definitions.push(SettingDefinition {
+                path: vec![
+                    "skill".to_owned(),
+                    "tech".to_owned(),
+                    tech.tech_id.to_string(),
+                ],
+                values: SettingValues::Boolean,
+            });
+        }
+    }
+    for (id, levels) in proficiency_levels {
+        catalog.definitions.push(SettingDefinition {
+            path: vec![
+                "skill".to_owned(),
+                "proficiencies".to_owned(),
+                id.to_string(),
+            ],
+            values: SettingValues::Levels(levels),
+        });
+    }
+    for notable in &notables {
+        let (world, room) = match notable.room_id {
+            SourceRoomId::Overworld(room) => ("overworld", room),
+            SourceRoomId::Underworld(room) => ("underworld", room),
+        };
+        catalog.definitions.push(SettingDefinition {
+            path: vec![
+                "skill".to_owned(),
+                "notables".to_owned(),
+                world.to_owned(),
+                room.to_string(),
+                notable.notable_id.to_string(),
+            ],
+            values: SettingValues::Boolean,
+        });
+    }
     for (max_rank, label) in DIFFICULTIES.iter().enumerate() {
         let reached = |difficulty: &str| matches!(DIFFICULTIES.iter().position(|d| *d == difficulty), Some(rank) if rank <= max_rank);
         let mut settings = SkillSettings {
@@ -160,6 +232,19 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
             label: file.label,
             skill_preset,
         });
+    }
+
+    // Revision tracks semantic definitions and preset values, independently of display labels.
+    let mut roots = Vec::new();
+    for preset in &catalog.root {
+        roots.push((&preset.id, &preset.skill_preset, &preset.settings));
+    }
+    let mut skills = Vec::new();
+    for preset in &catalog.skill {
+        skills.push((&preset.id, &preset.settings));
+    }
+    for byte in Sha256::digest(serde_json::to_vec(&(&catalog.definitions, roots, skills))?) {
+        write!(&mut catalog.revision, "{byte:02x}").unwrap();
     }
 
     let mut settings_data = SettingsData {

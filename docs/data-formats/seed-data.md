@@ -4,6 +4,8 @@ Status: draft, partially written. A seed record is everything stored for a gener
 
 ## Contents
 
+The current version-2 JSON record stores resolved values in `settings` and their provenance in `settings_source`: `document` is the cleaned settings document with the current `revision`, `source_revision` identifies the submitted definitions when supplied, and `presets` captures the selected root preset plus its inherited and explicitly selected skill presets. The CLI writes plain JSON; the backend's object store transparently applies Zstd compression to stored objects.
+
 A seed record contains at least:
 
 - its format version and the release that generated it;

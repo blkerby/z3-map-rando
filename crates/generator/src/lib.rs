@@ -7,6 +7,7 @@ pub mod interpreter;
 pub mod key_assignment;
 pub mod local_state_reducer;
 pub mod map;
+pub mod metadata;
 pub mod placement;
 pub mod state;
 pub mod traversal;
@@ -23,7 +24,8 @@ use placement::{PlacementState, PlacementStep};
 use rand::Rng;
 use retiling_catalog::RetilingCatalog;
 use seed_data::{
-    AreaLayout, ItemPlacement, MapLayoutSetting, SEED_FORMAT_VERSION, SeedMetadata, WorldLayout,
+    AreaLayout, ItemPlacement, MapLayoutSetting, ResolvedSettings, SEED_FORMAT_VERSION,
+    SeedMetadata, WorldLayout,
 };
 
 const MAX_GENERATION_ATTEMPTS: usize = 1000;
@@ -34,7 +36,7 @@ const MAX_EDGE_SELECTION_ATTEMPTS: usize = 10;
 /// Each complete attempt assigns fresh Small Keys and prizes before placing items.
 /// The caller supplies RNG state and metadata; generation needs no ROM or filesystem.
 pub fn generate(
-    settings: Settings,
+    resolved: ResolvedSettings,
     logic_catalog: &LogicCatalog,
     retiling_catalog: &RetilingCatalog,
     theme_name: &str,
@@ -42,6 +44,11 @@ pub fn generate(
     metadata: SeedMetadata,
     rng: &mut impl Rng,
 ) -> Result<SeedData> {
+    let ResolvedSettings {
+        values: settings,
+        source: settings_source,
+        ..
+    } = resolved;
     ensure!(theme_name == "Desert", "only the Desert theme is supported");
     let inputs = prepare_inputs(logic_catalog, &settings)?;
     let pool = if settings.map_layout == MapLayoutSetting::Random {
@@ -107,6 +114,7 @@ pub fn generate(
                 format_version: SEED_FORMAT_VERSION,
                 metadata,
                 settings,
+                settings_source,
                 world_layout,
                 item_placements,
             });

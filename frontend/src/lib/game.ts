@@ -16,7 +16,7 @@ export interface GameLink {
 
 /**
  * Link format: #<version>.<seed>.<settings>
- * The hash never reaches the server, and the same three parts always reproduce the same map.
+ * The hash stays in the browser; the seed identifies the stored generation result.
  */
 export function buildHash(link: GameLink): string {
 	return `${link.version}.${link.seed}.${link.settings}`;
@@ -35,34 +35,29 @@ export function parseHash(hash: string): GameLink | null {
 	return { version, seed, settings };
 }
 
-export function randomSeed(length = 8): string {
-	// No 0/O/1/I/L so seeds are easy to read out loud or retype.
-	const alphabet = 'ABCDEFGHJKMNPQRSTVWXYZ23456789';
-	const bytes = crypto.getRandomValues(new Uint8Array(length));
-	return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
-}
-
 export interface GenerateResult {
 	seed: string;
+	notices: string[];
 }
 
-/**
- * STUB. Replace the body with a call to your generation server, e.g.
- *
- *   const res = await fetch('/api/generate', {
- *     method: 'POST',
- *     headers: { 'Content-Type': 'application/json' },
- *     body: JSON.stringify({ version: GENERATOR_VERSION, settings })
- *   });
- *   if (!res.ok) throw new Error(await res.text());
- *   return await res.json(); // { seed: string }
- *
- * Throw an Error with a user-readable message on failure; the page shows it.
- */
+/** Submit a scoped settings document; the response identifies the stored seed. */
 export async function generateGame(settings: Tree): Promise<GenerateResult> {
-	void settings;
-	await new Promise((resolve) => setTimeout(resolve, 1200));
-	return { seed: randomSeed() };
+	const response = await fetch('/api/generate', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ settings })
+	});
+	if (!response.ok) {
+		const text = await response.text();
+		let message = text;
+		try {
+			message = JSON.parse(text).error ?? text;
+		} catch {
+			/* Non-JSON HTTP error. */
+		}
+		throw new Error(message || `Generation failed (${response.status}).`);
+	}
+	return await response.json();
 }
 
 export interface RomRequest {

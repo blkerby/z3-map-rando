@@ -16,6 +16,8 @@ The frontend bundles [shared settings data](settings-data.md) at build time. The
 
 ## Generation
 
+The current implementation is `POST /api/generate` with request `{"settings": <settings document>}`. It returns HTTP 201 with `{"seed": "<seed name>", "notices": []}` after saving the seed. Additional requests queue while one generation request is active. Seed-data retrieval is not implemented yet. See [backend setup](../backend.md) for storage and runtime configuration.
+
 A generation request consists mainly of a scoped settings document, including its format version, source settings data revision, preset selections, and tweaks. It preserves inheritance rather than turning every resolved value into an explicit tweak.
 
 The backend uses the ordinary live-settings path: migrate while preserving meaning, adopt current built-in presets/defaults for inherited values, validate, then generate. This also handles requests from an outdated frontend.

@@ -1,11 +1,11 @@
-use crate::settings::Settings;
-use anyhow::Result;
+use crate::{Settings, SettingsSource};
+use anyhow::{Result, ensure};
 use common_types::{Item, ItemLocationId};
 use serde::{Deserialize, Serialize};
 use std::io::{BufReader, BufWriter, Read, Write};
 
 /// Current saved-seed format; independent of generator and catalog versions.
-pub const SEED_FORMAT_VERSION: u32 = 1;
+pub const SEED_FORMAT_VERSION: u32 = 2;
 
 /// Saved layout and typed placements allow patching with the current catalogs
 /// without the map pool or generation RNG.
@@ -14,6 +14,8 @@ pub struct SeedData {
     pub format_version: u32,
     pub metadata: SeedMetadata,
     pub settings: Settings,
+    /// Public document and captured baselines explaining the authoritative resolved settings.
+    pub settings_source: SettingsSource,
     pub world_layout: WorldLayout,
     /// Final placements of all pickups, including maps, compasses, keys, prizes, and Great Fairy upgrades.
     pub item_placements: Vec<ItemPlacement>,
@@ -141,21 +143,22 @@ pub struct AreaLayout {
 }
 
 impl SeedData {
-    /// Stream pretty JSON through Zstd without buffering the full JSON payload.
-    pub fn write(&self, writer: impl Write, compression_level: i32) -> Result<()> {
-        let mut encoder = zstd::stream::write::Encoder::new(writer, compression_level)?;
-        {
-            let mut buffered = BufWriter::new(&mut encoder);
-            serde_json::to_writer_pretty(&mut buffered, self)?;
-            buffered.flush()?;
-        }
-        encoder.finish()?;
+    /// Write plain JSON; storage transports own compression.
+    pub fn write(&self, writer: impl Write) -> Result<()> {
+        let mut buffered = BufWriter::new(writer);
+        serde_json::to_writer_pretty(&mut buffered, self)?;
+        buffered.flush()?;
         Ok(())
     }
 
-    /// Stream Zstd-compressed JSON directly into the saved seed types.
+    /// Read the current saved-seed JSON format.
     pub fn read(reader: impl Read) -> Result<Self> {
-        let decoder = zstd::stream::read::Decoder::new(reader)?;
-        Ok(serde_json::from_reader(BufReader::new(decoder))?)
+        let seed: Self = serde_json::from_reader(BufReader::new(reader))?;
+        ensure!(
+            seed.format_version == SEED_FORMAT_VERSION,
+            "unsupported seed format version {}",
+            seed.format_version
+        );
+        Ok(seed)
     }
 }

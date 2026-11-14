@@ -1,16 +1,13 @@
 use anyhow::{Context, Result};
-use chrono::{DateTime, SecondsFormat, Utc};
 use clap::Parser;
-use rand::{Rng, SeedableRng, rngs::StdRng};
-use seed_data::{MapLayoutSetting, SeedData, SeedMetadata, Settings};
-use sha2::{Digest, Sha256};
+use generator::metadata::{compute_catalog_hash, create_metadata};
+use rand::{SeedableRng, rngs::StdRng};
+use seed_data::{MapLayoutSetting, ResolvedSettings, SETTINGS_FORMAT_VERSION, SeedData};
 use std::{
     borrow::Cow,
-    fmt::Write as _,
     fs::{self, File},
     io::BufReader,
     path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 #[cfg(feature = "bundle-catalogs")]
@@ -51,7 +48,7 @@ struct Args {
     /// Root preset ID from the preset catalog (e.g. testing).
     #[arg(long, conflicts_with_all = ["settings", "seed"])]
     preset: Option<String>,
-    /// Existing compressed seed to patch; reuses its saved seed name.
+    /// Existing seed JSON to patch; reuses its saved seed name.
     #[arg(long, requires = "rom", conflicts_with = "settings")]
     seed: Option<PathBuf>,
     /// Vanilla ROM to patch; omit to generate a seed file only.
@@ -69,7 +66,7 @@ struct Args {
     /// Directory for default output seed and ROM paths.
     #[arg(long)]
     output_dir: Option<PathBuf>,
-    /// Output seed file; overrides --output-dir. Defaults to z3-map-rando-<SEED-NAME>.json.zst.
+    /// Output seed file; overrides --output-dir. Defaults to z3-map-rando-<SEED-NAME>.json.
     #[arg(long)]
     output_seed: Option<PathBuf>,
     /// Output ROM file; overrides --output-dir. Defaults to z3-map-rando-<SEED-NAME>.sfc beside the input seed, or in the current directory.
@@ -78,9 +75,6 @@ struct Args {
     /// When to load transition assets while patching.
     #[arg(long, value_enum, default_value = "scroll")]
     transition_asset_phase: TransitionAssetPhase,
-    /// Zstd compression level for the output seed.
-    #[arg(long, default_value_t = 3, allow_negative_numbers = true)]
-    compression_level: i32,
     /// Logic catalog override; defaults to bundled data or build/logic_catalog.bin.
     #[arg(long)]
     logic_catalog: Option<PathBuf>,
@@ -128,9 +122,9 @@ fn main() -> Result<()> {
             args.output_dir
                 .as_deref()
                 .unwrap_or_else(|| Path::new(""))
-                .join(format!("z3-map-rando-{}.json.zst", seed.metadata.seed_name))
+                .join(format!("z3-map-rando-{}.json", seed.metadata.seed_name))
         });
-        write_seed(&seed, &output_path, args.compression_level)?;
+        write_seed(&seed, &output_path)?;
         if args.rom.is_none() {
             eprintln!(
                 concat!(
@@ -163,7 +157,7 @@ fn generate_seed(
         BUNDLED_LOGIC_CATALOG,
     )?;
     let logic_catalog = logic_catalog::decode_catalog(logic_bytes.as_ref())?;
-    let map_pool = if settings.map_layout == MapLayoutSetting::Random {
+    let map_pool = if settings.values.map_layout == MapLayoutSetting::Random {
         let bytes = if let Some(path) = &args.map_pool {
             Cow::Owned(
                 fs::read(path).with_context(|| format!("reading map pool {}", path.display()))?,
@@ -193,7 +187,11 @@ fn generate_seed(
         None
     };
     let numeric_seed: u64 = args.rng.unwrap_or_else(rand::random);
-    let metadata = create_metadata(numeric_seed, &logic_bytes, retiling_bytes)?;
+    let metadata = create_metadata(
+        numeric_seed,
+        &compute_catalog_hash(&logic_bytes),
+        &compute_catalog_hash(retiling_bytes),
+    )?;
     let mut rng = StdRng::seed_from_u64(numeric_seed);
     generator::generate(
         settings,
@@ -265,70 +263,42 @@ fn load_catalog(
     Ok(Cow::Owned(bytes))
 }
 
-fn load_settings(args: &Args) -> Result<Settings> {
-    if let Some(path) = &args.settings {
+fn load_settings(args: &Args) -> Result<ResolvedSettings> {
+    let bytes = load_catalog(
+        args.preset_catalog.as_deref(),
+        "preset",
+        "build/preset_catalog.bin",
+        BUNDLED_PRESET_CATALOG,
+    )?;
+    let catalog = preset_catalog::decode_catalog(bytes.as_ref())?;
+    let document = if let Some(path) = &args.settings {
         let file =
             File::open(path).with_context(|| format!("opening settings {}", path.display()))?;
         serde_json::from_reader(BufReader::new(file))
-            .with_context(|| format!("reading settings {}", path.display()))
+            .with_context(|| format!("reading settings {}", path.display()))?
     } else {
-        let bytes = load_catalog(
-            args.preset_catalog.as_deref(),
-            "preset",
-            "build/preset_catalog.bin",
-            BUNDLED_PRESET_CATALOG,
-        )?;
-        let catalog = preset_catalog::decode_catalog(bytes.as_ref())?;
-        let preset = if let Some(id) = &args.preset {
-            catalog
-                .root
-                .into_iter()
-                .find(|preset| &preset.id == id)
-                .with_context(|| format!("unknown root preset {id}"))?
-        } else {
-            // The default root preset comes first.
-            catalog.root.into_iter().next().unwrap()
-        };
-        Ok(preset.settings)
+        let id = args.preset.as_deref().unwrap_or(&catalog.root[0].id);
+        anyhow::ensure!(
+            catalog.root.iter().any(|preset| preset.id == id),
+            "unknown root preset {id}"
+        );
+        serde_json::json!({
+            "format_version": SETTINGS_FORMAT_VERSION,
+            "revision": catalog.revision,
+            "preset": id,
+        })
+    };
+    let resolved = catalog.resolve_settings(&document)?;
+    for notice in &resolved.notices {
+        eprintln!("Settings: {notice}");
     }
+    Ok(resolved)
 }
 
-fn create_metadata(
-    numeric_seed: u64,
-    logic_bytes: &[u8],
-    retiling_bytes: &[u8],
-) -> Result<SeedMetadata> {
-    let now = SystemTime::now();
-    let timestamp = now.duration_since(UNIX_EPOCH)?.as_nanos();
-    Ok(SeedMetadata {
-        seed_name: generate_seed_name(numeric_seed, timestamp),
-        generator_version: common_types::VERSION.to_owned(),
-        generator_commit: None,
-        logic_catalog_hash: compute_catalog_hash(logic_bytes),
-        retiling_catalog_hash: compute_catalog_hash(retiling_bytes),
-        rng_seed: numeric_seed.to_string(),
-        generated_at: DateTime::<Utc>::from(now).to_rfc3339_opts(SecondsFormat::Nanos, true),
-    })
-}
-
-fn generate_seed_name(numeric_seed: u64, timestamp: u128) -> String {
-    let mut naming_seed = [0; 32];
-    naming_seed[..8].copy_from_slice(&numeric_seed.to_le_bytes());
-    naming_seed[8..24].copy_from_slice(&timestamp.to_le_bytes());
-    let mut naming_rng = StdRng::from_seed(naming_seed);
-    // Omit vowels and characters resembling them to reduce the chance of words.
-    let alphabet = b"256789BCDFGHJKLMNPQRSTVWXYZbcdfghjkmnpqrstvwxyz";
-    let mut seed_name = String::new();
-    for _ in 0..9 {
-        seed_name.push(alphabet[naming_rng.random_range(0..alphabet.len())] as char);
-    }
-    seed_name
-}
-
-fn write_seed(seed: &SeedData, output_path: &Path, compression_level: i32) -> Result<()> {
+fn write_seed(seed: &SeedData, output_path: &Path) -> Result<()> {
     let file = File::create(output_path)
         .with_context(|| format!("creating seed {}", output_path.display()))?;
-    seed.write(file, compression_level)
+    seed.write(file)
         .with_context(|| format!("writing seed {}", output_path.display()))?;
     eprintln!(
         "Wrote seed {} to {} (RNG {})",
@@ -337,12 +307,4 @@ fn write_seed(seed: &SeedData, output_path: &Path, compression_level: i32) -> Re
         seed.metadata.rng_seed,
     );
     Ok(())
-}
-
-fn compute_catalog_hash(bytes: &[u8]) -> String {
-    let mut hash = String::new();
-    for byte in Sha256::digest(bytes) {
-        write!(&mut hash, "{byte:02x}").unwrap();
-    }
-    hash
 }

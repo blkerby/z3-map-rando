@@ -12,3 +12,16 @@ actix-files = "0.6"
 actix-web = { version = "4", default-features = false, features = ["macros"] }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+generator = { path = "../generator" }
+logic_catalog = { path = "../logic_catalog" }
+object_store = { version = "0.14", features = ["aws"] }
+preset_catalog = { path = "../preset_catalog" }
+rand = "0.9"
+retiling_catalog = { path = "../retiling_catalog" }
+seed_data = { path = "../seed_data" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["sync"] }
+toml = "0.9"
+url = "2"
+zstd = { version = "0.13", default-features = false }
