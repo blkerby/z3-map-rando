@@ -63,6 +63,7 @@ impl CatalogCache {
             self.config.presets.clone(),
             self.config.tech_data.clone(),
             self.config.notable_data.clone(),
+            self.config.items.clone(),
         ];
         if let Some(path) = &self.config.asar_executable {
             paths.push(path.clone());
@@ -167,6 +168,7 @@ impl CatalogCache {
         let mut inputs = vec![
             self.config.tech_data.clone(),
             self.config.notable_data.clone(),
+            self.config.items.clone(),
         ];
         collect_files(&self.config.presets, &mut inputs)?;
         inputs.sort();
@@ -175,13 +177,7 @@ impl CatalogCache {
             hash_input(&mut fingerprint, &fs::read(path)?);
         }
         update_catalog(&output, fingerprint, true, || {
-            presets::build_catalog(
-                &self.config.presets,
-                &self.config.tech_data,
-                &self.config.notable_data,
-                &output,
-                self.config.compression_level,
-            )
+            presets::build_catalog(&self.config, &output)
         })
     }
 

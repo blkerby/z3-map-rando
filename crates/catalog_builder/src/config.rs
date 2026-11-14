@@ -20,6 +20,8 @@ pub struct BuildConfig {
     /// Difficulty classifications that skill presets are derived from.
     pub tech_data: PathBuf,
     pub notable_data: PathBuf,
+    /// Items that settings can put in the item pool.
+    pub items: PathBuf,
     pub compression_level: i32,
 }
 
@@ -48,6 +50,7 @@ impl BuildConfig {
             &mut self.presets,
             &mut self.tech_data,
             &mut self.notable_data,
+            &mut self.items,
         ] {
             *path = root.join(&*path);
         }

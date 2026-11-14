@@ -14,7 +14,7 @@ Shared data describes game and settings semantics rather than widgets or layout.
 
 ## Repository and build
 
-The frontend lives at `z3-map-rando/frontend`, alongside the backend and its shared data sources, which it imports from `data/` at build time:
+The frontend lives at `z3-map-rando/frontend`, alongside the backend and its shared data sources in `data/`, configured in `catalog-build.toml`:
 
 | Source | Contents |
 | --- | --- |
@@ -35,7 +35,7 @@ data/
         default.json
 ```
 
-Skill presets have no files: they are derived from the difficulty classifications, by both the catalog builder, which writes the preset catalog (`crates/catalog_builder/src/presets.rs`), and the frontend (`frontend/src/lib/generation/data.ts`), until a common preparation step replaces the two. Skill settings not covered by the classifications would get sparse files under `generation/skill/`, holding only those settings, with the derived members filled in by preparation.
+Skill presets have no files: they are derived from the difficulty classifications. Skill settings not covered by the classifications would get sparse files under `generation/skill/`, holding only those settings, with the derived members filled in by preparation.
 
 The exact representation of ordinary setting definitions, including whether Rust and TypeScript types are handwritten or generated, remains open. The goal is to define shared semantics once and avoid per-setting translation code.
 
@@ -47,6 +47,8 @@ shared setting definitions + preset files + local classifications + upstream dat
 frontend build inputs + Svelte components
   -> frontend application with bundled data
 ```
+
+The common preparation step is `catalog_builder presets` (`crates/catalog_builder/src/presets.rs`). It derives the skill presets, resolves each generation root preset into complete settings, and writes two outputs from the same prepared data: the preset catalog (`preset_catalog.bin`) for the backend, and `settings_data.json` for the frontend. The latter also carries what the frontend shows about each setting: the difficulty ladder, the techniques, proficiencies, and notables with their upstream names and difficulties, the item records, and the customization presets. The frontend's Vite config runs the step whenever it loads and reruns it in dev when `data/` changes, so building or developing the frontend requires the Rust toolchain but no running backend.
 
 Common preparation handles semantic work such as deriving skill presets and completing defaults consistently. The frontend can select and reshape the data it needs without a universal payload or UI-description format. Preparing these build inputs does not require a running backend; generation and other server-dependent features still do. Metadata preparation should not require compiling unrelated ROM assets.
 
