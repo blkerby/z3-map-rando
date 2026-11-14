@@ -193,7 +193,14 @@ hook_ItemMenuClosingScrollStep:
     STA.b $17
 
     LDA.b $EA
+    BNE .return
 
+    ; Reset the stripe cursor before gameplay reuses the menu buffer.
+    REP #$20
+    STZ.w $1000
+    SEP #$20
+
+.return
     RTL
 
 ; Convert the scroll position to a zero-based credits line index in WRAM $00CA.
