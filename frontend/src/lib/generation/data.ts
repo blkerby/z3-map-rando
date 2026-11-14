@@ -1,11 +1,12 @@
-import settingsJson from '$data/settings.json';
+import defaultPreset from '$data/presets/generation/root/default.json';
 import techData from '$data/tech_data.json';
 import notableData from '$data/notable_data.json';
 import itemsJson from '$data/items.json';
-import type { Scope, ScopePreset, SettingsModel, SettingsStore } from '$lib/settings/store.svelte';
-import { cloneTree, type Tree } from '$lib/settings/tree';
+import type { RootPreset, Scope, ScopePreset, SettingsModel, SettingsStore } from '$lib/settings/store.svelte';
+import type { Tree } from '$lib/settings/tree';
 
-// Generation settings data, bundled at build time from the randomizer's `data/` directory.
+// Generation settings data, bundled at build time from the randomizer's `data/` directory. Built-in
+// presets come from `data/presets/generation/`, except skill presets, which are derived below.
 
 /** Ranked easiest to hardest. Other difficulties (e.g. "Ignored") never take part in skill presets. */
 export const DIFFICULTIES = ['Basic', 'Medium', 'Hard', 'Very Hard', 'Expert'];
@@ -43,7 +44,6 @@ export interface ItemRecord {
 	tier: string;
 }
 
-export const defaults = settingsJson as Tree;
 export const items = itemsJson as ItemRecord[];
 
 export const proficiencies: Proficiency[] = [];
@@ -78,37 +78,58 @@ for (const n of notableData) {
 
 /**
  * One skill preset per difficulty: every technique and notable ranked at or below it enabled, and each
- * proficiency at its highest level ranked at or below it. Unranked members keep their default.
+ * proficiency at its highest level ranked at or below it (its lowest level if none is). Unranked members
+ * are disabled. The backend derives the same presets (`crates/seed_data/src/presets.rs`).
  */
 function buildSkillPresets(): ScopePreset[] {
 	const presets: ScopePreset[] = [];
 	for (let i = 0; i < DIFFICULTIES.length; i++) {
-		const settings = cloneTree(defaults.skill as Tree);
 		const reached = (difficulty: string) => {
 			const rank = DIFFICULTIES.indexOf(difficulty);
-			return rank < 0 ? undefined : rank <= i;
+			return rank >= 0 && rank <= i;
 		};
+		const proficiencyLevels: Tree = {};
 		for (const p of proficiencies) {
-			for (const l of p.levels) if (reached(l.difficulty)) (settings.proficiencies as Tree)[p.id] = l.level;
+			proficiencyLevels[p.id] = p.levels[0].level;
+			for (const l of p.levels) if (reached(l.difficulty)) proficiencyLevels[p.id] = l.level;
 		}
-		for (const t of tech) {
-			const on = reached(t.difficulty);
-			if (on !== undefined) (settings.tech as Tree)[t.id] = on;
-		}
+		const techEnabled: Tree = {};
+		for (const t of tech) techEnabled[t.id] = reached(t.difficulty);
+		const notableEnabled: Tree = { overworld: {}, underworld: {} };
 		for (const n of notables) {
-			const on = reached(n.difficulty);
-			if (on !== undefined) (((settings.notables as Tree)[n.world] as Tree)[n.room] as Tree)[n.id] = on;
+			const rooms = notableEnabled[n.world] as Tree;
+			if (!rooms[n.room]) rooms[n.room] = {};
+			(rooms[n.room] as Tree)[n.id] = reached(n.difficulty);
 		}
 		const label = DIFFICULTIES[i];
-		presets.push({ id: label.toLowerCase().replace(/ /g, '_'), label, settings });
+		presets.push({
+			id: label.toLowerCase().replace(/ /g, '_'),
+			label,
+			settings: { proficiencies: proficiencyLevels, tech: techEnabled, notables: notableEnabled }
+		});
 	}
 	return presets;
 }
 
 export const skillScope: Scope = { id: 'skill', label: 'Skill assumptions', presets: buildSkillPresets() };
 
+/**
+ * A root preset file's settings as the store needs them: complete values, with each child scope's preset
+ * selection taken out and its subtree filled from that preset.
+ */
+function readRootPreset(file: { id: string; label: string; settings: Tree }, scopes: Scope[]): RootPreset {
+	const settings: Tree = { ...file.settings };
+	const selections: Record<string, string> = {};
+	for (const scope of scopes) {
+		const id = (settings[scope.id] as Tree).preset as string;
+		selections[scope.id] = id;
+		settings[scope.id] = scope.presets.find((p) => p.id === id)!.settings;
+	}
+	return { id: file.id, label: file.label, settings, scopes: selections };
+}
+
 export const generationModel: SettingsModel = {
-	rootPresets: [{ id: 'default', label: 'Default', settings: defaults, scopes: { skill: 'basic' } }],
+	rootPresets: [readRootPreset(defaultPreset as { id: string; label: string; settings: Tree }, [skillScope])],
 	scopes: [skillScope]
 };
 

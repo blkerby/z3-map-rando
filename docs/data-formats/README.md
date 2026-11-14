@@ -6,9 +6,8 @@ Status: draft. This directory defines the data formats that are persisted or exc
 
 | Document | Covers | Stability |
 | --- | --- | --- |
-| [identifiers.md](identifiers.md) | Setting keys and paths, option tokens, preset scopes, built-in preset IDs, data-driven families, vocabulary rules, upstream ID dependency | Permanent |
 | [settings-data.md](settings-data.md) | Shared build-time data, source ownership, scopes, preset files, frontend-owned presentation | Internal build inputs |
-| [settings.md](settings.md) | Scoped live and pinned settings, preset resolution, migration and normalization, lenient loading, share links, customization presets | Permanent |
+| [settings.md](settings.md) | Scoped live and pinned settings, setting identifiers, preset resolution, vocabulary rules, migration and normalization, lenient loading, share links, customization presets | Permanent |
 | [seed-data.md](seed-data.md) | Seed record, pinned settings document and bundled presets, resolved values, generation results, spoiler, captured ruleset, seed IDs, re-patching | Permanent |
 | `autotracker.md` (not yet written) | Memory contract exposed to autotrackers | Permanent |
 | [backend-api.md](backend-api.md) | Generation requests, upgrade notices, seed inspection, and runtime response wrappers | No stability commitment |

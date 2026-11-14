@@ -13,8 +13,6 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-const DEFAULT_SETTINGS: &str = include_str!("../../../data/settings.json");
-
 #[cfg(feature = "bundle-catalogs")]
 const BUNDLED_MAP_POOL: Option<&[u8]> = Some(include_bytes!(env!("Z3_MAP_POOL")));
 #[cfg(not(feature = "bundle-catalogs"))]
@@ -263,7 +261,7 @@ fn load_settings(path: Option<&Path>) -> Result<Settings> {
         serde_json::from_reader(BufReader::new(file))
             .with_context(|| format!("reading settings {}", path.display()))
     } else {
-        Ok(serde_json::from_str(DEFAULT_SETTINGS)?)
+        seed_data::presets::default_settings()
     }
 }
 

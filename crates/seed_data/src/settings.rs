@@ -2,7 +2,8 @@ use common_types::Item;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-/// Generation settings, in the shape of `data/settings.json`.
+/// Generation settings: complete concrete values, in the shape of a settings document
+/// (see `docs/data-formats/settings.md`).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Settings {
     pub map_layout: MapLayoutSetting,

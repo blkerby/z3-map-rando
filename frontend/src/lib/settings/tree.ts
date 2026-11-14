@@ -1,5 +1,5 @@
 /**
- * Settings are nested objects in the shape of `data/settings.json`: scalar values at the leaves, and a
+ * Settings are nested objects in the shape of a settings document: scalar values at the leaves, and a
  * setting is identified by its path (e.g. ['skill', 'tech', '5']). Paths are never joined into one
  * persisted key; `pathKey` exists only for in-page lookups and element ids.
  */

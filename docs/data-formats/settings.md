@@ -23,7 +23,7 @@ A settings document has these fields. Field names are provisional:
 | setting keys | Root-scope values |
 | scope IDs | Nested objects containing the settings for those scopes |
 
-The document itself represents root scope. A child scope such as `skill` is a nested object; it can select its own built-in `preset` and contain values, family objects, and further child scopes. A value is a JSON scalar (boolean, number, or string) at its setting's [path](identifiers.md#ordinary-setting-keys); any object is a scope or family, never a value. Documents are sparse: only tweaks are present. Shared setting definitions identify each setting's scope and therefore its location in the document. UI section names do not determine that path.
+The document itself represents root scope. A child scope such as `skill` is a nested object; it can select its own built-in `preset` and contain values, family objects, and further child scopes. A value is a JSON scalar (boolean, number, or string) at its setting's [path](#identifiers); any object is a scope or family, never a value. Documents are sparse: only tweaks are present. Shared setting definitions identify each setting's scope and therefore its location in the document. UI section names do not determine that path.
 
 There is one preset selection per scope object. Its ID is local to that scope: root `preset: "default"` selects the root default, while `preset: "hard"` inside `skill` selects the skill preset. The selected preset supplies a baseline, child scope objects customize their respective parts, and explicit values override the applicable baseline. JSON property order has no effect. A selected child preset replaces the values throughout that child scope, so values from a previously inherited preset cannot linger. A child object without a preset selection retains its inherited baseline and applies only its explicit changes.
 
@@ -48,15 +48,45 @@ User-defined presets remain root-only and based directly on a built-in root pres
 
 This starts with the default root preset, applies Hard skill assumptions, then selects vanilla map layout and disables bomb boosts. The preset definitions come from the separate bundle, not this settings object. For live settings, the untouched values follow current built-ins; a seed's pinned settings use its migrated captured definitions. The revision above is a placeholder for the shared settings data revision. Documents carry no informational names; displays take names from the shared data.
 
+## Identifiers
+
+A setting is identified by its path: the object keys leading to it, in the shape of the [default preset](../../data/presets/generation/root/default.json), such as `map_layout` or `skill` › `tech` › `5`. Paths follow semantic scopes, never the UI layout. Keys are lowercase `snake_case`; where a Rust field or enum corresponds to a setting or option token, its Serde name follows the key, not the reverse. Option tokens are scoped to their setting, and built-in preset IDs to their scope.
+
+Settings generated from data are members of a family object, keyed by stable IDs written as decimal strings where numeric:
+
+| Family | Path | Member identity |
+| --- | --- | --- |
+| Technique | `skill` › `tech` › `<tech_id>` | Upstream tech ID |
+| Proficiency | `skill` › `proficiencies` › `<tech_id>` | Upstream tech ID |
+| Notable | `skill` › `notables` › `<world>` › `<room>` › `<notable_id>` | Upstream room identity and room-scoped notable ID |
+| Item count | `item_pool` › `<item>` | Item token from [`data/items.json`](../../data/items.json) |
+
+Identifiers are permanent: a key, option token, or built-in preset ID keeps one meaning while current and is never reused after removal, including identifiers that only appeared on the dev site. A retired identifier found in any document can therefore only carry its old meaning (see [vocabulary rules](#vocabulary-rules)).
+
+Technique, notable, and room identities come from [z3-json-data](https://github.com/vg-json-data/z3-json-data), which the randomizer relies on to keep them stable and never reuse them. When upstream changes one anyway, the randomizer retires the old identifier with a vocabulary rule like any other.
+
 ## Versioning and migration
 
-The settings format has its own format version, recorded in every document, including browser drafts, files, and share links. A commit changing the document structure increments it and adds a structural migration step, such as `migrate_v2_to_v3`. Vocabulary changes, such as renamed keys, option tokens, or built-in presets, do not change the format version; they are handled by [vocabulary rules](identifiers.md#vocabulary-changes).
+The settings format has its own format version, recorded in every document, including browser drafts, files, and share links. A commit changing the document structure increments it and adds a structural migration step, such as `migrate_v2_to_v3`. Vocabulary changes, such as renamed keys, option tokens, or built-in presets, do not change the format version; they are handled by [vocabulary rules](#vocabulary-rules).
 
 Moving a setting to another semantic scope changes its persisted path and will require an explicit migration. Such moves are expected to be rare. The operation format, conflict handling, and other cross-scope migration details are deferred until a concrete need arises. Moving a control between UI sections without changing its scope does not require a settings migration.
 
+### Vocabulary rules
+
+Vocabulary changes are migrated without versioning, by a rule attached to each retired identifier. Since identifiers are never reused, a rule can run whenever its identifier is found, in live documents, pinned documents and their bundled presets, and seeds' resolved values. A rule is one of:
+
+- **Renamed:** the identifier is replaced by another, keeping the value.
+- **Value map:** old values map to new ones, optionally under a new path, e.g. a toggle becoming a choice: `{ "false": "off", "true": "full" }`.
+- **Converted:** a small function replaces the entry with current ones, for splits, merges, and changes of meaning.
+- **Dropped:** the setting has no equivalent; lenient readers report it as removed rather than unreadable.
+
+Rules are applied until no retired identifiers remain. A setting's value kind may change in place only when old values are distinguishable from new ones by JSON type (such as a toggle becoming a choice), with a value-map rule for the old type; any other change of meaning, such as rescaling a count, needs a new key. Adding an option token needs no rule. An identifier that never appeared in a release may be retired without a rule, relying on [lenient loading](#lenient-loading).
+
+The current and retired vocabulary is committed, and CI checks the shared setting definitions and presets against it, so that a release cannot drop an identifier without a rule.
+
 ### Behavior-preserving migration
 
-Structural migrations and [vocabulary rules](identifiers.md#vocabulary-changes) bring persisted settings documents and values into the current settings representation while preserving their behavior as closely as possible. They do not adopt new built-in defaults as a side effect. Migration always precedes validation against current definitions: sanitizing first would discard obsolete identifiers and values before they could be translated.
+Structural migrations and [vocabulary rules](#vocabulary-rules) bring persisted settings documents and values into the current settings representation while preserving their behavior as closely as possible. They do not adopt new built-in defaults as a side effect. Migration always precedes validation against current definitions: sanitizing first would discard obsolete identifiers and values before they could be translated.
 
 Preserve the distinction between inherited values and explicit tweaks. Do not resolve a live settings document into a historical value map and turn all those values into tweaks. When a pinned bundle needs a compatibility value for a newly introduced setting, place that historical baseline in its bundled definitions or other concrete snapshot data rather than inventing a user tweak. The exact completion representation remains to be specified.
 
@@ -115,3 +145,4 @@ To be written: saved presentation/control preferences, their relationship to the
 
 - Where migrations are implemented. The proposal is to implement structural migrations and vocabulary rules only in Rust, exposed to the frontend through a backend endpoint or WebAssembly, so they are never maintained in two languages.
 - Whether live normalization must replay intermediate baseline changes, and if so, which compact change rules provide the necessary history.
+- Where the committed vocabulary lives and how converting rules are referenced from it.

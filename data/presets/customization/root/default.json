@@ -1,0 +1,23 @@
+{
+  "id": "default",
+  "label": "Default",
+  "settings": {
+    "link_sprite": "link",
+    "heart_color": "de3843",
+    "menu_speed": "vanilla",
+    "quick_swap": false,
+    "controller": {
+      "custom": false,
+      "sword": "b",
+      "item": "y",
+      "dash": "a",
+      "map": "x",
+      "previous_item": "l",
+      "next_item": "r"
+    },
+    "music": "vanilla",
+    "low_health_beep": "vanilla",
+    "reduced_flashing": false,
+    "screen_shake": "vanilla"
+  }
+}

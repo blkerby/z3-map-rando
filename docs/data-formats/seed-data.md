@@ -28,7 +28,7 @@ Newly generated seeds use this same inspection path, including seeds requested b
 
 Re-resolution must agree with the migrated authoritative values. A mismatch indicates a bug in migration or resolution and is reported; it is not repaired by substituting current presets. Apply equivalent historical conversions to the explanation and concrete snapshot so they continue to describe the same generation inputs.
 
-The current patcher reads customizable gameplay values by their current keys. The same behavior-preserving migrations, including [vocabulary rules](identifiers.md#vocabulary-changes), therefore apply before its inputs are constructed. The stored seed is never rewritten. Importing its settings document for future generation additionally performs the separate live-settings update to current built-in presets/defaults; historical viewing and patching omit that update.
+The current patcher reads customizable gameplay values by their current keys. The same behavior-preserving migrations, including [vocabulary rules](settings.md#vocabulary-rules), therefore apply before its inputs are constructed. The stored seed is never rewritten. Importing its settings document for future generation additionally performs the separate live-settings update to current built-in presets/defaults; historical viewing and patching omit that update.
 
 ## Reading seed records
 

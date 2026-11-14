@@ -18,11 +18,11 @@ The frontend lives at `z3-map-rando/frontend`, alongside the backend and its sha
 
 | Source | Contents |
 | --- | --- |
-| `data/settings.json` | Complete default settings, in the scoped document shape; the default root preset |
+| `data/presets/` | Built-in preset files (see [Preset files](#preset-files)) |
 | `data/tech_data.json`, `data/notable_data.json` | Difficulty classifications of techniques, proficiency levels, and notables; skill presets are derived from them |
 | `data/items.json` | The item token vocabulary, with upstream item names, count limits, display category, and placement tier |
 
-Skill presets are currently derived in the frontend (`frontend/src/lib/generation/data.ts`), since the backend only consumes resolved settings so far. Separate preset files are a later step; an illustrative preset directory is:
+The preset directory is:
 
 ```text
 data/
@@ -30,13 +30,12 @@ data/
     generation/
       root/
         default.json
-      skill/
-        basic.json
-        hard.json
     customization/
       root/
         default.json
 ```
+
+Skill presets have no files: they are derived from the difficulty classifications, by both the backend (`crates/seed_data/src/presets.rs`) and the frontend (`frontend/src/lib/generation/data.ts`), until a common preparation step replaces the two. Skill settings not covered by the classifications would get sparse files under `generation/skill/`, holding only those settings, with the derived members filled in by preparation.
 
 The exact representation of ordinary setting definitions, including whether Rust and TypeScript types are handwritten or generated, remains open. The goal is to define shared semantics once and avoid per-setting translation code.
 
@@ -63,14 +62,15 @@ Each built-in preset has its own source file, grouped by settings context and sc
     "map_layout": "random",
     "skill": {
       "preset": "basic"
-    }
+    },
+    "item_pool": { "fire_rod": 1, ... }
   }
 }
 ```
 
 A root preset can select a skill preset through its nested `skill` object; a skill preset's own values are directly inside its `settings` object. User-defined presets remain root-only and based directly on a built-in root preset.
 
-Every prepared built-in preset is complete over its scope, directly or through presets it applies. Preparation fills unassigned keys from defaults, so authors need not repeat them. Applying a complete scope preset replaces every value in that scope. Skill presets can be derived from the difficulty ladder, enabling members classified at or below a difficulty; the declaration syntax remains open.
+Every built-in preset is complete over its scope, directly or through the presets it selects: the default root preset defines every root-scope setting and selects a preset for each child scope. Applying a complete scope preset replaces every value in that scope. The derived skill preset for a difficulty enables every technique and notable classified at or below it and sets each proficiency to its highest level classified at or below it; unclassified members, such as those marked "Ignored", are disabled.
 
 The frontend bundles current built-ins for editing and preview. Seed inspection uses the seed's captured definitions rather than substituting these current built-ins.
 
