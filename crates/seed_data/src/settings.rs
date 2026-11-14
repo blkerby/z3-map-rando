@@ -1,10 +1,11 @@
 use common_types::Item;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use type_hash::TypeHash;
 
 /// Generation settings: complete concrete values, in the shape of a settings document
 /// (see `docs/data-formats/settings.md`).
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
 pub struct Settings {
     pub map_layout: MapLayoutSetting,
     pub skill: SkillSettings,
@@ -13,7 +14,7 @@ pub struct Settings {
     pub item_pool: BTreeMap<Item, u32>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TypeHash)]
 #[serde(rename_all = "lowercase")]
 pub enum MapLayoutSetting {
     Vanilla,
@@ -21,7 +22,7 @@ pub enum MapLayoutSetting {
 }
 
 /// Skill assumptions, keyed by stable z3-json-data identities.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
 pub struct SkillSettings {
     /// Proficiency level by tech ID.
     pub proficiencies: BTreeMap<u32, u32>,
@@ -31,7 +32,7 @@ pub struct SkillSettings {
 }
 
 /// Enabled flags of notables, keyed by room ID and then by room-scoped notable ID.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
 pub struct NotableSettings {
     pub overworld: BTreeMap<u32, BTreeMap<u32, bool>>,
     pub underworld: BTreeMap<u32, BTreeMap<u32, bool>>,

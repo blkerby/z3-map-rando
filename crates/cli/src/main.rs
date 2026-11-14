@@ -33,6 +33,11 @@ const BUNDLED_PATCH_CATALOG: Option<&[u8]> = Some(include_bytes!(env!("Z3_PATCH_
 #[cfg(not(feature = "bundle-catalogs"))]
 const BUNDLED_PATCH_CATALOG: Option<&[u8]> = None;
 
+#[cfg(feature = "bundle-catalogs")]
+const BUNDLED_PRESET_CATALOG: Option<&[u8]> = Some(include_bytes!(env!("Z3_PRESET_CATALOG")));
+#[cfg(not(feature = "bundle-catalogs"))]
+const BUNDLED_PRESET_CATALOG: Option<&[u8]> = None;
+
 #[derive(Parser)]
 #[command(
     name = "z3-map-rando",
@@ -40,7 +45,7 @@ const BUNDLED_PATCH_CATALOG: Option<&[u8]> = None;
     about = "Generate a randomized seed, patch a ROM, or both"
 )]
 struct Args {
-    /// Settings JSON; uses bundled defaults when omitted.
+    /// Settings JSON; uses the default preset from the preset catalog when omitted.
     #[arg(long)]
     settings: Option<PathBuf>,
     /// Existing compressed seed to patch; reuses its saved seed name.
@@ -82,6 +87,9 @@ struct Args {
     /// Patch catalog override; defaults to bundled data or build/patch_catalog.bin.
     #[arg(long)]
     patch_catalog: Option<PathBuf>,
+    /// Preset catalog override; defaults to bundled data or build/preset_catalog.bin.
+    #[arg(long)]
+    preset_catalog: Option<PathBuf>,
 }
 
 #[derive(Clone, Copy, clap::ValueEnum)]
@@ -144,7 +152,7 @@ fn generate_seed(
     retiling_catalog: &retiling_catalog::RetilingCatalog,
     retiling_bytes: &[u8],
 ) -> Result<SeedData> {
-    let settings = load_settings(args.settings.as_deref())?;
+    let settings = load_settings(args)?;
     let logic_bytes = load_catalog(
         args.logic_catalog.as_deref(),
         "logic",
@@ -254,14 +262,22 @@ fn load_catalog(
     Ok(Cow::Owned(bytes))
 }
 
-fn load_settings(path: Option<&Path>) -> Result<Settings> {
-    if let Some(path) = path {
+fn load_settings(args: &Args) -> Result<Settings> {
+    if let Some(path) = &args.settings {
         let file =
             File::open(path).with_context(|| format!("opening settings {}", path.display()))?;
         serde_json::from_reader(BufReader::new(file))
             .with_context(|| format!("reading settings {}", path.display()))
     } else {
-        seed_data::presets::default_settings()
+        let bytes = load_catalog(
+            args.preset_catalog.as_deref(),
+            "preset",
+            "build/preset_catalog.bin",
+            BUNDLED_PRESET_CATALOG,
+        )?;
+        // The default root preset comes first.
+        let catalog = preset_catalog::decode_catalog(bytes.as_ref())?;
+        Ok(catalog.root.into_iter().next().unwrap().settings)
     }
 }
 

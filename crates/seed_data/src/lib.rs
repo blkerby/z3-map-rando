@@ -1,7 +1,6 @@
 //! Settings and saved seed data shared by generation and patching.
 
 pub mod output;
-pub mod presets;
 pub mod settings;
 
 pub use output::{

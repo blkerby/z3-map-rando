@@ -5,7 +5,7 @@ See [the prototype implementation plan](../plan.md) for the sequence of work.
 The project has the following main components:
 
 - [**ASM patches**](#asm-patches): modify the game engine and produce IPS patches and a symbol manifest.
-- [**Catalog builders**](#catalog-builders): compile retiling, logic, and patching data into compact binary catalogs.
+- [**Catalog builders**](#catalog-builders): compile retiling, logic, patching, and preset data into compact binary catalogs.
 - [**Rearranger**](#rearranger): rearranges the overworld areas in a geometrically coherent way.
 - [**Generator**](#generator): places items to create a beatable randomized game ("seed") based on a rearrangement.
 - [**Patcher**](#patcher): combines a verified vanilla ROM, IPS patches, and seed data into a randomized ROM.
@@ -26,8 +26,9 @@ The catalog builders run offline and produce these artifacts under `build/`:
 1. **Retiling builder:** This consumes the [ALTTPRetiling](https://github.com/kjbranch/ALTTPRetiling) JSON data which contains tile graphics and area layouts, including rethemed areas and edge variants of areas. It emits a binary file (the "retiling catalog") collecting this data in a compact, internal format.
 2. **Logic builder:** This consumes `z3-json-data` and emits a compact binary file (the "logic catalog"). See [the logic catalog plan](logic.md).
 3. **Patch builder:** This bundles named IPS patches and their matching symbol manifest, plus stable location mappings, ROM addresses, item receipt IDs, and prize encodings extracted directly from `z3-json-data`. It does not read the logic catalog. Individual IPS patches remain separate; patcher code controls their application. See [the patch plan](patches.md).
+4. **Preset builder:** This prepares the built-in generation presets from the preset files and difficulty classifications under `data/`, deriving the skill presets and resolving each root preset into complete settings (see [shared settings data](../docs/data-formats/settings-data.md)). Types are defined in [`preset_catalog`](../crates/preset_catalog/src/lib.rs).
 
-The output paths are `build/retiling_catalog.bin`, `build/logic_catalog.bin`, and `build/patch_catalog.bin`. This directory is ignored by Git; checked-in inputs remain under `data/`. Catalogs survive `cargo clean`, which removes Cargo artifacts under `target/`. `catalog_builder all` builds all three catalogs; `patches` builds the patch catalog alone, reusing cached IPS and symbol artifacts.
+The output paths are `build/retiling_catalog.bin`, `build/logic_catalog.bin`, `build/patch_catalog.bin`, and `build/preset_catalog.bin`. This directory is ignored by Git; checked-in inputs remain under `data/`. Catalogs survive `cargo clean`, which removes Cargo artifacts under `target/`. `catalog_builder all` builds all four catalogs; `patches` builds the patch catalog alone, reusing cached IPS and symbol artifacts.
 
 ### Catalog format
 
@@ -36,7 +37,7 @@ The catalogs use a Zstd-compressed `bincode-next` payload following a 16-byte un
 - Magic bytes to identify the format.
 - A 64-bit schema identifier for the payload's root Rust type.
 
-The retiling and patch catalogs use `type_hash`. The logic catalog uses `serde-reflection` to describe its complete schema, including recursive types and enum names, tags, and payloads. Its identifier is the first eight SHA-256 bytes of that registry encoded with the standard bincode configuration, interpreted as a little-endian `u64`.
+The retiling, patch, and preset catalogs use `type_hash`. The logic catalog uses `serde-reflection` to describe its complete schema, including recursive types and enum names, tags, and payloads. Its identifier is the first eight SHA-256 bytes of that registry encoded with the standard bincode configuration, interpreted as a little-endian `u64`.
 
 The catalog APIs stream encoding through a buffered Zstd encoder and decoding through a buffered Zstd decoder, without buffering the entire uncompressed payload. The builder reads `compression_level` from `catalog-build.toml`, with `3` in the default template independently of Cargo profile; future CI release builds can explicitly use `18`. Changing compression does not change the decoded data or schema identifier. Prototype format changes require rebuilding catalogs, without legacy readers.
 
@@ -102,7 +103,7 @@ The root [`VERSION`](../VERSION) file is the single source for the CLI, future w
 
 ### Saved seed format
 
-The shared [`seed_data`](../crates/seed_data/src/lib.rs) crate defines settings and saved seed types without depending on catalogs or the generator. The [`common_types`](../crates/common_types/src/lib.rs) crate defines stable room/item-location identities shared by seed data and catalogs. Catalog builders do not depend on settings or saved seed types. Saved placements contain `item_location_id` with the authored `room_id` and `item_id`, plus a typed `item` using the shared `common_types::Item` enum. A Small Key includes its stable assigned `DoorId` in that item. Logic graph indices stay internal to the logic catalog.
+The shared [`seed_data`](../crates/seed_data/src/lib.rs) crate defines settings and saved seed types without depending on catalogs or the generator. The [`common_types`](../crates/common_types/src/lib.rs) crate defines stable room/item-location identities shared by seed data and catalogs. Catalog builders do not depend on saved seed types; the preset builder uses the settings types to produce complete preset settings. Saved placements contain `item_location_id` with the authored `room_id` and `item_id`, plus a typed `item` using the shared `common_types::Item` enum. A Small Key includes its stable assigned `DoorId` in that item. Logic graph indices stay internal to the logic catalog.
 
 Save the complete seed as JSON compressed with Zstd, including `WorldLayout` and excluding graphical catalog content. Settings files remain ordinary JSON. Serialization can write directly through a Zstd encoder, and `serde_json::from_reader` can deserialize from a buffered Zstd decoder without holding the entire decompressed JSON or an intermediate JSON value in memory. The decoded seed itself remains in memory.
 

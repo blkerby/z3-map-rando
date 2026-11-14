@@ -17,10 +17,11 @@ From the repository root, build the generation catalogs and invoke the CLI:
 ```sh
 cargo run -p catalog_builder -- logic
 cargo run -p catalog_builder -- retiling
+cargo run -p catalog_builder -- presets
 cargo run -p cli -- --rng 12345
 ```
 
-The CLI uses bundled default settings and catalogs from `build/`, and writes `z3-map-rando-<SEED-NAME>.json.zst` in the working directory. Omit `--rng` to choose a numeric seed randomly. Use `--settings settings.json`, `--theme Desert`, or `--output-seed seed.json.zst` to override generation inputs or the output path. Set `--compression-level 18` to use a higher Zstd compression level instead of the default `3`. If catalogs are stored elsewhere, specify `--logic-catalog` and `--retiling-catalog`. Run `cargo run -p cli -- --help` for all arguments.
+The CLI uses catalogs from `build/`, taking its default settings from the default preset in the preset catalog, and writes `z3-map-rando-<SEED-NAME>.json.zst` in the working directory. Omit `--rng` to choose a numeric seed randomly. Use `--settings settings.json`, `--theme Desert`, or `--output-seed seed.json.zst` to override generation inputs or the output path. Set `--compression-level 18` to use a higher Zstd compression level instead of the default `3`. If catalogs are stored elsewhere, specify `--logic-catalog`, `--retiling-catalog`, and `--preset-catalog`. Run `cargo run -p cli -- --help` for all arguments.
 
 Settings default to `"map_layout": "random"`; set `"map_layout": "vanilla"` to retain vanilla connections and use the authored `Main` tiling directly. Seed generation currently supports only the Desert theme. Random generation reads the pool configured by `map_pool = "maps/map_pool.bin"` in `catalog-build.toml`; `--map-pool <PATH>` overrides it. Place the exported pool at that path before generating random maps or building a bundled CLI. Vanilla generation and patching saved seeds do not read the pool. Graphics and palette budget failures are reported during patching and do not trigger automatic map reselection.
 
@@ -49,7 +50,7 @@ To build a binary with catalogs bundled, run:
 cargo build -p cli --release --features bundle-catalogs
 ```
 
-This invokes the existing cached builder for all three catalogs, including ASM assembly, and embeds the catalogs and configured map pool. The resulting `target/release/z3-map-rando` generates seeds and patches ROMs without external catalog or pool files. Explicit catalog and pool paths still override bundled data. Bundled builds rebuild the CLI on every invocation but reuse unchanged catalog and assembly outputs. Avoid updating the shared catalog cache concurrently with compilation.
+This invokes the existing cached builder for all four catalogs, including ASM assembly, and embeds the catalogs and configured map pool. The resulting `target/release/z3-map-rando` generates seeds and patches ROMs without external catalog or pool files. Explicit catalog and pool paths still override bundled data. Bundled builds rebuild the CLI on every invocation but reuse unchanged catalog and assembly outputs. Avoid updating the shared catalog cache concurrently with compilation.
 
 # How to render Mode 7 map PNGs
 
@@ -107,13 +108,13 @@ Initialize the source submodules from the repository root:
 git submodule update --init --recursive
 ```
 
-To build all three catalogs from the `z3-json-data` and `ALTTPRetiling` submodules into `build/`, run:
+To build all four catalogs from the `z3-json-data` and `ALTTPRetiling` submodules and `data/` into `build/`, run:
 
 ```sh
 cargo run -p catalog_builder -- all
 ```
 
-Builders copy `catalog-build.default.toml` to the Git-ignored `catalog-build.toml` if missing, then read that local configuration without overwriting or merging it. Edit that local file to set source paths, the output directory, tile fingerprints, assembler options, and compression level. All relative paths are resolved from the repository root. Building the patch catalog requires an initialized patched Asar submodule, CMake, and a C++ compiler unless `asar_executable` supplies an existing patched executable. Each catalog uses its fixed filename inside the configured output directory; the subcommands have no positional arguments.
+Builders copy `catalog-build.default.toml` to the Git-ignored `catalog-build.toml` if missing, then read that local configuration without overwriting or merging it. Edit that local file to set source paths (including the `presets` directory and the `tech_data` and `notable_data` difficulty files), the output directory, tile fingerprints, assembler options, and compression level. All relative paths are resolved from the repository root. Building the patch catalog requires an initialized patched Asar submodule, CMake, and a C++ compiler unless `asar_executable` supplies an existing patched executable. Each catalog uses its fixed filename inside the configured output directory; the subcommands have no positional arguments.
 
 Catalog payloads use Zstd compression, defaulting to level `3` for every Cargo profile. Set `compression_level` in `catalog-build.toml` to change the level. Use level `18` when prioritizing smaller release artifacts. Unchanged catalogs are reused using fingerprints of source Git commits, Rust code, compression level, and external inputs. Dirty Git checkouts and non-Git source directories rebuild every time; ignored files do not affect Git status. The shared cache under `build/` survives `cargo clean`.
 

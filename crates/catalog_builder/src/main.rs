@@ -18,7 +18,9 @@ enum Command {
     Retiling,
     /// Build the patch catalog from ASM and z3-json-data.
     Patches,
-    /// Update all three catalogs, reusing unchanged outputs.
+    /// Build the preset catalog from the preset files and difficulty data.
+    Presets,
+    /// Update all four catalogs, reusing unchanged outputs.
     All,
 }
 
@@ -36,6 +38,7 @@ fn main() -> Result<()> {
         Command::Logic => cache.update_logic()?,
         Command::Retiling => cache.update_retiling()?,
         Command::Patches => cache.update_patches()?,
+        Command::Presets => cache.update_presets()?,
         Command::All => cache.update_all()?,
     }
     Ok(())

@@ -29,6 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ("Z3_LOGIC_CATALOG", "logic_catalog.bin"),
         ("Z3_RETILING_CATALOG", "retiling_catalog.bin"),
         ("Z3_PATCH_CATALOG", "patch_catalog.bin"),
+        ("Z3_PRESET_CATALOG", "preset_catalog.bin"),
     ] {
         println!(
             "cargo:rustc-env={name}={}",

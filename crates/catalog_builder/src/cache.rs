@@ -1,4 +1,4 @@
-use crate::{config::BuildConfig, logic, patches, retiling};
+use crate::{config::BuildConfig, logic, patches, presets, retiling};
 use anyhow::Result;
 use sha2::{Digest, Sha256};
 use std::{
@@ -60,6 +60,9 @@ impl CatalogCache {
             self.config.retiling_source.clone(),
             self.config.asm.clone(),
             self.config.tile_fingerprints.clone(),
+            self.config.presets.clone(),
+            self.config.tech_data.clone(),
+            self.config.notable_data.clone(),
         ];
         if let Some(path) = &self.config.asar_executable {
             paths.push(path.clone());
@@ -158,11 +161,49 @@ impl CatalogCache {
         })
     }
 
+    pub fn update_presets(&self) -> Result<()> {
+        let output = self.config.output_directory.join("preset_catalog.bin");
+        let mut fingerprint = self.create_fingerprint(PRESET_CODE_INPUTS);
+        let mut inputs = vec![
+            self.config.tech_data.clone(),
+            self.config.notable_data.clone(),
+        ];
+        collect_files(&self.config.presets, &mut inputs)?;
+        inputs.sort();
+        for path in inputs {
+            hash_input(&mut fingerprint, path.as_os_str().as_encoded_bytes());
+            hash_input(&mut fingerprint, &fs::read(path)?);
+        }
+        update_catalog(&output, fingerprint, true, || {
+            presets::build_catalog(
+                &self.config.presets,
+                &self.config.tech_data,
+                &self.config.notable_data,
+                &output,
+                self.config.compression_level,
+            )
+        })
+    }
+
     pub fn update_all(&self) -> Result<()> {
         self.update_logic()?;
         self.update_retiling()?;
-        self.update_patches()
+        self.update_patches()?;
+        self.update_presets()
     }
+}
+
+/// Every file under a directory, recursively.
+fn collect_files(directory: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
+    for entry in fs::read_dir(directory)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            collect_files(&path, files)?;
+        } else {
+            files.push(path);
+        }
+    }
+    Ok(())
 }
 
 fn hash_input(fingerprint: &mut Sha256, bytes: &[u8]) {

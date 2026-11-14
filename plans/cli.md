@@ -2,13 +2,13 @@
 
 The `z3-map-rando` binary calls the generator and patcher libraries. Arguments select generation, patching, or both; there are no subcommands.
 
-Implemented: generation, patching saved seeds, and generation followed by patching, with the arguments below and overrides for all three catalogs. Catalog bundling is implemented through the default-off `bundle-catalogs` feature.
+Implemented: generation, patching saved seeds, and generation followed by patching, with the arguments below and overrides for all four catalogs. Catalog bundling is implemented through the default-off `bundle-catalogs` feature.
 
 ## Arguments
 
 | Argument | Meaning | Default |
 | --- | --- | --- |
-| `--settings <PATH>` | Settings JSON used for generation | Bundled default preset, `data/presets/generation/root/default.json` |
+| `--settings <PATH>` | Settings JSON used for generation | Default preset from the preset catalog |
 | `--seed <PATH>` | Existing Zstd-compressed seed JSON used for patching | Generate a new seed |
 | `--rom <PATH>` | Vanilla ROM to patch | Generate a seed file only |
 | `--theme <NAME>` | Whole-game theme selected during generation | `Base` |
@@ -81,13 +81,14 @@ Read the shared project version from the root [`VERSION`](../VERSION) file throu
 
 ## Bundled assets and builds
 
-The CLI crate, `crates/cli`, embeds the default root preset from [`data/presets/generation/root/default.json`](../data/presets/generation/root/default.json), deriving its skill preset from the difficulty data (`seed_data::presets`).
+Without `--settings`, the CLI uses the default root preset from the preset catalog, which the builder prepares from [`data/presets/`](../data/presets/) and the difficulty data.
 
-The `bundle-catalogs` Cargo feature builds all three catalogs and embeds their files directly from the configured output directory. Generation consumes the embedded logic and retiling catalogs; patching consumes the retiling and patch catalogs. The feature is disabled by default so ordinary `cargo check` and workspace builds work without generated catalogs. Explicit catalog paths override bundled bytes. If an unbundled binary receives no override, it reads the required catalogs from `build/logic_catalog.bin`, `build/retiling_catalog.bin`, and `build/patch_catalog.bin` relative to the working directory:
+The `bundle-catalogs` Cargo feature builds all four catalogs and embeds their files directly from the configured output directory. Generation consumes the embedded logic and retiling catalogs, and the preset catalog when no settings are given; patching consumes the retiling and patch catalogs. The feature is disabled by default so ordinary `cargo check` and workspace builds work without generated catalogs. Explicit catalog paths override bundled bytes. If an unbundled binary receives no override, it reads the required catalogs from `build/logic_catalog.bin`, `build/retiling_catalog.bin`, `build/patch_catalog.bin`, and `build/preset_catalog.bin` relative to the working directory:
 
 - `--logic-catalog <PATH>`
 - `--retiling-catalog <PATH>`
 - `--patch-catalog <PATH>`
+- `--preset-catalog <PATH>`
 
 Generation needs the logic and retiling catalogs to produce item placements and saved world-layout choices. Patching needs the saved seed, ROM, current retiling catalog, and current patch catalog matching the patcher. It does not need the logic catalog or archived versions of generation catalogs. Bundled binaries provide the catalogs without additional user arguments.
 

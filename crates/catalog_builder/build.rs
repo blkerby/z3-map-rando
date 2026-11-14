@@ -76,6 +76,16 @@ fn main() {
             "crates/common_types",
         ],
     );
+    write_inputs(
+        &root,
+        &mut source,
+        "PRESET_CODE_INPUTS",
+        &[
+            "crates/preset_catalog",
+            "crates/seed_data",
+            "crates/common_types",
+        ],
+    );
     fs::write(
         PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("code_inputs.rs"),
         source,

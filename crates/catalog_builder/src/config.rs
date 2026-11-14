@@ -15,6 +15,11 @@ pub struct BuildConfig {
     pub output_directory: PathBuf,
     pub tile_fingerprints: PathBuf,
     pub map_pool: PathBuf,
+    /// Directory of built-in preset files.
+    pub presets: PathBuf,
+    /// Difficulty classifications that skill presets are derived from.
+    pub tech_data: PathBuf,
+    pub notable_data: PathBuf,
     pub compression_level: i32,
 }
 
@@ -40,6 +45,9 @@ impl BuildConfig {
             &mut self.output_directory,
             &mut self.tile_fingerprints,
             &mut self.map_pool,
+            &mut self.presets,
+            &mut self.tech_data,
+            &mut self.notable_data,
         ] {
             *path = root.join(&*path);
         }

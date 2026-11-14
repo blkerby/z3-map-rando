@@ -79,7 +79,7 @@ for (const n of notableData) {
 /**
  * One skill preset per difficulty: every technique and notable ranked at or below it enabled, and each
  * proficiency at its highest level ranked at or below it (its lowest level if none is). Unranked members
- * are disabled. The backend derives the same presets (`crates/seed_data/src/presets.rs`).
+ * are disabled. The catalog builder derives the same presets for the backend (`crates/catalog_builder/src/presets.rs`).
  */
 function buildSkillPresets(): ScopePreset[] {
 	const presets: ScopePreset[] = [];

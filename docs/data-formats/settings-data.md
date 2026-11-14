@@ -35,7 +35,7 @@ data/
         default.json
 ```
 
-Skill presets have no files: they are derived from the difficulty classifications, by both the backend (`crates/seed_data/src/presets.rs`) and the frontend (`frontend/src/lib/generation/data.ts`), until a common preparation step replaces the two. Skill settings not covered by the classifications would get sparse files under `generation/skill/`, holding only those settings, with the derived members filled in by preparation.
+Skill presets have no files: they are derived from the difficulty classifications, by both the catalog builder, which writes the preset catalog (`crates/catalog_builder/src/presets.rs`), and the frontend (`frontend/src/lib/generation/data.ts`), until a common preparation step replaces the two. Skill settings not covered by the classifications would get sparse files under `generation/skill/`, holding only those settings, with the derived members filled in by preparation.
 
 The exact representation of ordinary setting definitions, including whether Rust and TypeScript types are handwritten or generated, remains open. The goal is to define shared semantics once and avoid per-setting translation code.
 

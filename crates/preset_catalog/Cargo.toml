@@ -1,0 +1,12 @@
+[package]
+name = "preset_catalog"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+bincode-next = { version = "3.1.1", default-features = false, features = ["std", "serde"] }
+seed_data = { path = "../seed_data" }
+serde = { version = "1", features = ["derive"] }
+type_hash = "0.3.0"
+zstd = { version = "0.13", default-features = false }

@@ -131,9 +131,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "common_types",
  "logic_catalog",
  "patch_catalog",
+ "preset_catalog",
  "retiling_catalog",
+ "seed_data",
  "serde",
  "serde_json",
  "sha2",
@@ -221,6 +224,7 @@ dependencies = [
  "logic_catalog",
  "patch_catalog",
  "patcher",
+ "preset_catalog",
  "rand",
  "retiling_catalog",
  "seed_data",
@@ -574,6 +578,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "preset_catalog"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode-next",
+ "seed_data",
+ "serde",
+ "type_hash",
+ "zstd",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -694,6 +710,7 @@ dependencies = [
  "common_types",
  "serde",
  "serde_json",
+ "type_hash",
  "zstd",
 ]
 

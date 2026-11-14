@@ -6,9 +6,12 @@ edition = "2024"
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+common_types = { path = "../common_types" }
 logic_catalog = { path = "../logic_catalog" }
 patch_catalog = { path = "../patch_catalog" }
+preset_catalog = { path = "../preset_catalog" }
 retiling_catalog = { path = "../retiling_catalog" }
+seed_data = { path = "../seed_data" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = { version = "0.11", default-features = false }
