@@ -45,9 +45,12 @@ const BUNDLED_PRESET_CATALOG: Option<&[u8]> = None;
     about = "Generate a randomized seed, patch a ROM, or both"
 )]
 struct Args {
-    /// Settings JSON; uses the default preset from the preset catalog when omitted.
+    /// Settings JSON; uses the default root preset when neither --settings nor --preset is given.
     #[arg(long)]
     settings: Option<PathBuf>,
+    /// Root preset ID from the preset catalog (e.g. testing).
+    #[arg(long, conflicts_with_all = ["settings", "seed"])]
+    preset: Option<String>,
     /// Existing compressed seed to patch; reuses its saved seed name.
     #[arg(long, requires = "rom", conflicts_with = "settings")]
     seed: Option<PathBuf>,
@@ -128,7 +131,7 @@ fn main() -> Result<()> {
                 .join(format!("z3-map-rando-{}.json.zst", seed.metadata.seed_name))
         });
         write_seed(&seed, &output_path, args.compression_level)?;
-        if args.settings.is_none() && args.rom.is_none() {
+        if args.rom.is_none() {
             eprintln!(
                 concat!(
                     "\nTip: To patch this seed, run:\n\n",
@@ -275,9 +278,18 @@ fn load_settings(args: &Args) -> Result<Settings> {
             "build/preset_catalog.bin",
             BUNDLED_PRESET_CATALOG,
         )?;
-        // The default root preset comes first.
         let catalog = preset_catalog::decode_catalog(bytes.as_ref())?;
-        Ok(catalog.root.into_iter().next().unwrap().settings)
+        let preset = if let Some(id) = &args.preset {
+            catalog
+                .root
+                .into_iter()
+                .find(|preset| &preset.id == id)
+                .with_context(|| format!("unknown root preset {id}"))?
+        } else {
+            // The default root preset comes first.
+            catalog.root.into_iter().next().unwrap()
+        };
+        Ok(preset.settings)
     }
 }
 
