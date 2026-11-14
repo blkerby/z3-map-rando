@@ -88,9 +88,9 @@ InitializeGameState:
     LDA.b #$02
     STA.l $7003C5,X
     ; Starting bomb and arrow capacities (see capacity_upgrades.asm).
-    LDA.b #10
+    LDA.l StartingCapacities
     STA.l $700370,X
-    LDA.b #30
+    LDA.l StartingCapacities+1
     STA.l $700371,X
     REP #$20
 
@@ -284,5 +284,11 @@ SpawnMessageHousePyramid:
     %spawn_message_house()
     db $B9, $C2, $BB, $AA, $B6, $B2, $AD ; PYRAMID
     db $FE, $72, $FB
+
+assert pc() <= !StartingCapacities
+org !StartingCapacities
+StartingCapacities:
+assert StartingCapacities == !StartingCapacities
+    skip 2
 
 assert pc() <= !free_space_bank_a0_end

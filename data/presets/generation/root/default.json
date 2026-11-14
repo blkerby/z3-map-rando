@@ -50,6 +50,10 @@
       "three_hundred_rupees": 5,
       "heart_container": 11,
       "piece_of_heart": 24
+    },
+    "starting_items": {
+      "bomb_capacity": 10,
+      "arrow_capacity": 30
     }
   }
 }

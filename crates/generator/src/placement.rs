@@ -60,7 +60,7 @@ impl PlacementState {
         for dungeon in &inputs.dungeons {
             map_compass_pools.push(dungeon.map_compass_pool.clone());
         }
-        let mut global = GlobalState::initialize(catalog);
+        let mut global = GlobalState::initialize(catalog, &inputs.starting_items);
         let mut local_states = vec![LocalStateReducer::default(); graph.outgoing.len()];
         local_states[graph.start_vertex_idx.0 as usize].insert(LocalState::initialize());
         compute_closure(

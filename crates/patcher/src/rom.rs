@@ -65,6 +65,11 @@ pub fn patch_rom(
     let (mut patcher, _) =
         prepare_retiling(&mut output, &seed.world_layout, retiling, patches, settings)?;
     crate::items::apply_items(&mut patcher, rom, &seed.item_placements, patches)?;
+    let starting_items = &seed.settings.starting_items;
+    patcher.context("starting capacities").write(
+        SnesAddr(patches.symbols.starting_capacities).into(),
+        vec![starting_items.bomb_capacity, starting_items.arrow_capacity],
+    )?;
     patcher.apply(&mut output)?;
     output[0x7fd7] = 0x0c;
     finalize_rom(&mut output);

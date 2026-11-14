@@ -102,6 +102,13 @@
 	/>
 </SectionCard>
 
+<SectionCard id="starting_items" title="Starting items" icon="backpack" collapsible collapsed>
+	<Group heading="Capacity" layout="grid">
+		<CountSetting path={['starting_items', 'bomb_capacity']} label="Bomb capacity" min={0} max={99} />
+		<CountSetting path={['starting_items', 'arrow_capacity']} label="Arrow capacity" min={0} max={99} />
+	</Group>
+</SectionCard>
+
 <SectionCard id="item_pool" title="Item pool" icon="box-seam" collapsible collapsed>
 	{#snippet header()}
 		<div class="pool-bar" class:text-danger={poolUsed > ITEM_LOCATIONS}>

@@ -142,6 +142,9 @@ endmacro
 ; Defined in capacity_upgrades.asm.
 !UpgradeCapacity = $A0FB00
 
+; Starting bomb and arrow capacities, written by the patcher from the settings.
+%export_symbol(StartingCapacities, starting_capacities, $A0FAFE)
+
 ; Saved spawn unlocks: bit 0 is Sanctuary entered; bit 1 is Light World mountain reached.
 !SpawnVisitFlags = $7EF3D6
 

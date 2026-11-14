@@ -7,4 +7,4 @@ pub use output::{
     AreaLayout, ItemPlacement, MapBorder, OverworldRoomPlacement, SEED_FORMAT_VERSION, SeedData,
     SeedMetadata, WorldLayout,
 };
-pub use settings::{MapLayoutSetting, NotableSettings, Settings, SkillSettings};
+pub use settings::{MapLayoutSetting, NotableSettings, Settings, SkillSettings, StartingItems};

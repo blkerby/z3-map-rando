@@ -68,4 +68,4 @@ Reaching the Lake Hylia Great Fairy entrance node provides fairy and golden bee 
 
 ## Starting items settings
 
-Add a "Starting items" settings group containing bomb capacity and arrow capacity, defaulting to the vanilla 10 and 30 and allowing 0 to 99. The generator's initial capacities use these values. The patcher writes them to an exported ROM location read by `InitializeGameState` in `new_game.asm`, replacing its constants. This also reconciles the frontend's existing starting-items section with a Rust setting (see [settings.md](settings.md#boundary-2-flat-values-and-internal-rust-structs)).
+Implemented. The `starting_items` settings contain `bomb_capacity` and `arrow_capacity`, defaulting to the vanilla 10 and 30 and allowing 0 to 99. The generator's initial capacities use these values. The patcher writes them to the exported `StartingCapacities`, which `InitializeGameState` in `new_game.asm` copies into a new save.

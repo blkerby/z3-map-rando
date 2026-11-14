@@ -2,7 +2,7 @@ use anyhow::{Result, anyhow, bail, ensure};
 use common_types::{DoorId, Item, SourceRoomId};
 use hashbrown::HashMap;
 use logic_catalog::{DoorIndex, ItemLocationIndex, LockKind, LogicCatalog};
-use seed_data::Settings;
+use seed_data::{Settings, StartingItems};
 use std::collections::BTreeMap;
 
 /// Indexed inputs for traversal and placement, prepared without changing the catalog.
@@ -30,6 +30,7 @@ pub struct GenerationInputs {
     /// Settings resolved by room identity and notable ID, in catalog notable order.
     pub notable_enabled: Vec<bool>,
     pub proficiency_levels: Vec<u32>,
+    pub starting_items: StartingItems,
 }
 
 #[derive(Debug, Default)]
@@ -58,6 +59,7 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         tech_enabled: vec![false; catalog.techs.len()],
         notable_enabled: vec![false; catalog.notables.len()],
         proficiency_levels: vec![0; catalog.techs.len()],
+        starting_items: settings.starting_items.clone(),
     };
     for item in &catalog.items {
         inputs.items.push(item.item);

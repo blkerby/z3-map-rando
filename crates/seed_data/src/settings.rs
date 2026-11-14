@@ -12,6 +12,14 @@ pub struct Settings {
     /// Number of pickups to place per ordinary item. Dungeon items and prizes use separate
     /// placement phases.
     pub item_pool: BTreeMap<Item, u32>,
+    pub starting_items: StartingItems,
+}
+
+/// Inventory at the start of the game.
+#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
+pub struct StartingItems {
+    pub bomb_capacity: u8,
+    pub arrow_capacity: u8,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TypeHash)]

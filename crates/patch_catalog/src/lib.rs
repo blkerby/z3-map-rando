@@ -105,6 +105,7 @@ pub struct PatchSymbols {
     pub king_zora_item: u32,
     pub item_receipt_tables: u32,
     pub item_graphics: u32,
+    pub starting_capacities: u32,
     pub theme_flat_map16_data: u32,
     pub flat_map16_screen_pointers: u32,
     pub bg1_flat_map16_screen_pointers: u32,

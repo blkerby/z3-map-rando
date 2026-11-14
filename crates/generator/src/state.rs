@@ -7,6 +7,7 @@ use logic_catalog::{
     DoorIndex, DungeonIndex, FlagIndex, FollowerMask, ItemLocationIndex, LogicCatalog,
     OcarinaState, UniqueItem,
 };
+use seed_data::StartingItems;
 
 /// Mutable global reads that can change an edge's results or discoveries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -78,8 +79,8 @@ pub struct GlobalState {
 }
 
 impl GlobalState {
-    /// Begin with vanilla capacities, no equipment, and Zelda already rescued.
-    pub fn initialize(catalog: &LogicCatalog) -> Self {
+    /// Begin with the starting items, vanilla health and magic, no equipment, and Zelda already rescued.
+    pub fn initialize(catalog: &LogicCatalog, starting_items: &StartingItems) -> Self {
         let mut flags = Vec::with_capacity(catalog.flags.len());
         for flag in &catalog.flags {
             flags.push(flag == "GameStateZelda");
@@ -94,8 +95,8 @@ impl GlobalState {
             ocarina: OcarinaState::Missing,
             health_capacity: 24,
             magic_capacity: 128,
-            bomb_capacity: 10,
-            arrow_capacity: 30,
+            bomb_capacity: starting_items.bomb_capacity,
+            arrow_capacity: starting_items.arrow_capacity,
             magic_usable_capacity: 0,
             bomb_usable_capacity: 0,
             arrow_usable_capacity: 0,

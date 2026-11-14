@@ -131,7 +131,7 @@ Item graphics use a fixed 128-byte 4bpp ROM array at the exported `ItemGraphics`
 
 ### Ammo capacity
 
-`capacity_upgrades.asm` follows ALTTPR's format, which trackers may read: `$7EF370`/`$7EF371` hold the bomb and arrow capacities directly instead of indexes into the vanilla `CapacityUpgrades` tables. New saves start at 10 and 30. The HUD refill, the bomb shop, the shopkeeper's ammo items, and the Lake Hylia fairy use these bytes directly. Receipts `$51`/`$53` and fairy purchases call `UpgradeCapacity`, which adds 5 capacity (capped at 99) and queues 5 ammo.
+`capacity_upgrades.asm` follows ALTTPR's format, which trackers may read: `$7EF370`/`$7EF371` hold the bomb and arrow capacities directly instead of indexes into the vanilla `CapacityUpgrades` tables. New saves start with the settings' starting capacities, which the patcher writes to the exported `StartingCapacities`. The HUD refill, the bomb shop, the shopkeeper's ammo items, and the Lake Hylia fairy use these bytes directly. Receipts `$51`/`$53` and fairy purchases call `UpgradeCapacity`, which adds 5 capacity (capped at 99) and queues 5 ammo.
 
 ### Overworld map and gameplay
 

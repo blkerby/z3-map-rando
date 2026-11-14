@@ -86,7 +86,7 @@ impl KeyPlacementState {
         graph: &TraversalGraph,
         inputs: &GenerationInputs,
     ) -> Result<Self> {
-        let mut global = GlobalState::initialize(catalog);
+        let mut global = GlobalState::initialize(catalog, &inputs.starting_items);
         for &item in &inputs.ordinary_pool {
             global.grant_non_key_item(item);
         }
