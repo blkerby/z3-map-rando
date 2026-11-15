@@ -4,7 +4,7 @@ The prototype randomizes items and overworld layouts, with broader gameplay veri
 
 ## Starting state
 
-Starting state has independent equipment, resources, and progression settings. Unique equipment uses toggles, progressive equipment uses named tiers, and bottles are empty bottle counts. Heart capacity is 1 to 20 whole hearts; a new game begins at full health. Bomb and arrow capacities are direct values from 0 to 99, with separate starting ammunition counts bounded by their capacities. Starting rupees range from 0 to 999. Zelda's rescued flag controls the initial story stage; completing her rescue advances that stage without resetting later progress.
+Starting state has independent equipment, resources, and progression settings. Unique equipment uses toggles and progressive equipment uses named tiers. Resources include a count of empty bottles. Heart capacity is 1 to 20 whole hearts; a new game begins at full health. Bomb and arrow capacities are direct values from 0 to 99, with separate starting ammunition counts bounded by their capacities. Starting rupees range from 0 to 999. Zelda's rescued flag controls the initial story stage; completing her rescue advances that stage without resetting later progress.
 
 The Default preset starts with no equipment, three hearts, bomb/arrow capacities of 10/30, no ammunition or rupees, and Zelda rescued. All equipment supplies the highest equipment tiers, an active Ocarina, and four empty bottles, while keeping Default's resources and progression flags. The Testing root preset overrides the capacities to 5/5.
 
@@ -16,7 +16,7 @@ Swords, shields, gloves, mail, boomerangs, and bows upgrade one level per pickup
 
 Small and Big Keys remain at vanilla key locations. Keys still use vanilla ROM behavior, which differs from the logical model's door-specific Small Keys. The bow is progressive: the first pickup grants the Bow and the second the Silver Arrows. The Waterfall of Wishing and Pyramid fairies each offer one upgrade of a boomerang, mail, shield, sword, bow, gloves, bombs, or arrows: throw in that item, and she returns something better once, if it is not already at its highest level. Equipment receipt messages retain vanilla text pending replacement.
 
-Item pool counts describe pickups before optional deduction. Deduction is enabled by default and removes starting equipment and bottles: owning a unique item deducts one pickup, and progressive tiers deduct the number of upgrades represented by that tier. Health, capacities, ammunition, rupees, and flags do not deduct pickups. Starting equipment must fit the corresponding pool counts when deduction is enabled.
+Item pool counts describe pickups before optional deduction. Deduction is enabled by default and removes starting equipment: owning a unique item deducts one pickup, and progressive tiers deduct the number of upgrades represented by that tier. Bottles, health, capacities, ammunition, rupees, and flags do not deduct pickups. Starting equipment must fit the corresponding pool counts when deduction is enabled.
 
 Item pools after deduction may contain fewer pickups than the available ordinary locations; the remaining slots are empty. Empty chests open without granting an item, NPC rewards retain their collection state, and empty freestanding pickups are suppressed. Empty boss-heart rewards still release the dungeon prize. Waterfall and Pyramid fairies with empty rewards say “Sorry we're closed” and end the interaction without summoning a fairy or throwing an item.
 

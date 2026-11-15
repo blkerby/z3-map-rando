@@ -63,11 +63,10 @@ pub struct StartingEquipment {
     pub bow: StartingBow,
     pub boomerang: StartingBoomerang,
     pub ocarina: StartingOcarina,
-    pub bottles: u8,
 }
 
 impl StartingEquipment {
-    /// Pickup equivalents for equipment-only deduction and logical initialization.
+    /// Pickup equivalents for pool deduction and logical initialization.
     pub fn count_items(&self) -> BTreeMap<Item, u32> {
         let mut counts = BTreeMap::new();
         for (item, owned) in [
@@ -154,7 +153,6 @@ impl StartingEquipment {
                 StartingOcarina::Active => 1,
             },
         );
-        counts.insert(Item::Bottle, u32::from(self.bottles));
         counts
     }
 }
@@ -221,6 +219,8 @@ pub enum StartingOcarina {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StartingResources {
+    /// Empty bottles.
+    pub bottles: u8,
     /// Capacity in whole hearts; the new game begins at full health.
     pub heart_capacity: u8,
     pub bomb_capacity: u8,

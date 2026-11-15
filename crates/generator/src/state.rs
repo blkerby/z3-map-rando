@@ -119,6 +119,9 @@ impl GlobalState {
                 state.grant_non_key_item(item);
             }
         }
+        for _ in 0..starting.resources.bottles {
+            state.grant_non_key_item(Item::Bottle);
+        }
         if starting.equipment.ocarina == StartingOcarina::Active {
             state.ocarina = OcarinaState::Active;
         }

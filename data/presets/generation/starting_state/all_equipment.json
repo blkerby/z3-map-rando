@@ -30,10 +30,10 @@
       "mail": "red",
       "bow": "silver",
       "boomerang": "red",
-      "ocarina": "active",
-      "bottles": 4
+      "ocarina": "active"
     },
     "resources": {
+      "bottles": 4,
       "heart_capacity": 3,
       "bomb_capacity": 10,
       "arrow_capacity": 30,

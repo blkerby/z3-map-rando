@@ -6,7 +6,7 @@
 	import CustomizationSettings from '$lib/customization/CustomizationSettings.svelte';
 	import { customizationModel } from '$lib/customization/model';
 	import GenerationSettings from '$lib/generation/GenerationSettings.svelte';
-	import { ITEM_LOCATIONS, countPoolItems, generationModel } from '$lib/generation/data';
+	import { ITEM_LABELS, ITEM_LOCATIONS, countPoolItems, countStartingItems, generationModel } from '$lib/generation/data';
 	import CollapsibleSection from '$lib/settings/CollapsibleSection.svelte';
 	import CustomizationPanel from '$lib/settings/CustomizationPanel.svelte';
 	import PresetManager from '$lib/settings/PresetManager.svelte';
@@ -31,9 +31,18 @@
 
 	/** Reasons the current settings can't be generated. */
 	const problems = $derived.by(() => {
+		const problems: string[] = [];
 		const used = countPoolItems(store);
-		if (used <= ITEM_LOCATIONS) return [];
-		return [`Item pool: ${used} items is more than the ${ITEM_LOCATIONS} item locations. Lower some counts.`];
+		if (used > ITEM_LOCATIONS)
+			problems.push(`Item pool: ${used} items is more than the ${ITEM_LOCATIONS} item locations. Lower some counts.`);
+		if (store.get(['item_pool', 'deduct_starting_items'])) {
+			for (const [name, starting] of Object.entries(countStartingItems(store))) {
+				const available = store.get(['item_pool', 'items', name]) as number;
+				if (starting > available)
+					problems.push(`Item pool: the starting state deducts ${starting} ${ITEM_LABELS[name]}, but the pool has only ${available}.`);
+			}
+		}
+		return problems;
 	});
 
 	// ---- Phases -------------------------------------------------------------

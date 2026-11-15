@@ -63,6 +63,52 @@ export const poolItems: ItemRecord[] = [];
 for (const item of items)
 	if (item.category !== 'dungeon' && item.category !== 'prize') poolItems.push(item);
 
+/** Display names of pool items. */
+export const ITEM_LABELS: Record<string, string> = {
+	fire_rod: 'Fire Rod',
+	ice_rod: 'Ice Rod',
+	hammer: 'Hammer',
+	hookshot: 'Hookshot',
+	bow: 'Bow',
+	boomerang: 'Boomerang',
+	magic_powder: 'Magic Powder',
+	bombos: 'Bombos',
+	ether: 'Ether',
+	quake: 'Quake',
+	lamp: 'Lamp',
+	shovel: 'Shovel',
+	cane_of_somaria: 'Cane of Somaria',
+	cane_of_byrna: 'Cane of Byrna',
+	cape: 'Magic Cape',
+	magic_mirror: 'Magic Mirror',
+	book_of_mudora: 'Book of Mudora',
+	flippers: 'Flippers',
+	moon_pearl: 'Moon Pearl',
+	bug_catching_net: 'Bug-Catching Net',
+	mushroom: 'Mushroom',
+	bottle: 'Bottle',
+	pegasus_boots: 'Pegasus Boots',
+	ocarina: 'Ocarina',
+	sword: 'Sword',
+	shield: 'Shield',
+	glove: 'Glove',
+	mail: 'Mail',
+	half_magic: 'Half Magic',
+	bomb_capacity_upgrade: 'Bomb Capacity Upgrade',
+	arrow_capacity_upgrade: 'Arrow Capacity Upgrade',
+	arrow: 'Arrow (1)',
+	three_bombs: 'Bombs (3)',
+	ten_arrows: 'Arrows (10)',
+	one_rupee: '1 Rupee',
+	five_rupees: '5 Rupees',
+	twenty_rupees: '20 Rupees',
+	fifty_rupees: '50 Rupees',
+	one_hundred_rupees: '100 Rupees',
+	three_hundred_rupees: '300 Rupees',
+	heart_container: 'Heart Container',
+	piece_of_heart: 'Piece of Heart'
+};
+
 // Member IDs as they appear in setting paths.
 
 export const proficiencies: {
@@ -130,85 +176,87 @@ export const generationModel: SettingsModel = {
 	revision: settingsData.generation.revision
 };
 
-export const startingUniqueItems: ItemRecord[] = [];
-const startingEquipment = settingsData.generation.starting_state[0].settings.equipment as Tree;
-for (const item of poolItems)
-	if (typeof startingEquipment[item.name] === 'boolean') startingUniqueItems.push(item);
+interface StartingTier {
+	value: string;
+	label: string;
+	/** Pool items this tier stands for. */
+	count: number;
+}
 
-export const startingEquipmentChoices = [
-	{
-		id: 'sword',
-		options: [
-			{ value: 'none', label: 'None', count: 0 },
-			{ value: 'fighter', label: 'Fighter', count: 1 },
-			{ value: 'master', label: 'Master', count: 2 },
-			{ value: 'tempered', label: 'Tempered', count: 3 },
-			{ value: 'golden', label: 'Golden', count: 4 }
-		]
-	},
-	{
-		id: 'shield',
-		options: [
-			{ value: 'none', label: 'None', count: 0 },
-			{ value: 'fighter', label: 'Fighter', count: 1 },
-			{ value: 'fire', label: 'Fire', count: 2 },
-			{ value: 'mirror', label: 'Mirror', count: 3 }
-		]
-	},
-	{
-		id: 'glove',
-		options: [
-			{ value: 'none', label: 'None', count: 0 },
-			{ value: 'power', label: 'Power Glove', count: 1 },
-			{ value: 'titans', label: "Titan's Mitt", count: 2 }
-		]
-	},
-	{
-		id: 'mail',
-		options: [
-			{ value: 'green', label: 'Green', count: 0 },
-			{ value: 'blue', label: 'Blue', count: 1 },
-			{ value: 'red', label: 'Red', count: 2 }
-		]
-	},
-	{
-		id: 'bow',
-		options: [
-			{ value: 'none', label: 'None', count: 0 },
-			{ value: 'bow', label: 'Bow', count: 1 },
-			{ value: 'silver', label: 'Silver Arrows', count: 2 }
-		]
-	},
-	{
-		id: 'boomerang',
-		options: [
-			{ value: 'none', label: 'None', count: 0 },
-			{ value: 'blue', label: 'Blue', count: 1 },
-			{ value: 'red', label: 'Red', count: 2 }
-		]
-	},
-	{
-		id: 'ocarina',
-		options: [
-			{ value: 'none', label: 'None', count: 0 },
-			{ value: 'inactive', label: 'Inactive', count: 1 },
-			{ value: 'active', label: 'Active', count: 1 }
-		]
+const STARTING_TIERS: Record<string, StartingTier[]> = {
+	sword: [
+		{ value: 'none', label: 'None', count: 0 },
+		{ value: 'fighter', label: 'Fighter', count: 1 },
+		{ value: 'master', label: 'Master', count: 2 },
+		{ value: 'tempered', label: 'Tempered', count: 3 },
+		{ value: 'golden', label: 'Golden', count: 4 }
+	],
+	shield: [
+		{ value: 'none', label: 'None', count: 0 },
+		{ value: 'fighter', label: 'Fighter', count: 1 },
+		{ value: 'fire', label: 'Fire', count: 2 },
+		{ value: 'mirror', label: 'Mirror', count: 3 }
+	],
+	glove: [
+		{ value: 'none', label: 'None', count: 0 },
+		{ value: 'power', label: 'Power Glove', count: 1 },
+		{ value: 'titans', label: "Titan's Mitt", count: 2 }
+	],
+	mail: [
+		{ value: 'green', label: 'Green', count: 0 },
+		{ value: 'blue', label: 'Blue', count: 1 },
+		{ value: 'red', label: 'Red', count: 2 }
+	],
+	bow: [
+		{ value: 'none', label: 'None', count: 0 },
+		{ value: 'bow', label: 'Bow', count: 1 },
+		{ value: 'silver', label: 'Silver Arrows', count: 2 }
+	],
+	boomerang: [
+		{ value: 'none', label: 'None', count: 0 },
+		{ value: 'blue', label: 'Blue', count: 1 },
+		{ value: 'red', label: 'Red', count: 2 }
+	],
+	ocarina: [
+		{ value: 'none', label: 'None', count: 0 },
+		{ value: 'inactive', label: 'Inactive', count: 1 },
+		{ value: 'active', label: 'Active', count: 1 }
+	]
+};
+
+const defaultStartingEquipment = settingsData.generation.starting_state[0].settings
+	.equipment as Tree;
+
+/** Starting equipment, in item pool order. Unique items have no tiers and are switches. */
+export const startingEquipment: { item: ItemRecord; tiers: StartingTier[] | null }[] = [];
+for (const item of poolItems) {
+	if (typeof defaultStartingEquipment[item.name] === 'boolean')
+		startingEquipment.push({ item, tiers: null });
+	else if (item.name in STARTING_TIERS)
+		startingEquipment.push({ item, tiers: STARTING_TIERS[item.name] });
+}
+
+/** Pool items the starting equipment stands for, by item name; zero counts are left out. */
+export function countStartingItems(store: SettingsStore): Record<string, number> {
+	const counts: Record<string, number> = {};
+	for (const { item, tiers } of startingEquipment) {
+		const value = store.get(['starting_state', 'equipment', item.name]);
+		if (tiers === null) {
+			if (value === true) counts[item.name] = 1;
+		} else {
+			const count = tiers.find((tier) => tier.value === value)?.count ?? 0;
+			if (count > 0) counts[item.name] = count;
+		}
 	}
-];
+	return counts;
+}
 
-/** Number of ordinary pickups placed after equipment-only deduction. */
+/** Number of ordinary pickups placed after starting equipment is deducted (if enabled). */
 export function countPoolItems(store: SettingsStore): number {
 	let n = 0;
 	for (const item of poolItems) n += store.get(['item_pool', 'items', item.name]) as number;
 	if (store.get(['item_pool', 'deduct_starting_items'])) {
-		for (const item of startingUniqueItems)
-			if (store.get(['starting_state', 'equipment', item.name])) n--;
-		for (const choice of startingEquipmentChoices) {
-			const value = store.get(['starting_state', 'equipment', choice.id]);
-			n -= choice.options.find((option) => option.value === value)?.count ?? 0;
-		}
-		n -= store.get(['starting_state', 'equipment', 'bottles']) as number;
+		for (const count of Object.values(countStartingItems(store))) n -= count;
 	}
 	return n;
 }

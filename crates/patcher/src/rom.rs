@@ -156,9 +156,9 @@ pub fn patch_rom(
             inventory[0x4c] |= 0x01;
         }
     }
-    if equipment.bottles > 0 {
+    if resources.bottles > 0 {
         inventory[0x0f] = 1;
-        for i in 0..usize::from(equipment.bottles) {
+        for i in 0..usize::from(resources.bottles) {
             inventory[0x1c + i] = 2;
         }
     }

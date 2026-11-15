@@ -8,12 +8,13 @@
 	import { getStore } from '$lib/settings/context';
 	import {
 		DIFFICULTIES,
+		ITEM_LABELS,
 		ITEM_LOCATIONS,
 		countPoolItems,
+		countStartingItems,
 		itemPoolScope,
+		startingEquipment,
 		startingStateScope,
-		startingUniqueItems,
-		startingEquipmentChoices,
 		notables,
 		poolItems,
 		proficiencies,
@@ -25,58 +26,16 @@
 
 	const ITEM_CATEGORIES = [
 		{ id: 'equipment', title: 'Equipment' },
-		{ id: 'upgrades', title: 'Upgrades' },
-		{ id: 'ammo', title: 'Ammo' },
-		{ id: 'rupees', title: 'Rupees' },
-		{ id: 'hearts', title: 'Hearts' }
+		{ id: 'progressive', title: 'Progressive equipment' },
+		{ id: 'resources', title: 'Resources' },
+		{ id: 'consumables', title: 'Consumables' }
 	];
 
-	const ITEM_LABELS: Record<string, string> = {
-		fire_rod: 'Fire Rod',
-		ice_rod: 'Ice Rod',
-		hammer: 'Hammer',
-		hookshot: 'Hookshot',
-		bow: 'Bow',
-		boomerang: 'Boomerang',
-		magic_powder: 'Magic Powder',
-		bombos: 'Bombos',
-		ether: 'Ether',
-		quake: 'Quake',
-		lamp: 'Lamp',
-		shovel: 'Shovel',
-		cane_of_somaria: 'Cane of Somaria',
-		cane_of_byrna: 'Cane of Byrna',
-		cape: 'Magic Cape',
-		magic_mirror: 'Magic Mirror',
-		book_of_mudora: 'Book of Mudora',
-		flippers: 'Flippers',
-		moon_pearl: 'Moon Pearl',
-		bug_catching_net: 'Bug-Catching Net',
-		mushroom: 'Mushroom',
-		bottle: 'Bottle',
-		pegasus_boots: 'Pegasus Boots',
-		ocarina: 'Ocarina',
-		sword: 'Sword',
-		shield: 'Shield',
-		glove: 'Glove',
-		mail: 'Mail',
-		half_magic: 'Half Magic',
-		bomb_capacity_upgrade: 'Bomb Capacity Upgrade',
-		arrow_capacity_upgrade: 'Arrow Capacity Upgrade',
-		arrow: 'Arrow (1)',
-		three_bombs: 'Bombs (3)',
-		ten_arrows: 'Arrows (10)',
-		one_rupee: '1 Rupee',
-		five_rupees: '5 Rupees',
-		twenty_rupees: '20 Rupees',
-		fifty_rupees: '50 Rupees',
-		one_hundred_rupees: '100 Rupees',
-		three_hundred_rupees: '300 Rupees',
-		heart_container: 'Heart Container',
-		piece_of_heart: 'Piece of Heart'
-	};
-
 	const poolUsed = $derived(countPoolItems(store));
+	/** Pool items deducted for the starting state, by item name. */
+	const deducted = $derived(
+		store.get(['item_pool', 'deduct_starting_items']) ? countStartingItems(store) : {}
+	);
 </script>
 
 <SectionCard
@@ -124,6 +83,25 @@
 	/>
 </SectionCard>
 
+<!-- Starting equipment settings of one item category. -->
+{#snippet equipmentSettings(category: string)}
+	{#each startingEquipment.filter((e) => e.item.category === category) as { item, tiers } (item.name)}
+		{#if tiers === null}
+			<ToggleSetting
+				path={['starting_state', 'equipment', item.name]}
+				label={ITEM_LABELS[item.name]}
+			/>
+		{:else}
+			<ChoiceSetting
+				path={['starting_state', 'equipment', item.name]}
+				label={ITEM_LABELS[item.name]}
+				options={tiers}
+				display="dropdown"
+			/>
+		{/if}
+	{/each}
+{/snippet}
+
 <SectionCard
 	id="starting_state"
 	title="Starting state"
@@ -132,35 +110,25 @@
 	collapsed
 	scope={startingStateScope}
 >
+	<!-- Grouped and ordered like the item pool below. -->
 	<Group heading="Equipment" layout="grid">
-		{#each startingUniqueItems as item (item.name)}
-			<ToggleSetting
-				path={['starting_state', 'equipment', item.name]}
-				label={ITEM_LABELS[item.name] ?? item.name}
-			/>
-		{/each}
-		{#each startingEquipmentChoices as choice (choice.id)}
-			<ChoiceSetting
-				path={['starting_state', 'equipment', choice.id]}
-				label={ITEM_LABELS[choice.id] ?? choice.id}
-				options={choice.options}
-				display="dropdown"
-			/>
-		{/each}
-		<CountSetting
-			path={['starting_state', 'equipment', 'bottles']}
-			label="Empty bottles"
-			min={0}
-			max={4}
-		/>
+		{@render equipmentSettings('equipment')}
+	</Group>
+	<Group heading="Progressive equipment" layout="grid">
+		{@render equipmentSettings('progressive')}
 	</Group>
 	<Group heading="Resources" layout="grid">
+    	<CountSetting
+    		path={['starting_state', 'resources', 'heart_capacity']}
+    		label="Heart capacity"
+    		min={1}
+    		max={20}
+    	/>
 		<CountSetting
-			path={['starting_state', 'resources', 'heart_capacity']}
-			label="Heart capacity"
-			help="Whole hearts. The game begins at full health."
-			min={1}
-			max={20}
+			path={['starting_state', 'resources', 'bottles']}
+			label="Bottles"
+			min={0}
+			max={4}
 		/>
 		<CountSetting
 			path={['starting_state', 'resources', 'bomb_capacity']}
@@ -174,6 +142,8 @@
 			min={0}
 			max={99}
 		/>
+	</Group>
+	<Group heading="Consumables" layout="grid">
 		<CountSetting
 			path={['starting_state', 'resources', 'bombs']}
 			label="Bombs"
@@ -193,7 +163,7 @@
 			max={999}
 		/>
 	</Group>
-	<Group heading="Progress">
+	<Group heading="Progress" layout="grid">
 		<ToggleSetting path={['starting_state', 'flags', 'zelda_rescued']} label="Zelda rescued" />
 	</Group>
 </SectionCard>
@@ -217,7 +187,7 @@
 		<ToggleSetting
 			path={['item_pool', 'deduct_starting_items']}
 			label="Deduct starting equipment"
-			help="Remove starting equipment and bottles from the counts below. Health, capacities, ammunition, rupees, and flags do not reduce the pool."
+			help="Remove starting equipment from the counts below. Bottles, health, capacities, ammunition, rupees, and flags do not reduce the pool."
 		/>
 		<CountSetting
 			path={['item_pool', 'bomb_upgrade_size']}
@@ -240,6 +210,7 @@
 				<CountSetting
 					path={['item_pool', 'items', item.name]}
 					label={ITEM_LABELS[item.name] ?? item.name}
+					notes={deducted[item.name] ? `−${deducted[item.name]} starting` : undefined}
 					min={item.min}
 					max={ITEM_LOCATIONS}
 				/>

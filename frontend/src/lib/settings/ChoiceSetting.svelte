@@ -3,7 +3,7 @@
 	import Segmented from './controls/Segmented.svelte';
 	import Swatches from './controls/Swatches.svelte';
 	import SettingRow from './SettingRow.svelte';
-	import { getStore } from './context';
+	import { getCompact, getStore } from './context';
 	import type { Path, Value } from './tree';
 	import type { ChoiceOption } from './types';
 
@@ -25,6 +25,7 @@
 	} = $props();
 
 	const store = getStore();
+	const compact = getCompact();
 	const value = $derived(store.get(path) as string);
 	const mode = $derived(display ?? (options.length > 5 ? 'dropdown' : 'segmented'));
 	const selectedDesc = $derived(options.find((o) => o.value === value)?.desc);
@@ -39,7 +40,7 @@
 		{:else if mode === 'swatches'}
 			<Swatches {options} {value} {label} disabled={store.locked} columns={Math.min(12, options.length)} onchange={set} />
 		{:else if mode === 'dropdown'}
-			<select class="form-select form-select-sm w-auto" disabled={store.locked} {value} onchange={(e) => set(e.currentTarget.value)}>
+			<select class="form-select form-select-sm" class:w-auto={!compact} class:compact disabled={store.locked} {value} onchange={(e) => set(e.currentTarget.value)}>
 				{#each options as o (o.value)}
 					<option value={o.value}>{o.label}</option>
 				{/each}
@@ -54,6 +55,11 @@
 </SettingRow>
 
 <style>
+	/* One width for every dropdown in compact rows, so a column of them lines up. */
+	.compact {
+		width: 9.5rem;
+	}
+
 	.desc {
 		margin-top: 0.3rem;
 		font-size: 0.82rem;
