@@ -21,11 +21,16 @@ function prepareCatalogs() {
 	});
 }
 
-prepareCatalogs();
-execFileSync('wasm-pack', ['build', 'crates/browser', '--target', 'web', '--out-dir', browserPackage], {
-	cwd: repoRoot,
-	stdio: 'inherit'
-});
+// Vite loads this config several times in one process (SvelteKit's build runs a nested Vite build with it),
+// each time as a fresh module, so the process environment records that the inputs are already prepared.
+if (!process.env.Z3_FRONTEND_INPUTS_PREPARED) {
+	prepareCatalogs();
+	execFileSync('wasm-pack', ['build', 'crates/browser', '--target', 'web', '--out-dir', browserPackage], {
+		cwd: repoRoot,
+		stdio: 'inherit'
+	});
+	process.env.Z3_FRONTEND_INPUTS_PREPARED = '1';
+}
 
 /** In dev, prepare the settings data again when its sources change; the page then reloads. */
 function watchSettingsData(): Plugin {
