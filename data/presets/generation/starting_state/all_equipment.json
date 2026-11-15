@@ -35,11 +35,11 @@
     "resources": {
       "bottles": 4,
       "heart_capacity": 3,
-      "bomb_capacity": 10,
-      "arrow_capacity": 30,
-      "bombs": 0,
-      "arrows": 0,
-      "rupees": 0
+      "bomb_capacity": 50,
+      "arrow_capacity": 70,
+      "bombs": 50,
+      "arrows": 70,
+      "rupees": 999
     },
     "flags": {
       "zelda_rescued": true
