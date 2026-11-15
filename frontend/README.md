@@ -23,7 +23,7 @@ From the repository root, after building the frontend:
 cargo run --package server
 ```
 
-Open `http://127.0.0.1:8080/`. The server reads `frontend/build/` from disk, so rebuilding the frontend does not require recompiling or restarting Rust; refresh the browser to see the new build. Pages use trailing slashes and are emitted as directory indexes, such as `generate/index.html`; `/generate` redirects to `/generate/`.
+Open `http://127.0.0.1:8080/`. The server reads `frontend/build/` from disk, so rebuilding the frontend does not require recompiling or restarting Rust; refresh the browser to see the new build. Pages use trailing slashes and are emitted as directory indexes, such as `generate/index.html`; `/generate` redirects to `/generate/`. Seed pages (`/seed/<name>/`) are not prerendered; the server answers them with the `spa.html` fallback.
 
 The server accepts `--bind` and `--static-dir` (relative to the current working directory). For example, to serve a deployed build using the compiled binary:
 

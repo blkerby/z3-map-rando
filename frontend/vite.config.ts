@@ -69,7 +69,8 @@ export default defineConfig({
 			},
 
 			// Static files for the randomizer's server to host. The Generate page is client-only (see its +page.ts).
-			adapter: adapter(),
+			// Seed pages aren't prerendered; the server answers them with the `spa.html` fallback.
+			adapter: adapter({ fallback: 'spa.html' }),
 			alias: { $settings_data: settingsData, $browser: browserPackage }
 		})
 	]

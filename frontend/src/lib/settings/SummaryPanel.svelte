@@ -10,9 +10,8 @@
 		generating = false,
 		error = null,
 		seed = null,
-		shareHash = null,
 		ongenerate,
-		onnew,
+		onreuse,
 		onjump,
 		onjumpcard,
 		onsave
@@ -25,10 +24,9 @@
 		generating?: boolean;
 		error?: string | null;
 		seed?: string | null;
-		/** Hash for the share link (version.seed.settings); null until a game exists. */
-		shareHash?: string | null;
 		ongenerate: () => void;
-		onnew: () => void;
+		/** Start a new game from these settings. */
+		onreuse: () => void;
 		/** Scroll to a setting (the page also clears the search and opens its card). */
 		onjump: (path: Path) => void;
 		/** Scroll to a card. */
@@ -71,8 +69,8 @@
 	}
 
 	async function copyLink() {
-		if (!shareHash) return;
-		await navigator.clipboard.writeText(`${location.origin}${resolve('/generate')}#${shareHash}`);
+		if (!seed) return;
+		await navigator.clipboard.writeText(`${location.origin}${resolve('/seed/[name]', { name: seed })}/`);
 		copied = true;
 		setTimeout(() => (copied = false), 1500);
 	}
@@ -145,9 +143,9 @@
 					<i class="bi bi-link-45deg"></i>
 					{copied ? 'Copied!' : 'Copy game link'}
 				</button>
-				<button type="button" class="btn btn-outline-secondary btn-sm" onclick={onnew}>
+				<button type="button" class="btn btn-outline-secondary btn-sm" onclick={onreuse}>
 					<i class="bi bi-arrow-repeat"></i>
-					Generate new game
+					Use these settings for new game
 				</button>
 			{:else}
 				<button

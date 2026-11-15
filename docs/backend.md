@@ -36,6 +36,10 @@ The backend processes settings strictly: it applies migrations, resolves current
 
 Requests wait asynchronously in acquisition order for one shared generation slot. Generation, serialization, and compression run on blocking workers, and storage uploads are awaited before releasing the slot. The queue is process-local and keeps HTTP requests open; it does not survive server restart and does not supply job IDs or polling. Deployment proxy timeouts must accommodate queueing and generation.
 
-After successfully saving the seed, the server returns HTTP 201 with `{"seed":"<seed name>","notices":[]}`. No seed data is returned. Each saved seed contains its resolved generation settings, cleaned public settings document, source revision, current definitions revision, captured preset baselines, metadata, and generation results. Retrieval and customization endpoints are separate work.
+After successfully saving the seed, the server returns HTTP 201 with `{"seed":"<seed name>","notices":[]}`. No seed data is returned. Each saved seed contains its resolved generation settings, cleaned public settings document, source revision, current definitions revision, captured preset baselines, metadata, and generation results.
+
+## Seed retrieval
+
+`GET /api/seed/<seed name>` returns the saved seed JSON, or HTTP 404 if no such seed exists. The frontend's game link is `/seed/<seed name>/`; seeds are not known at build time, so the server answers that path with the frontend's SPA fallback page (`spa.html`), which loads the seed through the API.
 
 The CLI uses the same processor in strict mode by default. Pass `--recover-settings` alongside `--settings path/to/settings.json` to remove unknown entries and restore invalid submitted entries from the selected baseline, with notices. Cross-setting failures remain blocking. It shares the seed metadata helpers, but reads and writes plain `.json` seeds. Compression belongs to object storage, independently of seed serialization.

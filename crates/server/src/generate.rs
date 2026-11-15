@@ -100,3 +100,21 @@ pub async fn generate_seed(
     }
     HttpResponse::Created().json(GenerateResponse { seed, notices })
 }
+
+pub async fn get_seed(state: web::Data<GenerationState>, name: web::Path<String>) -> HttpResponse {
+    match state.store.load_object(&format!("seeds/{name}.json")).await {
+        Ok(bytes) => HttpResponse::Ok()
+            .content_type("application/json")
+            .body(bytes),
+        Err(error) => match error.downcast_ref::<object_store::Error>() {
+            Some(object_store::Error::NotFound { .. }) => {
+                HttpResponse::NotFound().json(json!({ "error": "Seed not found." }))
+            }
+            _ => {
+                eprintln!("Loading seed {name}: {error:#}");
+                HttpResponse::InternalServerError()
+                    .json(json!({ "error": "Could not load the seed." }))
+            }
+        },
+    }
+}

@@ -1,4 +1,4 @@
-use actix_files::Files;
+use actix_files::{Files, NamedFile};
 use actix_web::{App, HttpServer, web};
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -75,6 +75,15 @@ async fn main() -> Result<()> {
         App::new()
             .app_data(state.clone())
             .route("/api/generate", web::post().to(generate::generate_seed))
+            .route("/api/seed/{name}", web::get().to(generate::get_seed))
+            .route(
+                "/seed/{name}/",
+                web::get().to({
+                    // Seed pages aren't prerendered; the frontend's SPA fallback renders them.
+                    let fallback = static_dir.join("spa.html");
+                    move || NamedFile::open_async(fallback.clone())
+                }),
+            )
             .service(
                 Files::new("/", &static_dir)
                     .index_file("index.html")

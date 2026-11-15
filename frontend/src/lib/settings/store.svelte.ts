@@ -417,21 +417,6 @@ export class SettingsStore {
 		return document;
 	}
 
-	/** The current settings for a share link. */
-	serialize(): string {
-		return toBase64Url(JSON.stringify(this.captureDocument()));
-	}
-
-	/** Load a share link's settings. (Not blocked by `locked`: used to open shared games.) */
-	load(code: string): boolean {
-		try {
-			this.loadDocument(this.readDocument(JSON.parse(fromBase64Url(code))));
-			return true;
-		} catch {
-			return false;
-		}
-	}
-
 	/** The current settings and selections, for keeping a draft in this browser. */
 	serializeDraft(): string {
 		return JSON.stringify({ selected: this.selectedId, picks: this.scopePicks, document: this.capture() });
@@ -574,16 +559,4 @@ function newPresetId(): string {
 	const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
 	const bytes = crypto.getRandomValues(new Uint8Array(10));
 	return 'user-' + Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
-}
-
-export function toBase64Url(text: string): string {
-	let binary = '';
-	for (const byte of new TextEncoder().encode(text)) binary += String.fromCharCode(byte);
-	return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-export function fromBase64Url(code: string): string {
-	const b64 = code.replace(/-/g, '+').replace(/_/g, '/');
-	const binary = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4));
-	return new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(binary, (c) => c.charCodeAt(0)));
 }

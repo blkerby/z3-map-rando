@@ -8,7 +8,6 @@
 		MAX_USER_PRESETS,
 		buildExportFile,
 		cleanName,
-		encodePresetCode,
 		parseImport,
 		sameName,
 		uniqueName,
@@ -173,7 +172,7 @@
 		menuOpen = false;
 		const name = changeCount ? 'Shared settings' : store.presetName;
 		try {
-			await navigator.clipboard.writeText(encodePresetCode(kind, name, store.capture()));
+			await navigator.clipboard.writeText(buildExportFile(kind, [{ name, document: store.capture() }]));
 		} catch {
 			notice = { type: 'danger', text: "Couldn't copy to the clipboard." };
 		}

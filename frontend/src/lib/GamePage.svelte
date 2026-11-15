@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 	import { loadBrowser } from '$lib/browser';
-	import { replaceState } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import CustomizationSettings from '$lib/customization/CustomizationSettings.svelte';
 	import { customizationModel } from '$lib/customization/model';
 	import GenerationSettings from '$lib/generation/GenerationSettings.svelte';
@@ -14,9 +15,19 @@
 	import SummaryPanel from '$lib/settings/SummaryPanel.svelte';
 	import { SearchState } from '$lib/settings/search.svelte';
 	import { SettingsStore } from '$lib/settings/store.svelte';
-	import { pathKey, type Path } from '$lib/settings/tree';
+	import { pathKey, type Path, type Tree } from '$lib/settings/tree';
 	import { useRomStore } from '$lib/rom/store.svelte';
-	import { GENERATOR_VERSION, buildHash, generateGame, parseHash } from '$lib/game';
+	import { generateGame } from '$lib/game';
+
+	let {
+		seed = null,
+		settings = null
+	}: {
+		/** The generated game to show (settings locked), or null to configure a new one. */
+		seed?: string | null;
+		/** The game's public settings document, as saved with the seed. */
+		settings?: Tree | null;
+	} = $props();
 
 	const rom = useRomStore();
 
@@ -45,44 +56,26 @@
 		return problems;
 	});
 
-	// ---- Phases -------------------------------------------------------------
-	// configure: no game yet, settings are editable, Generate section is open.
-	// generated: a game exists (seed + settings), settings are locked, Customization is open.
-	type Phase = 'configure' | 'generated';
+	// ---- Modes --------------------------------------------------------------
+	// /generate: no game yet, settings are editable, Generate section is open.
+	// /seed/<name>: a game exists, its settings are locked, Customization is open.
 	type Section = 'generate' | 'customization';
 
-	let phase = $state<Phase>('configure');
-	let seed = $state<string | null>(null);
-	let gameVersion = $state(GENERATOR_VERSION);
+	const generated = $derived(seed !== null);
 	let generating = $state(false);
 	let error = $state<string | null>(null);
-	let generationNotices = $state<string[]>([]);
-	let linkError = $state<string | null>(null);
+	/** Passed along by `generate` when it navigates to the seed, so they show only right after generating. */
+	const generationNotices = $derived(page.state.notices ?? []);
 	let ready = $state(false);
 
-	let generateOpen = $state(true);
-	let customizationOpen = $state(false);
-
-	const generated = $derived(phase === 'generated');
-	const versionNote = $derived(
-		generated && gameVersion !== GENERATOR_VERSION
-			? `This game was made with generator ${gameVersion}, but this site is running ${GENERATOR_VERSION}. The map may not match.`
-			: null
-	);
-	const shareHash = $derived(generated && seed ? buildHash({ version: gameVersion, seed, settings: store.serialize() }) : null);
-
-	function enterGenerated(newSeed: string, version: string) {
-		seed = newSeed;
-		gameVersion = version;
-		store.locked = true;
-		phase = 'generated';
-		generateOpen = false;
-		customizationOpen = true;
-	}
+	// svelte-ignore state_referenced_locally
+	let generateOpen = $state(!generated);
+	// svelte-ignore state_referenced_locally
+	let customizationOpen = $state(generated);
 
 	// ---- Storage ------------------------------------------------------------
-	// The URL hash is NOT written while editing. It only exists once a game does,
-	// so "has a hash" reliably means "this is a generated game".
+	// The draft holds the /generate settings. It is kept after generating, so returning to
+	// /generate continues from the settings last used there.
 	const DRAFT_KEY = 'alttp-maprando:draft';
 	const PRESETS_KEY = 'alttp-maprando:presets:settings';
 	// Customization is personal: saved in this browser only, never part of the game link, never locked.
@@ -98,22 +91,17 @@
 		}
 	}
 
-	function clearDraft() {
+	function saveDraft() {
 		try {
-			sessionStorage.removeItem(DRAFT_KEY);
+			sessionStorage.setItem(DRAFT_KEY, store.serializeDraft());
 		} catch {
 			/* ignore */
 		}
 	}
 
 	$effect(() => {
-		const draft = store.serializeDraft(); // tracked: re-runs on any change
-		if (!ready || phase !== 'configure') return;
-		try {
-			sessionStorage.setItem(DRAFT_KEY, draft);
-		} catch {
-			/* ignore */
-		}
+		store.serializeDraft(); // tracked: re-runs on any change
+		if (ready && !generated) saveDraft();
 	});
 
 	$effect(() => {
@@ -150,14 +138,9 @@
 		} catch {
 			/* storage unavailable: start from defaults */
 		}
-		if (location.hash.length > 1) {
-			const link = parseHash(location.hash);
-			if (link && store.load(link.settings)) {
-				enterGenerated(link.seed, link.version);
-			} else {
-				linkError = "That game link couldn't be read, so it was ignored.";
-				loadDraft();
-			}
+		if (settings) {
+			store.loadDocument(store.readDocument(settings));
+			store.locked = true;
 		} else {
 			loadDraft();
 		}
@@ -170,21 +153,13 @@
 		if (problems.length) return; // the button is disabled too; this covers any other caller
 		// ROM first: nothing is requested from the server until the player has a valid ROM loaded.
 		if (!(await rom.require())) return;
-		if (generating || generated) return; // state may have changed while the dialog was open
+		if (generating) return; // state may have changed while the dialog was open
 		generating = true;
 		error = null;
-		linkError = null;
-		generationNotices = [];
 		store.locked = true; // freeze the settings while the server works
 		try {
 			const result = await generateGame(store.captureDocument());
-			generationNotices = result.notices;
-			enterGenerated(result.seed, GENERATOR_VERSION);
-			const hash = buildHash({ version: GENERATOR_VERSION, seed: result.seed, settings: store.serialize() });
-			replaceState(resolve(`/generate#${hash}`), {});
-			clearDraft();
-			await tick();
-			window.scrollTo({ top: 0, behavior: 'smooth' });
+			await goto(resolve('/seed/[name]', { name: result.seed }), { state: { notices: result.notices } });
 		} catch (e) {
 			store.locked = false;
 			error = e instanceof Error ? e.message : 'Something went wrong generating the game. Please try again.';
@@ -193,18 +168,10 @@
 		}
 	}
 
-	// Settings stay as they were, so the player can tweak them and generate again.
-	function newGame() {
-		generationNotices = [];
-		seed = null;
-		error = null;
-		linkError = null;
-		store.locked = false;
-		phase = 'configure';
-		generateOpen = true;
-		customizationOpen = false;
-		replaceState(resolve('/generate'), {});
-		window.scrollTo({ top: 0, behavior: 'smooth' });
+	/** Make this game's settings the /generate draft, so the player can tweak them and generate again. */
+	function useSettingsForNewGame() {
+		saveDraft();
+		goto(resolve('/generate'));
 	}
 
 	// ---- Search (covers both sections) --------------------------------------
@@ -228,7 +195,7 @@
 		else customizationOpen = true;
 	}
 
-	// Buttons instead of #anchors, so the URL hash keeps holding the game link.
+	// Buttons instead of #anchors, so the URL stays a clean game link.
 	async function goTo(section: Section, elementId: string) {
 		openSection(section);
 		activeId = elementId;
@@ -282,15 +249,6 @@
 			{#each generationNotices as notice}
 				<div>{notice}</div>
 			{/each}
-		</div>
-	{/if}
-	{#if linkError}
-		<div class="alert alert-warning small py-2 px-3" role="alert">{linkError}</div>
-	{/if}
-	{#if versionNote}
-		<div class="alert alert-warning small py-2 px-3" role="alert">
-			<i class="bi bi-exclamation-triangle"></i>
-			{versionNote}
 		</div>
 	{/if}
 
@@ -374,9 +332,8 @@
 				{generating}
 				{error}
 				{seed}
-				{shareHash}
 				ongenerate={generate}
-				onnew={newGame}
+				onreuse={useSettingsForNewGame}
 				onjump={(path) => jumpToSetting(store, 'generate', path)}
 				onsave={() => settingsPresets?.save()}
 				onjumpcard={(id) => jumpToCard(store, 'generate', id)}
@@ -385,7 +342,6 @@
 				store={custom}
 				{generated}
 				{seed}
-				version={gameVersion}
 				onjump={(path) => jumpToSetting(custom, 'customization', path)}
 				onsave={() => customPresets?.save()}
 			/>

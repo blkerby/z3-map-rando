@@ -8,7 +8,6 @@
 		store,
 		generated = false,
 		seed = null,
-		version = '',
 		onjump,
 		onsave
 	}: {
@@ -16,7 +15,6 @@
 		/** True once a game exists, which is when there is a ROM to download. */
 		generated?: boolean;
 		seed?: string | null;
-		version?: string;
 		/** Scroll to a setting (the page also clears the search and opens its card). */
 		onjump: (path: Path) => void;
 		/** Save the customization as a preset (see PresetManager's `save`). */
@@ -36,7 +34,7 @@
 		downloading = true;
 		romError = null;
 		try {
-			await downloadRom({ seed, version, customization: $state.snapshot(store.values) });
+			await downloadRom({ seed, customization: $state.snapshot(store.values) });
 		} catch (e) {
 			romError = e instanceof Error ? e.message : 'Could not download the ROM.';
 		} finally {

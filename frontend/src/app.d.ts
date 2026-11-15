@@ -5,7 +5,10 @@ declare global {
 		// interface Error {}
 		// interface Locals {}
 		// interface PageData {}
-		// interface PageState {}
+		interface PageState {
+			/** Generation notices, passed from /generate to the new seed's page. */
+			notices?: string[];
+		}
 		// interface Platform {}
 	}
 }
