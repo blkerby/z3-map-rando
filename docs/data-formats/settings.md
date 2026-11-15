@@ -2,6 +2,8 @@
 
 Status: draft. A settings document organizes values and preset selections hierarchically by scope. Drafts, saved user presets, files, share links, and generated seeds use this format. Its source revision identifies the shared setting definitions and preset data used by the corresponding build (see [shared settings data](settings-data.md)).
 
+During pre-release development, backward compatibility is not required: settings, presets, share links, and saved seeds may change without migrations. The compatibility and migration requirements below describe intended post-release behavior.
+
 ## Live and pinned settings
 
 Every settings document uses the same format but is used in one of two modes:

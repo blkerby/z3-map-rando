@@ -1,6 +1,6 @@
 # Seed data
 
-Status: draft, partially written. A seed record is everything stored for a generated seed. Seed records from every deployment, including dev-site builds, must remain viewable and playable indefinitely.
+Status: draft, partially written. A seed record is everything stored for a generated seed. During pre-release development, backward compatibility is not required: seed formats may change without migrations, and existing prototype seeds may become unreadable or unplayable. The long-term compatibility requirements below describe intended post-release behavior.
 
 ## Contents
 
