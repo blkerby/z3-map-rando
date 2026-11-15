@@ -122,6 +122,12 @@ pub fn patch_rom(
             }
         }
     };
+    // Permanent ownership for ALTTPR-compatible autotrackers, independent of ammunition.
+    inventory[0x4e] = match equipment.bow {
+        StartingBow::None => 0,
+        StartingBow::Bow => 0x80,
+        StartingBow::Silver => 0xc0,
+    };
     match equipment.boomerang {
         StartingBoomerang::None => {}
         StartingBoomerang::Blue => inventory[0x4c] |= 0x80,

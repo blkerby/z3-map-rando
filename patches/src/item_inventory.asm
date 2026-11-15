@@ -1,9 +1,9 @@
-; Track shared-slot ownership independently of the pause-menu implementation.
+; Track item ownership independently of the pause-menu selection and ammunition.
 lorom
 incsrc "symbols.inc"
 
-!free_space_bank_a0_start = $A0F060
-!free_space_bank_a0_end = $A0F100
+!free_space_bank_a0_start = $A09900
+!free_space_bank_a0_end = $A09A00
 
 org $898635
 hook_receive_inventory_item:
@@ -68,6 +68,20 @@ GrantTrackedInventoryItem:
     ORA.l !InventoryTracking
     STA.l !InventoryTracking
 .grant
+    CPY.b #$0B
+    BEQ .bow
+    CPY.b #$3A
+    BEQ .bow
+    CPY.b #$3B
+    BNE .write
+    LDA.b #$C0
+    BRA .track_bow
+.bow
+    LDA.b #$80
+.track_bow
+    ORA.l !BowTracking
+    STA.l !BowTracking
+.write
     ; Run hi-jacked instructions:
     LDA.w !ItemReceiptValues,Y
     BMI .done

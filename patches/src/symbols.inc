@@ -11,6 +11,9 @@ endmacro
 ; $08 past mushroom, $04 shovel, $02 inactive ocarina, $01 active ocarina.
 !InventoryTracking = $7EF38C
 
+; ALTTPR-compatible saved bow ownership: $80 bow, $40 Silver Arrows.
+!BowTracking = $7EF38E
+
 ; World of the loaded overworld sprite set, retained until its replacement.
 !OverworldSpriteWorld = $7FF18B
 
