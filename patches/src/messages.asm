@@ -98,6 +98,7 @@ CustomMessages:
     dw MessageFairyGlovesOffer, MessageFairyGlovesMissing, MessageFairyGlovesUpgrade, MessageFairyGlovesReturn
     dw MessageFairyBombsOffer, MessageFairyBombsMissing, MessageFairyBombsUpgrade, MessageFairyBombsReturn
     dw MessageFairyArrowsOffer, MessageFairyArrowsMissing, MessageFairyArrowsUpgrade, MessageFairyArrowsReturn
+    dw MessageFairyClosed
 
 ; Start-menu labels substitute the saved player name in the house option.
 macro spawn_message_house()
@@ -142,6 +143,10 @@ MessageLakeHyliaFairyNoBottle:
     db "COME BACK WHEN", !Row2
     db "YOU HAVE AN", !Row3
     db "EMPTY BOTTLE.", !End
+
+MessageFairyClosed:
+    db "SORRY WE", $D8, "RE", !Row2
+    db "CLOSED", !End
 
 ; Waterfall and Pyramid fairy messages for each item class: the offer, the
 ; missing prerequisite, and the reply after the item is thrown.

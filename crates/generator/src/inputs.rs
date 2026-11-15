@@ -33,6 +33,7 @@ pub struct GenerationInputs {
     pub ordinary_locations: Vec<ItemLocationIndex>,
     /// Great Fairy upgrade locations, filled from the ordinary pool before other locations.
     pub fairy_locations: Vec<ItemLocationIndex>,
+    /// Ordinary pickups, padded with Nothing to fill the available locations.
     pub ordinary_pool: Vec<Item>,
     /// Vanilla Big Keys. Small Keys are assigned later.
     pub fixed_items: BTreeMap<ItemLocationIndex, Item>,
@@ -163,9 +164,9 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
     for &count in settings.item_pool.values() {
         pool_count += u64::from(count);
     }
-    if pool_count != u64::from(ordinary_location_count) {
+    if pool_count > u64::from(ordinary_location_count) {
         return Err(InvalidSettings(format!(
-            "item pool contains {pool_count} items, but {ordinary_location_count} ordinary locations are required"
+            "item pool contains {pool_count} items, but only {ordinary_location_count} ordinary locations are available"
         )).into());
     }
     for (&item, &count) in &settings.item_pool {
@@ -192,6 +193,9 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         for _ in 0..count {
             inputs.ordinary_pool.push(item);
         }
+    }
+    for _ in pool_count..u64::from(ordinary_location_count) {
+        inputs.ordinary_pool.push(Item::Nothing);
     }
 
     let mut tech_indices = BTreeMap::new();

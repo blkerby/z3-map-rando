@@ -53,7 +53,11 @@ return_upload_pickup_before_oam:
 
 org $85EE78
 hook_draw_mushroom_item:
-    JSL DrawMushroomItem
+    JML DrawMushroomItem
+org $85EE7C
+return_update_mushroom_item:
+org $85EEA5
+return_remove_mushroom_item:
 org $85EF79
 hook_draw_heart_container_item:
     JSL DrawHeartContainerItem
@@ -71,6 +75,8 @@ hook_draw_water_item:
 org $85F67B
 hook_draw_powder_item:
     JML DrawPowderItem
+org $85F68D
+return_draw_powder_item:
 
 ; The Grove carrier already uses the shared item image and one 16x16 OBJ.
 org $88D045
@@ -484,23 +490,54 @@ DrawSharedPickup:
     JSR WritePickupBody
     RTL
 
-macro draw_item(name, item)
-Draw<name>Item:
-    JSL $86DBF8
+DrawMushroomItem:
+    LDA.l !MushroomItem
+    CMP.b #!NothingReceipt
+    BNE .draw
+    STZ.w $0DD0,X
+    JML return_remove_mushroom_item
+.draw
+    JSL $86DBF8 ; Run hi-jacked instruction
     LDY.b #$01
     LDA.b ($90),Y
     CMP.b #$F0
     BEQ .done
-    LDA.l <item>
+    LDA.l !MushroomItem
+    JSL DrawSharedPickup
+.done
+    JML return_update_mushroom_item
+
+DrawBookItem:
+    LDA.l !BookItem
+    CMP.b #!NothingReceipt
+    BNE .draw
+    STZ.w $0DD0,X
+    RTL
+.draw
+    JSL $86DBF8 ; Run hi-jacked instruction
+    LDY.b #$01
+    LDA.b ($90),Y
+    CMP.b #$F0
+    BEQ .done
+    LDA.l !BookItem
     JSL DrawSharedPickup
 .done
     RTL
-endmacro
-%draw_item(Mushroom, !MushroomItem)
-%draw_item(Book, !BookItem)
 
 DrawHeartContainerItem:
-    JSL $86DBF8
+    JSL ReadHeartItem
+    CMP.b #!NothingReceipt
+    BNE .draw
+    STZ.w $0DD0,X
+    LDA.w $0D90,X
+    BEQ .done
+    ; Boss prizes wait for the heart reward's completion flag.
+    LDA.w $0403
+    ORA.b #$80
+    STA.w $0403
+    RTL
+.draw
+    JSL $86DBF8 ; Run hi-jacked instruction
     LDY.b #$01
     LDA.b ($90),Y
     CMP.b #$F0
@@ -511,7 +548,13 @@ DrawHeartContainerItem:
     RTL
 
 DrawHeartPieceItem:
-    JSL $86DBF8
+    JSL ReadHeartItem
+    CMP.b #!NothingReceipt
+    BNE .draw
+    STZ.w $0DD0,X
+    RTL
+.draw
+    JSL $86DBF8 ; Run hi-jacked instruction
     LDY.b #$01
     LDA.b ($90),Y
     CMP.b #$F0
@@ -539,11 +582,6 @@ DrawHeartPieceItem:
     RTL
 
 DrawWaterItem:
-    JSL $86DBF8
-    LDY.b #$01
-    LDA.b ($90),Y
-    CMP.b #$F0
-    BEQ .done
     LDA.w $0D90,X
     CMP.b #$1E
     BNE .catfish
@@ -552,11 +590,32 @@ DrawWaterItem:
 .catfish
     LDA.l !CatfishItem
 .draw
+    CMP.b #!NothingReceipt
+    BNE .show_item
+    STZ.w $0DD0,X
+    JSL GrantWaterGift
+    RTL
+.show_item
+    PHA
+    JSL $86DBF8 ; Run hi-jacked instruction
+    LDY.b #$01
+    LDA.b ($90),Y
+    CMP.b #$F0
+    BEQ .offscreen
+    PLA
     JSL DrawSharedPickup
-.done
+    RTL
+.offscreen
+    PLA
     RTL
 
 DrawPowderItem:
+    LDA.l !PowderItem
+    CMP.b #!NothingReceipt
+    BNE .draw
+    STZ.w $0DD0,X
+    JML return_draw_powder_item
+.draw
     JSL DrawPickupWithoutShadow
     LDY.b #$01
     LDA.b ($90),Y
@@ -565,7 +624,7 @@ DrawPowderItem:
     LDA.l !PowderItem
     JSL DrawSharedPickup
 .done
-    JML $85F68D
+    JML return_draw_powder_item
 
 ; Powder's custom drawer has no shadow. Temporarily suppress the generic drawer's
 ; shadow to preserve its body coordinates and OAM allocation. Restore sprite flags.

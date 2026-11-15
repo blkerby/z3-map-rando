@@ -41,6 +41,9 @@ BombCapacityUpgradeGraphics:
     incsrc "bomb_capacity_upgrade_graphics.inc"
 ArrowCapacityUpgradeGraphics:
     incsrc "arrow_capacity_upgrade_graphics.inc"
+NothingGraphics:
+    fillbyte $00
+    fill $80
 assert pc() <= !free_space_bank_b1_end
 
 org ItemReceiptOffsetsY+$4E
@@ -94,6 +97,23 @@ org ItemReceiptDestinations+($53*2)
 org ItemReceiptValues+$53
     db $FF
 org ItemReceiptMessages+($53*2)
+    dw $FFFF
+
+org ItemReceiptOffsetsY+!NothingReceipt
+    db $FC
+org ItemReceiptOffsetsX+!NothingReceipt
+    db $00
+org ItemReceiptGraphics+!NothingReceipt
+    db $3C
+org ItemReceiptWidths+!NothingReceipt
+    db $02
+org ItemReceiptPalettes+!NothingReceipt
+    db $00
+org ItemReceiptDestinations+(!NothingReceipt*2)
+    dw $F300
+org ItemReceiptValues+!NothingReceipt
+    db $FF
+org ItemReceiptMessages+(!NothingReceipt*2)
     dw $FFFF
 
 ; Fairy and golden bee refills of an empty bottle, granted by the Lake Hylia

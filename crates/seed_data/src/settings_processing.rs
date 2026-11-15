@@ -342,10 +342,10 @@ impl SettingsContext {
                     for &quantity in settings.item_pool.values() {
                         count += u64::from(quantity);
                     }
-                    if count != u64::from(self.ordinary_item_count) {
+                    if count > u64::from(self.ordinary_item_count) {
                         report.errors.push(SettingsIssue {
                             path: vec!["item_pool".to_owned()],
-                            message: format!("item pool contains {count} items, but {} ordinary locations are required", self.ordinary_item_count),
+                            message: format!("item pool contains {count} items, but only {} ordinary locations are available", self.ordinary_item_count),
                             replacement: None,
                         });
                     }

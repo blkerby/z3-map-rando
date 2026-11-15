@@ -88,7 +88,7 @@ Settings are organized hierarchically by semantic scope. Root scope is the setti
 
 Shared semantics include defaults, option tokens, upstream proficiency tiers, and preset baselines. Values are booleans, integers, or option tokens. A setting needing fractional precision uses an integer with a fixed scale, so equality and tweak comparisons behave consistently in Rust and JavaScript.
 
-The backend validates generation inputs authoritatively in strict mode. The shared processing report includes the exact item-pool total check against the prepared ordinary-location count; this remains blocking even when recovery is enabled. The generator also independently checks the total against its logic catalog. The frontend will use the same processor through WASM for loading and feedback. Displaying a historical seed does not adjust its values to satisfy current generation constraints.
+The backend validates generation inputs authoritatively in strict mode. The shared processing report rejects item-pool totals exceeding the prepared ordinary-location count, including when recovery is enabled. The generator independently checks the same upper bound against its logic catalog and pads any unused ordinary locations with internal `Nothing` placements. The frontend will use the same processor through WASM for loading and feedback. Displaying a historical seed does not adjust its values to satisfy current generation constraints.
 
 ## Revisions and persisted settings
 

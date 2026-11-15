@@ -125,9 +125,11 @@ The builder packages the typed manifest alongside the assembled IPS bytes. The s
 
 ### Item receipts and graphics
 
-The unified item receipt tables reserve 256 entries per property in bank `$B1`, starting at the exported `ItemReceiptTables` address `$B1A000`. The patcher copies the eight vanilla table prefixes from the verified input ROM, and ASM writes the Half Magic (`$4E`), capacity upgrade (`$51`, `$53`), and bottle refill (`$B8`, `$B9`) entries. The initializer uses the receipt-table bank and reads mirrors of the vanilla dungeon-mask and bottle lookup data at matching bank-local offsets. Other constructors and receipt animation use their native data banks and access the expanded tables through long addresses.
+The unified item receipt tables reserve 256 entries per property in bank `$B1`, starting at the exported `ItemReceiptTables` address `$B1A000`. The patcher copies the eight vanilla table prefixes from the verified input ROM, and ASM writes the Half Magic (`$4E`), capacity upgrade (`$51`, `$53`), bottle refill (`$B8`, `$B9`), and Nothing (`$5A`) entries. The initializer uses the receipt-table bank and reads mirrors of the vanilla dungeon-mask and bottle lookup data at matching bank-local offsets. Other constructors and receipt animation use their native data banks and access the expanded tables through long addresses.
 
-Item graphics use a fixed 128-byte 4bpp ROM array at the exported `ItemGraphics` address `$B1AA00`, indexed by graphics ID. The patcher converts vanilla graphics IDs `$00-$38` from the input ROM, and ASM supplies custom artwork: Half Magic at `$39`, and bomb and arrow capacity upgrades at `$3A` and `$3B`. Both native item-loading entry points use the shared array loader, including animated rupee frames.
+Item graphics use a fixed 128-byte 4bpp ROM array at the exported `ItemGraphics` address `$B1AA00`, indexed by graphics ID. The patcher converts vanilla graphics IDs `$00-$38` from the input ROM, and ASM supplies custom artwork: Half Magic at `$39`, and bomb and arrow capacity upgrades at `$3A` and `$3B`, followed by transparent Nothing graphics at `$3C`. Both native item-loading entry points use the shared array loader, including animated rupee frames.
+
+`Item::Nothing` encodes an empty ordinary location as receipt `$5A`, which chests accept. The shared grant hook returns without granting inventory or starting an item-receipt pose. Freestanding carriers suppress empty rewards; boss-heart suppression also sets the completion flag needed to release the dungeon prize. Empty Zora/Catfish gifts record their collection flags, and empty Grove/tablet rewards retain their source event flags.
 
 ### Ammo capacity
 
@@ -137,7 +139,7 @@ Item graphics use a fixed 128-byte 4bpp ROM array at the exported `ItemGraphics`
 
 `messages.asm` owns the message parser hook. It replaces the vanilla start-menu messages with destination-dependent English text, and resolves message IDs from `$0200` to custom English text in the native uppercase font, 14 characters per row. Its code and text are in bank `$AA`. Choices use the vanilla arrow messages, so choice text starts in column 4.
 
-`fairy_ponds.asm` replaces the Lake Hylia fairy's states with a free bottle exchange (see [fairies.md](fairies.md)). Its refill receipts `$B8` (fairy) and `$B9` (golden bee) fill the first empty bottle through the vanilla refill loop, which reads a relocated list including the golden bee. The Waterfall and Pyramid fairies each grant the upgrade placed in `FairyItems` once, recording it in `!EventFlags` bits `$08` and `$10`; the patcher writes their placed receipts like other item locations.
+`fairy_ponds.asm` replaces the Lake Hylia fairy's states with a free bottle exchange (see [fairies.md](fairies.md)). Its refill receipts `$B8` (fairy) and `$B9` (golden bee) fill the first empty bottle through the vanilla refill loop, which reads a relocated list including the golden bee. The Waterfall and Pyramid fairies each grant the upgrade placed in `FairyItems` once, recording it in `!EventFlags` bits `$08` and `$10`; the patcher writes their placed receipts like other item locations. Receipt `$5A` selects the closed message `$0223` and ends the interaction immediately.
 
 The progressive bow receipt `$64`, matching ALTTPR, resolves to the Bow (`$0B`) or, with any bow owned, to the silver bow (`$3B`).
 

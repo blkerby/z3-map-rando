@@ -92,4 +92,7 @@ pub enum Item {
 
     // Goal items
     Triforce,
+
+    /// A finalized empty location; grants no inventory.
+    Nothing,
 }

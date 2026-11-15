@@ -1,6 +1,6 @@
 use crate::z3_json_data::{self, collect_source_files, read_source};
 use anyhow::{Context, Result, bail};
-use common_types::FAIRY_UPGRADE_LOCATIONS;
+use common_types::{FAIRY_UPGRADE_LOCATIONS, Item};
 use patch_catalog::{
     Ips, ItemEncoding, ItemLocation, ItemLocationId, PatchCatalog, PatchIps, PatchSymbols,
     SourceRoomId,
@@ -206,6 +206,13 @@ pub(crate) fn package_catalog(
             None => small_key = Some(encoding),
         }
     }
+    items.insert(
+        Item::Nothing,
+        ItemEncoding {
+            receipt_id: 0x5a,
+            prize_patch_bytes: None,
+        },
+    );
     let catalog = PatchCatalog {
         patches: built.patches,
         symbols: built.symbols,

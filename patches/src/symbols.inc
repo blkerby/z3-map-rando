@@ -160,6 +160,10 @@ endmacro
 ; Waterfall and Pyramid fairy messages are numbered 4 * class + kind from here,
 ; with kinds 0 offer, 1 missing prerequisite, 2 upgrade, and 3 return.
 !FirstFairyMessage = $0203
+!MessageFairyClosed = $0223
+
+; Finalized empty locations use a receipt below $80 so chests can open.
+!NothingReceipt = $5A
 
 ; Saved spawn unlocks: bit 0 is Sanctuary entered; bit 1 is Light World mountain reached.
 !SpawnVisitFlags = $7EF3D6

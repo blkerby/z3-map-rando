@@ -17,7 +17,7 @@ pub struct SeedData {
     /// Public document and captured baselines explaining the authoritative resolved settings.
     pub settings_source: SettingsSource,
     pub world_layout: WorldLayout,
-    /// Final placements of all pickups, including maps, compasses, keys, prizes, and Great Fairy upgrades.
+    /// Final placements of all locations, including empty slots, dungeon items, prizes, and Great Fairy upgrades.
     pub item_placements: Vec<ItemPlacement>,
 }
 
@@ -45,7 +45,7 @@ pub struct SeedMetadata {
 pub struct ItemPlacement {
     /// Permanent authored identity, independent of catalog ordering.
     pub item_location_id: ItemLocationId,
-    /// Logical item identity, including the assigned door for a Small Key.
+    /// Logical item identity, Nothing for an empty slot, or the assigned door for a Small Key.
     pub item: Item,
 }
 

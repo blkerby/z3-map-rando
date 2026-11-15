@@ -8,6 +8,8 @@ Swords, shields, gloves, mail, boomerangs, and bows upgrade one level per pickup
 
 Small and Big Keys remain at vanilla key locations. Keys still use vanilla ROM behavior, which differs from the logical model's door-specific Small Keys. The bow is progressive: the first pickup grants the Bow and the second the Silver Arrows. The Waterfall of Wishing and Pyramid fairies each offer one upgrade of a boomerang, mail, shield, sword, bow, gloves, bombs, or arrows: throw in that item, and she returns something better once, if it is not already at its highest level. Equipment receipt messages retain vanilla text pending replacement.
 
+Item pools may contain fewer pickups than the available ordinary locations; the remaining slots are empty. Empty chests open without granting an item, NPC rewards retain their collection state, and empty freestanding pickups are suppressed. Empty boss-heart rewards still release the dungeon prize. Waterfall and Pyramid fairies with empty rewards say “Sorry we're closed” and end the interaction without summoning a fairy or throwing an item.
+
 ## Saving and restarting
 
 Save-and-quit and outdoor/cave deaths lose every follower and retain the current world regardless of Agahnim progress. Light World restarts offer Link's House, Sanctuary after entering it, and Mountain Cave after reaching Light World Death Mountain. Dark World restarts offer the Pyramid, plus Link's House when the Mirror is missing.

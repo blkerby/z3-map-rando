@@ -141,6 +141,14 @@ hook_receive_grove_item:
 org $88CB6A
 hook_receive_milestone_item:
     JSL GrantMilestoneItem
+org $88CAB0
+hook_run_milestone_item:
+    JML RunMilestoneItem
+    NOP #2
+org $88CAB6
+return_check_milestone_item:
+org $88CAF5
+return_remove_milestone_item:
 org $81C715
 hook_check_dungeon_prize:
     JSL ReadDungeonPrizeType
@@ -477,6 +485,14 @@ ChooseBossItem:
     db $00,$00,$00,$01,$00,$04,$03,$08,$05,$07,$02,$06,$09
 
 SpawnGroveItem:
+    LDA.l !GroveItem
+    CMP.b #!NothingReceipt
+    BNE .check_collected
+    LDA.l $7EF2AA
+    ORA.b #$40
+    STA.l $7EF2AA
+    RTL
+.check_collected
     LDA.l $7EF2AA
     AND.b #$40
     BNE .collected
@@ -517,6 +533,39 @@ GrantMilestoneItem:
     STZ.w $02E9
 .dungeon_prize
     JML $87999D
+
+; Outdoor tablets keep their native cutscenes but remove an empty falling reward.
+; Entry is A8/X8/Y8, DB=$08. Preserve X/Y/DB and scratch RAM.
+RunMilestoneItem:
+    LDA.b $1B
+    BNE .native
+    LDA.w $0C5E,X
+    CMP.b #$10
+    BEQ .ether
+    CMP.b #$0F
+    BNE .native
+    LDA.l !BombosItem
+    CMP.b #!NothingReceipt
+    BNE .native
+    LDA.l !EventFlags
+    ORA.b #$40
+    BRA .remove
+.ether
+    LDA.l !EtherItem
+    CMP.b #!NothingReceipt
+    BNE .native
+    LDA.l !EventFlags
+    ORA.b #$20
+.remove
+    STA.l !EventFlags
+    STZ.w $0C4A,X
+    JML return_remove_milestone_item
+.native
+    ; Run hi-jacked instructions:
+    LDA.w $0C5E,X
+    CMP.w $CAA9
+
+    JML return_check_milestone_item
 
 ReadDungeonPrizeType:
     LDA.l !DungeonPrizeTypes,X
@@ -634,6 +683,12 @@ CrystalMessageIds:
     db $35,$30,$34,$36,$31,$33,$32
 
 GrantAssignedItem:
+    CPY.b #!NothingReceipt
+    BNE .grant
+    STZ.w $02E9
+    CLC
+    RTL
+.grant
     TYA
     JSL ResolveProgressiveItem
     TAY

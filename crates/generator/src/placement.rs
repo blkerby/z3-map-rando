@@ -152,8 +152,8 @@ impl PlacementState {
     }
 
     /// Fill collectible Great Fairy slots with pool items she can grant, given the
-    /// committed inventory; return the number filled. A slot without an eligible
-    /// item waits for a later wave.
+    /// committed inventory, or Nothing; return the number filled. A slot without
+    /// an eligible item waits for a later wave.
     fn place_fairy_items(&mut self, inputs: &GenerationInputs, rng: &mut impl Rng) -> usize {
         let mut count = 0;
         for &location_idx in &inputs.fairy_locations {
@@ -163,7 +163,7 @@ impl PlacementState {
             }
             let mut eligible = Vec::new();
             for (pool_index, &item) in self.ordinary_pool.iter().enumerate() {
-                if self.global.can_upgrade_at_fairy(item) {
+                if item == Item::Nothing || self.global.can_upgrade_at_fairy(item) {
                     eligible.push(pool_index);
                 }
             }
@@ -214,11 +214,12 @@ impl PlacementState {
     }
 }
 
-/// Check whether an item belongs to a Great Fairy item class, regardless of inventory.
+/// Check whether a fairy can hold an upgrade or an empty reward, regardless of inventory.
 fn check_fairy_item(item: Item) -> bool {
     matches!(
         item,
-        Item::Boomerang
+        Item::Nothing
+            | Item::Boomerang
             | Item::Mail
             | Item::Shield
             | Item::Sword

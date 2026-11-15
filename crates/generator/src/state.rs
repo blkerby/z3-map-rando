@@ -301,7 +301,8 @@ impl GlobalState {
             | Item::OneHundredRupees
             | Item::ThreeHundredRupees
             | Item::Map
-            | Item::Compass => None,
+            | Item::Compass
+            | Item::Nothing => None,
         };
         self.update_usable_capacities();
         match dependency {

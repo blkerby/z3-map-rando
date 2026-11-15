@@ -129,7 +129,9 @@ RunUpgradeFairy:
     CMP.b #$03
     BEQ .fade_in
     CMP.b #$07
-    BNE .fade_out
+    BEQ .retreat
+    JMP .fade_out
+.retreat
     JSR StartFairyRetreat
     INC.w $0D80,X
     RTL
@@ -140,8 +142,16 @@ RunUpgradeFairy:
     BNE .exit
     JSL $87F4AA ; CheckIfLinkIsBusy
     BCS .exit
-    ; Without the item, skip the offer and ask Link to come back.
     JSR LoadFairyClass
+    CMP.b #$08
+    BNE .open
+    LDA.b #!MessageFairyClosed
+    LDY.b #!MessageFairyClosed>>8
+    JSL $85E1F0 ; ShowMessageOnContact
+    BCC .exit
+    JMP .finish
+.open
+    ; Without the prerequisite, skip the offer and ask Link to come back.
     JSR LoadFairyLevel
     BEQ .missing_item
     LDA.b #$00
@@ -312,6 +322,11 @@ LoadFairyClass:
     PHX
     TAX
     LDA.l !FairyItems,X
+    CMP.b #!NothingReceipt
+    BNE .find_class
+    LDA.b #$08
+    BRA .store_class
+.find_class
     LDX.b #$07
 .next_class
     CMP.l FairyClassReceipts,X
@@ -320,6 +335,7 @@ LoadFairyClass:
     BNE .next_class
 .found
     TXA
+.store_class
     PLX
     STA.w $0DB0,X
     RTS

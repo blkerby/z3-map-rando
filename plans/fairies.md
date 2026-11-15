@@ -23,6 +23,8 @@ Green Mail does not count as having mail. Bomb and arrow capacity are nonzero fr
 
 Implemented in `fairy_ponds.asm`, replacing the vanilla sequence (`UpgradeFairy_*` in `bank_06.asm`) without the item-selection menu or the liar branches. After Link throws the item, the fairy rises from the pond with her music, as in vanilla, and replies. She then fades away before any upgrade is granted.
 
+An empty reward says “Sorry we're closed” on contact and immediately ends the interaction, without an offer, toss, or fairy animation.
+
 1. On contact, if Link has none of the class, she says "Come back when you have <item>." and the sequence ends.
 2. Otherwise she asks "Throw <item>?" with "Yes"/"No" options, naming the fairy's class. "No" ends the sequence immediately.
 3. If the class is not maxed and her upgrade is unused, Link throws the item in, and she says "I see you dropped your <item>. I will give you something better." She then grants the placed item through a regular item receipt, so progressive receipts resolve to the next tier. Mark her upgrade as used in a saved bit.
@@ -37,10 +39,11 @@ Item 1 of the Waterfall of Wishing (room 12) and of the Pyramid Great Fairy (roo
 In each wave, the generator attempts the fairy locations first:
 
 - A fairy location can receive one of the eight class items if the fairy is reachable, an instance remains in the pool, and the minimum level required for that class was collectible in a previous step.
-- If no class is eligible, defer the location to a later wave.
-- When filling other locations, keep at least as many class items in the pool as there are unfilled fairy locations.
+- A fairy can also receive `Item::Nothing`, without an inventory prerequisite.
+- If neither an upgrade nor an empty reward is eligible, defer the location to a later wave.
+- When filling other locations, reserve an upgrade or empty reward for each unfilled fairy location.
 
-The logical requirement for collecting a fairy location is the class requirement in the table above, which placement guarantees. The z3-json-data strats themselves become free: their `h_greatFairyFreeUpgrades` helper compiles to `Free`.
+Collecting a fairy upgrade requires the class prerequisite in the table above, which placement guarantees; empty rewards require no inventory. The z3-json-data strats themselves become free: their `h_greatFairyFreeUpgrades` helper compiles to `Free`.
 
 The four formerly fixed items return to the pool: sword 4, shield 3, boomerang 2, and bow 2. Two Twenty Rupees are removed to keep the pool equal to the location count, since four fixed locations become two ordinary ones.
 
