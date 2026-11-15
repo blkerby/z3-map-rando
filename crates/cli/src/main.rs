@@ -45,6 +45,9 @@ struct Args {
     /// Settings JSON; uses the default root preset when neither --settings nor --preset is given.
     #[arg(long)]
     settings: Option<PathBuf>,
+    /// Recover invalid submitted settings using the selected preset baseline.
+    #[arg(long, requires = "settings")]
+    recover_settings: bool,
     /// Root preset ID from the preset catalog (e.g. testing).
     #[arg(long, conflicts_with_all = ["settings", "seed"])]
     preset: Option<String>,
@@ -288,7 +291,12 @@ fn load_settings(args: &Args) -> Result<ResolvedSettings> {
             "preset": id,
         })
     };
-    let report = catalog.process_settings(&document)?;
+    let mode = if args.recover_settings {
+        seed_data::SettingsMode::Recover
+    } else {
+        seed_data::SettingsMode::Strict
+    };
+    let report = catalog.process_settings(&document, mode)?;
     for notice in &report.notices {
         eprintln!("Settings: {notice}");
     }

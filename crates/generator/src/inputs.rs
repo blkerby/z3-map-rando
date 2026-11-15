@@ -99,7 +99,7 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         }
     }
 
-    let mut ordinary_location_count = 0;
+    let ordinary_location_count = catalog.count_ordinary_item_locations();
     for (index, location) in catalog.item_locations.iter().enumerate() {
         let location_idx = ItemLocationIndex(index as u32);
         let room_idx = catalog.vertex(location.vertex_idx).room_idx;
@@ -118,7 +118,6 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
             .ok_or_else(|| anyhow!("unknown item identity: {item_name}"))?;
         if FAIRY_UPGRADE_LOCATIONS.contains(&location.id) {
             inputs.fairy_locations.push(location_idx);
-            ordinary_location_count += 1;
             continue;
         }
         match item {
@@ -152,7 +151,6 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
                         dungeon.ordinary_locations.push(location_idx);
                     }
                 } else {
-                    ordinary_location_count += 1;
                     if let Some(dungeon) = dungeon {
                         dungeon.ordinary_locations.push(location_idx);
                     }
@@ -165,7 +163,7 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
     for &count in settings.item_pool.values() {
         pool_count += u64::from(count);
     }
-    if pool_count != ordinary_location_count as u64 {
+    if pool_count != u64::from(ordinary_location_count) {
         return Err(InvalidSettings(format!(
             "item pool contains {pool_count} items, but {ordinary_location_count} ordinary locations are required"
         )).into());

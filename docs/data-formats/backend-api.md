@@ -18,11 +18,11 @@ The frontend bundles [shared settings data](settings-data.md) at build time. The
 
 The current implementation is `POST /api/generate` with request `{"settings": <settings document>}`. It returns HTTP 201 with `{"seed": "<seed name>", "notices": []}` after saving the seed. Additional requests queue while one generation request is active. Seed-data retrieval is not implemented yet. See [backend setup](../backend.md) for storage and runtime configuration.
 
-The backend and CLI use `seed_data::SettingsContext::process_settings` for live documents. Its shared report retains structured paths, messages, and replacement values; the HTTP response and CLI currently render notices as strings. A blocking settings-processing error returns HTTP 422 with an `error` string and an `errors` array containing its structured finding. The generator independently rejects an item-pool total that does not match its ordinary locations; that check also returns HTTP 422.
+The backend and CLI use `seed_data::SettingsContext::process_settings` for live documents. The endpoint and CLI default to strict mode; the CLI supports opt-in recovery with `--recover-settings`. The shared report retains structured paths, messages, and replacement values; the HTTP response and CLI currently render notices as strings. A blocking settings-processing error returns HTTP 422 with an `error` string and an `errors` array containing all collected structured findings. The shared report checks the item-pool total, and the generator independently rejects a total that does not match its ordinary locations; that check also returns HTTP 422.
 
 A generation request consists mainly of a scoped settings document, including its format version, source settings data revision, preset selections, and tweaks. It preserves inheritance rather than turning every resolved value into an explicit tweak.
 
-The backend uses the ordinary live-settings path: migrate while preserving meaning, adopt current built-in presets/defaults for inherited values, validate, then generate. This also handles requests from an outdated frontend.
+The backend uses the ordinary live-settings path: migrate while preserving meaning, adopt current built-in presets/defaults for inherited values, validate strictly without recovery, then generate. This also handles requests from an outdated frontend.
 
 The response supplies the authoritative settings actually used and their frozen preset bundle, either directly or through the resulting seed's data endpoint. It also supplies migration/update notices where applicable. For example, the frontend may report: "Your settings were from an older version and were updated." The exact response fields remain open.
 

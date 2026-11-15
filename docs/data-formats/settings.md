@@ -101,7 +101,7 @@ A live settings document is processed in this order:
 1. Apply the settings format's structural migrations, from the settings document's recorded format version to the current one.
 2. Apply vocabulary rules until no retired identifiers remain.
 3. Apply the separate live-settings update: resolve preset applications against current built-ins, allowing inherited values and newly introduced settings to follow their current defaults.
-4. Validate against current setting definitions, with [lenient fallback](#lenient-loading) for what remains unreadable.
+4. Validate the complete resolved candidate against the JSON schemas and semantic rules, with optional [recovery](#lenient-loading) for what remains unreadable. Strict consumers reject invalid input.
 5. Resolve and normalize tweaks against the current selected baseline (see below).
 
 The update in step 3 preserves explicit tweaks; it does not replace their values with new defaults. Changes of value kind and identifiers have already been handled by migration. The completed result records the current interpretation separately from the source revision used as migration provenance.
@@ -116,18 +116,24 @@ This does not replay every intermediate release's defaults. Enforcing a rule tha
 
 ## Lenient loading
 
-A user's live settings document should never block generation or need to be discarded because part of it cannot be interpreted. This can happen when a dev-site change omitted a vocabulary rule, when a rule is missing by mistake, or when the settings document comes from a newer deployment, such as a dev-site share link opened on the release site. Loading a live settings document is therefore lenient:
+Recovery allows a live settings document to be loaded without discarding it when some submitted entries cannot be interpreted. This can happen when a dev-site change omitted a vocabulary rule, when a rule is missing by mistake, or when the settings document comes from a newer deployment, such as a dev-site share link opened on the release site. Loading a live settings document is therefore lenient:
 
 - **Unreadable entries revert to their baseline.** An entry with an unknown key, an invalid option token, an out-of-range value, or a reference to an unknown built-in preset is dropped. The affected setting takes the value given by the settings document's presets, not the raw setting default. An unknown preset reference falls back to its scope's default preset, or to the default root preset.
 - **Newer format versions are loaded leniently too.** A settings document from a newer format version is read with the current code's understanding, and anything that cannot be interpreted is dropped in the same way. If the settings document cannot be parsed at all, the default settings document is used.
 - **Fallback is never silent.** Loading returns the usable settings document together with a list of what was dropped or replaced, and the editor shows that list. Entries dropped by an explicit "dropped" rule are reported as removed settings rather than as unreadable input.
 - **The original is kept until the user saves.** The stored draft or preset is not overwritten by its cleaned form until the user explicitly saves. If a rule is added later, the untouched original can still be migrated properly.
-- **One load path.** The backend applies the same lenient loading to generation requests. The pinned settings document stored with the seed is the cleaned settings document actually used.
+- **One processing implementation, explicit recovery policy.** The generation endpoint is strict. The CLI is strict by default and enables recovery with `--recover-settings` alongside `--settings`. Browser loading/import will enable recovery through the shared WASM processor; that integration is pending. The pinned settings document stored with the seed is the cleaned document actually used.
 - **Validity across settings is not repaired.** If the resolved values violate a cross-setting constraint, such as an item pool that does not fit the available locations, the editor reports it and generation is blocked; values are never adjusted automatically to make the settings document valid.
 
 In a release, a fallback caused by a missing vocabulary rule indicates a bug, since the vocabulary check should have prevented it. On the dev site it is expected.
 
-Pinned settings documents are read strictly, as part of the [seed record](seed-data.md#reading-seed-records).
+Validation uses separately maintained [generation](../../schema/settings/generation.json) and [skill](../../schema/settings/skill.json) JSON schemas for complete resolved values. Fixed objects reject unexpected properties; dynamic maps validate values generically while Rust checks their keys, permitted proficiency levels, and item minimums against prepared data. Missing document entries inherit recursively from the selected baseline. A required field still missing after resolution is a blocking preparation inconsistency in either mode.
+
+Strict mode reports invalid values, unexpected keys, unknown dynamic IDs, and unknown presets as blocking errors. Recovery selects fallback presets before resolution, removes unexpected submitted entries, and restores invalid known entries or malformed containers from the selected baseline while preserving siblings. It applies repairs in one batch and revalidates once, then deserializes into Rust settings once. Unattributable findings and remaining failures stay blocking. Reports retain string-segment paths, reasons, and replacement values where applicable. An invalid value beneath an unknown key produces only the removal finding.
+
+Whole-valued JSON numbers such as `10`, `10.0`, and `1e1` are accepted equivalently and normalized to integers without a recovery notice. Fractions are not rounded, bounds are not clamped, and strings are not converted. The processor retains the original input independently of this working copy. Format version 1 is the only authored format and has no historical migrations; unsupported versions are blocking in strict mode and interpreted through recognized fields in recovery mode. Updating a source revision is a notice in either mode.
+
+Pinned settings documents are read strictly, as part of the [seed record](seed-data.md#reading-seed-records), without live recovery or substitution of current built-in presets.
 
 ## Generation requests
 
@@ -143,6 +149,5 @@ To be written: saved presentation/control preferences, their relationship to the
 
 ## Open questions
 
-- Where migrations are implemented. The proposal is to implement structural migrations and vocabulary rules only in Rust, exposed to the frontend through a backend endpoint or WebAssembly, so they are never maintained in two languages.
 - Whether live normalization must replay intermediate baseline changes, and if so, which compact change rules provide the necessary history.
 - Where the committed vocabulary lives and how converting rules are referenced from it.

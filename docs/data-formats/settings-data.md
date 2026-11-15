@@ -18,6 +18,7 @@ The frontend lives at `z3-map-rando/frontend`, alongside the backend and its sha
 
 | Source | Contents |
 | --- | --- |
+| `schema/settings/` | Separately maintained JSON schemas for resolved generation values and skill assumptions |
 | `data/presets/` | Built-in preset files (see [Preset files](#preset-files)) |
 | `data/tech_data.json`, `data/notable_data.json` | Difficulty classifications of techniques, proficiency levels, and notables; skill presets are derived from them |
 | `data/items.json` | The item token vocabulary, with upstream item names, count limits, category, and placement tier; items in the `dungeon` and `prize` categories have their own placement and are not part of the item pool |
@@ -37,7 +38,7 @@ data/
 
 Skill presets have no files: they are derived from the difficulty classifications. Skill settings not covered by the classifications would get sparse files under `generation/skill/`, holding only those settings, with the derived members filled in by preparation.
 
-Rust's `seed_data::Settings` types define setting representations and option tokens. `SettingsContext::process_settings` applies prepared presets, checks values, and returns a report with the preserved original, cleaned sparse document, resolved values, captured baselines, structured notices, and blocking errors. The context uses prepared proficiency levels and ordinary-item minimums; complete preset values supply the known dynamic member identities. There is no separate per-setting definition table. Svelte components own the controls and presentation.
+Rust's `seed_data::Settings` types define setting representations and option tokens. `SettingsContext::process_settings` applies prepared presets, checks values, and returns a report with the preserved original, cleaned sparse document, resolved values, captured baselines, structured notices, and blocking errors. The context uses prepared proficiency levels, ordinary-item minimums, and the ordinary-location count derived from the logic catalog; derived skill presets and the ordinary-item vocabulary supply the known dynamic member identities independently of authored root presets. The processor embeds both schema resources and compiles one reusable offline validator per process or WASM module. Schema structure and Rust semantic verification both run before the single typed deserialization. There is no separate per-setting definition table. Svelte components own the controls and presentation.
 
 ```text
 shared setting definitions + preset files + local classifications + upstream data
@@ -48,7 +49,7 @@ frontend build inputs + Svelte components
   -> frontend application with bundled data
 ```
 
-The common preparation step is `catalog_builder presets` (`crates/catalog_builder/src/presets.rs`). It derives the skill presets, resolves each generation root preset into complete settings, and writes two outputs from the same prepared data: the preset catalog (`preset_catalog.bin`) for the backend, and `settings_data.json` for the frontend. The latter also carries what the frontend shows about each setting: the difficulty ladder, the techniques, proficiencies, and notables with their upstream names and difficulties, the item records, and the customization presets. The frontend's Vite config runs the step whenever it loads and reruns it in dev when `data/` changes, so building or developing the frontend requires the Rust toolchain but no running backend.
+The common preparation step is `catalog_builder presets` (`crates/catalog_builder/src/presets.rs`). It first prepares the logic catalog for the ordinary-location count, derives the skill presets, resolves each generation root preset into complete JSON values, validates them against the schemas and prepared semantic facts before deserializing into Rust settings, and writes two outputs from the same prepared data: the preset catalog (`preset_catalog.bin`) for the backend, and `settings_data.json` for the frontend. The latter also carries what the frontend shows about each setting: the difficulty ladder, the techniques, proficiencies, and notables with their upstream names and difficulties, the item records, and the customization presets. The frontend's Vite config runs the step whenever it loads and reruns it in dev when `data/` changes, so building or developing the frontend requires the Rust toolchain but no running backend.
 
 Common preparation handles semantic work such as deriving skill presets and completing defaults consistently. The frontend can select and reshape the data it needs without a universal payload or UI-description format. Preparing these build inputs does not require a running backend; generation and other server-dependent features still do. Metadata preparation should not require compiling unrelated ROM assets.
 
@@ -72,6 +73,8 @@ Each built-in preset has its own source file, grouped by settings context and sc
 
 A root preset can select a skill preset through its nested `skill` object; a skill preset's own values are directly inside its `settings` object. User-defined presets remain root-only and based directly on a built-in root preset.
 
+Fixed Rust settings structs and authored preset-file wrappers reject unrecognized fields during Serde deserialization. Resolving a root preset overlays authored skill tweaks onto its selected skill baseline, preserving partial objects and retaining unknown entries for validation. Live documents inherit those completed root values unless they explicitly select a skill preset, which replaces the child scope.
+
 Every built-in preset is complete over its scope, directly or through the presets it selects: the default root preset defines every root-scope setting and selects a preset for each child scope. Applying a complete scope preset replaces every value in that scope. The derived skill preset for a difficulty enables every technique and notable classified at or below it and sets each proficiency to its highest level classified at or below it; unclassified members, such as those marked "Ignored", are disabled.
 
 The frontend bundles current built-ins for editing and preview. Seed inspection uses the seed's captured definitions rather than substituting these current built-ins.
@@ -82,11 +85,11 @@ Settings are organized hierarchically by semantic scope. Root scope is the setti
 
 Shared semantics include defaults, option tokens, upstream proficiency tiers, and preset baselines. Values are booleans, integers, or option tokens. A setting needing fractional precision uses an integer with a fixed scale, so equality and tweak comparisons behave consistently in Rust and JavaScript.
 
-The backend validates generation inputs authoritatively. The frontend can give immediate feedback using the same definitions. Cross-setting constraints, such as an item pool fitting the available locations, are independent of presentation; their declaration format remains open. Displaying a historical seed does not adjust its values to satisfy current generation constraints.
+The backend validates generation inputs authoritatively in strict mode. The shared processing report includes the exact item-pool total check against the prepared ordinary-location count; this remains blocking even when recovery is enabled. The generator also independently checks the total against its logic catalog. The frontend will use the same processor through WASM for loading and feedback. Displaying a historical seed does not adjust its values to satisfy current generation constraints.
 
 ## Revisions and persisted settings
 
-A settings data revision identifies the shared processing rules and preset data used by a build. Frontend and backend builds from the same sources use the same revision even if they package the data differently. Catalog preparation computes a SHA-256 digest of the dependency lockfile, the preset, settings, and common-type Rust sources and manifests, prepared proficiency levels and item minimums, and ordered built-in preset IDs, scope selections, and concrete values. Preset display labels are excluded. The source fingerprint is conservative: code or comment edits can also advance the revision. The same revision is exported through the preset catalog and `settings_data.json` under `generation.revision`; it does not depend on an HTTP response or frontend layout.
+A settings data revision identifies the shared processing rules and preset data used by a build. Frontend and backend builds from the same sources use the same revision even if they package the data differently. Catalog preparation computes a SHA-256 digest of the dependency lockfile, the preset, settings, logic-catalog, and common-type Rust sources and manifests, every settings schema resource, prepared proficiency levels, item minimums, and the ordinary-location count, and ordered built-in preset IDs, scope selections, and concrete values. Preset display labels are excluded. The source fingerprint is conservative: code or comment edits can also advance the revision. The same revision is exported through the preset catalog and `settings_data.json` under `generation.revision`; it does not depend on an HTTP response or frontend layout.
 
 Settings documents record their source revision. The backend first migrates their meaning, then applies current presets and defaults for live settings. An older frontend submits through this same generation path and receives the authoritative generated settings and any upgrade notices; see [generation](backend-api.md#generation).
 

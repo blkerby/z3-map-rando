@@ -31,6 +31,7 @@ struct NotableRecord {
 
 /// A built-in preset file: its scope-local ID, display label, and settings.
 #[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 struct PresetFile {
     id: String,
     label: String,
@@ -103,6 +104,10 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
         skill: Vec::new(),
         proficiency_levels: BTreeMap::new(),
         item_minimums: BTreeMap::new(),
+        ordinary_item_count: logic_catalog::decode_catalog(File::open(
+            config.output_directory.join("logic_catalog.bin"),
+        )?)?
+        .count_ordinary_item_locations(),
     };
     for item in items.as_array().unwrap() {
         if matches!(item["category"].as_str(), Some("dungeon" | "prize")) {
@@ -175,7 +180,13 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
             .iter()
             .find(|p| p.id == skill_preset)
             .ok_or_else(|| anyhow!("unknown skill preset {skill_preset} in preset {}", file.id))?;
-        settings["skill"] = serde_json::to_value(&skill.settings)?;
+        let mut skill_values = serde_json::to_value(&skill.settings)?;
+        settings["skill"].as_object_mut().unwrap().remove("preset");
+        merge_settings(&mut skill_values, &settings["skill"]);
+        settings["skill"] = skill_values;
+        catalog
+            .validate_settings(&mut settings)
+            .with_context(|| format!("validating preset {}", file.id))?;
         catalog.root.push(RootPreset {
             settings: serde_json::from_value(settings)
                 .with_context(|| format!("resolving preset {}", file.id))?,
@@ -206,6 +217,7 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
     revision.update(serde_json::to_vec(&(
         &catalog.proficiency_levels,
         &catalog.item_minimums,
+        catalog.ordinary_item_count,
         roots,
         skills,
     ))?);
@@ -275,6 +287,19 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
         &settings_data,
     )?;
     Ok(())
+}
+
+fn merge_settings(values: &mut serde_json::Value, tweaks: &serde_json::Value) {
+    if let (Some(values), Some(tweaks)) = (values.as_object_mut(), tweaks.as_object()) {
+        for (key, tweak) in tweaks {
+            merge_settings(
+                values.entry(key.clone()).or_insert(serde_json::Value::Null),
+                tweak,
+            );
+        }
+    } else {
+        *values = tweaks.clone();
+    }
 }
 
 /// The root preset files in a directory, the default first.

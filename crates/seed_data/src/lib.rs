@@ -14,4 +14,6 @@ pub use settings_document::{
     PresetBundle, ResolvedSettings, RootPreset, SETTINGS_FORMAT_VERSION, SettingsDocument,
     SettingsSource, SkillPreset,
 };
-pub use settings_processing::{SettingsContext, SettingsIssue, SettingsReport};
+pub use settings_processing::{
+    SettingsContext, SettingsErrors, SettingsIssue, SettingsMode, SettingsReport,
+};

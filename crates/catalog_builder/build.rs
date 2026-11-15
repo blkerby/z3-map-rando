@@ -9,7 +9,9 @@ fn collect_files(directory: &Path, files: &mut Vec<PathBuf>) {
         let path = entry.unwrap().path();
         if path.is_dir() {
             collect_files(&path, files);
-        } else if path.extension().is_some_and(|extension| extension == "rs")
+        } else if path
+            .extension()
+            .is_some_and(|extension| extension == "rs" || extension == "json")
             || path.file_name().is_some_and(|name| name == "Cargo.toml")
         {
             files.push(path);
@@ -81,6 +83,8 @@ fn main() {
         &mut source,
         "PRESET_CODE_INPUTS",
         &[
+            "schema/settings",
+            "crates/logic_catalog",
             "crates/preset_catalog",
             "crates/seed_data",
             "crates/common_types",

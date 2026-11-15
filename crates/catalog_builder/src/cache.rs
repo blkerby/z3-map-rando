@@ -171,12 +171,14 @@ impl CatalogCache {
     }
 
     pub fn update_presets(&self) -> Result<()> {
+        self.update_logic()?;
         let output = self.config.output_directory.join("preset_catalog.bin");
         let mut fingerprint = self.create_fingerprint(PRESET_CODE_INPUTS);
         let mut inputs = vec![
             self.config.tech_data.clone(),
             self.config.notable_data.clone(),
             self.config.items.clone(),
+            self.config.output_directory.join("logic_catalog.bin"),
         ];
         collect_files(&self.config.presets, &mut inputs)?;
         inputs.sort();
@@ -190,10 +192,10 @@ impl CatalogCache {
     }
 
     pub fn update_all(&self) -> Result<()> {
-        self.update_logic()?;
+        self.update_presets()?;
         self.update_retiling()?;
         self.update_patches()?;
-        self.update_presets()
+        Ok(())
     }
 }
 

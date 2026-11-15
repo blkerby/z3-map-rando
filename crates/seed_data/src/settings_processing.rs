@@ -4,10 +4,38 @@ use crate::{
 };
 use anyhow::Result;
 use common_types::Item;
+use jsonschema::{Draft, Registry, Validator, error::ValidationErrorKind};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use serde_path_to_error::Segment;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::LazyLock};
+
+static SETTINGS_VALIDATOR: LazyLock<Validator> = LazyLock::new(|| {
+    let generation: Value =
+        serde_json::from_str(include_str!("../../../schema/settings/generation.json")).unwrap();
+    let skill: Value =
+        serde_json::from_str(include_str!("../../../schema/settings/skill.json")).unwrap();
+    let registry = Registry::new()
+        .add(generation["$id"].as_str().unwrap(), generation.clone())
+        .unwrap()
+        .add(skill["$id"].as_str().unwrap(), skill.clone())
+        .unwrap()
+        .prepare()
+        .unwrap();
+    jsonschema::options()
+        .with_draft(Draft::Draft202012)
+        .with_registry(&registry)
+        .offline()
+        .build(&generation)
+        .expect("valid packaged settings schemas")
+});
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SettingsMode {
+    #[default]
+    Strict,
+    Recover,
+}
 
 /// Prepared live-settings data, independent of catalog encoding and the host environment.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -20,6 +48,7 @@ pub struct SettingsContext {
     pub proficiency_levels: BTreeMap<u32, Vec<u32>>,
     /// Ordinary item identities and minimum counts from the item records.
     pub item_minimums: BTreeMap<Item, u32>,
+    pub ordinary_item_count: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -41,6 +70,35 @@ impl std::fmt::Display for SettingsIssue {
 
 impl std::error::Error for SettingsIssue {}
 
+#[derive(Debug)]
+pub struct SettingsErrors(pub Vec<SettingsIssue>);
+
+impl std::fmt::Display for SettingsErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (index, issue) in self.0.iter().enumerate() {
+            if index != 0 {
+                f.write_str("\n")?;
+            }
+            write!(f, "{issue}")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for SettingsErrors {}
+
+#[derive(Clone, Copy)]
+enum Recovery {
+    Remove,
+    Restore,
+    Block,
+}
+
+struct Finding {
+    issue: SettingsIssue,
+    recovery: Recovery,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SettingsReport {
     /// Retained separately from the cleaned document until an explicit save.
@@ -54,9 +112,9 @@ pub struct SettingsReport {
 
 impl SettingsReport {
     /// Admit generation only when processing has no blocking errors.
-    pub fn finish_processing(self) -> Result<ResolvedSettings, SettingsIssue> {
-        if let Some(error) = self.errors.into_iter().next() {
-            return Err(error);
+    pub fn finish_processing(self) -> Result<ResolvedSettings, SettingsErrors> {
+        if !self.errors.is_empty() {
+            return Err(SettingsErrors(self.errors));
         }
         Ok(ResolvedSettings {
             values: self.values.unwrap(),
@@ -67,15 +125,18 @@ impl SettingsReport {
 
 impl SettingsContext {
     /// Process a live document using current presets; pinned seed records use strict reading.
-    pub fn process_settings(&self, original: &Value) -> Result<SettingsReport> {
+    pub fn process_settings(&self, original: &Value, mode: SettingsMode) -> Result<SettingsReport> {
         let mut notices = Vec::new();
+        let mut errors = Vec::new();
+        let mut migrated = original.clone();
+        normalize_numbers(&mut migrated);
         let empty = json!({});
-        let raw = if original.is_object() {
-            original
+        let raw = if migrated.is_object() {
+            &migrated
         } else {
-            notices.push(SettingsIssue {
+            errors.push(SettingsIssue {
                 path: Vec::new(),
-                message: "Settings could not be read; using the default preset.".to_owned(),
+                message: "Expected a settings object.".to_owned(),
                 replacement: Some(empty.clone()),
             });
             &empty
@@ -84,11 +145,9 @@ impl SettingsContext {
         if raw.get("format_version").and_then(Value::as_u64)
             != Some(u64::from(SETTINGS_FORMAT_VERSION))
         {
-            notices.push(SettingsIssue {
+            errors.push(SettingsIssue {
                 path: vec!["format_version".to_owned()],
-                message:
-                    "Settings format differs from the current version; using recognized settings."
-                        .to_owned(),
+                message: "Unsupported settings format version.".to_owned(),
                 replacement: Some(json!(SETTINGS_FORMAT_VERSION)),
             });
         }
@@ -98,10 +157,10 @@ impl SettingsContext {
             .map(str::to_owned);
         if source_revision.as_deref() != Some(&self.revision) {
             notices.push(SettingsIssue {
-                path: vec!["revision".to_owned()],
-                message: "Settings were updated to the current rules and built-in presets."
+                path: Vec::new(),
+                message: "Your settings have been updated for this version of the randomizer."
                     .to_owned(),
-                replacement: Some(json!(self.revision)),
+                replacement: None,
             });
         }
         let root = match raw.get("preset") {
@@ -112,9 +171,9 @@ impl SettingsContext {
             {
                 Some(preset) => preset,
                 None => {
-                    notices.push(SettingsIssue {
+                    errors.push(SettingsIssue {
                         path: vec!["preset".to_owned()],
-                        message: "Unknown root preset; using the default preset.".to_owned(),
+                        message: "Unknown root preset.".to_owned(),
                         replacement: Some(json!(self.root[0].id)),
                     });
                     &self.root[0]
@@ -135,9 +194,9 @@ impl SettingsContext {
             {
                 Some(preset) => preset,
                 None => {
-                    notices.push(SettingsIssue {
+                    errors.push(SettingsIssue {
                         path: vec!["skill".to_owned(), "preset".to_owned()],
-                        message: "Unknown skill preset; using the default skill preset.".to_owned(),
+                        message: "Unknown skill preset.".to_owned(),
                         replacement: Some(json!(self.skill[0].id)),
                     });
                     &self.skill[0]
@@ -145,18 +204,26 @@ impl SettingsContext {
             },
             None => inherited_skill,
         };
+        if mode == SettingsMode::Recover {
+            notices.append(&mut errors);
+        } else {
+            for issue in &mut errors {
+                issue.replacement = None;
+            }
+        }
         let mut baseline = serde_json::to_value(&root.settings)?;
-        baseline["skill"] = serde_json::to_value(&skill.settings)?;
+        let skill_values = serde_json::to_value(&skill.settings)?;
+        let selects_skill = raw
+            .get("skill")
+            .and_then(|value| value.get("preset"))
+            .is_some();
+        let overrides_skill = selects_skill && baseline["skill"] != skill_values;
+        if selects_skill {
+            baseline["skill"] = skill_values;
+        }
         let mut values = baseline.clone();
         let mut tweaks = json!({});
-        merge_tweaks(
-            raw,
-            &baseline,
-            &mut values,
-            &mut tweaks,
-            &mut Vec::new(),
-            &mut notices,
-        );
+        merge_tweaks(raw, &baseline, &mut values, &mut tweaks, &mut Vec::new());
 
         let mut skills = vec![inherited_skill.clone()];
         if skill.id != inherited_skill.id {
@@ -179,36 +246,76 @@ impl SettingsContext {
             },
             values: None,
             notices,
-            errors: Vec::new(),
+            errors,
         };
-        loop {
-            let mut issue = match serde_path_to_error::deserialize::<_, Settings>(&values) {
-                Ok(settings) => match self.validate_settings(&settings) {
-                    Some(issue) => issue,
-                    None => {
-                        normalize_tweaks(&mut tweaks, &baseline, &serde_json::to_value(&settings)?);
-                        report.values = Some(settings);
-                        break;
+        let findings = self.collect_findings(&values);
+        let mut repaired = false;
+        for mut finding in findings {
+            let path = &finding.issue.path;
+            if mode == SettingsMode::Recover
+                && !path.is_empty()
+                && get_value(&tweaks, path).is_some()
+            {
+                let replacement = match finding.recovery {
+                    Recovery::Remove => None,
+                    Recovery::Restore => get_value(&baseline, path).cloned(),
+                    Recovery::Block => {
+                        report.errors.push(finding.issue);
+                        continue;
                     }
-                },
+                };
+                if matches!(finding.recovery, Recovery::Remove) || replacement.is_some() {
+                    let mut parent = &mut values;
+                    for key in &path[..path.len() - 1] {
+                        parent = &mut parent[key];
+                    }
+                    let key = path.last().unwrap();
+                    match &replacement {
+                        Some(value) => {
+                            parent[key] = value.clone();
+                        }
+                        None => {
+                            parent.as_object_mut().unwrap().remove(key);
+                        }
+                    }
+                    remove_tweak(&mut tweaks, path);
+                    finding.issue.replacement = replacement;
+                    if matches!(finding.recovery, Recovery::Remove) {
+                        finding.issue.message = "Unknown setting; removed.".to_owned();
+                    }
+                    report.notices.push(finding.issue);
+                    repaired = true;
+                    continue;
+                }
+            }
+            report.errors.push(finding.issue);
+        }
+        if repaired {
+            // A second validation is blocking; recovery never retries deserialization.
+            report.errors.clear();
+            for finding in self.collect_findings(&values) {
+                report.errors.push(finding.issue);
+            }
+        }
+        if report.errors.is_empty() {
+            match serde_path_to_error::deserialize::<_, Settings>(&values) {
+                Ok(settings) => {
+                    let mut count = 0_u64;
+                    for &quantity in settings.item_pool.values() {
+                        count += u64::from(quantity);
+                    }
+                    if count != u64::from(self.ordinary_item_count) {
+                        report.errors.push(SettingsIssue {
+                            path: vec!["item_pool".to_owned()],
+                            message: format!("item pool contains {count} items, but {} ordinary locations are required", self.ordinary_item_count),
+                            replacement: None,
+                        });
+                    }
+                    normalize_tweaks(&mut tweaks, &baseline, &serde_json::to_value(&settings)?);
+                    report.values = Some(settings);
+                }
                 Err(error) => {
                     let mut path = Vec::new();
-                    // Enum map keys are opaque to path tracking; string keys retain the item token.
-                    let error = if values["item_pool"].is_object()
-                        && matches!(error.path().iter().next(), Some(Segment::Map { key }) if key == "item_pool")
-                    {
-                        match serde_path_to_error::deserialize::<_, BTreeMap<String, u32>>(
-                            &values["item_pool"],
-                        ) {
-                            Err(error) => {
-                                path.push("item_pool".to_owned());
-                                error
-                            }
-                            Ok(_) => error,
-                        }
-                    } else {
-                        error
-                    };
                     for segment in error.path() {
                         match segment {
                             Segment::Map { key } => path.push(key.clone()),
@@ -217,43 +324,15 @@ impl SettingsContext {
                             Segment::Unknown => break,
                         }
                     }
-                    SettingsIssue {
+                    report.errors.push(SettingsIssue {
                         path,
                         message: error.inner().to_string(),
                         replacement: None,
-                    }
+                    });
                 }
-            };
-            // Only an explicitly submitted leaf or malformed container can be recovered.
-            let mut path = issue.path.clone();
-            let replacement = loop {
-                if path.is_empty() {
-                    break None;
-                }
-                if let (Some(submitted), Some(default)) =
-                    (get_value(&tweaks, &path), get_value(&baseline, &path))
-                {
-                    if !submitted.is_object() || !default.is_object() {
-                        break Some(default.clone());
-                    }
-                }
-                path.pop();
-            };
-            let Some(replacement) = replacement else {
-                report.errors.push(issue);
-                break;
-            };
-            let mut node = &mut values;
-            for key in &path[..path.len() - 1] {
-                node = &mut node[key];
             }
-            node[path.last().unwrap()] = replacement.clone();
-            remove_tweak(&mut tweaks, &path);
-            issue.path = path;
-            issue.replacement = Some(replacement);
-            report.notices.push(issue);
         }
-        if skill.id != inherited_skill.id {
+        if skill.id != inherited_skill.id || overrides_skill {
             tweaks["skill"]["preset"] = json!(skill.id);
         }
         for (key, value) in tweaks.as_object().unwrap() {
@@ -266,52 +345,186 @@ impl SettingsContext {
         Ok(report)
     }
 
-    fn validate_settings(&self, settings: &Settings) -> Option<SettingsIssue> {
-        for (name, capacity) in [
-            ("bomb_capacity", settings.starting_items.bomb_capacity),
-            ("arrow_capacity", settings.starting_items.arrow_capacity),
+    /// Normalize numeric representations and strictly validate complete JSON before deserialization.
+    pub fn validate_settings(&self, values: &mut Value) -> Result<(), SettingsErrors> {
+        normalize_numbers(values);
+        let mut errors = Vec::new();
+        for finding in self.collect_findings(values) {
+            errors.push(finding.issue);
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(SettingsErrors(errors))
+        }
+    }
+
+    fn collect_findings(&self, values: &Value) -> Vec<Finding> {
+        let mut findings = Vec::new();
+        let known = json!({"item_pool": &self.item_minimums, "skill": &self.skill[0].settings});
+        for mut path in [
+            vec!["item_pool".to_owned()],
+            vec!["skill".to_owned(), "proficiencies".to_owned()],
+            vec!["skill".to_owned(), "tech".to_owned()],
+            vec![
+                "skill".to_owned(),
+                "notables".to_owned(),
+                "overworld".to_owned(),
+            ],
+            vec![
+                "skill".to_owned(),
+                "notables".to_owned(),
+                "underworld".to_owned(),
+            ],
         ] {
-            if capacity > 99 {
-                return Some(SettingsIssue {
-                    path: vec!["starting_items".to_owned(), name.to_owned()],
-                    message: "expected a capacity from 0 to 99".to_owned(),
-                    replacement: None,
-                });
+            if let (Some(value), Some(known)) = (get_value(values, &path), get_value(&known, &path))
+            {
+                collect_unknown_entries(value, known, &mut path, &mut findings);
+            }
+        }
+        for (id, levels) in &self.proficiency_levels {
+            let path = vec![
+                "skill".to_owned(),
+                "proficiencies".to_owned(),
+                id.to_string(),
+            ];
+            if let Some(level) = get_value(values, &path).and_then(Value::as_u64) {
+                if !levels.iter().any(|&allowed| u64::from(allowed) == level) {
+                    findings.push(Finding {
+                        issue: SettingsIssue {
+                            path,
+                            message: format!("expected one of the proficiency levels {levels:?}"),
+                            replacement: None,
+                        },
+                        recovery: Recovery::Restore,
+                    });
+                }
             }
         }
         for (item, minimum) in &self.item_minimums {
-            if settings.item_pool[item] < *minimum {
-                return Some(SettingsIssue {
-                    path: vec![
-                        "item_pool".to_owned(),
-                        serde_json::to_value(item)
-                            .unwrap()
-                            .as_str()
-                            .unwrap()
-                            .to_owned(),
-                    ],
-                    message: format!("expected an item count of at least {minimum}"),
-                    replacement: None,
-                });
+            let key = serde_json::to_value(item)
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_owned();
+            let path = vec!["item_pool".to_owned(), key];
+            if let Some(count) = get_value(values, &path).and_then(Value::as_u64) {
+                if count < u64::from(*minimum) {
+                    findings.push(Finding {
+                        issue: SettingsIssue {
+                            path,
+                            message: format!("expected an item count of at least {minimum}"),
+                            replacement: None,
+                        },
+                        recovery: Recovery::Restore,
+                    });
+                }
             }
         }
-        for (id, level) in &settings.skill.proficiencies {
-            if !self.proficiency_levels[id].contains(level) {
-                return Some(SettingsIssue {
-                    path: vec![
-                        "skill".to_owned(),
-                        "proficiencies".to_owned(),
-                        id.to_string(),
-                    ],
-                    message: format!(
-                        "expected one of the proficiency levels {:?}",
-                        self.proficiency_levels[id]
-                    ),
-                    replacement: None,
-                });
+        for error in SETTINGS_VALIDATOR.iter_errors(values) {
+            let mut path = Vec::new();
+            // The segment iterator canonicalizes numeric-looking object keys such as "05".
+            for segment in error.instance_path().as_str().split('/').skip(1) {
+                path.push(segment.replace("~1", "/").replace("~0", "~"));
+            }
+            match error.kind() {
+                ValidationErrorKind::AdditionalProperties { unexpected } => {
+                    for key in unexpected {
+                        let mut child = path.clone();
+                        child.push(key.clone());
+                        append_finding(
+                            &mut findings,
+                            child,
+                            "Unknown setting.".to_owned(),
+                            Recovery::Remove,
+                        );
+                    }
+                }
+                ValidationErrorKind::Required { property } => {
+                    path.push(property.as_str().unwrap().to_owned());
+                    append_finding(
+                        &mut findings,
+                        path,
+                        "Required field missing after preset resolution.".to_owned(),
+                        Recovery::Block,
+                    );
+                }
+                _ => append_finding(&mut findings, path, error.to_string(), Recovery::Restore),
             }
         }
-        None
+        findings
+    }
+}
+
+fn collect_unknown_entries(
+    values: &Value,
+    known: &Value,
+    path: &mut Vec<String>,
+    findings: &mut Vec<Finding>,
+) {
+    let Some(object) = values.as_object() else {
+        return;
+    };
+    for (key, value) in object {
+        path.push(key.clone());
+        match known.get(key) {
+            None => append_finding(
+                findings,
+                path.clone(),
+                "Unknown setting.".to_owned(),
+                Recovery::Remove,
+            ),
+            Some(default) if default.is_object() => {
+                collect_unknown_entries(value, default, path, findings)
+            }
+            _ => {}
+        }
+        path.pop();
+    }
+}
+
+fn append_finding(
+    findings: &mut Vec<Finding>,
+    path: Vec<String>,
+    message: String,
+    recovery: Recovery,
+) {
+    // Suppress bad values beneath an unknown entry and duplicate keyword failures at one path.
+    if findings
+        .iter()
+        .any(|finding| path.starts_with(&finding.issue.path))
+    {
+        return;
+    }
+    findings.push(Finding {
+        issue: SettingsIssue {
+            path,
+            message,
+            replacement: None,
+        },
+        recovery,
+    });
+}
+
+fn normalize_numbers(value: &mut Value) {
+    match value {
+        Value::Number(number) if number.is_f64() => {
+            let value_number = number.as_f64().unwrap();
+            if value_number.fract() == 0.0 && (0.0..=f64::from(u32::MAX)).contains(&value_number) {
+                *value = json!(value_number as u32);
+            }
+        }
+        Value::Object(object) => {
+            for child in object.values_mut() {
+                normalize_numbers(child);
+            }
+        }
+        Value::Array(array) => {
+            for child in array {
+                normalize_numbers(child);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -321,7 +534,6 @@ fn merge_tweaks(
     values: &mut Value,
     tweaks: &mut Value,
     path: &mut Vec<String>,
-    notices: &mut Vec<SettingsIssue>,
 ) {
     for (key, value) in raw.as_object().unwrap() {
         if (path.is_empty() && matches!(key.as_str(), "format_version" | "revision" | "preset"))
@@ -333,7 +545,7 @@ fn merge_tweaks(
         if let Some(default) = baseline.get(key) {
             if value.is_object() && default.is_object() {
                 let mut child = json!({});
-                merge_tweaks(value, default, &mut values[key], &mut child, path, notices);
+                merge_tweaks(value, default, &mut values[key], &mut child, path);
                 if !child.as_object().unwrap().is_empty() {
                     tweaks[key] = child;
                 }
@@ -342,11 +554,8 @@ fn merge_tweaks(
                 tweaks[key] = value.clone();
             }
         } else {
-            notices.push(SettingsIssue {
-                path: path.clone(),
-                message: "Unknown setting; ignored.".to_owned(),
-                replacement: None,
-            });
+            values[key] = value.clone();
+            tweaks[key] = value.clone();
         }
         path.pop();
     }

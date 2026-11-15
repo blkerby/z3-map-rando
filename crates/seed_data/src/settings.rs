@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 /// Generation settings: complete concrete values, in the shape of a settings document
 /// (see `docs/data-formats/settings.md`).
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Settings {
     pub map_layout: MapLayoutSetting,
     pub skill: SkillSettings,
@@ -16,6 +17,7 @@ pub struct Settings {
 
 /// Inventory at the start of the game.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct StartingItems {
     pub bomb_capacity: u8,
     pub arrow_capacity: u8,
@@ -30,6 +32,7 @@ pub enum MapLayoutSetting {
 
 /// Skill assumptions, keyed by stable z3-json-data identities.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SkillSettings {
     /// Proficiency level by tech ID.
     pub proficiencies: BTreeMap<u32, u32>,
@@ -40,6 +43,7 @@ pub struct SkillSettings {
 
 /// Enabled flags of notables, keyed by room ID and then by room-scoped notable ID.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NotableSettings {
     pub overworld: BTreeMap<u32, BTreeMap<u32, bool>>,
     pub underworld: BTreeMap<u32, BTreeMap<u32, bool>>,

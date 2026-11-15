@@ -191,6 +191,41 @@ pub struct LogicCatalog {
 }
 
 impl LogicCatalog {
+    /// Slots filled from the configurable item pool, excluding dungeon items and prizes.
+    pub fn count_ordinary_item_locations(&self) -> u32 {
+        let mut count = 0;
+        for location in &self.item_locations {
+            let definition = self.item(location.vanilla_item_idx);
+            if definition.name == "SmallKey" {
+                continue;
+            }
+            if common_types::FAIRY_UPGRADE_LOCATIONS.contains(&location.id) {
+                count += 1;
+                continue;
+            }
+            match definition.item {
+                Some(
+                    Item::BigKey
+                    | Item::Map
+                    | Item::Compass
+                    | Item::PendantOfCourage
+                    | Item::PendantOfWisdom
+                    | Item::PendantOfPower
+                    | Item::Crystal1
+                    | Item::Crystal2
+                    | Item::Crystal3
+                    | Item::Crystal4
+                    | Item::Crystal5
+                    | Item::Crystal6
+                    | Item::Crystal7,
+                )
+                | None => {}
+                Some(_) => count += 1,
+            }
+        }
+        count
+    }
+
     pub fn vertex(&self, vertex_idx: VertexIndex) -> &Vertex {
         &self.vertices[vertex_idx.0 as usize]
     }
