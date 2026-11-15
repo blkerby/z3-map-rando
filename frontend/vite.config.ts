@@ -1,6 +1,7 @@
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 
@@ -13,6 +14,7 @@ const dataDirectory = path.join(repoRoot, 'data');
 const settingsData = path.join(repoRoot, 'build', 'settings_data.json');
 const buildDirectory = path.join(repoRoot, 'build');
 const browserPackage = path.join(repoRoot, 'build', 'browser');
+const browserWasm = path.join(repoRoot, 'target', 'wasm32-unknown-unknown', 'release', 'browser.wasm');
 
 function prepareCatalogs() {
 	execFileSync('cargo', ['run', '--quiet', '--package', 'catalog_builder', '--', 'all'], {
@@ -25,10 +27,20 @@ function prepareCatalogs() {
 // each time as a fresh module, so the process environment records that the inputs are already prepared.
 if (!process.env.Z3_FRONTEND_INPUTS_PREPARED) {
 	prepareCatalogs();
-	execFileSync('wasm-pack', ['build', 'crates/browser', '--target', 'web', '--out-dir', browserPackage], {
+	// wasm-pack's slow step (wasm-opt) reruns even when nothing changed, so first run the same Cargo build
+	// that wasm-pack does, which leaves its output untouched when up to date, and package only if that
+	// output is newer than the package.
+	execFileSync('cargo', ['build', '--quiet', '--lib', '--release', '--target', 'wasm32-unknown-unknown', '--package', 'browser'], {
 		cwd: repoRoot,
 		stdio: 'inherit'
 	});
+	const packaged = fs.statSync(path.join(browserPackage, 'browser_bg.wasm'), { throwIfNoEntry: false });
+	if (!packaged || fs.statSync(browserWasm).mtimeMs > packaged.mtimeMs) {
+		execFileSync('wasm-pack', ['build', 'crates/browser', '--target', 'web', '--out-dir', browserPackage], {
+			cwd: repoRoot,
+			stdio: 'inherit'
+		});
+	}
 	process.env.Z3_FRONTEND_INPUTS_PREPARED = '1';
 }
 
