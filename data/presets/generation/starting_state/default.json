@@ -1,0 +1,48 @@
+{
+  "id": "default",
+  "label": "Default",
+  "settings": {
+    "equipment": {
+      "fire_rod": false,
+      "ice_rod": false,
+      "hammer": false,
+      "hookshot": false,
+      "magic_powder": false,
+      "bombos": false,
+      "ether": false,
+      "quake": false,
+      "lamp": false,
+      "shovel": false,
+      "cane_of_somaria": false,
+      "cane_of_byrna": false,
+      "cape": false,
+      "magic_mirror": false,
+      "book_of_mudora": false,
+      "flippers": false,
+      "moon_pearl": false,
+      "bug_catching_net": false,
+      "mushroom": false,
+      "pegasus_boots": false,
+      "half_magic": false,
+      "sword": "none",
+      "shield": "none",
+      "glove": "none",
+      "mail": "green",
+      "bow": "none",
+      "boomerang": "none",
+      "ocarina": "none",
+      "bottles": 0
+    },
+    "resources": {
+      "heart_capacity": 3,
+      "bomb_capacity": 10,
+      "arrow_capacity": 30,
+      "bombs": 0,
+      "arrows": 0,
+      "rupees": 0
+    },
+    "flags": {
+      "zelda_rescued": true
+    }
+  }
+}

@@ -1,7 +1,7 @@
 use crate::config::BuildConfig;
 use anyhow::{Context, Result, anyhow};
 use common_types::SourceRoomId;
-use preset_catalog::{ItemPoolPreset, PresetCatalog, RootPreset, SkillPreset};
+use preset_catalog::{ItemPoolPreset, PresetCatalog, RootPreset, SkillPreset, StartingStatePreset};
 use seed_data::{NotableSettings, SkillSettings};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -89,7 +89,7 @@ struct NotableData {
 /// proficiency to its highest level ranked at or below it (its lowest level if none is). Unranked
 /// members are disabled. Root presets come from `<context>/root/*.json` under the preset directory,
 /// the default first; generation root presets are resolved into complete settings by applying the
-/// skill and item pool presets they select.
+/// skill, item pool, and starting state presets they select.
 pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
     let techs: Vec<TechRecord> = serde_json::from_slice(&fs::read(&config.tech_data)?)
         .with_context(|| format!("reading {}", config.tech_data.display()))?;
@@ -103,6 +103,7 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
         root: Vec::new(),
         skill: Vec::new(),
         item_pool: Vec::new(),
+        starting_state: Vec::new(),
         proficiency_levels: BTreeMap::new(),
         item_minimums: BTreeMap::new(),
         ordinary_item_count: logic_catalog::decode_catalog(File::open(
@@ -179,6 +180,15 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
         });
     }
 
+    for file in read_presets(&config.presets.join("generation/starting_state"))? {
+        catalog.starting_state.push(StartingStatePreset {
+            settings: serde_json::from_value(file.settings)
+                .with_context(|| format!("reading starting state preset {}", file.id))?,
+            id: file.id,
+            label: file.label,
+        });
+    }
+
     for file in read_presets(&config.presets.join("generation/root"))? {
         let mut settings = file.settings;
         let skill_preset = settings["skill"]["preset"]
@@ -215,6 +225,27 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
             .remove("preset");
         merge_settings(&mut item_pool_values, &settings["item_pool"]);
         settings["item_pool"] = item_pool_values;
+        let starting_state_preset = settings["starting_state"]["preset"]
+            .as_str()
+            .with_context(|| format!("preset {} selects no starting state preset", file.id))?
+            .to_owned();
+        let starting_state = catalog
+            .starting_state
+            .iter()
+            .find(|p| p.id == starting_state_preset)
+            .ok_or_else(|| {
+                anyhow!(
+                    "unknown starting state preset {starting_state_preset} in preset {}",
+                    file.id
+                )
+            })?;
+        let mut starting_state_values = serde_json::to_value(&starting_state.settings)?;
+        settings["starting_state"]
+            .as_object_mut()
+            .unwrap()
+            .remove("preset");
+        merge_settings(&mut starting_state_values, &settings["starting_state"]);
+        settings["starting_state"] = starting_state_values;
         catalog
             .validate_settings(&mut settings)
             .with_context(|| format!("validating preset {}", file.id))?;
@@ -225,6 +256,7 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
             label: file.label,
             skill_preset,
             item_pool_preset,
+            starting_state_preset,
         });
     }
 
@@ -235,6 +267,7 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
             &preset.id,
             &preset.skill_preset,
             &preset.item_pool_preset,
+            &preset.starting_state_preset,
             &preset.settings,
         ));
     }
@@ -245,6 +278,10 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
     let mut item_pools = Vec::new();
     for preset in &catalog.item_pool {
         item_pools.push((&preset.id, &preset.settings));
+    }
+    let mut starting_states = Vec::new();
+    for preset in &catalog.starting_state {
+        starting_states.push((&preset.id, &preset.settings));
     }
     let mut revision = Sha256::new();
     revision.update(include_bytes!("../../../Cargo.lock"));
@@ -262,6 +299,7 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
         roots,
         skills,
         item_pools,
+        starting_states,
     ))?);
     for byte in revision.finalize() {
         write!(&mut catalog.revision, "{byte:02x}").unwrap();

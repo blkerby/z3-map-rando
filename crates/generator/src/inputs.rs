@@ -2,7 +2,7 @@ use anyhow::{Result, anyhow, bail};
 use common_types::{DoorId, FAIRY_UPGRADE_LOCATIONS, Item, SourceRoomId};
 use hashbrown::HashMap;
 use logic_catalog::{DoorIndex, ItemLocationIndex, LockKind, LogicCatalog};
-use seed_data::{Settings, StartingItems};
+use seed_data::{Settings, StartingState};
 use std::collections::BTreeMap;
 
 #[derive(Debug)]
@@ -44,7 +44,9 @@ pub struct GenerationInputs {
     /// Settings resolved by room identity and notable ID, in catalog notable order.
     pub notable_enabled: Vec<bool>,
     pub proficiency_levels: Vec<u32>,
-    pub starting_items: StartingItems,
+    pub starting_state: StartingState,
+    pub bomb_upgrade_size: u8,
+    pub arrow_upgrade_size: u8,
 }
 
 #[derive(Debug, Default)]
@@ -74,7 +76,9 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         tech_enabled: vec![false; catalog.techs.len()],
         notable_enabled: vec![false; catalog.notables.len()],
         proficiency_levels: vec![0; catalog.techs.len()],
-        starting_items: settings.starting_items.clone(),
+        starting_state: settings.starting_state.clone(),
+        bomb_upgrade_size: settings.item_pool.bomb_upgrade_size,
+        arrow_upgrade_size: settings.item_pool.arrow_upgrade_size,
     };
     for item in &catalog.items {
         inputs.items.push(item.item);
@@ -160,8 +164,11 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         }
     }
 
+    let item_pool = settings
+        .resolve_item_pool()
+        .map_err(|error| InvalidSettings(error.to_string()))?;
     let mut pool_count = 0_u64;
-    for &count in settings.item_pool.values() {
+    for &count in item_pool.values() {
         pool_count += u64::from(count);
     }
     if pool_count > u64::from(ordinary_location_count) {
@@ -169,7 +176,7 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
             "item pool contains {pool_count} items, but only {ordinary_location_count} ordinary locations are available"
         )).into());
     }
-    for (&item, &count) in &settings.item_pool {
+    for (&item, &count) in &item_pool {
         match item {
             Item::SmallKey { .. }
             | Item::BigKey

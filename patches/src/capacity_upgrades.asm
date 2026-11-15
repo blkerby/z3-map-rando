@@ -1,13 +1,12 @@
 ; ALTTPR-compatible ammo capacity: $7EF370/$7EF371 hold the bomb/arrow
 ; capacities directly instead of indexes into the vanilla CapacityUpgrades
-; tables. New saves start at 10 bombs and 30 arrows (see new_game.asm).
+; tables. Starting capacities and pickup sizes come from the seed settings.
 lorom
 incsrc "symbols.inc"
 
 !free_space_bank_a0_start = $A0FB00
 !free_space_bank_a0_end = $A0FC00
 
-!CapacityIncrement = 5
 !MaxCapacity = 99
 
 ; HUD refill compares current ammo against the capacity byte directly.
@@ -60,7 +59,7 @@ assert UpgradeCapacity == !UpgradeCapacity
     TAX
     LDA.l $7EF370,X
     CLC
-    ADC.b #!CapacityIncrement
+    ADC.l CapacityUpgradeSizes,X
     CMP.b #!MaxCapacity+1
     BCC .store
     LDA.b #!MaxCapacity
@@ -68,9 +67,15 @@ assert UpgradeCapacity == !UpgradeCapacity
     STA.l $7EF370,X
     LDA.l $7EF375,X
     CLC
-    ADC.b #!CapacityIncrement
+    ADC.l CapacityUpgradeSizes,X
     STA.l $7EF375,X
     PLX
     RTL
+
+assert pc() <= !CapacityUpgradeSizes
+org !CapacityUpgradeSizes
+CapacityUpgradeSizes:
+assert CapacityUpgradeSizes == !CapacityUpgradeSizes
+    skip 2
 
 assert pc() <= !free_space_bank_a0_end

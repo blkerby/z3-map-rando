@@ -1,0 +1,234 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:z3-map-rando:schema:settings:starting_state",
+  "title": "Resolved starting state",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "equipment",
+    "resources",
+    "flags"
+  ],
+  "properties": {
+    "equipment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fire_rod",
+        "ice_rod",
+        "hammer",
+        "hookshot",
+        "magic_powder",
+        "bombos",
+        "ether",
+        "quake",
+        "lamp",
+        "shovel",
+        "cane_of_somaria",
+        "cane_of_byrna",
+        "cape",
+        "magic_mirror",
+        "book_of_mudora",
+        "flippers",
+        "moon_pearl",
+        "bug_catching_net",
+        "mushroom",
+        "pegasus_boots",
+        "half_magic",
+        "sword",
+        "shield",
+        "glove",
+        "mail",
+        "bow",
+        "boomerang",
+        "ocarina",
+        "bottles"
+      ],
+      "properties": {
+        "fire_rod": {
+          "type": "boolean"
+        },
+        "ice_rod": {
+          "type": "boolean"
+        },
+        "hammer": {
+          "type": "boolean"
+        },
+        "hookshot": {
+          "type": "boolean"
+        },
+        "magic_powder": {
+          "type": "boolean"
+        },
+        "bombos": {
+          "type": "boolean"
+        },
+        "ether": {
+          "type": "boolean"
+        },
+        "quake": {
+          "type": "boolean"
+        },
+        "lamp": {
+          "type": "boolean"
+        },
+        "shovel": {
+          "type": "boolean"
+        },
+        "cane_of_somaria": {
+          "type": "boolean"
+        },
+        "cane_of_byrna": {
+          "type": "boolean"
+        },
+        "cape": {
+          "type": "boolean"
+        },
+        "magic_mirror": {
+          "type": "boolean"
+        },
+        "book_of_mudora": {
+          "type": "boolean"
+        },
+        "flippers": {
+          "type": "boolean"
+        },
+        "moon_pearl": {
+          "type": "boolean"
+        },
+        "bug_catching_net": {
+          "type": "boolean"
+        },
+        "mushroom": {
+          "type": "boolean"
+        },
+        "pegasus_boots": {
+          "type": "boolean"
+        },
+        "half_magic": {
+          "type": "boolean"
+        },
+        "sword": {
+          "type": "string",
+          "enum": [
+            "none",
+            "fighter",
+            "master",
+            "tempered",
+            "golden"
+          ]
+        },
+        "shield": {
+          "type": "string",
+          "enum": [
+            "none",
+            "fighter",
+            "fire",
+            "mirror"
+          ]
+        },
+        "glove": {
+          "type": "string",
+          "enum": [
+            "none",
+            "power",
+            "titans"
+          ]
+        },
+        "mail": {
+          "type": "string",
+          "enum": [
+            "green",
+            "blue",
+            "red"
+          ]
+        },
+        "bow": {
+          "type": "string",
+          "enum": [
+            "none",
+            "bow",
+            "silver"
+          ]
+        },
+        "boomerang": {
+          "type": "string",
+          "enum": [
+            "none",
+            "blue",
+            "red"
+          ]
+        },
+        "ocarina": {
+          "type": "string",
+          "enum": [
+            "none",
+            "inactive",
+            "active"
+          ]
+        },
+        "bottles": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "heart_capacity",
+        "bomb_capacity",
+        "arrow_capacity",
+        "bombs",
+        "arrows",
+        "rupees"
+      ],
+      "properties": {
+        "heart_capacity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "bomb_capacity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99
+        },
+        "arrow_capacity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99
+        },
+        "bombs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99
+        },
+        "arrows": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99
+        },
+        "rupees": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 999
+        }
+      }
+    },
+    "flags": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "zelda_rescued"
+      ],
+      "properties": {
+        "zelda_rescued": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

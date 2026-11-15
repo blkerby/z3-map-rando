@@ -131,9 +131,11 @@ Item graphics use a fixed 128-byte 4bpp ROM array at the exported `ItemGraphics`
 
 `Item::Nothing` encodes an empty ordinary location as receipt `$5A`, which chests accept. The shared grant hook returns without granting inventory or starting an item-receipt pose. Freestanding carriers suppress empty rewards; boss-heart suppression also sets the completion flag needed to release the dungeon prize. Empty Zora/Catfish gifts record their collection flags, and empty Grove/tablet rewards retain their source event flags.
 
+The patcher encodes starting equipment, resources, shared-slot ownership, and ability flags in the 80-byte `$7EF340-$7EF38F` inventory image at `StartingState`, followed by the initial game-state byte (1 before Zelda rescue, 2 after). New-save initialization copies the inventory into the selected SRAM slot before its checksum is calculated, preserving the player name and unrelated save data. Uncle and Zelda progress updates advance the story stage monotonically.
+
 ### Ammo capacity
 
-`capacity_upgrades.asm` follows ALTTPR's format, which trackers may read: `$7EF370`/`$7EF371` hold the bomb and arrow capacities directly instead of indexes into the vanilla `CapacityUpgrades` tables. New saves start with the settings' starting capacities, which the patcher writes to the exported `StartingCapacities`. The HUD refill, the bomb shop, and the shopkeeper's ammo items use these bytes directly. Receipts `$51`/`$53` call `UpgradeCapacity`, which adds 5 capacity (capped at 99) and queues 5 ammo.
+`capacity_upgrades.asm` follows ALTTPR's format, which trackers may read: `$7EF370`/`$7EF371` hold the bomb and arrow capacities directly instead of indexes into the vanilla `CapacityUpgrades` tables. New saves start with the settings' starting capacities, which the patcher encodes in the exported `StartingState` inventory block. The HUD refill, the bomb shop, and the shopkeeper's ammo items use these bytes directly. Receipts `$51`/`$53` call `UpgradeCapacity`, which reads the seed-specific bomb or arrow amount from `CapacityUpgradeSizes`, adds it to capacity (capped at 99), and queues the same ammunition amount.
 
 ### Messages and Great Fairy ponds
 

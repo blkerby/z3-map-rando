@@ -17,7 +17,7 @@ Each fairy offers a single upgrade for one of eight item classes, selected durin
 | bomb | Nonzero bomb capacity | `BombCapacityUpgrade` | Capacity 99 |
 | arrow | Nonzero arrow capacity | `ArrowCapacityUpgrade` | Capacity 99 |
 
-Green Mail does not count as having mail. Bomb and arrow capacity are nonzero from the start unless the [starting capacity settings](#starting-items-settings) override them to zero, in which case the upgrade is refused until a capacity upgrade is collected elsewhere.
+Green Mail does not count as having mail. Bomb and arrow capacity are nonzero from the start unless the [starting state settings](#starting-state-settings) override them to zero, in which case the upgrade is refused until a capacity upgrade is collected elsewhere.
 
 ### Dialogue
 
@@ -69,6 +69,6 @@ Their receipt table entries reuse the graphics, palette, and width of `$3D` (new
 
 The logic builder adds a Lake Hylia Great Fairy entrance-node edge with `ExchangeBottleForFairy`, which provides bottled fairies without the Bug Catching Net. Golden bees have no logical use, so they are not modeled.
 
-## Starting items settings
+## Starting state settings
 
-Implemented. The `starting_items` settings contain `bomb_capacity` and `arrow_capacity`, defaulting to the vanilla 10 and 30 and allowing 0 to 99. The generator's initial capacities use these values. The patcher writes them to the exported `StartingCapacities`, which `InitializeGameState` in `new_game.asm` copies into a new save.
+The `starting_state.resources` settings contain direct `bomb_capacity` and `arrow_capacity` values, defaulting to 10 and 30 and allowing 0 to 99, alongside starting ammunition and health. The generator and new-save initialization use the resolved starting state. The item pool independently configures the capacity and ammunition granted by bomb and arrow upgrade pickups, defaulting to 5 each.

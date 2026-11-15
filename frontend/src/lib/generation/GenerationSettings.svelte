@@ -6,7 +6,20 @@
 	import SectionCard from '$lib/settings/SectionCard.svelte';
 	import ToggleSetting from '$lib/settings/ToggleSetting.svelte';
 	import { getStore } from '$lib/settings/context';
-	import { DIFFICULTIES, ITEM_LOCATIONS, countPoolItems, itemPoolScope, notables, poolItems, proficiencies, skillScope, tech } from './data';
+	import {
+		DIFFICULTIES,
+		ITEM_LOCATIONS,
+		countPoolItems,
+		itemPoolScope,
+		startingStateScope,
+		startingUniqueItems,
+		startingEquipmentChoices,
+		notables,
+		poolItems,
+		proficiencies,
+		skillScope,
+		tech
+	} from './data';
 
 	const store = getStore();
 
@@ -66,7 +79,14 @@
 	const poolUsed = $derived(countPoolItems(store));
 </script>
 
-<SectionCard id="skill" title="Skill assumptions" icon="speedometer2" collapsible collapsed scope={skillScope}>
+<SectionCard
+	id="skill"
+	title="Skill assumptions"
+	icon="speedometer2"
+	collapsible
+	collapsed
+	scope={skillScope}
+>
 	<Group heading="Proficiencies">
 		{#each proficiencies as p (p.id)}
 			<LevelSetting
@@ -83,7 +103,10 @@
 				<ToggleSetting path={['skill', 'tech', t.id]} label={t.name} />
 			{/each}
 			{#each notables.filter((n) => n.difficulty === difficulty) as n (`${n.world}/${n.room}/${n.id}`)}
-				<ToggleSetting path={['skill', 'notables', n.world, n.room, n.id]} label="{n.roomName}: {n.name}" />
+				<ToggleSetting
+					path={['skill', 'notables', n.world, n.room, n.id]}
+					label="{n.roomName}: {n.name}"
+				/>
 			{/each}
 		</Group>
 	{/each}
@@ -101,23 +124,125 @@
 	/>
 </SectionCard>
 
-<SectionCard id="starting_items" title="Starting items" icon="backpack" collapsible collapsed>
-	<Group heading="Capacity" layout="grid">
-		<CountSetting path={['starting_items', 'bomb_capacity']} label="Bomb capacity" min={0} max={99} />
-		<CountSetting path={['starting_items', 'arrow_capacity']} label="Arrow capacity" min={0} max={99} />
+<SectionCard
+	id="starting_state"
+	title="Starting state"
+	icon="backpack"
+	collapsible
+	collapsed
+	scope={startingStateScope}
+>
+	<Group heading="Equipment" layout="grid">
+		{#each startingUniqueItems as item (item.name)}
+			<ToggleSetting
+				path={['starting_state', 'equipment', item.name]}
+				label={ITEM_LABELS[item.name] ?? item.name}
+			/>
+		{/each}
+		{#each startingEquipmentChoices as choice (choice.id)}
+			<ChoiceSetting
+				path={['starting_state', 'equipment', choice.id]}
+				label={ITEM_LABELS[choice.id] ?? choice.id}
+				options={choice.options}
+				display="dropdown"
+			/>
+		{/each}
+		<CountSetting
+			path={['starting_state', 'equipment', 'bottles']}
+			label="Empty bottles"
+			min={0}
+			max={4}
+		/>
+	</Group>
+	<Group heading="Resources" layout="grid">
+		<CountSetting
+			path={['starting_state', 'resources', 'heart_capacity']}
+			label="Heart capacity"
+			help="Whole hearts. The game begins at full health."
+			min={1}
+			max={20}
+		/>
+		<CountSetting
+			path={['starting_state', 'resources', 'bomb_capacity']}
+			label="Bomb capacity"
+			min={0}
+			max={99}
+		/>
+		<CountSetting
+			path={['starting_state', 'resources', 'arrow_capacity']}
+			label="Arrow capacity"
+			min={0}
+			max={99}
+		/>
+		<CountSetting
+			path={['starting_state', 'resources', 'bombs']}
+			label="Bombs"
+			min={0}
+			max={store.get(['starting_state', 'resources', 'bomb_capacity']) as number}
+		/>
+		<CountSetting
+			path={['starting_state', 'resources', 'arrows']}
+			label="Arrows"
+			min={0}
+			max={store.get(['starting_state', 'resources', 'arrow_capacity']) as number}
+		/>
+		<CountSetting
+			path={['starting_state', 'resources', 'rupees']}
+			label="Rupees"
+			min={0}
+			max={999}
+		/>
+	</Group>
+	<Group heading="Progress">
+		<ToggleSetting path={['starting_state', 'flags', 'zelda_rescued']} label="Zelda rescued" />
 	</Group>
 </SectionCard>
 
-<SectionCard id="item_pool" title="Item pool" icon="box-seam" collapsible collapsed scope={itemPoolScope}>
+<SectionCard
+	id="item_pool"
+	title="Item pool"
+	icon="box-seam"
+	collapsible
+	collapsed
+	scope={itemPoolScope}
+>
 	{#snippet header()}
 		<div class="pool-bar" class:text-danger={poolUsed > ITEM_LOCATIONS}>
-			{poolUsed} of {ITEM_LOCATIONS} item locations filled{poolUsed < ITEM_LOCATIONS ? ' (the rest are left empty)' : ''}.
+			{poolUsed} of {ITEM_LOCATIONS} item locations filled{poolUsed < ITEM_LOCATIONS
+				? ' (the rest are left empty)'
+				: ''}.
 		</div>
 	{/snippet}
+	<Group heading="Pool behavior">
+		<ToggleSetting
+			path={['item_pool', 'deduct_starting_items']}
+			label="Deduct starting equipment"
+			help="Remove starting equipment and bottles from the counts below. Health, capacities, ammunition, rupees, and flags do not reduce the pool."
+		/>
+		<CountSetting
+			path={['item_pool', 'bomb_upgrade_size']}
+			label="Bomb upgrade size"
+			help="Capacity and ammunition granted by each bomb capacity upgrade."
+			min={1}
+			max={99}
+		/>
+		<CountSetting
+			path={['item_pool', 'arrow_upgrade_size']}
+			label="Arrow upgrade size"
+			help="Capacity and ammunition granted by each arrow capacity upgrade."
+			min={1}
+			max={99}
+		/>
+	</Group>
 	{#each ITEM_CATEGORIES as category (category.id)}
 		<Group heading={category.title} layout="grid">
 			{#each poolItems.filter((i) => i.category === category.id) as item (item.name)}
-				<CountSetting path={['item_pool', item.name]} label={ITEM_LABELS[item.name] ?? item.name} min={item.min} max={ITEM_LOCATIONS} />
+				<CountSetting
+					path={['item_pool', 'items', item.name]}
+					label={ITEM_LABELS[item.name] ?? item.name}
+					min={item.min}
+					max={ITEM_LOCATIONS}
+				/>
 			{/each}
 		</Group>
 	{/each}

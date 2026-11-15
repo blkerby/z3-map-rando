@@ -7,7 +7,7 @@ use logic_catalog::{
     DoorIndex, DungeonIndex, FlagIndex, FollowerMask, ItemLocationIndex, LogicCatalog,
     OcarinaState, UniqueItem,
 };
-use seed_data::StartingItems;
+use seed_data::StartingOcarina;
 
 /// Mutable global reads that can change an edge's results or discoveries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -53,6 +53,8 @@ pub struct GlobalState {
     pub magic_capacity: u8,
     pub bomb_capacity: u8,
     pub arrow_capacity: u8,
+    pub bomb_upgrade_size: u8,
+    pub arrow_upgrade_size: u8,
     /// Derived from physical capacity and the independently obtained refill flags.
     pub magic_usable_capacity: u8,
     pub bomb_usable_capacity: u8,
@@ -79,13 +81,14 @@ pub struct GlobalState {
 }
 
 impl GlobalState {
-    /// Begin with the starting items, vanilla health and magic, no equipment, and Zelda already rescued.
-    pub fn initialize(catalog: &LogicCatalog, starting_items: &StartingItems) -> Self {
+    /// Begin with the configured inventory, resources, and progression flags.
+    pub fn initialize(catalog: &LogicCatalog, inputs: &GenerationInputs) -> Self {
+        let starting = &inputs.starting_state;
         let mut flags = Vec::with_capacity(catalog.flags.len());
         for flag in &catalog.flags {
-            flags.push(flag == "GameStateZelda");
+            flags.push(flag == "GameStateZelda" && starting.flags.zelda_rescued);
         }
-        Self {
+        let mut state = Self {
             unique_items: [false; UniqueItem::COUNT],
             sword_level: 0,
             shield_level: 0,
@@ -93,10 +96,12 @@ impl GlobalState {
             mail_level: 0,
             boomerang_level: 0,
             ocarina: OcarinaState::Missing,
-            health_capacity: 24,
+            health_capacity: starting.resources.heart_capacity * 8,
             magic_capacity: 128,
-            bomb_capacity: starting_items.bomb_capacity,
-            arrow_capacity: starting_items.arrow_capacity,
+            bomb_capacity: starting.resources.bomb_capacity,
+            arrow_capacity: starting.resources.arrow_capacity,
+            bomb_upgrade_size: inputs.bomb_upgrade_size,
+            arrow_upgrade_size: inputs.arrow_upgrade_size,
             magic_usable_capacity: 0,
             bomb_usable_capacity: 0,
             arrow_usable_capacity: 0,
@@ -108,7 +113,16 @@ impl GlobalState {
             flags,
             reachable_item_locations: vec![false; catalog.item_locations.len()],
             collected_item_locations: vec![false; catalog.item_locations.len()],
+        };
+        for (item, count) in starting.equipment.count_items() {
+            for _ in 0..count {
+                state.grant_non_key_item(item);
+            }
         }
+        if starting.equipment.ocarina == StartingOcarina::Active {
+            state.ocarina = OcarinaState::Active;
+        }
+        state
     }
 
     /// Collect a placed item into inventory, returning an error for already-collected locations.
@@ -220,11 +234,11 @@ impl GlobalState {
                 }
             }
             Item::BombCapacityUpgrade => {
-                self.bomb_capacity = (self.bomb_capacity + 5).min(99);
+                self.bomb_capacity = (self.bomb_capacity + self.bomb_upgrade_size).min(99);
                 Some(D::Bombs)
             }
             Item::ArrowCapacityUpgrade => {
-                self.arrow_capacity = (self.arrow_capacity + 5).min(99);
+                self.arrow_capacity = (self.arrow_capacity + self.arrow_upgrade_size).min(99);
                 Some(D::Arrows)
             }
             // These receipts all create a bottle, including the filled-bottle items.

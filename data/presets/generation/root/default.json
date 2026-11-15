@@ -9,9 +9,8 @@
     "item_pool": {
       "preset": "default"
     },
-    "starting_items": {
-      "bomb_capacity": 10,
-      "arrow_capacity": 30
+    "starting_state": {
+      "preset": "default"
     }
   }
 }

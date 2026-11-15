@@ -6,9 +6,10 @@ use crate::{
     retiling as theme, verify_vanilla_rom,
 };
 use anyhow::{Result, ensure};
+use common_types::Item;
 use patch_catalog::PatchCatalog;
 use retiling_catalog::RetilingCatalog;
-use seed_data::WorldLayout;
+use seed_data::{StartingBoomerang, StartingBow, StartingOcarina, WorldLayout};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -65,10 +66,120 @@ pub fn patch_rom(
     let (mut patcher, _) =
         prepare_retiling(&mut output, &seed.world_layout, retiling, patches, settings)?;
     crate::items::apply_items(&mut patcher, rom, &seed.item_placements, patches)?;
-    let starting_items = &seed.settings.starting_items;
-    patcher.context("starting capacities").write(
-        SnesAddr(patches.symbols.starting_capacities).into(),
-        vec![starting_items.bomb_capacity, starting_items.arrow_capacity],
+    let starting = &seed.settings.starting_state;
+    let equipment = &starting.equipment;
+    let resources = &starting.resources;
+    let counts = equipment.count_items();
+    let mut inventory = vec![0_u8; 0x51];
+    inventory[0x39] = 0xf8; // Native lift, read, talk, and pull ability flags.
+    for (item, offset, value) in [
+        (Item::Hookshot, 0x02, 1),
+        (Item::FireRod, 0x05, 1),
+        (Item::IceRod, 0x06, 1),
+        (Item::Bombos, 0x07, 1),
+        (Item::Ether, 0x08, 1),
+        (Item::Quake, 0x09, 1),
+        (Item::Lamp, 0x0a, 1),
+        (Item::Hammer, 0x0b, 1),
+        (Item::BugCatchingNet, 0x0d, 1),
+        (Item::BookOfMudora, 0x0e, 1),
+        (Item::CaneOfSomaria, 0x10, 1),
+        (Item::CaneOfByrna, 0x11, 1),
+        (Item::Cape, 0x12, 1),
+        (Item::MagicMirror, 0x13, 2),
+        (Item::PegasusBoots, 0x15, 1),
+        (Item::Flippers, 0x16, 1),
+        (Item::MoonPearl, 0x17, 1),
+        (Item::HalfMagic, 0x3b, 1),
+    ] {
+        if counts[&item] > 0 {
+            inventory[offset] = value;
+        }
+    }
+    for (item, offset) in [
+        (Item::Sword, 0x19),
+        (Item::Shield, 0x1a),
+        (Item::Glove, 0x14),
+        (Item::Mail, 0x1b),
+        (Item::Boomerang, 0x01),
+    ] {
+        inventory[offset] = counts[&item] as u8;
+    }
+    inventory[0] = match equipment.bow {
+        StartingBow::None => 0,
+        StartingBow::Bow => {
+            if resources.arrows > 0 {
+                2
+            } else {
+                1
+            }
+        }
+        StartingBow::Silver => {
+            if resources.arrows > 0 {
+                4
+            } else {
+                3
+            }
+        }
+    };
+    match equipment.boomerang {
+        StartingBoomerang::None => {}
+        StartingBoomerang::Blue => inventory[0x4c] |= 0x80,
+        StartingBoomerang::Red => inventory[0x4c] |= 0xc0,
+    }
+    if equipment.mushroom {
+        inventory[0x04] = 1;
+        inventory[0x4c] |= 0x28;
+    }
+    if equipment.magic_powder {
+        inventory[0x04] = 2;
+        inventory[0x4c] |= 0x10;
+    }
+    if equipment.shovel {
+        inventory[0x0c] = 1;
+        inventory[0x4c] |= 0x04;
+    }
+    match equipment.ocarina {
+        StartingOcarina::None => {}
+        StartingOcarina::Inactive => {
+            inventory[0x0c] = 2;
+            inventory[0x4c] |= 0x02;
+        }
+        StartingOcarina::Active => {
+            inventory[0x0c] = 3;
+            inventory[0x4c] |= 0x01;
+        }
+    }
+    if equipment.bottles > 0 {
+        inventory[0x0f] = 1;
+        for i in 0..usize::from(equipment.bottles) {
+            inventory[0x1c + i] = 2;
+        }
+    }
+    if equipment.pegasus_boots {
+        inventory[0x39] |= 0x04;
+    }
+    if equipment.flippers {
+        inventory[0x39] |= 0x02;
+    }
+    inventory[0x03] = resources.bombs;
+    inventory[0x37] = resources.arrows;
+    inventory[0x30] = resources.bomb_capacity;
+    inventory[0x31] = resources.arrow_capacity;
+    inventory[0x2c] = resources.heart_capacity * 8;
+    inventory[0x2d] = inventory[0x2c];
+    inventory[0x20..0x22].copy_from_slice(&resources.rupees.to_le_bytes());
+    inventory[0x22..0x24].copy_from_slice(&resources.rupees.to_le_bytes());
+    inventory[0x50] = if starting.flags.zelda_rescued { 2 } else { 1 };
+    patcher
+        .context("starting state")
+        .write(SnesAddr(patches.symbols.starting_state).into(), inventory)?;
+    patcher.context("capacity upgrade sizes").write(
+        SnesAddr(patches.symbols.capacity_upgrade_sizes).into(),
+        vec![
+            seed.settings.item_pool.bomb_upgrade_size,
+            seed.settings.item_pool.arrow_upgrade_size,
+        ],
     )?;
     patcher.apply(&mut output)?;
     output[0x7fd7] = 0x0c;
@@ -85,7 +196,15 @@ pub fn apply_retiling(
     patches: &PatchCatalog,
     settings: &PatchSettings,
 ) -> Result<RetilingStats> {
-    let (patcher, stats) = prepare_retiling(rom, layout, catalog, patches, settings)?;
+    // Retiling previews use vanilla inventory and Zelda's rescued story stage.
+    let start = PcAddr::from(SnesAddr(0x84f1a6)).0 as usize;
+    let mut inventory = vec![0_u8; 0x51];
+    inventory[..0x3c].copy_from_slice(&rom[start..start + 0x3c]);
+    inventory[0x50] = 2;
+    let (mut patcher, stats) = prepare_retiling(rom, layout, catalog, patches, settings)?;
+    patcher
+        .context("preview starting state")
+        .write(SnesAddr(patches.symbols.starting_state).into(), inventory)?;
     patcher.apply(rom)?;
     rom[0x7fd7] = 0x0c;
     Ok(stats)

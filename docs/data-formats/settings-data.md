@@ -18,7 +18,7 @@ The frontend lives at `z3-map-rando/frontend`, alongside the backend and its sha
 
 | Source | Contents |
 | --- | --- |
-| `schema/settings/` | Separately maintained JSON schemas for resolved generation values and skill assumptions |
+| `schema/settings/` | Separately maintained JSON schemas for resolved generation values, skill assumptions, and starting state |
 | `data/presets/` | Built-in preset files (see [Preset files](#preset-files)) |
 | `data/tech_data.json`, `data/notable_data.json` | Difficulty classifications of techniques, proficiency levels, and notables; skill presets are derived from them |
 | `data/items.json` | The item token vocabulary, with upstream item names, count limits, category, and placement tier; items in the `dungeon` and `prize` categories have their own placement and are not part of the item pool |
@@ -34,6 +34,9 @@ data/
         testing.json
       item_pool/
         default.json
+      starting_state/
+        default.json
+        all_equipment.json
     customization/
       root/
         default.json
@@ -41,7 +44,7 @@ data/
 
 Skill presets have no files: they are derived from the difficulty classifications. Skill settings not covered by the classifications would get sparse files under `generation/skill/`, holding only those settings, with the derived members filled in by preparation.
 
-Rust's `seed_data::Settings` types define setting representations and option tokens. `SettingsContext::process_settings` applies prepared presets, checks values, and returns a report with the preserved original, cleaned sparse document, resolved values, captured baselines, structured notices, and blocking errors. The context uses prepared proficiency levels, ordinary-item minimums, and the ordinary-location count derived from the logic catalog; derived skill presets and the ordinary-item vocabulary supply the known dynamic member identities independently of authored root presets. The processor embeds both schema resources and compiles one reusable offline validator per process or WASM module. Schema structure and Rust semantic verification both run before the single typed deserialization. There is no separate per-setting definition table. Svelte components own the controls and presentation.
+Rust's `seed_data::Settings` types define setting representations and option tokens. `SettingsContext::process_settings` applies prepared presets, checks values, and returns a report with the preserved original, cleaned sparse document, resolved values, captured baselines, structured notices, and blocking errors. The context uses prepared proficiency levels, ordinary-item minimums, and the ordinary-location count derived from the logic catalog; derived skill presets and the ordinary-item vocabulary supply the known dynamic member identities independently of authored root presets. The processor embeds the schema resources and compiles one reusable offline validator per process or WASM module. Schema structure and Rust semantic verification both run before the single typed deserialization. There is no separate per-setting definition table. Svelte components own the controls and presentation.
 
 ```text
 shared setting definitions + preset files + local classifications + upstream data
@@ -69,12 +72,13 @@ Each built-in preset has its own source file, grouped by settings context and sc
     "skill": {
       "preset": "basic"
     },
-    "item_pool": { "preset": "default" }
+    "item_pool": { "preset": "default" },
+    "starting_state": { "preset": "default" }
   }
 }
 ```
 
-A root preset selects skill and item pool presets through its nested `skill` and `item_pool` objects; a child preset's own values are directly inside its `settings` object. The item pool Default preset is authored in `generation/item_pool/default.json`. User-defined presets remain root-only and based directly on a built-in root preset.
+A root preset selects skill, item pool, and starting state presets through its nested `skill`, `item_pool`, and `starting_state` objects; a child preset's own values are directly inside its `settings` object. The item pool Default preset is authored in `generation/item_pool/default.json`; starting-state Default and All equipment presets are authored under `generation/starting_state/`. Item pool settings contain pickup counts in `items`, an equipment-deduction toggle, and bomb/arrow upgrade sizes. User-defined presets remain root-only and based directly on a built-in root preset.
 
 Fixed Rust settings structs and authored preset-file wrappers reject unrecognized fields during Serde deserialization. Resolving a root preset overlays authored child-scope tweaks onto their selected baselines, preserving partial objects and retaining unknown entries for validation. Live documents inherit those completed root values unless they explicitly select a child preset, which replaces that scope.
 
@@ -84,11 +88,11 @@ The frontend bundles current built-ins for editing and preview. Seed inspection 
 
 ## Setting definitions and scopes
 
-Settings are organized hierarchically by semantic scope. Root scope is the settings document itself; `skill` contains skill assumptions and `item_pool` contains ordinary-item counts, each with its own built-in presets. Scope membership determines the persisted path independently of frontend layout. Moving a control between UI sections does not change that path; moving a setting across scopes requires explicit migration, whose details are deferred until needed.
+Settings are organized hierarchically by semantic scope. Root scope is the settings document itself; `skill` contains skill assumptions, `item_pool` contains ordinary-item counts and pickup behavior, and `starting_state` contains initial equipment, resources, and flags. Each has its own built-in presets. Scope membership determines the persisted path independently of frontend layout. Moving a control between UI sections does not change that path; moving a setting across scopes requires explicit migration, whose details are deferred until needed.
 
 Shared semantics include defaults, option tokens, upstream proficiency tiers, and preset baselines. Values are booleans, integers, or option tokens. A setting needing fractional precision uses an integer with a fixed scale, so equality and tweak comparisons behave consistently in Rust and JavaScript.
 
-The backend validates generation inputs authoritatively in strict mode. The shared processing report rejects item-pool totals exceeding the prepared ordinary-location count, including when recovery is enabled. The generator independently checks the same upper bound against its logic catalog and pads any unused ordinary locations with internal `Nothing` placements. The frontend will use the same processor through WASM for loading and feedback. Displaying a historical seed does not adjust its values to satisfy current generation constraints.
+The backend validates generation inputs authoritatively in strict mode. The shared processing report rejects remaining item-pool totals after equipment deduction exceeding the prepared ordinary-location count, including when recovery is enabled. Starting equipment exceeding its pool count and starting ammunition exceeding capacity also remain blocking in recovery mode. The generator independently checks the same upper bound against its logic catalog and pads any unused ordinary locations with internal `Nothing` placements. The frontend will use the same processor through WASM for loading and feedback. Displaying a historical seed does not adjust its values to satisfy current generation constraints.
 
 ## Revisions and persisted settings
 

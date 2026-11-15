@@ -1,6 +1,6 @@
 use crate::{
     ItemPoolPreset, PresetBundle, ResolvedSettings, RootPreset, SETTINGS_FORMAT_VERSION, Settings,
-    SettingsDocument, SettingsSource, SkillPreset,
+    SettingsDocument, SettingsSource, SkillPreset, StartingStatePreset,
 };
 use anyhow::Result;
 use common_types::Item;
@@ -15,10 +15,17 @@ static SETTINGS_VALIDATOR: LazyLock<Validator> = LazyLock::new(|| {
         serde_json::from_str(include_str!("../../../schema/settings/generation.json")).unwrap();
     let skill: Value =
         serde_json::from_str(include_str!("../../../schema/settings/skill.json")).unwrap();
+    let starting_state: Value =
+        serde_json::from_str(include_str!("../../../schema/settings/starting_state.json")).unwrap();
     let registry = Registry::new()
         .add(generation["$id"].as_str().unwrap(), generation.clone())
         .unwrap()
         .add(skill["$id"].as_str().unwrap(), skill.clone())
+        .unwrap()
+        .add(
+            starting_state["$id"].as_str().unwrap(),
+            starting_state.clone(),
+        )
         .unwrap()
         .prepare()
         .unwrap();
@@ -45,6 +52,7 @@ pub struct SettingsContext {
     pub root: Vec<RootPreset>,
     pub skill: Vec<SkillPreset>,
     pub item_pool: Vec<ItemPoolPreset>,
+    pub starting_state: Vec<StartingStatePreset>,
     /// Permitted levels from the technique classifications, including unranked levels.
     pub proficiency_levels: BTreeMap<u32, Vec<u32>>,
     /// Ordinary item identities and minimum counts from the item records.
@@ -228,6 +236,29 @@ impl SettingsContext {
             },
             None => inherited_item_pool,
         };
+        let inherited_starting_state = self
+            .starting_state
+            .iter()
+            .find(|p| p.id == root.starting_state_preset)
+            .unwrap();
+        let starting_state = match raw.get("starting_state").and_then(|v| v.get("preset")) {
+            Some(id) => match self
+                .starting_state
+                .iter()
+                .find(|p| Some(p.id.as_str()) == id.as_str())
+            {
+                Some(preset) => preset,
+                None => {
+                    errors.push(SettingsIssue {
+                        path: vec!["starting_state".to_owned(), "preset".to_owned()],
+                        message: "Unknown starting state preset.".to_owned(),
+                        replacement: Some(json!(self.starting_state[0].id)),
+                    });
+                    &self.starting_state[0]
+                }
+            },
+            None => inherited_starting_state,
+        };
         if mode == SettingsMode::Recover {
             notices.append(&mut errors);
         } else {
@@ -254,6 +285,16 @@ impl SettingsContext {
         if selects_item_pool {
             baseline["item_pool"] = item_pool_values;
         }
+        let starting_state_values = serde_json::to_value(&starting_state.settings)?;
+        let selects_starting_state = raw
+            .get("starting_state")
+            .and_then(|value| value.get("preset"))
+            .is_some();
+        let overrides_starting_state =
+            selects_starting_state && baseline["starting_state"] != starting_state_values;
+        if selects_starting_state {
+            baseline["starting_state"] = starting_state_values;
+        }
         let mut values = baseline.clone();
         let mut tweaks = json!({});
         merge_tweaks(raw, &baseline, &mut values, &mut tweaks, &mut Vec::new());
@@ -265,6 +306,10 @@ impl SettingsContext {
         let mut item_pools = vec![inherited_item_pool.clone()];
         if item_pool.id != inherited_item_pool.id {
             item_pools.push(item_pool.clone());
+        }
+        let mut starting_states = vec![inherited_starting_state.clone()];
+        if starting_state.id != inherited_starting_state.id {
+            starting_states.push(starting_state.clone());
         }
         let mut report = SettingsReport {
             original: original.clone(),
@@ -280,6 +325,7 @@ impl SettingsContext {
                     root: root.clone(),
                     skill: skills,
                     item_pool: item_pools,
+                    starting_state: starting_states,
                 },
             },
             values: None,
@@ -338,16 +384,34 @@ impl SettingsContext {
         if report.errors.is_empty() {
             match serde_path_to_error::deserialize::<_, Settings>(&values) {
                 Ok(settings) => {
-                    let mut count = 0_u64;
-                    for &quantity in settings.item_pool.values() {
-                        count += u64::from(quantity);
-                    }
-                    if count > u64::from(self.ordinary_item_count) {
-                        report.errors.push(SettingsIssue {
-                            path: vec!["item_pool".to_owned()],
-                            message: format!("item pool contains {count} items, but only {} ordinary locations are available", self.ordinary_item_count),
-                            replacement: None,
-                        });
+                    match settings.resolve_item_pool() {
+                        Ok(items) => {
+                            let mut count = 0_u64;
+                            for &quantity in items.values() {
+                                count += u64::from(quantity);
+                            }
+                            if count > u64::from(self.ordinary_item_count) {
+                                report.errors.push(SettingsIssue {
+                                    path: vec!["item_pool".to_owned(), "items".to_owned()],
+                                    message: format!("item pool contains {count} items after deduction, but only {} ordinary locations are available", self.ordinary_item_count),
+                                    replacement: None,
+                                });
+                            }
+                        }
+                        Err(error) => {
+                            report.errors.push(SettingsIssue {
+                                path: vec![
+                                    "item_pool".to_owned(),
+                                    "items".to_owned(),
+                                    serde_json::to_value(error.item)?
+                                        .as_str()
+                                        .unwrap()
+                                        .to_owned(),
+                                ],
+                                message: error.to_string(),
+                                replacement: None,
+                            });
+                        }
                     }
                     normalize_tweaks(&mut tweaks, &baseline, &serde_json::to_value(&settings)?);
                     report.values = Some(settings);
@@ -376,6 +440,9 @@ impl SettingsContext {
         if item_pool.id != inherited_item_pool.id || overrides_item_pool {
             tweaks["item_pool"]["preset"] = json!(item_pool.id);
         }
+        if starting_state.id != inherited_starting_state.id || overrides_starting_state {
+            tweaks["starting_state"]["preset"] = json!(starting_state.id);
+        }
         for (key, value) in tweaks.as_object().unwrap() {
             report
                 .source
@@ -402,9 +469,10 @@ impl SettingsContext {
 
     fn collect_findings(&self, values: &Value) -> Vec<Finding> {
         let mut findings = Vec::new();
-        let known = json!({"item_pool": &self.item_minimums, "skill": &self.skill[0].settings});
+        let known =
+            json!({"item_pool": {"items": &self.item_minimums}, "skill": &self.skill[0].settings});
         for mut path in [
-            vec!["item_pool".to_owned()],
+            vec!["item_pool".to_owned(), "items".to_owned()],
             vec!["skill".to_owned(), "proficiencies".to_owned()],
             vec!["skill".to_owned(), "tech".to_owned()],
             vec![
@@ -448,7 +516,7 @@ impl SettingsContext {
                 .as_str()
                 .unwrap()
                 .to_owned();
-            let path = vec!["item_pool".to_owned(), key];
+            let path = vec!["item_pool".to_owned(), "items".to_owned(), key];
             if let Some(count) = get_value(values, &path).and_then(Value::as_u64) {
                 if count < u64::from(*minimum) {
                     findings.push(Finding {
@@ -459,6 +527,25 @@ impl SettingsContext {
                         },
                         recovery: Recovery::Restore,
                     });
+                }
+            }
+        }
+        for (amount, capacity) in [("bombs", "bomb_capacity"), ("arrows", "arrow_capacity")] {
+            let resources = &values["starting_state"]["resources"];
+            if let (Some(amount_value), Some(capacity_value)) =
+                (resources[amount].as_u64(), resources[capacity].as_u64())
+            {
+                if amount_value > capacity_value {
+                    append_finding(
+                        &mut findings,
+                        vec![
+                            "starting_state".to_owned(),
+                            "resources".to_owned(),
+                            amount.to_owned(),
+                        ],
+                        format!("starting {amount} exceed {capacity}"),
+                        Recovery::Block,
+                    );
                 }
             }
         }
@@ -579,7 +666,7 @@ fn merge_tweaks(
     for (key, value) in raw.as_object().unwrap() {
         if (path.is_empty() && matches!(key.as_str(), "format_version" | "revision" | "preset"))
             || (path.len() == 1
-                && matches!(path[0].as_str(), "skill" | "item_pool")
+                && matches!(path[0].as_str(), "skill" | "item_pool" | "starting_state")
                 && key == "preset")
         {
             continue;

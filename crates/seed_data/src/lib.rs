@@ -9,10 +9,14 @@ pub use output::{
     AreaLayout, ItemPlacement, MapBorder, OverworldRoomPlacement, SEED_FORMAT_VERSION, SeedData,
     SeedMetadata, WorldLayout,
 };
-pub use settings::{MapLayoutSetting, NotableSettings, Settings, SkillSettings, StartingItems};
+pub use settings::{
+    InsufficientPoolItems, ItemPoolSettings, MapLayoutSetting, NotableSettings, Settings,
+    SkillSettings, StartingBoomerang, StartingBow, StartingEquipment, StartingFlags, StartingGlove,
+    StartingMail, StartingOcarina, StartingResources, StartingShield, StartingState, StartingSword,
+};
 pub use settings_document::{
     ItemPoolPreset, PresetBundle, ResolvedSettings, RootPreset, SETTINGS_FORMAT_VERSION,
-    SettingsDocument, SettingsSource, SkillPreset,
+    SettingsDocument, SettingsSource, SkillPreset, StartingStatePreset,
 };
 pub use settings_processing::{
     SettingsContext, SettingsErrors, SettingsIssue, SettingsMode, SettingsReport,

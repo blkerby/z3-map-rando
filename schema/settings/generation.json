@@ -4,39 +4,58 @@
   "title": "Resolved generation settings",
   "type": "object",
   "additionalProperties": false,
-  "required": ["map_layout", "skill", "item_pool", "starting_items"],
+  "required": [
+    "map_layout",
+    "skill",
+    "item_pool",
+    "starting_state"
+  ],
   "properties": {
     "map_layout": {
       "type": "string",
-      "enum": ["vanilla", "random"]
+      "enum": [
+        "vanilla",
+        "random"
+      ]
     },
     "skill": {
       "$ref": "urn:z3-map-rando:schema:settings:skill"
     },
     "item_pool": {
       "type": "object",
-      "additionalProperties": {
-        "type": "integer",
-        "minimum": 0,
-        "maximum": 151
-      }
-    },
-    "starting_items": {
-      "type": "object",
       "additionalProperties": false,
-      "required": ["bomb_capacity", "arrow_capacity"],
+      "required": [
+        "deduct_starting_items",
+        "bomb_upgrade_size",
+        "arrow_upgrade_size",
+        "items"
+      ],
       "properties": {
-        "bomb_capacity": {
+        "deduct_starting_items": {
+          "type": "boolean"
+        },
+        "bomb_upgrade_size": {
           "type": "integer",
-          "minimum": 0,
+          "minimum": 1,
           "maximum": 99
         },
-        "arrow_capacity": {
+        "arrow_upgrade_size": {
           "type": "integer",
-          "minimum": 0,
+          "minimum": 1,
           "maximum": 99
+        },
+        "items": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 151
+          }
         }
       }
+    },
+    "starting_state": {
+      "$ref": "urn:z3-map-rando:schema:settings:starting_state"
     }
   }
 }

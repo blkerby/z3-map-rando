@@ -2,13 +2,23 @@
 
 The prototype randomizes items and overworld layouts, with broader gameplay verification still outstanding. The following item and restart behavior applies to patched seeds.
 
+## Starting state
+
+Starting state has independent equipment, resources, and progression settings. Unique equipment uses toggles, progressive equipment uses named tiers, and bottles are empty bottle counts. Heart capacity is 1 to 20 whole hearts; a new game begins at full health. Bomb and arrow capacities are direct values from 0 to 99, with separate starting ammunition counts bounded by their capacities. Starting rupees range from 0 to 999. Zelda's rescued flag controls the initial story stage; completing her rescue advances that stage without resetting later progress.
+
+The Default preset starts with no equipment, three hearts, bomb/arrow capacities of 10/30, no ammunition or rupees, and Zelda rescued. All equipment supplies the highest equipment tiers, an active Ocarina, and four empty bottles, while keeping Default's resources and progression flags. The Testing root preset overrides the capacities to 5/5.
+
+Starting ammunition is a one-time supply and is ignored by generation logic. Logic counts bomb and arrow ammunition only after obtaining a refill source.
+
 ## Items
 
-Swords, shields, gloves, mail, boomerangs, and bows upgrade one level per pickup, capped at the highest tier. Bomb and arrow capacity upgrades each add 5 capacity (up to 99, from starting capacities set in the settings, 10 bombs and 30 arrows by default) along with 5 ammo. The Lake Hylia fairy fills an empty bottle with a fairy or golden bee, for free and any number of times. Visible pickups show the next upgrade. When both are owned, highlight Mushroom/Powder or Shovel/Ocarina in the item menu and press Y to switch between them.
+Swords, shields, gloves, mail, boomerangs, and bows upgrade one level per pickup, capped at the highest tier. Bomb and arrow capacity upgrades grant the separately configured amounts of capacity and ammunition, defaulting to 5 each, with capacity capped at 99. The Lake Hylia fairy fills an empty bottle with a fairy or golden bee, for free and any number of times. Visible pickups show the next upgrade. When both are owned, highlight Mushroom/Powder or Shovel/Ocarina in the item menu and press Y to switch between them.
 
 Small and Big Keys remain at vanilla key locations. Keys still use vanilla ROM behavior, which differs from the logical model's door-specific Small Keys. The bow is progressive: the first pickup grants the Bow and the second the Silver Arrows. The Waterfall of Wishing and Pyramid fairies each offer one upgrade of a boomerang, mail, shield, sword, bow, gloves, bombs, or arrows: throw in that item, and she returns something better once, if it is not already at its highest level. Equipment receipt messages retain vanilla text pending replacement.
 
-Item pools may contain fewer pickups than the available ordinary locations; the remaining slots are empty. Empty chests open without granting an item, NPC rewards retain their collection state, and empty freestanding pickups are suppressed. Empty boss-heart rewards still release the dungeon prize. Waterfall and Pyramid fairies with empty rewards say “Sorry we're closed” and end the interaction without summoning a fairy or throwing an item.
+Item pool counts describe pickups before optional deduction. Deduction is enabled by default and removes starting equipment and bottles: owning a unique item deducts one pickup, and progressive tiers deduct the number of upgrades represented by that tier. Health, capacities, ammunition, rupees, and flags do not deduct pickups. Starting equipment must fit the corresponding pool counts when deduction is enabled.
+
+Item pools after deduction may contain fewer pickups than the available ordinary locations; the remaining slots are empty. Empty chests open without granting an item, NPC rewards retain their collection state, and empty freestanding pickups are suppressed. Empty boss-heart rewards still release the dungeon prize. Waterfall and Pyramid fairies with empty rewards say “Sorry we're closed” and end the interaction without summoning a fairy or throwing an item.
 
 ## Saving and restarting
 

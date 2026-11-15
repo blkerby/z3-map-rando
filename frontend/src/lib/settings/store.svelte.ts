@@ -31,7 +31,7 @@ export interface ScopePreset {
 export interface RootPreset {
 	id: string;
 	label: string;
-	/** Complete values of every setting; child scope subtrees are replaced by the selected scope presets. */
+	/** Complete values of every setting, including authored tweaks to selected child presets. */
 	settings: Tree;
 	/** Scope id -> built-in preset of that scope. Scopes left out take their first preset. */
 	scopes: Record<string, string>;
@@ -196,7 +196,9 @@ export class SettingsStore {
 			const pick = this.scopePreset(scope, picks[scope.id]);
 			if (pick) picked.push([scope.id]);
 			const preset = pick ?? this.scopePreset(scope, this.chosenFor(doc, scope))!;
-			out[scope.id] = cloneTree(preset.settings);
+			if (pick || getAt(doc, [scope.id, 'preset']) !== undefined || !tweaks) {
+				out[scope.id] = cloneTree(preset.settings);
+			}
 		}
 		if (tweaks) {
 			for (const path of this.leaves) {
@@ -277,7 +279,11 @@ export class SettingsStore {
 	/** Does a scope that isn't picked by hand take something other than the built-in base would give it? */
 	isScopeTweaked(scope: Scope): boolean {
 		if (this.isScopePicked(scope)) return false;
-		return this.scopeTweakCount(scope) > 0 || this.impliedScopePreset(scope).id !== this.chosenFor({ preset: this.basePreset.id }, scope);
+		if (this.scopeTweakCount(scope) > 0 || this.impliedScopePreset(scope).id !== this.chosenFor({ preset: this.basePreset.id }, scope)) return true;
+		for (const path of this.leaves) {
+			if (path[0] === scope.id && getAt(this.layers.inherited, path) !== getAt(this.basePreset.settings, path)) return true;
+		}
+		return false;
 	}
 
 	/** What a scope takes when it isn't picked by hand, e.g. "Hard + 2 tweaks". */
@@ -358,9 +364,12 @@ export class SettingsStore {
 		const doc: Tree = { preset: base.id };
 		for (const scope of this.model.scopes) {
 			const id = this.selectedScopePreset(scope).id;
-			if (id !== this.chosenFor({ preset: base.id }, scope)) doc[scope.id] = { preset: id };
+			if (id !== this.chosenFor({ preset: base.id }, scope) || this.isScopePicked(scope)
+				|| getAt(this.selectedDocument, [scope.id, 'preset']) !== undefined) {
+				doc[scope.id] = { preset: id };
+			}
 		}
-		const given = this.resolve(doc, {}, false);
+		const given = this.resolve(doc, {}, true);
 		for (const path of this.leaves) {
 			const v = getAt(this.values, path) as Value;
 			if (v !== getAt(given, path)) setAt(doc, path, v);
@@ -394,7 +403,9 @@ export class SettingsStore {
 		this.selectedId = this.rootOf(doc).id;
 		for (const scope of this.model.scopes) {
 			const id = this.chosenFor(doc, scope);
-			this.scopePicks[scope.id] = id === this.chosenFor({ preset: this.selectedId }, scope) ? null : id;
+			const own = getAt(doc, [scope.id, 'preset']) !== undefined;
+			this.scopePicks[scope.id] = id !== this.chosenFor({ preset: this.selectedId }, scope)
+				|| (own && this.inheritedTweakCount(scope) > 0) ? id : null;
 		}
 		this.values = this.resolve(doc, {}, true);
 	}

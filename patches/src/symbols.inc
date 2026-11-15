@@ -149,8 +149,11 @@ endmacro
 ; Defined in capacity_upgrades.asm.
 !UpgradeCapacity = $A0FB00
 
-; Starting bomb and arrow capacities, written by the patcher from the settings.
-%export_symbol(StartingCapacities, starting_capacities, $A0FAFE)
+; Initial inventory ($7EF340-$7EF38F) followed by the initial game-state byte.
+%export_symbol(StartingState, starting_state, $B0815C)
+
+; Bomb and arrow capacity granted per pickup, written by the patcher.
+%export_symbol(CapacityUpgradeSizes, capacity_upgrade_sizes, $A0FBFE)
 
 ; Custom message IDs, whose text is defined in messages.asm.
 !FirstCustomMessage = $0200

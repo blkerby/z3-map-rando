@@ -2,7 +2,9 @@
 //! `data/` (see `docs/data-formats/settings-data.md`).
 
 use anyhow::{Result, ensure};
-pub use seed_data::{ItemPoolPreset, RootPreset, SettingsContext as PresetCatalog, SkillPreset};
+pub use seed_data::{
+    ItemPoolPreset, RootPreset, SettingsContext as PresetCatalog, SkillPreset, StartingStatePreset,
+};
 use std::io::{BufReader, BufWriter, Read, Write};
 
 const CATALOG_MAGIC: [u8; 8] = *b"Z3PRESET";

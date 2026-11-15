@@ -25,7 +25,7 @@ A settings document has these fields. Field names are provisional:
 | setting keys | Root-scope values |
 | scope IDs | Nested objects containing the settings for those scopes |
 
-The document itself represents root scope. A child scope such as `skill` or `item_pool` is a nested object; it can select its own built-in `preset` and contain values, family objects, and further child scopes. A value is a JSON scalar (boolean, number, or string) at its setting's [path](#identifiers); any object is a scope or family, never a value. Documents are sparse: only tweaks are present. Shared setting definitions identify each setting's scope and therefore its location in the document. UI section names do not determine that path.
+The document itself represents root scope. A child scope such as `skill`, `item_pool`, or `starting_state` is a nested object; it can select its own built-in `preset` and contain values, family objects, and further child scopes. A value is a JSON scalar (boolean, number, or string) at its setting's [path](#identifiers); any object is a scope or family, never a value. Documents are sparse: only tweaks are present. Shared setting definitions identify each setting's scope and therefore its location in the document. UI section names do not determine that path.
 
 There is one preset selection per scope object. Its ID is local to that scope: root `preset: "default"` selects the root default, while `preset: "hard"` inside `skill` selects the skill preset. The selected preset supplies a baseline, child scope objects customize their respective parts, and explicit values override the applicable baseline. JSON property order has no effect. A selected child preset replaces the values throughout that child scope, so values from a previously inherited preset cannot linger. A child object without a preset selection retains its inherited baseline and applies only its explicit changes.
 
@@ -44,11 +44,15 @@ User-defined presets remain root-only and based directly on a built-in root pres
       "5": false
     }
   },
+  "starting_state": {
+    "equipment": { "fire_rod": true },
+    "resources": { "heart_capacity": 2 }
+  },
   "map_layout": "vanilla"
 }
 ```
 
-This starts with the default root preset, applies Hard skill assumptions, then selects vanilla map layout and disables bomb boosts. The preset definitions come from the separate bundle, not this settings object. For live settings, the untouched values follow current built-ins; a seed's pinned settings use its migrated captured definitions. The revision above is a placeholder for the shared settings data revision. Documents carry no informational names; displays take names from the shared data.
+This starts with the default root preset, applies Hard skill assumptions, then selects vanilla map layout disables bomb boosts, and starts with the Fire Rod and two hearts. The default item pool deducts the starting Fire Rod from placement. The preset definitions come from the separate bundle, not this settings object. For live settings, the untouched values follow current built-ins; a seed's pinned settings use its migrated captured definitions. The revision above is a placeholder for the shared settings data revision. Documents carry no informational names; displays take names from the shared data.
 
 ## Identifiers
 
@@ -61,7 +65,9 @@ Settings generated from data are members of a family object, keyed by stable IDs
 | Technique | `skill` › `tech` › `<tech_id>` | Upstream tech ID |
 | Proficiency | `skill` › `proficiencies` › `<tech_id>` | Upstream tech ID |
 | Notable | `skill` › `notables` › `<world>` › `<room>` › `<notable_id>` | Upstream room identity and room-scoped notable ID |
-| Item count | `item_pool` › `<item>` | Item token from [`data/items.json`](../../data/items.json) |
+| Item count | `item_pool` › `items` › `<item>` | Item token from [`data/items.json`](../../data/items.json) |
+
+`starting_state` contains `equipment`, `resources`, and `flags` objects. Equipment uses booleans for unique items, named tiers for progressive items and the Ocarina, and a `bottles` count. Resources contain whole-heart capacity, bomb/arrow capacities, starting bomb/arrow ammunition, and rupees. Flags currently contain `zelda_rescued`. `item_pool` contains `items` pickup counts, `deduct_starting_items` (equipment and bottles only), and `bomb_upgrade_size`/`arrow_upgrade_size` (1–99 each). Resolved values retain these authored choices; generation derives the remaining pickup pool and fills unused locations with Nothing.
 
 Identifiers are permanent: a key, option token, or built-in preset ID keeps one meaning while current and is never reused after removal, including identifiers that only appeared on the dev site. A retired identifier found in any document can therefore only carry its old meaning (see [vocabulary rules](#vocabulary-rules)).
 

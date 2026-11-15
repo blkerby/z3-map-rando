@@ -36,8 +36,8 @@ $A0F200-$A0F3FF overworld_topology.asm (reserved for physical area origins)
 $A0F400-$A0F4FF overworld_world_map.asm (reserved for world map loading)
 $A0F500-$A0F57F world_state.asm (reserved for loaded world context, mountain visits, and recovery follower loss)
 $A0F580-$A0F8FF overworld_camera_alignment.asm (reserved for transition camera and follow-threshold alignment)
-$A0F900-$A0FAFF new_game.asm (reserved for initial state, starting capacities, restart menus, dungeon Mirror returns, and priest initialization)
-$A0FB00-$A0FBFF capacity_upgrades.asm (reserved for capacity upgrades)
+$A0F900-$A0FAFF new_game.asm (reserved for initial state, monotonic progress, restart menus, dungeon Mirror returns, and priest initialization)
+$A0FB00-$A0FBFF capacity_upgrades.asm (capacity upgrades and seed-specific bomb/arrow upgrade sizes)
 $A0FC00-$A0FEFF fairy_ponds.asm (reserved for Great Fairy ponds and closed-upgrade messages)
 $A0FF00-$A0FFFF [FREE]
 
@@ -75,7 +75,8 @@ $AA9000-$AFFFFF [FREE]
 Bank $B0
 $B08000-$B08159 item_placements.asm (seed-specific assigned items and prize types)
 $B0815A-$B0815B fairy_ponds.asm (seed-specific Waterfall and Pyramid fairy upgrade receipts)
-$B0815C-$B0FFFF [FREE]
+$B0815C-$B081AC new_game.asm (seed-specific initial inventory and game-state byte)
+$B081AD-$B0FFFF [FREE]
 
 Bank $B1
 $B18000-$B18005 item_receipt_tables.inc (bottle refill receipts)

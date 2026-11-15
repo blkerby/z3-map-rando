@@ -1,10 +1,12 @@
-; New saves begin with Zelda rescued. Restart choices depend on the saved
-; world and visited destinations; dungeon deaths and Mirror retain their entrance.
+; New saves begin with the configured inventory, resources, and Zelda progress.
+; Restart choices depend on the saved world and visited destinations.
 lorom
 incsrc "symbols.inc"
 
 !free_space_bank_a0_start = $A0F900
 !free_space_bank_a0_end = $A0FB00
+!free_space_bank_b0_start = $B0815C
+!free_space_bank_b0_end = $B081AD
 
 ; InitializeSaveFile has 16-bit A/X/Y and X holds the selected SRAM slot's
 ; offset. Set progress before vanilla calculates the save checksum.
@@ -35,10 +37,10 @@ hook_select_underworld_restart:
 org $82D6F4
 return_check_underworld_restart:
 
-; Keep the receipt/dialogue accumulator and flags, but skip progress rewrites.
+; Progress advances monotonically; preserve the receipt/dialogue accumulator and flags.
 org $85DF67
 hook_receive_uncle_equipment:
-    BRA return_finish_uncle_equipment
+    JSL AdvanceGameProgress
 org $85DF6B
 return_finish_uncle_equipment:
 
@@ -56,7 +58,7 @@ hook_check_castle_zelda_spawn:
 
 org $85EDE1
 hook_complete_zelda_rescue:
-    BRA return_finish_zelda_rescue
+    JSL AdvanceGameProgress
 org $85EDE5
 return_finish_zelda_rescue:
 
@@ -76,20 +78,38 @@ return_check_priest_follower:
 
 org !free_space_bank_a0_start
 InitializeGameState:
+    PHB
+    PHX
+    TXA
+    CLC
+    ADC.w #$0340
+    TAY
+    LDX.w #StartingState&$FFFF
+    LDA.w #$004F
+    MVN $70,StartingState>>16
+    PLX
     SEP #$20
-    LDA.b #$02
+    LDA.l StartingState+$50
     STA.l $7003C5,X
-    ; Starting bomb and arrow capacities (see capacity_upgrades.asm).
-    LDA.l StartingCapacities
-    STA.l $700370,X
-    LDA.l StartingCapacities+1
-    STA.l $700371,X
     REP #$20
+    PLB
 
     ; Run hi-jacked instructions:
     LDY.w #$0000
     TYA
 
+    RTL
+
+; A8 contains the new progress stage. Preserve A/X/Y/DB/P and scratch RAM.
+AdvanceGameProgress:
+    PHP
+    PHA
+    CMP.l $7EF3C5
+    BCC .done
+    STA.l $7EF3C5
+.done
+    PLA
+    PLP
     RTL
 
 SelectStartingLocation:
@@ -196,10 +216,10 @@ RecordSanctuaryVisit:
 SpawnPointIds:
     db $00, $01, $06
 
-assert pc() <= !StartingCapacities
-org !StartingCapacities
-StartingCapacities:
-assert StartingCapacities == !StartingCapacities
-    skip 2
-
 assert pc() <= !free_space_bank_a0_end
+
+org !free_space_bank_b0_start
+StartingState:
+assert StartingState == !StartingState
+    skip $51
+assert pc() <= !free_space_bank_b0_end
