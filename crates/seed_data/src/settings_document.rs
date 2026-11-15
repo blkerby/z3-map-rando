@@ -1,4 +1,5 @@
 use crate::{Settings, SkillSettings};
+use common_types::Item;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -20,6 +21,7 @@ pub struct RootPreset {
     pub id: String,
     pub label: String,
     pub skill_preset: String,
+    pub item_pool_preset: String,
     pub settings: Settings,
 }
 
@@ -30,11 +32,19 @@ pub struct SkillPreset {
     pub settings: SkillSettings,
 }
 
-/// Complete captured baselines, including the root's inherited skill preset and any override.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ItemPoolPreset {
+    pub id: String,
+    pub label: String,
+    pub settings: BTreeMap<Item, u32>,
+}
+
+/// Complete captured baselines, including the root's inherited scope presets and any overrides.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PresetBundle {
     pub root: RootPreset,
     pub skill: Vec<SkillPreset>,
+    pub item_pool: Vec<ItemPoolPreset>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

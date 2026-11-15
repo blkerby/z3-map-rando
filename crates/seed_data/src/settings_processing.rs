@@ -1,5 +1,5 @@
 use crate::{
-    PresetBundle, ResolvedSettings, RootPreset, SETTINGS_FORMAT_VERSION, Settings,
+    ItemPoolPreset, PresetBundle, ResolvedSettings, RootPreset, SETTINGS_FORMAT_VERSION, Settings,
     SettingsDocument, SettingsSource, SkillPreset,
 };
 use anyhow::Result;
@@ -44,6 +44,7 @@ pub struct SettingsContext {
     /// Complete built-in baselines, the default first.
     pub root: Vec<RootPreset>,
     pub skill: Vec<SkillPreset>,
+    pub item_pool: Vec<ItemPoolPreset>,
     /// Permitted levels from the technique classifications, including unranked levels.
     pub proficiency_levels: BTreeMap<u32, Vec<u32>>,
     /// Ordinary item identities and minimum counts from the item records.
@@ -204,6 +205,29 @@ impl SettingsContext {
             },
             None => inherited_skill,
         };
+        let inherited_item_pool = self
+            .item_pool
+            .iter()
+            .find(|p| p.id == root.item_pool_preset)
+            .unwrap();
+        let item_pool = match raw.get("item_pool").and_then(|v| v.get("preset")) {
+            Some(id) => match self
+                .item_pool
+                .iter()
+                .find(|p| Some(p.id.as_str()) == id.as_str())
+            {
+                Some(preset) => preset,
+                None => {
+                    errors.push(SettingsIssue {
+                        path: vec!["item_pool".to_owned(), "preset".to_owned()],
+                        message: "Unknown item pool preset.".to_owned(),
+                        replacement: Some(json!(self.item_pool[0].id)),
+                    });
+                    &self.item_pool[0]
+                }
+            },
+            None => inherited_item_pool,
+        };
         if mode == SettingsMode::Recover {
             notices.append(&mut errors);
         } else {
@@ -221,6 +245,15 @@ impl SettingsContext {
         if selects_skill {
             baseline["skill"] = skill_values;
         }
+        let item_pool_values = serde_json::to_value(&item_pool.settings)?;
+        let selects_item_pool = raw
+            .get("item_pool")
+            .and_then(|value| value.get("preset"))
+            .is_some();
+        let overrides_item_pool = selects_item_pool && baseline["item_pool"] != item_pool_values;
+        if selects_item_pool {
+            baseline["item_pool"] = item_pool_values;
+        }
         let mut values = baseline.clone();
         let mut tweaks = json!({});
         merge_tweaks(raw, &baseline, &mut values, &mut tweaks, &mut Vec::new());
@@ -228,6 +261,10 @@ impl SettingsContext {
         let mut skills = vec![inherited_skill.clone()];
         if skill.id != inherited_skill.id {
             skills.push(skill.clone());
+        }
+        let mut item_pools = vec![inherited_item_pool.clone()];
+        if item_pool.id != inherited_item_pool.id {
+            item_pools.push(item_pool.clone());
         }
         let mut report = SettingsReport {
             original: original.clone(),
@@ -242,6 +279,7 @@ impl SettingsContext {
                 presets: PresetBundle {
                     root: root.clone(),
                     skill: skills,
+                    item_pool: item_pools,
                 },
             },
             values: None,
@@ -334,6 +372,9 @@ impl SettingsContext {
         }
         if skill.id != inherited_skill.id || overrides_skill {
             tweaks["skill"]["preset"] = json!(skill.id);
+        }
+        if item_pool.id != inherited_item_pool.id || overrides_item_pool {
+            tweaks["item_pool"]["preset"] = json!(item_pool.id);
         }
         for (key, value) in tweaks.as_object().unwrap() {
             report
@@ -537,7 +578,9 @@ fn merge_tweaks(
 ) {
     for (key, value) in raw.as_object().unwrap() {
         if (path.is_empty() && matches!(key.as_str(), "format_version" | "revision" | "preset"))
-            || (path.as_slice() == ["skill"] && key == "preset")
+            || (path.len() == 1
+                && matches!(path[0].as_str(), "skill" | "item_pool")
+                && key == "preset")
         {
             continue;
         }

@@ -31,6 +31,9 @@ data/
     generation/
       root/
         default.json
+        testing.json
+      item_pool/
+        default.json
     customization/
       root/
         default.json
@@ -66,14 +69,14 @@ Each built-in preset has its own source file, grouped by settings context and sc
     "skill": {
       "preset": "basic"
     },
-    "item_pool": { "fire_rod": 1, ... }
+    "item_pool": { "preset": "default" }
   }
 }
 ```
 
-A root preset can select a skill preset through its nested `skill` object; a skill preset's own values are directly inside its `settings` object. User-defined presets remain root-only and based directly on a built-in root preset.
+A root preset selects skill and item pool presets through its nested `skill` and `item_pool` objects; a child preset's own values are directly inside its `settings` object. The item pool Default preset is authored in `generation/item_pool/default.json`. User-defined presets remain root-only and based directly on a built-in root preset.
 
-Fixed Rust settings structs and authored preset-file wrappers reject unrecognized fields during Serde deserialization. Resolving a root preset overlays authored skill tweaks onto its selected skill baseline, preserving partial objects and retaining unknown entries for validation. Live documents inherit those completed root values unless they explicitly select a skill preset, which replaces the child scope.
+Fixed Rust settings structs and authored preset-file wrappers reject unrecognized fields during Serde deserialization. Resolving a root preset overlays authored child-scope tweaks onto their selected baselines, preserving partial objects and retaining unknown entries for validation. Live documents inherit those completed root values unless they explicitly select a child preset, which replaces that scope.
 
 Every built-in preset is complete over its scope, directly or through the presets it selects: the default root preset defines every root-scope setting and selects a preset for each child scope. Applying a complete scope preset replaces every value in that scope. The derived skill preset for a difficulty enables every technique and notable classified at or below it and sets each proficiency to its highest level classified at or below it; unclassified members, such as those marked "Ignored", are disabled.
 
@@ -81,7 +84,7 @@ The frontend bundles current built-ins for editing and preview. Seed inspection 
 
 ## Setting definitions and scopes
 
-Settings are organized hierarchically by semantic scope. Root scope is the settings document itself; `skill` is a child scope containing skill assumptions. Scope membership determines the persisted path independently of frontend layout. Moving a control between UI sections does not change that path; moving a setting across scopes requires explicit migration, whose details are deferred until needed.
+Settings are organized hierarchically by semantic scope. Root scope is the settings document itself; `skill` contains skill assumptions and `item_pool` contains ordinary-item counts, each with its own built-in presets. Scope membership determines the persisted path independently of frontend layout. Moving a control between UI sections does not change that path; moving a setting across scopes requires explicit migration, whose details are deferred until needed.
 
 Shared semantics include defaults, option tokens, upstream proficiency tiers, and preset baselines. Values are booleans, integers, or option tokens. A setting needing fractional precision uses an integer with a fixed scale, so equality and tweak comparisons behave consistently in Rust and JavaScript.
 

@@ -11,8 +11,8 @@ pub use output::{
 };
 pub use settings::{MapLayoutSetting, NotableSettings, Settings, SkillSettings, StartingItems};
 pub use settings_document::{
-    PresetBundle, ResolvedSettings, RootPreset, SETTINGS_FORMAT_VERSION, SettingsDocument,
-    SettingsSource, SkillPreset,
+    ItemPoolPreset, PresetBundle, ResolvedSettings, RootPreset, SETTINGS_FORMAT_VERSION,
+    SettingsDocument, SettingsSource, SkillPreset,
 };
 pub use settings_processing::{
     SettingsContext, SettingsErrors, SettingsIssue, SettingsMode, SettingsReport,

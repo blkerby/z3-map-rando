@@ -1,7 +1,7 @@
 use crate::config::BuildConfig;
 use anyhow::{Context, Result, anyhow};
 use common_types::SourceRoomId;
-use preset_catalog::{PresetCatalog, RootPreset, SkillPreset};
+use preset_catalog::{ItemPoolPreset, PresetCatalog, RootPreset, SkillPreset};
 use seed_data::{NotableSettings, SkillSettings};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -89,7 +89,7 @@ struct NotableData {
 /// proficiency to its highest level ranked at or below it (its lowest level if none is). Unranked
 /// members are disabled. Root presets come from `<context>/root/*.json` under the preset directory,
 /// the default first; generation root presets are resolved into complete settings by applying the
-/// skill preset they select.
+/// skill and item pool presets they select.
 pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
     let techs: Vec<TechRecord> = serde_json::from_slice(&fs::read(&config.tech_data)?)
         .with_context(|| format!("reading {}", config.tech_data.display()))?;
@@ -102,6 +102,7 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
         revision: String::new(),
         root: Vec::new(),
         skill: Vec::new(),
+        item_pool: Vec::new(),
         proficiency_levels: BTreeMap::new(),
         item_minimums: BTreeMap::new(),
         ordinary_item_count: logic_catalog::decode_catalog(File::open(
@@ -169,7 +170,16 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
         });
     }
 
-    for file in read_root_presets(&config.presets.join("generation/root"))? {
+    for file in read_presets(&config.presets.join("generation/item_pool"))? {
+        catalog.item_pool.push(ItemPoolPreset {
+            settings: serde_json::from_value(file.settings)
+                .with_context(|| format!("reading item pool preset {}", file.id))?,
+            id: file.id,
+            label: file.label,
+        });
+    }
+
+    for file in read_presets(&config.presets.join("generation/root"))? {
         let mut settings = file.settings;
         let skill_preset = settings["skill"]["preset"]
             .as_str()
@@ -184,6 +194,27 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
         settings["skill"].as_object_mut().unwrap().remove("preset");
         merge_settings(&mut skill_values, &settings["skill"]);
         settings["skill"] = skill_values;
+        let item_pool_preset = settings["item_pool"]["preset"]
+            .as_str()
+            .with_context(|| format!("preset {} selects no item pool preset", file.id))?
+            .to_owned();
+        let item_pool = catalog
+            .item_pool
+            .iter()
+            .find(|p| p.id == item_pool_preset)
+            .ok_or_else(|| {
+                anyhow!(
+                    "unknown item pool preset {item_pool_preset} in preset {}",
+                    file.id
+                )
+            })?;
+        let mut item_pool_values = serde_json::to_value(&item_pool.settings)?;
+        settings["item_pool"]
+            .as_object_mut()
+            .unwrap()
+            .remove("preset");
+        merge_settings(&mut item_pool_values, &settings["item_pool"]);
+        settings["item_pool"] = item_pool_values;
         catalog
             .validate_settings(&mut settings)
             .with_context(|| format!("validating preset {}", file.id))?;
@@ -193,17 +224,27 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
             id: file.id,
             label: file.label,
             skill_preset,
+            item_pool_preset,
         });
     }
 
     // Include processing code so type and rule changes advance the shared revision too.
     let mut roots = Vec::new();
     for preset in &catalog.root {
-        roots.push((&preset.id, &preset.skill_preset, &preset.settings));
+        roots.push((
+            &preset.id,
+            &preset.skill_preset,
+            &preset.item_pool_preset,
+            &preset.settings,
+        ));
     }
     let mut skills = Vec::new();
     for preset in &catalog.skill {
         skills.push((&preset.id, &preset.settings));
+    }
+    let mut item_pools = Vec::new();
+    for preset in &catalog.item_pool {
+        item_pools.push((&preset.id, &preset.settings));
     }
     let mut revision = Sha256::new();
     revision.update(include_bytes!("../../../Cargo.lock"));
@@ -220,6 +261,7 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
         catalog.ordinary_item_count,
         roots,
         skills,
+        item_pools,
     ))?);
     for byte in revision.finalize() {
         write!(&mut catalog.revision, "{byte:02x}").unwrap();
@@ -232,7 +274,7 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
         notables: Vec::new(),
         items,
         generation: catalog,
-        customization: read_root_presets(&config.presets.join("customization/root"))?,
+        customization: read_presets(&config.presets.join("customization/root"))?,
     };
     for tech in techs {
         let Some(level) = tech.level else {
@@ -302,8 +344,8 @@ fn merge_settings(values: &mut serde_json::Value, tweaks: &serde_json::Value) {
     }
 }
 
-/// The root preset files in a directory, the default first.
-fn read_root_presets(directory: &Path) -> Result<Vec<PresetFile>> {
+/// The preset files in a directory, the default first.
+fn read_presets(directory: &Path) -> Result<Vec<PresetFile>> {
     let mut paths = Vec::new();
     for entry in fs::read_dir(directory)? {
         paths.push(entry?.path());

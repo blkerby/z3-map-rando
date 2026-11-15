@@ -6,7 +6,7 @@
 	import SectionCard from '$lib/settings/SectionCard.svelte';
 	import ToggleSetting from '$lib/settings/ToggleSetting.svelte';
 	import { getStore } from '$lib/settings/context';
-	import { DIFFICULTIES, ITEM_LOCATIONS, countPoolItems, notables, poolItems, proficiencies, skillScope, tech } from './data';
+	import { DIFFICULTIES, ITEM_LOCATIONS, countPoolItems, itemPoolScope, notables, poolItems, proficiencies, skillScope, tech } from './data';
 
 	const store = getStore();
 
@@ -108,7 +108,7 @@
 	</Group>
 </SectionCard>
 
-<SectionCard id="item_pool" title="Item pool" icon="box-seam" collapsible collapsed>
+<SectionCard id="item_pool" title="Item pool" icon="box-seam" collapsible collapsed scope={itemPoolScope}>
 	{#snippet header()}
 		<div class="pool-bar" class:text-danger={poolUsed > ITEM_LOCATIONS}>
 			{poolUsed} of {ITEM_LOCATIONS} item locations filled{poolUsed < ITEM_LOCATIONS ? ' (the rest are left empty)' : ''}.

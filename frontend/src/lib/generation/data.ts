@@ -15,9 +15,10 @@ interface SettingsData {
 	items: ItemRecord[];
 	generation: {
 		revision: string;
-		/** The default first; settings are complete, with the selected skill preset applied. */
-		root: { id: string; label: string; skill_preset: string; settings: Tree }[];
+		/** The default first; settings are complete, with the selected scope presets applied. */
+		root: { id: string; label: string; skill_preset: string; item_pool_preset: string; settings: Tree }[];
 		skill: { id: string; label: string; settings: Tree }[];
+		item_pool: { id: string; label: string; settings: Tree }[];
 	};
 	customization: { id: string; label: string; settings: Tree }[];
 }
@@ -60,15 +61,16 @@ for (const n of settingsData.notables) {
 }
 
 export const skillScope: Scope = { id: 'skill', label: 'Skill assumptions', presets: settingsData.generation.skill };
+export const itemPoolScope: Scope = { id: 'item_pool', label: 'Item pool', presets: settingsData.generation.item_pool };
 
 const rootPresets = [];
 for (const p of settingsData.generation.root) {
-	rootPresets.push({ id: p.id, label: p.label, settings: p.settings, scopes: { skill: p.skill_preset } });
+	rootPresets.push({ id: p.id, label: p.label, settings: p.settings, scopes: { skill: p.skill_preset, item_pool: p.item_pool_preset } });
 }
 
 export const generationModel: SettingsModel = {
 	rootPresets,
-	scopes: [skillScope],
+	scopes: [skillScope, itemPoolScope],
 	revision: settingsData.generation.revision
 };
 

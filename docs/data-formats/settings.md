@@ -23,7 +23,7 @@ A settings document has these fields. Field names are provisional:
 | setting keys | Root-scope values |
 | scope IDs | Nested objects containing the settings for those scopes |
 
-The document itself represents root scope. A child scope such as `skill` is a nested object; it can select its own built-in `preset` and contain values, family objects, and further child scopes. A value is a JSON scalar (boolean, number, or string) at its setting's [path](#identifiers); any object is a scope or family, never a value. Documents are sparse: only tweaks are present. Shared setting definitions identify each setting's scope and therefore its location in the document. UI section names do not determine that path.
+The document itself represents root scope. A child scope such as `skill` or `item_pool` is a nested object; it can select its own built-in `preset` and contain values, family objects, and further child scopes. A value is a JSON scalar (boolean, number, or string) at its setting's [path](#identifiers); any object is a scope or family, never a value. Documents are sparse: only tweaks are present. Shared setting definitions identify each setting's scope and therefore its location in the document. UI section names do not determine that path.
 
 There is one preset selection per scope object. Its ID is local to that scope: root `preset: "default"` selects the root default, while `preset: "hard"` inside `skill` selects the skill preset. The selected preset supplies a baseline, child scope objects customize their respective parts, and explicit values override the applicable baseline. JSON property order has no effect. A selected child preset replaces the values throughout that child scope, so values from a previously inherited preset cannot linger. A child object without a preset selection retains its inherited baseline and applies only its explicit changes.
 
@@ -50,7 +50,7 @@ This starts with the default root preset, applies Hard skill assumptions, then s
 
 ## Identifiers
 
-A setting is identified by its path: the object keys leading to it, in the shape of the [default preset](../../data/presets/generation/root/default.json), such as `map_layout` or `skill` › `tech` › `5`. Paths follow semantic scopes, never the UI layout. Keys are lowercase `snake_case`; where a Rust field or enum corresponds to a setting or option token, its Serde name follows the key, not the reverse. Option tokens are scoped to their setting, and built-in preset IDs to their scope.
+A setting is identified by its path: the object keys leading to it, in the shape of the resolved [default preset](../../data/presets/generation/root/default.json) and its selected child presets, including the [default item pool](../../data/presets/generation/item_pool/default.json), such as `map_layout` or `skill` › `tech` › `5`. Paths follow semantic scopes, never the UI layout. Keys are lowercase `snake_case`; where a Rust field or enum corresponds to a setting or option token, its Serde name follows the key, not the reverse. Option tokens are scoped to their setting, and built-in preset IDs to their scope.
 
 Settings generated from data are members of a family object, keyed by stable IDs written as decimal strings where numeric:
 
