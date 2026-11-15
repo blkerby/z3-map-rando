@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:z3-map-rando:schema:settings:skill",
+  "title": "Resolved skill assumptions",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["proficiencies", "tech", "notables"],
+  "properties": {
+    "proficiencies": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 5
+      }
+    },
+    "tech": {
+      "type": "object",
+      "additionalProperties": { "type": "boolean" }
+    },
+    "notables": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["overworld", "underworld"],
+      "properties": {
+        "overworld": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": { "type": "boolean" }
+          }
+        },
+        "underworld": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

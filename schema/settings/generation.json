@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:z3-map-rando:schema:settings:generation",
+  "title": "Resolved generation settings",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["map_layout", "skill", "item_pool", "starting_items"],
+  "properties": {
+    "map_layout": {
+      "type": "string",
+      "enum": ["vanilla", "random"]
+    },
+    "skill": {
+      "$ref": "urn:z3-map-rando:schema:settings:skill"
+    },
+    "item_pool": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 151
+      }
+    },
+    "starting_items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bomb_capacity", "arrow_capacity"],
+      "properties": {
+        "bomb_capacity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99
+        },
+        "arrow_capacity": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99
+        }
+      }
+    }
+  }
+}
