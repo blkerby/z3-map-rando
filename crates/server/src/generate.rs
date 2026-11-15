@@ -4,6 +4,7 @@ use logic_catalog::LogicCatalog;
 use preset_catalog::PresetCatalog;
 use rand::{SeedableRng, rngs::StdRng};
 use retiling_catalog::RetilingCatalog;
+use seed_data::SettingsIssue;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use server::store::Store;
@@ -42,8 +43,12 @@ pub async fn generate_seed(
     let result = web::block(move || -> anyhow::Result<_> {
         // A started blocking task keeps the slot even if its HTTP handler is dropped.
         let permit = permit;
-        let settings = worker_state.presets.resolve_settings(&request.settings)?;
-        let notices = settings.notices.clone();
+        let report = worker_state.presets.process_settings(&request.settings)?;
+        let mut notices = Vec::new();
+        for notice in &report.notices {
+            notices.push(notice.to_string());
+        }
+        let settings = report.finish_processing()?;
         let numeric_seed = rand::random();
         let metadata = create_metadata(
             numeric_seed,
@@ -67,6 +72,12 @@ pub async fn generate_seed(
     .await;
     let (seed, bytes, notices, _permit) = match result {
         Ok(Ok(result)) => result,
+        Ok(Err(error)) if error.is::<SettingsIssue>() => {
+            return HttpResponse::UnprocessableEntity().json(json!({
+                "error": error.to_string(),
+                "errors": [error.downcast_ref::<SettingsIssue>().unwrap()],
+            }));
+        }
         Ok(Err(error)) if error.is::<InvalidSettings>() => {
             return HttpResponse::UnprocessableEntity().json(json!({ "error": error.to_string() }));
         }

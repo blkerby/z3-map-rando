@@ -28,7 +28,7 @@ fn write_inputs(root: &Path, source: &mut String, name: &str, inputs: &[&str]) {
         }
     }
     files.sort();
-    source.push_str(&format!("const {name}: &[(&str, &[u8])] = &[\n"));
+    source.push_str(&format!("pub(crate) const {name}: &[(&str, &[u8])] = &[\n"));
     for path in files {
         println!("cargo:rerun-if-changed={}", path.display());
         source.push_str(&format!(

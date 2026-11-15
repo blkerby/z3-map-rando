@@ -1,7 +1,7 @@
 use crate::config::BuildConfig;
 use anyhow::{Context, Result, anyhow};
 use common_types::SourceRoomId;
-use preset_catalog::{PresetCatalog, RootPreset, SettingDefinition, SettingValues, SkillPreset};
+use preset_catalog::{PresetCatalog, RootPreset, SkillPreset};
 use seed_data::{NotableSettings, SkillSettings};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -99,77 +99,28 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
 
     let mut catalog = PresetCatalog {
         revision: String::new(),
-        definitions: vec![SettingDefinition {
-            path: vec!["map_layout".to_owned()],
-            values: SettingValues::Choice(vec!["vanilla".to_owned(), "random".to_owned()]),
-        }],
         root: Vec::new(),
         skill: Vec::new(),
+        proficiency_levels: BTreeMap::new(),
+        item_minimums: BTreeMap::new(),
     };
-    for name in ["bomb_capacity", "arrow_capacity"] {
-        catalog.definitions.push(SettingDefinition {
-            path: vec!["starting_items".to_owned(), name.to_owned()],
-            values: SettingValues::Integer { min: 0, max: 99 },
-        });
-    }
     for item in items.as_array().unwrap() {
         if matches!(item["category"].as_str(), Some("dungeon" | "prize")) {
             continue;
         }
-        catalog.definitions.push(SettingDefinition {
-            path: vec![
-                "item_pool".to_owned(),
-                item["name"].as_str().unwrap().to_owned(),
-            ],
-            values: SettingValues::Integer {
-                min: item["min"].as_u64().unwrap() as u32,
-                max: u32::MAX,
-            },
-        });
+        catalog.item_minimums.insert(
+            serde_json::from_value(item["name"].clone())?,
+            serde_json::from_value(item["min"].clone())?,
+        );
     }
-    let mut proficiency_levels: BTreeMap<u32, Vec<u32>> = BTreeMap::new();
     for tech in &techs {
         if let Some(level) = tech.level {
-            proficiency_levels
+            catalog
+                .proficiency_levels
                 .entry(tech.tech_id)
                 .or_default()
                 .push(level);
-        } else {
-            catalog.definitions.push(SettingDefinition {
-                path: vec![
-                    "skill".to_owned(),
-                    "tech".to_owned(),
-                    tech.tech_id.to_string(),
-                ],
-                values: SettingValues::Boolean,
-            });
         }
-    }
-    for (id, levels) in proficiency_levels {
-        catalog.definitions.push(SettingDefinition {
-            path: vec![
-                "skill".to_owned(),
-                "proficiencies".to_owned(),
-                id.to_string(),
-            ],
-            values: SettingValues::Levels(levels),
-        });
-    }
-    for notable in &notables {
-        let (world, room) = match notable.room_id {
-            SourceRoomId::Overworld(room) => ("overworld", room),
-            SourceRoomId::Underworld(room) => ("underworld", room),
-        };
-        catalog.definitions.push(SettingDefinition {
-            path: vec![
-                "skill".to_owned(),
-                "notables".to_owned(),
-                world.to_owned(),
-                room.to_string(),
-                notable.notable_id.to_string(),
-            ],
-            values: SettingValues::Boolean,
-        });
     }
     for (max_rank, label) in DIFFICULTIES.iter().enumerate() {
         let reached = |difficulty: &str| matches!(DIFFICULTIES.iter().position(|d| *d == difficulty), Some(rank) if rank <= max_rank);
@@ -234,7 +185,7 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
         });
     }
 
-    // Revision tracks semantic definitions and preset values, independently of display labels.
+    // Include processing code so type and rule changes advance the shared revision too.
     let mut roots = Vec::new();
     for preset in &catalog.root {
         roots.push((&preset.id, &preset.skill_preset, &preset.settings));
@@ -243,7 +194,22 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
     for preset in &catalog.skill {
         skills.push((&preset.id, &preset.settings));
     }
-    for byte in Sha256::digest(serde_json::to_vec(&(&catalog.definitions, roots, skills))?) {
+    let mut revision = Sha256::new();
+    revision.update(include_bytes!("../../../Cargo.lock"));
+    for &(path, bytes) in crate::cache::PRESET_CODE_INPUTS {
+        let path = path.replace('\\', "/");
+        revision.update((path.len() as u64).to_le_bytes());
+        revision.update(path.as_bytes());
+        revision.update((bytes.len() as u64).to_le_bytes());
+        revision.update(bytes);
+    }
+    revision.update(serde_json::to_vec(&(
+        &catalog.proficiency_levels,
+        &catalog.item_minimums,
+        roots,
+        skills,
+    ))?);
+    for byte in revision.finalize() {
         write!(&mut catalog.revision, "{byte:02x}").unwrap();
     }
 

@@ -37,7 +37,7 @@ data/
 
 Skill presets have no files: they are derived from the difficulty classifications. Skill settings not covered by the classifications would get sparse files under `generation/skill/`, holding only those settings, with the derived members filled in by preparation.
 
-The exact representation of ordinary setting definitions, including whether Rust and TypeScript types are handwritten or generated, remains open. The goal is to define shared semantics once and avoid per-setting translation code.
+Rust's `seed_data::Settings` types define setting representations and option tokens. `SettingsContext::process_settings` applies prepared presets, checks values, and returns a report with the preserved original, cleaned sparse document, resolved values, captured baselines, structured notices, and blocking errors. The context uses prepared proficiency levels and ordinary-item minimums; complete preset values supply the known dynamic member identities. There is no separate per-setting definition table. Svelte components own the controls and presentation.
 
 ```text
 shared setting definitions + preset files + local classifications + upstream data
@@ -86,7 +86,7 @@ The backend validates generation inputs authoritatively. The frontend can give i
 
 ## Revisions and persisted settings
 
-A settings data revision identifies the shared semantic definitions and preset data used by a build. Frontend and backend builds from the same sources use the same revision even if they package the data differently. Catalog preparation computes a SHA-256 digest of the serialized semantic definitions and ordered built-in preset IDs, scope selections, and concrete values, excluding display labels. It exports the same revision through the preset catalog and `settings_data.json` under `generation.revision`; it does not depend on an HTTP response or frontend layout.
+A settings data revision identifies the shared processing rules and preset data used by a build. Frontend and backend builds from the same sources use the same revision even if they package the data differently. Catalog preparation computes a SHA-256 digest of the dependency lockfile, the preset, settings, and common-type Rust sources and manifests, prepared proficiency levels and item minimums, and ordered built-in preset IDs, scope selections, and concrete values. Preset display labels are excluded. The source fingerprint is conservative: code or comment edits can also advance the revision. The same revision is exported through the preset catalog and `settings_data.json` under `generation.revision`; it does not depend on an HTTP response or frontend layout.
 
 Settings documents record their source revision. The backend first migrates their meaning, then applies current presets and defaults for live settings. An older frontend submits through this same generation path and receives the authoritative generated settings and any upgrade notices; see [generation](backend-api.md#generation).
 
@@ -96,5 +96,5 @@ Historical seeds are migrated to the current settings representation for display
 
 - The source representation of ordinary settings and whether to generate Rust or TypeScript types.
 - The preparation and export tooling used by the frontend build.
-- Whether frontend resolution and baseline comparison use TypeScript or shared Rust code through WebAssembly.
+- Browser integration of the shared Rust processor through WebAssembly.
 - The source syntax for derived skill presets and cross-setting constraints.

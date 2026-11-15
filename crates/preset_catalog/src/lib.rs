@@ -2,25 +2,11 @@
 //! `data/` (see `docs/data-formats/settings-data.md`).
 
 use anyhow::{Result, ensure};
-pub use seed_data::{RootPreset, SkillPreset};
-use serde::{Deserialize, Serialize};
+pub use seed_data::{RootPreset, SettingsContext as PresetCatalog, SkillPreset};
 use std::io::{BufReader, BufWriter, Read, Write};
-
-mod resolve;
-pub use resolve::{SettingDefinition, SettingValues};
 
 const CATALOG_MAGIC: [u8; 8] = *b"Z3PRESET";
 const CATALOG_CONFIG: bincode_next::config::Configuration = bincode_next::config::standard();
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct PresetCatalog {
-    pub revision: String,
-    pub definitions: Vec<SettingDefinition>,
-    /// Built-in root presets, the default first.
-    pub root: Vec<RootPreset>,
-    /// Built-in skill presets, derived from the difficulty classifications, easiest first.
-    pub skill: Vec<SkillPreset>,
-}
 
 /// Write the uncompressed envelope followed by a Zstd-compressed bincode payload.
 pub fn encode_catalog(

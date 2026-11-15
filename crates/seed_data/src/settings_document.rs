@@ -47,5 +47,4 @@ pub struct SettingsSource {
 pub struct ResolvedSettings {
     pub values: Settings,
     pub source: SettingsSource,
-    pub notices: Vec<String>,
 }

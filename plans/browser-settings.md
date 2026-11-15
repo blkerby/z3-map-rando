@@ -1,6 +1,6 @@
 # Browser WebAssembly and settings recovery
 
-Status: Milestone 1 is complete, including native/WASM catalog decoding checks. Milestones 2 onward are pending. Use one Rust implementation of settings migration, preset resolution, validation, and recovery from the backend, CLI, and browser. Introduce one browser WebAssembly package for settings processing, then extend that package with ROM patching when browser patching is implemented. Saved presets are processed locally without backend requests.
+Status: Milestones 1 and 2 are complete. The native consumers share the settings processor, including the recovery foundation needed to remove `definitions`. Milestone 3 still needs cross-setting findings in the shared report; browser bindings and frontend integration remain Milestones 4 onward. Use one Rust implementation of settings migration, preset resolution, validation, and recovery from the backend, CLI, and browser. Introduce one browser WebAssembly package for settings processing, then extend that package with ROM patching when browser patching is implemented. Saved presets are processed locally without backend requests.
 
 The settings semantics and persisted formats are described in [settings](../docs/data-formats/settings.md), [shared settings data](../docs/data-formats/settings-data.md), and [seed data](../docs/data-formats/seed-data.md). This plan tracks the implementation of the shared processing boundary and browser integration.
 
@@ -53,15 +53,21 @@ The preset catalog and patcher compile for `wasm32-unknown-unknown`; the full pa
 
 ## Milestone 2 Consolidate settings processing
 
-- [ ] Establish a shared Rust processing API that accepts a settings document and an initialized context containing the current prepared preset data and necessary semantic facts.
-- [ ] Keep processing independent of filesystem access, HTTP, browser APIs, and catalog compression. Separate those concerns only where needed for native and WASM consumers to share the implementation.
-- [ ] Move backend and CLI loading onto this API.
-- [ ] Remove `SettingDefinition`, `SettingValues`, `PresetCatalog::definitions`, and their builder and export code after replacement validation covers their current responsibilities.
-- [ ] Retain authoritative Rust validation for capacities, dynamic member identities, and permitted proficiency levels using existing prepared data.
-- [ ] Update the settings revision computation so changes to accepted types, semantic rules, and prepared preset data are represented after removing `definitions`. Frontend and backend builds from the same sources must still use the same revision.
-- [ ] Return a processing report containing the cleaned sparse document, resolved values, structured notices, and remaining blocking errors. Keep the captured preset baselines and provenance needed to construct a seed.
+- [x] Establish a shared Rust processing API that accepts a settings document and an initialized context containing the current prepared preset data and necessary semantic facts.
+- [x] Keep processing independent of filesystem access, HTTP, browser APIs, and catalog compression. Separate those concerns only where needed for native and WASM consumers to share the implementation.
+- [x] Move backend and CLI loading onto this API.
+- [x] Remove `SettingDefinition`, `SettingValues`, `PresetCatalog::definitions`, and their builder and export code after replacement validation covers their current responsibilities.
+- [x] Retain authoritative Rust validation for capacities, dynamic member identities, and permitted proficiency levels using existing prepared data.
+- [x] Update the settings revision computation so changes to accepted types, semantic rules, and prepared preset data are represented after removing `definitions`. Frontend and backend builds from the same sources must still use the same revision.
+- [x] Return a processing report containing the cleaned sparse document, resolved values, structured notices, and remaining blocking errors. Keep the captured preset baselines and provenance needed to construct a seed.
 
 Initialize the browser's settings context once using the prepared data already bundled with the frontend. Processing each additional saved preset must not reload the context or make a backend request.
+
+`seed_data::SettingsContext::process_settings` accepts a JSON document and returns a `SettingsReport`. The report holds the untouched original, cleaned document and captured baselines under `source`, optional resolved `values`, and structured `notices` and `errors` with string-segment paths and replacement values where applicable. `finish_processing` admits the resolved values to generation only when no blocking error remains. `preset_catalog::PresetCatalog` names the same context type; its crate supplies only the compressed codec. The context holds proficiency levels and ordinary-item minimums from preparation, and uses complete baselines for known dynamic identities. The server retains its string notice response, and the CLI prints the same structured findings as text.
+
+The shared revision hashes the dependency lockfile, the preset/settings/common-type sources and manifests, prepared semantic facts, and ordered preset IDs, scope selections, and values. Preset display labels do not affect it; source-only edits can conservatively advance it. The frontend export and native catalog carry identical contexts and revisions.
+
+Temporary verification covered 106 recovery and normalization/idempotency cases, every root/skill preset combination, path diagnostics including enum-keyed item counts, blocking broken baselines, unchanged generator item-count rejection, native/frontend export parity, and revision behavior for label, preset-value, and proficiency-level changes. A further 117 cases checked recovery, idempotency, and canonical normalization of Serde's accepted enum representations. An Actix handler check verified HTTP 422 responses for blocking processing and item-count errors. A CLI seed generation verified recovered values, sparse normalization, source revision, captured baselines, and placements. Workspace checks, WASM compilation, and frontend type checks pass. Verification sources were removed.
 
 ## Milestone 3 Implement validation and recovery
 
@@ -76,16 +82,16 @@ structural and vocabulary migration
   -> remaining cross-setting findings
 ```
 
-- [ ] Keep structural and vocabulary migration before validation or removal of entries. There are no historical transformations to implement yet; add actual migration rules when a setting or format changes.
-- [ ] Supply missing entries from the selected presets and defaults.
-- [ ] Accept unknown keys without rejecting the document. Ignore them for generation, optionally report a notice, and retain them in the preserved original input.
-- [ ] Recover invalid known entries using their selected preset baseline, rather than a raw setting default or an arbitrary valid choice.
-- [ ] Recover malformed containers at the affected container while retaining valid entries elsewhere in the document.
-- [ ] Use `serde_path_to_error` for representation failures. Have explicit semantic checks produce the same structured path information.
-- [ ] Ensure every recovery attempt removes an offending submitted entry. Return an error if an error cannot be attributed to a submitted entry; do not retry indefinitely or hide a broken baseline.
-- [ ] Remove redundant tweaks after recovery without materializing inherited values as explicit tweaks.
-- [ ] Keep cross-setting failures blocking and avoid silently changing values to satisfy them. Preserve the generator's current constraints, including its exact ordinary-item count requirement.
-- [ ] Include the path, reason, and replacement value in recovery notices so the frontend can explain each adjustment.
+- [x] Keep structural and vocabulary migration before validation or removal of entries. There are no historical transformations to implement yet; add actual migration rules when a setting or format changes.
+- [x] Supply missing entries from the selected presets and defaults.
+- [x] Accept unknown keys without rejecting the document. Ignore them for generation, optionally report a notice, and retain them in the preserved original input.
+- [x] Recover invalid known entries using their selected preset baseline, rather than a raw setting default or an arbitrary valid choice.
+- [x] Recover malformed containers at the affected container while retaining valid entries elsewhere in the document.
+- [x] Use `serde_path_to_error` for representation failures. Have explicit semantic checks produce the same structured path information.
+- [x] Ensure every recovery attempt removes an offending submitted entry. Return an error if an error cannot be attributed to a submitted entry; do not retry indefinitely or hide a broken baseline.
+- [x] Remove redundant tweaks after recovery without materializing inherited values as explicit tweaks.
+- [ ] Surface cross-setting findings in the shared report and keep them blocking, without silently changing values to satisfy them. Preserve the generator's independent checks, including its exact ordinary-item count requirement.
+- [x] Include the path, reason, and replacement value in recovery notices so the frontend can explain each adjustment.
 
 Expected behavior includes:
 

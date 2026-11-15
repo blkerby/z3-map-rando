@@ -288,11 +288,11 @@ fn load_settings(args: &Args) -> Result<ResolvedSettings> {
             "preset": id,
         })
     };
-    let resolved = catalog.resolve_settings(&document)?;
-    for notice in &resolved.notices {
+    let report = catalog.process_settings(&document)?;
+    for notice in &report.notices {
         eprintln!("Settings: {notice}");
     }
-    Ok(resolved)
+    Ok(report.finish_processing()?)
 }
 
 fn write_seed(seed: &SeedData, output_path: &Path) -> Result<()> {
