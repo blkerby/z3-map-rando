@@ -32,16 +32,11 @@ The output paths are `build/retiling_catalog.bin`, `build/logic_catalog.bin`, `b
 
 ### Catalog format
 
-The catalogs use a Zstd-compressed `bincode-next` payload following a 16-byte uncompressed envelope. The envelope includes:
+The catalogs use a Zstd-compressed `bincode-next` payload following eight uncompressed magic bytes identifying the catalog kind. There is no runtime schema fingerprint. The builder uses separate SHA-256 cache fingerprints of source code, configuration, and data inputs to invalidate stale catalogs.
 
-- Magic bytes to identify the format.
-- A 64-bit schema identifier for the payload's root Rust type.
+The catalog APIs stream encoding through a buffered Zstd encoder and decoding through a buffered Zstd decoder, without buffering the entire uncompressed payload. The builder reads `compression_level` from `catalog-build.toml`, with `3` in the default template independently of Cargo profile; future CI release builds can explicitly use `18`. Changing compression does not change the decoded data. Prototype format changes require rebuilding catalogs, without legacy readers.
 
-The retiling, patch, and preset catalogs use `type_hash`. The logic catalog uses `serde-reflection` to describe its complete schema, including recursive types and enum names, tags, and payloads. Its identifier is the first eight SHA-256 bytes of that registry encoded with the standard bincode configuration, interpreted as a little-endian `u64`.
-
-The catalog APIs stream encoding through a buffered Zstd encoder and decoding through a buffered Zstd decoder, without buffering the entire uncompressed payload. The builder reads `compression_level` from `catalog-build.toml`, with `3` in the default template independently of Cargo profile; future CI release builds can explicitly use `18`. Changing compression does not change the decoded data or schema identifier. Prototype format changes require rebuilding catalogs, without legacy readers.
-
-A reader checks the envelope before decoding the payload. Schema changes that alter the identifier create a new format revision. Backward compatibility is not required; building and consuming a catalog use the same project version. This applies to catalogs, not saved seeds. The current retiling preparation code, patcher, and matching patch catalog must support older seeds without the original catalog versions.
+Building and consuming a catalog use the same project version. Browser catalogs must ship alongside their matching WASM build using content-hashed asset URLs. Manually supplied incompatible catalogs have no dedicated schema-mismatch check. Backward compatibility is not required for catalogs; this does not apply to saved seeds. The current retiling preparation code, patcher, and matching patch catalog must support older seeds without the original catalog versions.
 
 ### Retiling catalog
 

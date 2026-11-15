@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
+	import { loadBrowser } from '$lib/browser';
 	import { replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import CustomizationSettings from '$lib/customization/CustomizationSettings.svelte';
@@ -127,6 +128,10 @@
 	});
 
 	onMount(() => {
+		void loadBrowser().catch((e) => {
+			error = e instanceof Error ? e.message : 'Could not load browser settings support.';
+		});
+
 		// Presets before the drafts, which may name one of them.
 		store.loadUserPresets(PRESETS_KEY);
 		custom.loadUserPresets(CUSTOM_PRESETS_KEY);

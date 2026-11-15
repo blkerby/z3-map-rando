@@ -1,4 +1,5 @@
 import type { Tree } from '$lib/settings/tree';
+import { loadBrowser } from '$lib/browser';
 
 /**
  * Version of the generator the page was built against. Shared links record it so a
@@ -42,10 +43,11 @@ export interface GenerateResult {
 
 /** Submit a scoped settings document; the response identifies the stored seed. */
 export async function generateGame(settings: Tree): Promise<GenerateResult> {
+	const browser = await loadBrowser();
 	const response = await fetch('/api/generate', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ settings })
+		body: JSON.stringify({ settings: { ...settings, format_version: browser.get_settings_format_version() } })
 	});
 	if (!response.ok) {
 		const text = await response.text();

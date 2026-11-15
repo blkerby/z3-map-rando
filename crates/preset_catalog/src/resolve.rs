@@ -5,16 +5,15 @@ use seed_data::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use type_hash::TypeHash;
 
 /// Semantic value rules exported to both the backend and frontend.
-#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SettingDefinition {
     pub path: Vec<String>,
     pub values: SettingValues,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum SettingValues {
     Boolean,
     Integer { min: u32, max: u32 },

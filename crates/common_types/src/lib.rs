@@ -5,7 +5,6 @@ mod item;
 pub use item::Item;
 
 use serde::{Deserialize, Serialize};
-use type_hash::TypeHash;
 
 /// Shared project release version:
 pub const VERSION: &str = include_str!("../../../VERSION").trim_ascii();
@@ -19,9 +18,7 @@ pub fn allows_frog_dwarf(rom_entrance_id: u8) -> bool {
 
 /// Authored room identity. Overworld IDs are separate from all interior room kinds.
 /// Existing IDs are permanent; removed IDs must not be reused.
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, TypeHash,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum SourceRoomId {
     Overworld(u32),
     Underworld(u32),
@@ -29,7 +26,7 @@ pub enum SourceRoomId {
 
 /// Authored identity, independent of catalog ordering and patching addresses.
 /// Existing IDs are permanent; removed IDs must not be reused.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, TypeHash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ItemLocationId {
     pub room_id: SourceRoomId,
     /// ID of the room's item entry, not its `itemLocation` logic node.
@@ -50,9 +47,7 @@ pub const FAIRY_UPGRADE_LOCATIONS: [ItemLocationId; 2] = [
 ];
 
 /// Authored door identity, independent of catalog ordering and ROM addresses.
-#[derive(
-    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, TypeHash,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct DoorId {
     pub room_id: SourceRoomId,
     pub door_id: u32,

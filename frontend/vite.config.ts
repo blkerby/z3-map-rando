@@ -11,6 +11,7 @@ import { defineConfig, type Plugin } from 'vite';
 const repoRoot = path.resolve(import.meta.dirname, '..');
 const dataDirectory = path.join(repoRoot, 'data');
 const settingsData = path.join(repoRoot, 'build', 'settings_data.json');
+const browserPackage = path.join(repoRoot, 'build', 'browser');
 
 function prepareSettingsData() {
 	execFileSync('cargo', ['run', '--quiet', '--package', 'catalog_builder', '--', 'presets'], {
@@ -20,6 +21,10 @@ function prepareSettingsData() {
 }
 
 prepareSettingsData();
+execFileSync('wasm-pack', ['build', 'crates/browser', '--target', 'web', '--out-dir', browserPackage], {
+	cwd: repoRoot,
+	stdio: 'inherit'
+});
 
 /** In dev, prepare the settings data again when its sources change; the page then reloads. */
 function watchSettingsData(): Plugin {
@@ -65,7 +70,7 @@ export default defineConfig({
 
 			// Static files for the randomizer's server to host. The Generate page is client-only (see its +page.ts).
 			adapter: adapter(),
-			alias: { $settings_data: settingsData }
+			alias: { $settings_data: settingsData, $browser: browserPackage }
 		})
 	]
 });

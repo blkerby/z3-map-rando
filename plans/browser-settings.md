@@ -1,6 +1,6 @@
 # Browser WebAssembly and settings recovery
 
-Status: planned. Use one Rust implementation of settings migration, preset resolution, validation, and recovery from the backend, CLI, and browser. Introduce one browser WebAssembly package for settings processing, then extend that package with ROM patching when browser patching is implemented. Saved presets are processed locally without backend requests.
+Status: Milestone 1 is complete, including native/WASM catalog decoding checks. Milestones 2 onward are pending. Use one Rust implementation of settings migration, preset resolution, validation, and recovery from the backend, CLI, and browser. Introduce one browser WebAssembly package for settings processing, then extend that package with ROM patching when browser patching is implemented. Saved presets are processed locally without backend requests.
 
 The settings semantics and persisted formats are described in [settings](../docs/data-formats/settings.md), [shared settings data](../docs/data-formats/settings-data.md), and [seed data](../docs/data-formats/seed-data.md). This plan tracks the implementation of the shared processing boundary and browser integration.
 
@@ -18,13 +18,38 @@ The settings semantics and persisted formats are described in [settings](../docs
 
 - [x] Checkpoint the existing backend implementation and confirm a clean worktree before this refactor.
 - [x] Confirm `wasm32-unknown-unknown` and `wasm-pack` are available in the development environment.
-- [ ] Add a thin `crates/browser` binding crate using `wasm-bindgen`.
-- [ ] Build with `wasm-pack build --target web` and load a small settings entry point from the Generate page.
-- [ ] Check the settings and catalog dependencies for WASM compatibility, particularly compression dependencies.
-- [ ] Check the patcher's dependency graph and build portability before committing to the combined package. Full patching integration belongs to a later milestone.
-- [ ] Record initial WASM size and initialization time as a baseline.
+- [x] Add a thin `crates/browser` binding crate using `wasm-bindgen`.
+- [x] Build with `wasm-pack build --target web` and load a small settings entry point from the Generate page.
+- [x] Check the settings and catalog dependencies for WASM compatibility, particularly compression dependencies. Native and browser WASM decode and re-encode all four catalogs identically.
+- [x] Check the patcher's dependency graph and build portability before committing to the combined package. The full patcher links into a temporary WASM module; full ROM-patching integration belongs to a later milestone.
+- [x] Record initial WASM size and initialization time as a baseline.
 
 Keep this milestone small. If portability requires substantial changes to catalog formats or dependency boundaries, stop and review those changes before proceeding with the loader refactor.
+
+### Browser build results
+
+`crates/browser` exports `get_settings_format_version`, reading the shared `seed_data::SETTINGS_FORMAT_VERSION`. The Generate page preloads the package, and generation requests use that value. `loadBrowser` reuses the initialization promise and allows retry after a failed download. Existing document loading and recovery remain for Milestones 2 through 5.
+
+Vite builds the package into the ignored `build/browser/` directory when its configuration loads. Production emits `_app/immutable/assets/browser_bg.B0BRQumY.wasm`. Chrome checks verified that Home does not fetch WASM, entering Generate fetches and initializes it once, and leaving and returning through client navigation reuses it. An intentionally failed first download was reported through the existing error UI, and a subsequent generation request retried initialization successfully.
+
+Baseline measured on 2026-11-14 using headless Google Chrome 156.0.8078.47 on Linux x86_64, Intel Core i7-1360P. Builds used the default wasm-pack release profile with wasm-opt. Each mode used an isolated browser profile and five loads with the HTTP cache disabled, against a local server. Timings exclude page startup and JavaScript-module download; fetch-to-ready runs from the WASM request start to completion of instantiation. Subsequent loads may benefit from browser compilation caches.
+
+| Measurement | Vite development | Rust production server |
+| --- | --- | --- |
+| WASM bytes | 13,336 | 13,336 |
+| First fetch-to-ready time | 3.5 ms | 2.7 ms |
+| Median fetch-to-ready time over five loads | 3.5 ms | 5.1 ms |
+| Median streaming compilation and instantiation time | 0.7 ms | 1.1 ms |
+
+Generated JavaScript glue is 4,284 bytes before Vite bundling and minification. These are the small format-version entry point's baseline costs, not a prediction for the complete settings engine or patcher. Automatic Rust-source watching and explicit immutable cache headers remain Milestone 6 work.
+
+### Catalog portability
+
+Catalog files contain eight magic bytes followed by a Zstd-compressed bincode payload. Stale-catalog invalidation uses the builder's existing SHA-256 fingerprints of code, configuration, and data inputs. Runtime codecs do not compute or store schema/type fingerprints, avoiding architecture-dependent hashing and schema-reflection dependencies. Browser catalog assets must use content-hashed URLs and ship with their matching WASM build; manually supplied incompatible catalogs have no dedicated schema-mismatch check.
+
+Temporary native and headless Chrome WASM checks decoded the rebuilt logic catalog (145 rooms), retiling catalog (89 areas), patch catalog (257 item locations), and preset catalog (2 root presets). Each re-encoded file matched its native-produced input byte-for-byte, including compression. Temporary verification sources were removed.
+
+The preset catalog and patcher compile for `wasm32-unknown-unknown`; the full patcher and catalog codecs also linked into a temporary WASM module during the initial build checks. Actual ROM patching has not been exercised in WASM.
 
 ## Milestone 2 Consolidate settings processing
 

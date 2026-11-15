@@ -9,7 +9,6 @@ use std::{
     collections::BTreeMap,
     io::{BufReader, BufWriter, Read, Write},
 };
-use type_hash::TypeHash;
 
 const CATALOG_MAGIC: [u8; 8] = *b"Z3PATCH\0";
 const CATALOG_CONFIG: bincode_next::config::Configuration = bincode_next::config::standard();
@@ -21,7 +20,6 @@ pub fn encode_catalog(
     compression_level: i32,
 ) -> anyhow::Result<()> {
     writer.write_all(&CATALOG_MAGIC)?;
-    writer.write_all(&PatchCatalog::type_hash().to_le_bytes())?;
     let mut encoder = zstd::stream::write::Encoder::new(writer, compression_level)?;
     {
         let mut buffered = BufWriter::new(&mut encoder);
@@ -34,7 +32,7 @@ pub fn encode_catalog(
 
 /// Read the envelope, then stream the compressed payload into the catalog.
 pub fn decode_catalog(mut reader: impl Read) -> anyhow::Result<PatchCatalog> {
-    let mut envelope = [0; 16];
+    let mut envelope = [0; 8];
     reader.read_exact(&mut envelope)?;
     let decoder = zstd::stream::read::Decoder::new(reader)?;
     let mut buffered = BufReader::new(decoder);
@@ -42,7 +40,7 @@ pub fn decode_catalog(mut reader: impl Read) -> anyhow::Result<PatchCatalog> {
     Ok(catalog)
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PatchCatalog {
     pub patches: PatchIps,
     pub symbols: PatchSymbols,
@@ -54,7 +52,7 @@ pub struct PatchCatalog {
 }
 
 /// A complete IPS payload with its diagnostic name.
-#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Ips {
     pub name: String,
     pub bytes: Vec<u8>,
@@ -62,7 +60,7 @@ pub struct Ips {
 
 /// Complete IPS payloads, with fields named after their ASM filename stems.
 /// Patches remain separate so the patcher can detect conflicting writes.
-#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PatchIps {
     pub bg3_tilemap: Ips,
@@ -100,7 +98,7 @@ pub struct PatchIps {
 
 /// Exported ASM interface consumed by Rust. Addresses are SNES addresses,
 /// not ROM file offsets. Field names match the explicit ASM export names.
-#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PatchSymbols {
     pub catfish_item: u32,
@@ -138,7 +136,7 @@ pub struct PatchSymbols {
     pub overworld_overlay_pointers: u32,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ItemLocation {
     /// Unheadered ROM file offsets read from `itemAddress` or derived for prizes.
     /// Ordinary pickups receive the item's receipt ID as a single address.
@@ -149,7 +147,7 @@ pub struct ItemLocation {
     pub rom_addresses: Vec<u32>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ItemEncoding {
     pub receipt_id: u8,
     /// Locally derived dungeon-prize bytes, paired with the location's six offsets.

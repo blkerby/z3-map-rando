@@ -2,7 +2,6 @@ use crate::{Settings, SkillSettings};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
-use type_hash::TypeHash;
 
 pub const SETTINGS_FORMAT_VERSION: u32 = 1;
 
@@ -16,7 +15,7 @@ pub struct SettingsDocument {
     pub tweaks: BTreeMap<String, Value>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RootPreset {
     pub id: String,
     pub label: String,
@@ -24,7 +23,7 @@ pub struct RootPreset {
     pub settings: Settings,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SkillPreset {
     pub id: String,
     pub label: String,

@@ -10,7 +10,6 @@ use std::{
     collections::BTreeMap,
     io::{BufReader, BufWriter, Read, Write},
 };
-use type_hash::TypeHash;
 
 const CATALOG_MAGIC: [u8; 8] = *b"Z3RETILE";
 const CATALOG_CONFIG: bincode_next::config::Configuration = bincode_next::config::standard();
@@ -22,7 +21,6 @@ pub fn encode_catalog(
     compression_level: i32,
 ) -> Result<()> {
     writer.write_all(&CATALOG_MAGIC)?;
-    writer.write_all(&RetilingCatalog::type_hash().to_le_bytes())?;
     let mut encoder = zstd::stream::write::Encoder::new(writer, compression_level)?;
     {
         let mut buffered = BufWriter::new(&mut encoder);
@@ -41,12 +39,6 @@ pub fn decode_catalog(mut reader: impl Read) -> Result<RetilingCatalog> {
         magic == CATALOG_MAGIC,
         "invalid retiling catalog magic bytes"
     );
-    let mut hash = [0; 8];
-    reader.read_exact(&mut hash)?;
-    ensure!(
-        u64::from_le_bytes(hash) == RetilingCatalog::type_hash(),
-        "retiling catalog type hash mismatch; rebuild the catalog with this version"
-    );
     let decoder = zstd::stream::read::Decoder::new(reader)?;
     let mut buffered = BufReader::new(decoder);
     let catalog = bincode_next::decode_from_std_read(&mut buffered, CATALOG_CONFIG)?;
@@ -60,7 +52,7 @@ pub type TileId = u16;
 /// Red, green, and blue components, each in the range 0..=31.
 pub type Color = [u8; 3];
 
-#[derive(Clone, Debug, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct RetilingCatalog {
     pub palettes: BTreeMap<PaletteId, Palette>,
     /// Keys are source area names, including non-map templates such as Tree Edges.
@@ -69,14 +61,14 @@ pub struct RetilingCatalog {
     pub conditions: EdgeConditions,
 }
 
-#[derive(Clone, Debug, Deserialize, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Deserialize, Encode, Decode)]
 pub struct EdgeConditions {
     pub edge_variants: Vec<String>,
     pub edge_variant_aliases: BTreeMap<String, Vec<String>>,
     pub slot_aliases: BTreeMap<String, String>,
 }
 
-#[derive(Clone, Debug, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct Palette {
     /// Source palette filename without its extension.
     pub name: String,
@@ -87,7 +79,7 @@ pub struct Palette {
     pub animated_tile_groups: Vec<AnimatedTileGroup>,
 }
 
-#[derive(Clone, Debug, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct Tile {
     pub graphic: TileGraphic,
     pub priority: bool,
@@ -97,7 +89,7 @@ pub struct Tile {
     pub v_flippable: bool,
 }
 
-#[derive(Clone, Debug, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Encode, Decode)]
 #[repr(u8)]
 pub enum TileGraphic {
     /// Row-major authored palette indexes 0..=15; index zero is transparent.
@@ -107,7 +99,7 @@ pub enum TileGraphic {
     Vanilla(VanillaTileReference) = 1,
 }
 
-#[derive(Clone, Debug, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct VanillaTileReference {
     /// Numbered vanilla background graphics sheet, in $00..=$60.
     pub sheet: u8,
@@ -121,7 +113,7 @@ pub struct VanillaTileReference {
     pub flip: Flip,
 }
 
-#[derive(Clone, Debug, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct AnimatedTileGroup {
     /// First of the 16 consecutive palette-local tiles replaced by each frame.
     /// Priority and collision come from those tile definitions.
@@ -134,7 +126,7 @@ pub struct AnimatedTileGroup {
     pub phase_offset: u16,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, TypeHash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 pub struct TilePlacement {
     /// Horizontal position in 8x8 tiles from the grid's top-left corner.
     pub x: u8,
@@ -145,7 +137,7 @@ pub struct TilePlacement {
     pub flip: Flip,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, TypeHash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 #[repr(u8)]
 pub enum Flip {
     None = 0,
@@ -154,7 +146,7 @@ pub enum Flip {
     Both = 3,
 }
 
-#[derive(Clone, Debug, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct Area {
     /// Top-left vanilla map ID; absent for editor templates without a ROM map.
     pub vanilla_map_id: Option<u8>,
@@ -162,7 +154,7 @@ pub struct Area {
     pub themes: BTreeMap<String, AreaTheme>,
 }
 
-#[derive(Clone, Debug, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct AreaTheme {
     pub background: BackgroundSettings,
     /// Source layer order is retained for compositing by the asset compiler.
@@ -171,7 +163,7 @@ pub struct AreaTheme {
     pub cutscenes: Vec<Cutscene>,
 }
 
-#[derive(Clone, Debug, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct BackgroundSettings {
     pub color: Color,
     pub layering: BackgroundLayering,
@@ -181,7 +173,7 @@ pub struct BackgroundSettings {
     pub camera_drift: [f32; 2],
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Encode, Decode, TypeHash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Encode, Decode)]
 #[serde(rename_all = "snake_case")]
 #[repr(u8)]
 pub enum BackgroundLayering {
@@ -191,7 +183,7 @@ pub enum BackgroundLayering {
     Backdrop = 2,
 }
 
-#[derive(Clone, Debug, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct Layer {
     /// Used by cutscene draw actions and by the compiler's event interpretation.
     pub name: String,
@@ -202,7 +194,7 @@ pub struct Layer {
     pub map: Option<TileGrid>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Encode, Decode, TypeHash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Encode, Decode)]
 #[serde(rename_all = "snake_case")]
 #[repr(u8)]
 pub enum Background {
@@ -210,7 +202,7 @@ pub enum Background {
     Bg2 = 1,
 }
 
-#[derive(Clone, Debug, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct TileGrid {
     /// Width and height in 8x8 tiles, rather than editor screens or pixels.
     pub width: u8,
@@ -219,13 +211,13 @@ pub struct TileGrid {
     pub tiles: Vec<TilePlacement>,
 }
 
-#[derive(Clone, Debug, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct DynamicTileGroup {
     pub kind: DynamicTileType,
     pub variants: Vec<DynamicTileVariant>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Encode, Decode, TypeHash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Encode, Decode)]
 #[serde(rename_all = "snake_case")]
 #[repr(u8)]
 pub enum DynamicTileType {
@@ -253,19 +245,19 @@ pub enum DynamicTileType {
     HyruleCastleGate = 21,
 }
 
-#[derive(Clone, Debug, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct DynamicTileVariant {
     pub before: TileGrid,
     pub after_frames: Vec<TileGrid>,
 }
 
-#[derive(Clone, Debug, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Encode, Decode)]
 pub struct Cutscene {
     pub event: CutsceneEvent,
     pub actions: Vec<CutsceneAction>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Encode, Decode, TypeHash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Encode, Decode)]
 #[serde(rename_all = "snake_case")]
 #[repr(u8)]
 pub enum CutsceneEvent {
@@ -276,7 +268,7 @@ pub enum CutsceneEvent {
     GanonsTowerEntranceOpened = 5,
 }
 
-#[derive(Clone, Debug, Deserialize, Encode, Decode, TypeHash)]
+#[derive(Clone, Debug, Deserialize, Encode, Decode)]
 #[serde(tag = "action", rename_all = "snake_case")]
 #[repr(u8)]
 pub enum CutsceneAction {

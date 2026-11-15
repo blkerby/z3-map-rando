@@ -4,8 +4,6 @@ pub use common_types::{Item, ItemLocationId, SourceRoomId};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use serde_reflection::{Tracer, TracerConfig};
-use sha2::{Digest, Sha256};
 use std::io::{BufReader, BufWriter, Read, Write};
 
 const CATALOG_MAGIC: [u8; 8] = *b"Z3LOGIC\0";
@@ -17,7 +15,6 @@ pub fn encode_catalog(
     compression_level: i32,
 ) -> Result<()> {
     writer.write_all(&CATALOG_MAGIC)?;
-    writer.write_all(&compute_schema_hash()?.to_le_bytes())?;
     let mut encoder = zstd::stream::write::Encoder::new(writer, compression_level)?;
     {
         let mut buffered = BufWriter::new(&mut encoder);
@@ -34,7 +31,7 @@ pub fn encode_catalog(
 
 /// Read the envelope, then stream the compressed payload into the catalog.
 pub fn decode_catalog(mut reader: impl Read) -> Result<LogicCatalog> {
-    let mut envelope = [0; 16];
+    let mut envelope = [0; 8];
     reader.read_exact(&mut envelope)?;
     let decoder = zstd::stream::read::Decoder::new(reader)?;
     let mut buffered = BufReader::new(decoder);
@@ -767,52 +764,4 @@ pub enum LockKind {
 pub struct Obstacle {
     /// Authored room-local obstacle identity.
     pub name: String,
-}
-
-/// Hash the complete reflected schema, including enum names, tags, and payloads.
-/// Recursive requirements use named schema references rather than infinite trees.
-/// The catalog envelope uses the first eight SHA-256 bytes as a little-endian u64.
-pub fn compute_schema_hash() -> Result<u64> {
-    // Reflection errors are not Send + Sync; convert them once for anyhow.
-    let registry = (|| {
-        let mut tracer = Tracer::new(TracerConfig::default());
-        tracer.trace_simple_type::<LogicCatalog>()?;
-        // Each enum must be traced explicitly to discover all of its variants,
-        // including those not encountered while tracing the root's first variants.
-        tracer.trace_simple_type::<SourceRoomId>()?;
-        tracer.trace_simple_type::<Item>()?;
-        tracer.trace_simple_type::<RoomKind>()?;
-        tracer.trace_simple_type::<World>()?;
-        tracer.trace_simple_type::<BoundaryEndpoint>()?;
-        tracer.trace_simple_type::<MapBoundaryKind>()?;
-        tracer.trace_simple_type::<VertexOrigin>()?;
-        tracer.trace_simple_type::<TransitionState>()?;
-        tracer.trace_simple_type::<OverheadClass>()?;
-        tracer.trace_simple_type::<NodeType>()?;
-        tracer.trace_simple_type::<Direction>()?;
-        tracer.trace_simple_type::<Connection>()?;
-        tracer.trace_simple_type::<EntranceKind>()?;
-        tracer.trace_simple_type::<EdgeOrigin>()?;
-        tracer.trace_simple_type::<Requirement>()?;
-        tracer.trace_simple_type::<UniqueItem>()?;
-        tracer.trace_simple_type::<Equipment>()?;
-        tracer.trace_simple_type::<OcarinaState>()?;
-        tracer.trace_simple_type::<PrizeKind>()?;
-        tracer.trace_simple_type::<Ammo>()?;
-        tracer.trace_simple_type::<Resource>()?;
-        tracer.trace_simple_type::<BottleContent>()?;
-        tracer.trace_simple_type::<Follower>()?;
-        tracer.trace_simple_type::<Effect>()?;
-        tracer.trace_simple_type::<LockKind>()?;
-
-        tracer.registry()
-    })()
-    .map_err(|error| anyhow::anyhow!("{error}"))?;
-    // Registry maps are ordered; vectors retain field and variant declaration
-    // order. Encode the schema with a fixed configuration before hashing it.
-    let bytes = bincode_next::serde::encode_to_vec(&registry, bincode_next::config::standard())?;
-    let digest = Sha256::digest(bytes);
-    let mut hash = [0; 8];
-    hash.copy_from_slice(&digest[..8]);
-    Ok(u64::from_le_bytes(hash))
 }

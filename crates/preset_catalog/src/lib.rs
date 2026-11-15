@@ -5,7 +5,6 @@ use anyhow::{Result, ensure};
 pub use seed_data::{RootPreset, SkillPreset};
 use serde::{Deserialize, Serialize};
 use std::io::{BufReader, BufWriter, Read, Write};
-use type_hash::TypeHash;
 
 mod resolve;
 pub use resolve::{SettingDefinition, SettingValues};
@@ -13,7 +12,7 @@ pub use resolve::{SettingDefinition, SettingValues};
 const CATALOG_MAGIC: [u8; 8] = *b"Z3PRESET";
 const CATALOG_CONFIG: bincode_next::config::Configuration = bincode_next::config::standard();
 
-#[derive(Clone, Debug, Serialize, Deserialize, TypeHash)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PresetCatalog {
     pub revision: String,
     pub definitions: Vec<SettingDefinition>,
@@ -30,7 +29,6 @@ pub fn encode_catalog(
     compression_level: i32,
 ) -> Result<()> {
     writer.write_all(&CATALOG_MAGIC)?;
-    writer.write_all(&PresetCatalog::type_hash().to_le_bytes())?;
     let mut encoder = zstd::stream::write::Encoder::new(writer, compression_level)?;
     {
         let mut buffered = BufWriter::new(&mut encoder);
@@ -46,12 +44,6 @@ pub fn decode_catalog(mut reader: impl Read) -> Result<PresetCatalog> {
     let mut magic = [0; 8];
     reader.read_exact(&mut magic)?;
     ensure!(magic == CATALOG_MAGIC, "invalid preset catalog magic bytes");
-    let mut hash = [0; 8];
-    reader.read_exact(&mut hash)?;
-    ensure!(
-        u64::from_le_bytes(hash) == PresetCatalog::type_hash(),
-        "preset catalog type hash mismatch; rebuild the catalog with this version"
-    );
     let decoder = zstd::stream::read::Decoder::new(reader)?;
     let mut buffered = BufReader::new(decoder);
     let catalog = bincode_next::serde::decode_from_std_read(&mut buffered, CATALOG_CONFIG)?;
