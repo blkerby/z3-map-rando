@@ -411,6 +411,10 @@ checksum = "dc0b364ead1874514c8c2855ab558056ebfeb775653e7ae45ff72f28f8f3166c"
 name = "browser"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "patch_catalog",
+ "patcher",
+ "retiling_catalog",
  "seed_data",
  "wasm-bindgen",
 ]

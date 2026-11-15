@@ -4,23 +4,24 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 
-// The settings data (presets, skill classifications, items) is prepared by the randomizer's catalog
-// builder from its `data/` directory, as `settings_data.json` in the catalog output directory
-// (`build/` by default, see catalog-build.toml). Run the builder whenever this config is loaded, so
-// `dev`, `build` and `check` always see current data; unchanged inputs are reused from its cache.
+// The randomizer's catalog builder prepares, in its output directory (`build/` by default, see
+// catalog-build.toml), the settings data (presets, skill classifications, items) as `settings_data.json`
+// and the retiling and patch catalogs that Save ROM patches with. Run the builder whenever this config is
+// loaded, so `dev`, `build` and `check` always see current data; unchanged inputs are reused from its cache.
 const repoRoot = path.resolve(import.meta.dirname, '..');
 const dataDirectory = path.join(repoRoot, 'data');
 const settingsData = path.join(repoRoot, 'build', 'settings_data.json');
+const buildDirectory = path.join(repoRoot, 'build');
 const browserPackage = path.join(repoRoot, 'build', 'browser');
 
-function prepareSettingsData() {
-	execFileSync('cargo', ['run', '--quiet', '--package', 'catalog_builder', '--', 'presets'], {
+function prepareCatalogs() {
+	execFileSync('cargo', ['run', '--quiet', '--package', 'catalog_builder', '--', 'all'], {
 		cwd: repoRoot,
 		stdio: 'inherit'
 	});
 }
 
-prepareSettingsData();
+prepareCatalogs();
 execFileSync('wasm-pack', ['build', 'crates/browser', '--target', 'web', '--out-dir', browserPackage], {
 	cwd: repoRoot,
 	stdio: 'inherit'
@@ -35,7 +36,7 @@ function watchSettingsData(): Plugin {
 			server.watcher.on('change', (file) => {
 				if (!file.startsWith(dataDirectory + path.sep)) return;
 				try {
-					prepareSettingsData();
+					prepareCatalogs();
 				} catch {
 					// The builder has printed its error; the page keeps the last good data.
 				}
@@ -71,7 +72,12 @@ export default defineConfig({
 			// Static files for the randomizer's server to host. The Generate page is client-only (see its +page.ts).
 			// Seed pages aren't prerendered; the server answers them with the `spa.html` fallback.
 			adapter: adapter({ fallback: 'spa.html' }),
-			alias: { $settings_data: settingsData, $browser: browserPackage }
+			alias: {
+				$settings_data: settingsData,
+				$browser: browserPackage,
+				// A directory alias, since Vite only matches a file alias exactly or followed by `/`, not by `?url`.
+				$build: buildDirectory
+			}
 		})
 	]
 });

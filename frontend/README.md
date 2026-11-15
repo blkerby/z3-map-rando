@@ -13,7 +13,7 @@ npm run build   # static site in build/
 
 Open the URL printed by Vite for frontend development. Its Node-based development server compiles Svelte and provides hot reload; frontend edits do not require starting or restarting the Rust server. Node is also needed to build the frontend, but is not needed to serve the built site.
 
-The frontend also requires `wasm-pack` and the Rust `wasm32-unknown-unknown` target. Vite builds `crates/browser` into the ignored `build/browser/` directory when loading its configuration, including for `dev`, `check`, and `build`. Generate initializes that package once and reads its settings-format version for generation requests. During this initial build milestone, restart Vite after editing the Rust browser code; automatic Rust-source watching is tracked in [the browser settings plan](../plans/browser-settings.md).
+The frontend also requires `wasm-pack` and the Rust `wasm32-unknown-unknown` target. Vite builds `crates/browser` into the ignored `build/browser/` directory when loading its configuration, including for `dev`, `check`, and `build`. Generate initializes that package once and reads its settings-format version for generation requests. Save ROM uses it to patch the player's ROM in the browser, with the seed from `/api/seed/<name>` and the retiling and patch catalogs, which Vite also prepares (by running `catalog_builder all`) and bundles as content-hashed assets. During this initial build milestone, restart Vite after editing the Rust browser code; automatic Rust-source watching is tracked in [the browser settings plan](../plans/browser-settings.md).
 
 ## Serve the built site
 

@@ -1,5 +1,7 @@
 import type { Tree } from '$lib/settings/tree';
 import { loadBrowser } from '$lib/browser';
+import retilingCatalogUrl from '$build/retiling_catalog.bin?url';
+import patchCatalogUrl from '$build/patch_catalog.bin?url';
 
 export interface GenerateResult {
 	seed: string;
@@ -29,25 +31,33 @@ export async function generateGame(settings: Tree): Promise<GenerateResult> {
 
 export interface RomRequest {
 	seed: string;
-	/** The player's cosmetic choices (never part of the game link). */
+	/** The player's vanilla ROM. */
+	rom: Uint8Array;
+	/** The player's cosmetic choices (never part of the game link). Not applied by the patcher yet. */
 	customization: Tree;
 }
 
-/**
- * STUB. Not connected yet, so it throws and the page shows the message.
- * Replace the body with the real work, either asking the server for a patched ROM, e.g.
- *
- *   const res = await fetch('/api/rom', {
- *     method: 'POST',
- *     headers: { 'Content-Type': 'application/json' },
- *     body: JSON.stringify(request)
- *   });
- *   if (!res.ok) throw new Error(await res.text());
- *   saveBlob(await res.blob(), `alttp-maprando-${request.seed}.sfc`);
- *
- * or applying the customization to a server-provided patch in the browser.
- */
+async function fetchBytes(url: string): Promise<Uint8Array> {
+	const response = await fetch(url);
+	if (!response.ok) throw new Error(`Could not download ${url} (${response.status}).`);
+	return new Uint8Array(await response.arrayBuffer());
+}
+
+/** Patch the player's ROM in the browser with the saved seed, and save the result. */
 export async function downloadRom(request: RomRequest): Promise<void> {
-	void request;
-	throw new Error("ROM download isn't connected yet.");
+	const [browser, seed, retiling, patches] = await Promise.all([
+		loadBrowser(),
+		fetchBytes(`/api/seed/${encodeURIComponent(request.seed)}`),
+		fetchBytes(retilingCatalogUrl),
+		fetchBytes(patchCatalogUrl)
+	]);
+	const output = browser.patch_rom(request.rom, seed, retiling, patches);
+	const url = URL.createObjectURL(new Blob([output as Uint8Array<ArrayBuffer>], { type: 'application/octet-stream' }));
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = `z3-map-rando-${request.seed}.sfc`;
+	document.body.append(a);
+	a.click();
+	a.remove();
+	setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

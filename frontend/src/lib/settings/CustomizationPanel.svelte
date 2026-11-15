@@ -3,6 +3,7 @@
 	import type { SettingsStore } from './store.svelte';
 	import type { Path } from './tree';
 	import { downloadRom } from '$lib/game';
+	import { useRomStore } from '$lib/rom/store.svelte';
 
 	let {
 		store,
@@ -25,16 +26,18 @@
 	const mine = $derived(store.userPreset(store.selectedId));
 	const changed = $derived(store.changedPaths);
 
-	// ---- Download ROM (stub: see downloadRom in $lib/game) ---------------------
+	// ---- Save ROM ---------------------------------------------------------------
+	const rom = useRomStore();
 	let downloading = $state(false);
 	let romError = $state<string | null>(null);
 
 	async function download() {
 		if (!seed || downloading) return;
+		if (!(await rom.require())) return;
 		downloading = true;
 		romError = null;
 		try {
-			await downloadRom({ seed, customization: $state.snapshot(store.values) });
+			await downloadRom({ seed, rom: rom.bytes!, customization: $state.snapshot(store.values) });
 		} catch (e) {
 			romError = e instanceof Error ? e.message : 'Could not download the ROM.';
 		} finally {
