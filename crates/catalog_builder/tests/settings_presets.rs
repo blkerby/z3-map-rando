@@ -23,7 +23,6 @@ fn validate_builtin_presets() -> anyhow::Result<()> {
     for root in &context.root {
         let mut document = json!({
             "format_version": SETTINGS_FORMAT_VERSION,
-            "revision": context.revision,
             "preset": root.id,
         });
         let report = context.process_settings(&document, SettingsMode::Strict)?;

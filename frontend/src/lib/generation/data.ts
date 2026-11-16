@@ -21,7 +21,6 @@ interface SettingsData {
 	}[];
 	items: ItemRecord[];
 	generation: {
-		revision: string;
 		/** The default first; settings are complete, with the selected scope presets applied. */
 		root: {
 			id: string;
@@ -172,8 +171,7 @@ for (const p of settingsData.generation.root) {
 
 export const generationModel: SettingsModel = {
 	rootPresets,
-	scopes: [skillScope, startingStateScope, itemPoolScope],
-	revision: settingsData.generation.revision
+	scopes: [skillScope, startingStateScope, itemPoolScope]
 };
 
 interface StartingTier {

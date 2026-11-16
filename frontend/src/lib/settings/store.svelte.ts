@@ -45,7 +45,6 @@ export interface Scope {
 }
 
 export interface SettingsModel {
-	revision?: string;
 	/** Built-in root presets; the first is the default. */
 	rootPresets: RootPreset[];
 	scopes: Scope[];
@@ -410,11 +409,9 @@ export class SettingsStore {
 		this.values = this.resolve(doc, {}, true);
 	}
 
-	/** Capture the public document with the definitions used by this frontend build. */
+	/** Capture the public settings document. */
 	captureDocument(): Tree {
-		const document: Tree = { format_version: FORMAT_VERSION, ...this.capture() };
-		if (this.model.revision) document.revision = this.model.revision;
-		return document;
+		return { format_version: FORMAT_VERSION, ...this.capture() };
 	}
 
 	/** The current settings and selections, for keeping a draft in this browser. */

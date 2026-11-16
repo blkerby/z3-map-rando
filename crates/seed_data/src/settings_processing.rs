@@ -47,7 +47,6 @@ pub enum SettingsMode {
 /// Prepared live-settings data, independent of catalog encoding and the host environment.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SettingsContext {
-    pub revision: String,
     /// Complete built-in baselines, the default first.
     pub root: Vec<RootPreset>,
     pub skill: Vec<SkillPreset>,
@@ -158,18 +157,6 @@ impl SettingsContext {
                 path: vec!["format_version".to_owned()],
                 message: "Unsupported settings format version.".to_owned(),
                 replacement: Some(json!(SETTINGS_FORMAT_VERSION)),
-            });
-        }
-        let source_revision = raw
-            .get("revision")
-            .and_then(Value::as_str)
-            .map(str::to_owned);
-        if source_revision.as_deref() != Some(&self.revision) {
-            notices.push(SettingsIssue {
-                path: Vec::new(),
-                message: "Your settings have been updated for this version of the randomizer."
-                    .to_owned(),
-                replacement: None,
             });
         }
         let root = match raw.get("preset") {
@@ -303,7 +290,6 @@ impl SettingsContext {
             original: original.clone(),
             document: SettingsDocument {
                 format_version: SETTINGS_FORMAT_VERSION,
-                revision: self.revision.clone(),
                 preset: root.id.clone(),
                 tweaks: BTreeMap::new(),
             },
@@ -639,7 +625,7 @@ fn merge_tweaks(
     path: &mut Vec<String>,
 ) {
     for (key, value) in raw.as_object().unwrap() {
-        if (path.is_empty() && matches!(key.as_str(), "format_version" | "revision" | "preset"))
+        if (path.is_empty() && matches!(key.as_str(), "format_version" | "preset"))
             || (path.len() == 1
                 && matches!(path[0].as_str(), "skill" | "item_pool" | "starting_state")
                 && key == "preset")

@@ -9,7 +9,6 @@ pub const SETTINGS_FORMAT_VERSION: u32 = 1;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SettingsDocument {
     pub format_version: u32,
-    pub revision: String,
     pub preset: String,
     #[serde(flatten)]
     pub tweaks: BTreeMap<String, Value>,

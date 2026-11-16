@@ -4,8 +4,6 @@ use common_types::SourceRoomId;
 use preset_catalog::{ItemPoolPreset, PresetCatalog, RootPreset, SkillPreset, StartingStatePreset};
 use seed_data::{NotableSettings, SkillSettings};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use std::fmt::Write as _;
 use std::{collections::BTreeMap, fs, fs::File, io::BufWriter, path::Path};
 
 /// Difficulties ranked easiest to hardest. Others (e.g. "Ignored") never take part in skill presets.
@@ -99,7 +97,6 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
         .with_context(|| format!("reading {}", config.items.display()))?;
 
     let mut catalog = PresetCatalog {
-        revision: String::new(),
         root: Vec::new(),
         skill: Vec::new(),
         item_pool: Vec::new(),
@@ -258,51 +255,6 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
             item_pool_preset,
             starting_state_preset,
         });
-    }
-
-    // Include processing code so type and rule changes advance the shared revision too.
-    let mut roots = Vec::new();
-    for preset in &catalog.root {
-        roots.push((
-            &preset.id,
-            &preset.skill_preset,
-            &preset.item_pool_preset,
-            &preset.starting_state_preset,
-            &preset.settings,
-        ));
-    }
-    let mut skills = Vec::new();
-    for preset in &catalog.skill {
-        skills.push((&preset.id, &preset.settings));
-    }
-    let mut item_pools = Vec::new();
-    for preset in &catalog.item_pool {
-        item_pools.push((&preset.id, &preset.settings));
-    }
-    let mut starting_states = Vec::new();
-    for preset in &catalog.starting_state {
-        starting_states.push((&preset.id, &preset.settings));
-    }
-    let mut revision = Sha256::new();
-    revision.update(include_bytes!("../../../Cargo.lock"));
-    for &(path, bytes) in crate::cache::PRESET_CODE_INPUTS {
-        let path = path.replace('\\', "/");
-        revision.update((path.len() as u64).to_le_bytes());
-        revision.update(path.as_bytes());
-        revision.update((bytes.len() as u64).to_le_bytes());
-        revision.update(bytes);
-    }
-    revision.update(serde_json::to_vec(&(
-        &catalog.proficiency_levels,
-        &catalog.item_minimums,
-        catalog.ordinary_item_count,
-        roots,
-        skills,
-        item_pools,
-        starting_states,
-    ))?);
-    for byte in revision.finalize() {
-        write!(&mut catalog.revision, "{byte:02x}").unwrap();
     }
 
     let mut settings_data = SettingsData {

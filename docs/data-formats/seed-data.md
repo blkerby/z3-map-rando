@@ -4,12 +4,12 @@ Status: draft, partially written. A seed record is everything stored for a gener
 
 ## Contents
 
-The current version-2 JSON record stores resolved values in `settings` and their provenance in `settings_document`, the cleaned settings document with the current `revision`. Generation results are stored per room in `rooms`, each identified by its `room_id`, with optional fields: `position` (the top-left map cell `[x, y]` of an overworld room in a randomized layout), `theme` (the retiling theme ID of a room drawn as an overworld area, applying to both worlds), and `items` (the `item_id` and `item` of each of the room's item locations). `borders` lists the open borders of a randomized layout, each by the `[x, y]` cell `position` on its west or north side, its `side` (`east` or `south`), and its edge `variant`; unlisted borders are closed. The CLI writes plain JSON; the backend's object store transparently applies Zstd compression to stored objects.
+The current version-2 JSON record stores resolved values in `settings` and their provenance in `settings_document`, the cleaned settings document. Generation results are stored per room in `rooms`, each identified by its `room_id`, with optional fields: `position` (the top-left map cell `[x, y]` of an overworld room in a randomized layout), `theme` (the retiling theme ID of a room drawn as an overworld area, applying to both worlds), and `items` (the `item_id` and `item` of each of the room's item locations). `borders` lists the open borders of a randomized layout, each by the `[x, y]` cell `position` on its west or north side, its `side` (`east` or `south`), and its edge `variant`; unlisted borders are closed. The CLI writes plain JSON; the backend's object store transparently applies Zstd compression to stored objects.
 
 A seed record contains at least:
 
 - its format version and the release that generated it;
-- the **pinned settings document** used for generation, with its source settings data revision identifying the shared definitions and presets used by the generating build (see [settings.md](settings.md#live-and-pinned-settings));
+- the **pinned settings document** used for generation (see [settings.md](settings.md#live-and-pinned-settings));
 - the **resolved values** generation actually used;
 - the generation results (to be written).
 

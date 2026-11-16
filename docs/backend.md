@@ -28,14 +28,14 @@ Applications save and load whole objects using logical keys. The store compresse
 `POST /api/generate` accepts a JSON object containing a scoped `settings` document. Settings retain built-in preset selections and sparse tweaks, rather than requiring resolved values. See [the settings format](data-formats/settings.md).
 
 ```json
-{"settings":{"format_version":1,"revision":"<revision from settings_data.json generation.revision>","preset":"default","map_layout":"vanilla"}}
+{"settings":{"format_version":1,"preset":"default","map_layout":"vanilla"}}
 ```
 
-The backend processes settings strictly: it applies migrations, resolves current preset scopes, validates schema and semantic constraints, normalizes redundant tweaks, and calls the generator. Unknown keys, unknown presets, and invalid values return HTTP 422 with structured findings rather than being recovered; source-revision updates remain notices. The current settings format is version 1; no historical structural or vocabulary migrations are needed yet. Item pools after optional starting-equipment deduction may be smaller than the ordinary-location count; unused locations are empty. Oversized pools return HTTP 422 before allocating the item pool; generation and storage failures return HTTP 500.
+The backend processes settings strictly: it applies migrations, resolves current preset scopes, validates schema and semantic constraints, normalizes redundant tweaks, and calls the generator. Unknown keys, unknown presets, and invalid values return HTTP 422 with structured findings rather than being recovered. The current settings format is version 1; no historical structural or vocabulary migrations are needed yet. Item pools after optional starting-equipment deduction may be smaller than the ordinary-location count; unused locations are empty. Oversized pools return HTTP 422 before allocating the item pool; generation and storage failures return HTTP 500.
 
 Requests wait asynchronously in acquisition order for one shared generation slot. Generation, serialization, and compression run on blocking workers, and storage uploads are awaited before releasing the slot. The queue is process-local and keeps HTTP requests open; it does not survive server restart and does not supply job IDs or polling. Deployment proxy timeouts must accommodate queueing and generation.
 
-After successfully saving the seed, the server returns HTTP 201 with `{"seed":"<seed name>","notices":[]}`. No seed data is returned. Each saved seed contains its resolved generation settings, cleaned public settings document, source revision, current definitions revision, captured preset baselines, metadata, and generation results.
+After successfully saving the seed, the server returns HTTP 201 with `{"seed":"<seed name>","notices":[]}`. No seed data is returned. Each saved seed contains its resolved generation settings, cleaned public settings document, metadata, and generation results.
 
 ## Seed retrieval
 

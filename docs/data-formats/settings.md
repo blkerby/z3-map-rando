@@ -1,6 +1,6 @@
 # Settings
 
-Status: draft. A settings document organizes values and preset selections hierarchically by scope. Drafts, saved user presets, files, share links, and generated seeds use this format. Its source revision identifies the shared setting definitions and preset data used by the corresponding build (see [shared settings data](settings-data.md)).
+Status: draft. A settings document organizes values and preset selections hierarchically by scope. Drafts, saved user presets, files, share links, and generated seeds use this format.
 
 During pre-release development, backward compatibility is not required: settings, presets, share links, and saved seeds may change without migrations. The compatibility and migration requirements below describe intended post-release behavior.
 
@@ -9,7 +9,7 @@ During pre-release development, backward compatibility is not required: settings
 Every settings document uses the same format but is used in one of two modes:
 
 - A **live settings document** is migrated to the current setting definitions while preserving the meaning of its entries. A separate live-settings update then adopts current built-in presets and defaults for untweaked values. Drafts, saved user presets, files, and share links are live settings documents.
-- A **pinned settings document** is bundled with the preset definitions needed to interpret it. It and its bundled definitions are migrated to the current setting definitions while preserving generation-time behavior as closely as possible, then resolved using those migrated definitions rather than current built-ins. A seed record's settings document is pinned (see [seed-data.md](seed-data.md)); its recorded source settings revision remains provenance, not a dependency on a historical shared-data export.
+- A **pinned settings document** is bundled with the preset definitions needed to interpret it. It and its bundled definitions are migrated to the current setting definitions while preserving generation-time behavior as closely as possible, then resolved using those migrated definitions rather than current built-ins. A seed record's settings document is pinned (see [seed-data.md](seed-data.md)).
 
 Resolving settings produces their **resolved values**: complete concrete values organized by the same scopes, without preset references. A **tweak** assigns a value differing from the selected presets' baseline. Internal UI stores and Rust types can use another representation where useful; they do not determine the persisted JSON shape.
 
@@ -20,7 +20,6 @@ A settings document has these fields. Field names are provisional:
 | Field | Contents |
 | --- | --- |
 | `format_version` | Version of the persisted settings format |
-| `revision` | Shared settings data revision against which these choices were authored or saved |
 | `preset` | The built-in root preset supplying the baseline |
 | setting keys | Root-scope values |
 | scope IDs | Nested objects containing the settings for those scopes |
@@ -29,14 +28,13 @@ The document itself represents root scope. A child scope such as `skill`, `item_
 
 There is one preset selection per scope object. Its ID is local to that scope: root `preset: "default"` selects the root default, while `preset: "hard"` inside `skill` selects the skill preset. The selected preset supplies a baseline, child scope objects customize their respective parts, and explicit values override the applicable baseline. JSON property order has no effect. A selected child preset replaces the values throughout that child scope, so values from a previously inherited preset cannot linger. A child object without a preset selection retains its inherited baseline and applies only its explicit changes.
 
-User-defined presets remain root-only and based directly on a built-in root preset. A nested `skill` object is part of the root settings document, not a separately saved user preset. Built-in preset definitions use the same scoped settings objects. Metadata names such as `format_version`, `revision`, and `preset`, and child scope IDs, cannot also identify a setting at the same object level.
+User-defined presets remain root-only and based directly on a built-in root preset. A nested `skill` object is part of the root settings document, not a separately saved user preset. Built-in preset definitions use the same scoped settings objects. Metadata names such as `format_version` and `preset`, and child scope IDs, cannot also identify a setting at the same object level.
 
 ## Example settings
 
 ```json
 {
   "format_version": 1,
-  "revision": "<settings data revision>",
   "preset": "default",
   "skill": {
     "preset": "hard",
@@ -52,7 +50,7 @@ User-defined presets remain root-only and based directly on a built-in root pres
 }
 ```
 
-This starts with the default root preset, applies Hard skill assumptions, then selects vanilla map layout disables bomb boosts, and starts with the Fire Rod and two hearts. The default item pool deducts the starting Fire Rod from placement. The preset definitions come from the separate bundle, not this settings object. For live settings, the untouched values follow current built-ins; a seed's pinned settings use its migrated captured definitions. The revision above is a placeholder for the shared settings data revision. Documents carry no informational names; displays take names from the shared data.
+This starts with the default root preset, applies Hard skill assumptions, then selects vanilla map layout disables bomb boosts, and starts with the Fire Rod and two hearts. The default item pool deducts the starting Fire Rod from placement. The preset definitions come from the separate bundle, not this settings object. For live settings, the untouched values follow current built-ins; a seed's pinned settings use its migrated captured definitions. Documents carry no informational names; displays take names from the shared data.
 
 ## Identifiers
 
@@ -112,7 +110,7 @@ A live settings document is processed in this order:
 4. Validate the complete resolved candidate against the JSON schemas and semantic rules, with optional [recovery](#lenient-loading) for what remains unreadable. Strict consumers reject invalid input.
 5. Resolve and normalize tweaks against the current selected baseline (see below).
 
-The update in step 3 preserves explicit tweaks; it does not replace their values with new defaults. Changes of value kind and identifiers have already been handled by migration. The completed result records the current interpretation separately from the source revision used as migration provenance.
+The update in step 3 preserves explicit tweaks; it does not replace their values with new defaults. Changes of value kind and identifiers have already been handled by migration.
 
 A pinned settings document omits the live-settings update. It resolves against its migrated bundle and compares tweaks against that bundle's baseline. No current built-in contents are substituted.
 
@@ -120,7 +118,7 @@ A pinned settings document omits the live-settings update. It resolves against i
 
 A tweak equal to its selected baseline is redundant and is removed. For live settings, compare after adopting current built-in presets/defaults. For pinned settings, compare against the migrated captured baseline so normalization cannot change the frozen behavior. The original stored document is retained until an explicit save, as described below.
 
-This does not replay every intermediate release's defaults. Enforcing a rule that a tweak disappears if it matched any intervening baseline would require additional historical baseline facts or explicit change rules; a source revision alone cannot reconstruct them. Whether that stronger normalization guarantee is worth retaining is an open question, rather than a dependency on storing complete historical shared-data exports.
+This does not replay every intermediate release's defaults. Enforcing a rule that a tweak disappears if it matched any intervening baseline would require additional historical baseline facts or explicit change rules. Whether that stronger normalization guarantee is worth retaining is an open question, rather than a dependency on storing complete historical shared-data exports.
 
 ## Lenient loading
 
@@ -139,7 +137,7 @@ Validation uses separately maintained [generation](../../schema/settings/generat
 
 Strict mode reports invalid values, unexpected keys, unknown dynamic IDs, and unknown presets as blocking errors. Recovery selects fallback presets before resolution, removes unexpected submitted entries, and restores invalid known entries or malformed containers from the selected baseline while preserving siblings. It applies repairs in one batch and revalidates once, then deserializes into Rust settings once. Unattributable findings and remaining failures stay blocking. Reports retain string-segment paths, reasons, and replacement values where applicable. An invalid value beneath an unknown key produces only the removal finding.
 
-Whole-valued JSON numbers such as `10`, `10.0`, and `1e1` are accepted equivalently and normalized to integers without a recovery notice. Fractions are not rounded, bounds are not clamped, and strings are not converted. The processor retains the original input independently of this working copy. Format version 1 is the only authored format and has no historical migrations; unsupported versions are blocking in strict mode and interpreted through recognized fields in recovery mode. Updating a source revision is a notice in either mode.
+Whole-valued JSON numbers such as `10`, `10.0`, and `1e1` are accepted equivalently and normalized to integers without a recovery notice. Fractions are not rounded, bounds are not clamped, and strings are not converted. The processor retains the original input independently of this working copy. Format version 1 is the only authored format and has no historical migrations; unsupported versions are blocking in strict mode and interpreted through recognized fields in recovery mode.
 
 Pinned settings documents are read strictly, as part of the [seed record](seed-data.md#reading-seed-records), without live recovery or substitution of current built-in presets.
 

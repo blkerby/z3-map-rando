@@ -94,11 +94,9 @@ Shared semantics include defaults, option tokens, upstream proficiency tiers, an
 
 The backend validates generation inputs authoritatively in strict mode. The shared processing report rejects remaining item-pool totals after equipment deduction exceeding the prepared ordinary-location count, including when recovery is enabled. Starting equipment exceeding its pool count and starting ammunition exceeding capacity also remain blocking in recovery mode. The generator independently checks the same upper bound against its logic catalog and pads any unused ordinary locations with internal `Nothing` placements. The frontend will use the same processor through WASM for loading and feedback. Displaying a historical seed does not adjust its values to satisfy current generation constraints.
 
-## Revisions and persisted settings
+## Persisted settings
 
-A settings data revision identifies the shared processing rules and preset data used by a build. Frontend and backend builds from the same sources use the same revision even if they package the data differently. Catalog preparation computes a SHA-256 digest of the dependency lockfile, the preset, settings, logic-catalog, and common-type Rust sources and manifests, every settings schema resource, prepared proficiency levels, item minimums, and the ordinary-location count, and ordered built-in preset IDs, scope selections, and concrete values. Preset display labels are excluded. The source fingerprint is conservative: code or comment edits can also advance the revision. The same revision is exported through the preset catalog and `settings_data.json` under `generation.revision`; it does not depend on an HTTP response or frontend layout.
-
-Settings documents record their source revision. The backend first migrates their meaning, then applies current presets and defaults for live settings. An older frontend submits through this same generation path and receives the authoritative generated settings and any upgrade notices; see [generation](backend-api.md#generation).
+The backend first migrates a settings document's meaning, then applies current presets and defaults for live settings. An older frontend submits through this same generation path and receives the authoritative generated settings; see [generation](backend-api.md#generation).
 
 Historical seeds are migrated to the current settings representation for display with current Svelte components. Their values and baselines come from their captured bundle. Historical UI descriptions or full shared-data exports are not required.
 

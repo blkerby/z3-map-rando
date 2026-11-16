@@ -282,7 +282,6 @@ fn load_settings(args: &Args) -> Result<ResolvedSettings> {
         );
         serde_json::json!({
             "format_version": SETTINGS_FORMAT_VERSION,
-            "revision": catalog.revision,
             "preset": id,
         })
     };
