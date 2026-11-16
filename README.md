@@ -1,200 +1,61 @@
 # Overview
 
-This the repository for the Link to the Past Map Rando project, a randomizer that generates randomized *Zelda: A Link to the Past* games, featuring a randomly rearranged and rethemed overworld.
+This is the repository for the Link to the Past Map Rando project, a randomizer that generates randomized *Zelda: A Link to the Past* games, featuring a randomly rearranged and rethemed overworld.
 
 # Current status
 
 The randomizer is available in pre-release form as a CLI and as a web service. It can generate playable games and needs only a bit more bug-fixing and polish before an initial release. The "Desert" theme is complete; more themes are under development and will be added in the future.
 
-An [overworld editor](https://github.com/blkerby/Z3OverworldEditor) was developed specifically for this randomizer, allowing artist to define custom palettes, tilesets, conditional edge layers, animations, cutscenes, and Mode 7 map artwork. The editor currently focuses on overworld tiling; it may later support customizing other game elements such as enemies, entrances, secrets, items, and dungeons. The retiling happens in the [ALTTPRetiling](https://github.com/kjbranch/ALTTPRetiling) repository. 
+An [overworld editor](https://github.com/blkerby/Z3OverworldEditor) was developed specifically for this randomizer, allowing artists to define custom palettes, tilesets, conditional edge layers, animations, cutscenes, and Mode 7 map artwork. The editor currently focuses on overworld tiling; it may later support customizing other game elements such as enemies, entrances, secrets, items, and dungeons. The retiling happens in the [ALTTPRetiling](https://github.com/kjbranch/ALTTPRetiling) repository. 
 
 In order to support the flexible palette and tileset system, substantial changes to the game engine were needed. For some technical details about how this works, see the docs in [plans](plans/README.md).
 
 A [design doc](https://docs.google.com/document/d/1skZsIxZLKbCC8C_-3b3TTZVwblzNkN2ZTXraZ4Zxzkc) describes some plans for tier-based item placement logic along with balance-oriented gameplay changes. Many of these are not yet implemented in the randomizer but may become options in the future. Other options may be added based on player feedback.
 
-# How to run the website locally
+# Development
 
-Clone the repository with its submodules (as [described below](#how-to-test-current-engine-changes)), and install Rust, Node.js, CMake, and a C++ compiler. Then add the WebAssembly target and `wasm-pack`, and install the frontend's packages:
+If you notice any issue while testing or if you run into any trouble following these instructions, please reach out in the [Discord](https://discord.gg/Mxb5zYZeVj) to let us know.
 
-```sh
-rustup target add wasm32-unknown-unknown
-cargo install wasm-pack
-npm --prefix frontend install
-```
+## How to use the CLI
 
-Place the exported map pool at `maps/map_pool.bin` (see [below](#how-to-generate-and-patch-a-prototype-seed)). From the repository root, run:
-
-```sh
-npm run dev
-```
-
-This starts the randomizer server together with the frontend's development server, and builds the catalogs and frontend inputs as needed. Open the URL it prints. Arguments after `--` go to the server; for example, `npm run dev -- --store file:seeds` keeps generated seeds in `seeds/` instead of in memory. Changes to the frontend reload in the browser, and changes elsewhere rebuild and restart the server as needed. To build the site and serve it without the development server, run `npm run build` and then `cargo run --release --package server`. See [the frontend README](frontend/README.md) and [the backend setup](docs/backend.md) for details.
-
-# How to generate and patch a prototype seed
-
-From the repository root, build the generation catalogs and invoke the CLI:
-
-```sh
-cargo run -p catalog_builder -- logic
-cargo run -p catalog_builder -- retiling
-cargo run -p catalog_builder -- presets
-cargo run -p cli -- --rng 12345
-```
-
-The CLI uses catalogs from `build/`, taking its default settings from the default preset in the preset catalog, and writes `z3-map-rando-<SEED-NAME>.json` in the working directory. Omit `--rng` to choose a numeric seed randomly. Use `--preset testing` to select a root preset by ID, or `--settings settings.json` to load a settings file. Use `--theme Desert` or `--output-seed seed.json` to override the theme or output path. If catalogs are stored elsewhere, specify `--logic-catalog`, `--retiling-catalog`, and `--preset-catalog`. Run `cargo run -p cli -- --help` for all arguments.
-
-Settings default to `"map_layout": "random"`; set `"map_layout": "vanilla"` to retain vanilla connections and use the authored `Main` tiling directly. Seed generation currently supports only the Desert theme. Random generation reads the pool configured by `map_pool = "maps/map_pool.bin"` in `catalog-build.toml`; `--map-pool <PATH>` overrides it. Place the exported pool at that path before generating random maps or building a bundled CLI. Vanilla generation and patching saved seeds do not read the pool. Graphics and palette budget failures are reported during patching and do not trigger automatic map reselection.
-
-Settings include a `notables` array for room-specific technique toggles. Each entry identifies a technique by `room_id` and `notable_id`, with an informational `name` and an `enabled` Boolean. The bundled settings list every current notable as disabled; an empty array leaves all notables disabled. Global tech toggles and room-specific notables are independent.
-
-To generate and patch together, build the patch catalog and supply a vanilla ROM:
-
-```sh
-cargo run -p catalog_builder -- patches
-cargo run -p cli -- --rom path/to/vanilla.sfc --rng 12345
-```
-
-This reads and verifies the vanilla ROM before generation, saves the seed before patching, then writes `z3-map-rando-<SEED-NAME>.sfc`. Use `--output-rom output.sfc` to override the ROM filename. To patch an existing seed without generating or rewriting it:
-
-```sh
-cargo run -p cli -- --seed seed.json --rom path/to/vanilla.sfc
-```
-
-Use `--output-dir <DIR>` to place both generated files in an existing directory. Explicit `--output-seed` and `--output-rom` paths take precedence over `--output-dir`. When using `--seed`, the default output ROM is saved in the same directory as the input seed unless `--output-dir` or `--output-rom` is supplied.
-
-Patch-only operation uses the saved seed name and requires only the current retiling and patch catalogs. Use `--patch-catalog` to override the patch catalog path. Patch-time `--transition-asset-phase` accepts `pre-scroll`, `scroll`, and `post-scroll`, defaulting to `scroll`. The supported vanilla ROM is described below.
-
-To build a binary with catalogs bundled, run:
-
-```sh
-cargo build -p cli --release --features bundle-catalogs
-```
-
-This invokes the existing cached builder for all four catalogs, including ASM assembly, and embeds the catalogs and configured map pool. The resulting `target/release/z3-map-rando` generates seeds and patches ROMs without external catalog or pool files. Explicit catalog and pool paths still override bundled data. Bundled builds rebuild the CLI on every invocation but reuse unchanged catalog and assembly outputs. Avoid updating the shared catalog cache concurrently with compilation.
-
-# How to render Mode 7 map PNGs
-
-Build the retiling and logic catalogs as above, then run:
-
-```sh
-cargo run -p render_world_maps -- --rom path/to/vanilla.sfc --theme Desert --count 10 --rng 12345
-```
-
-This writes 512×512 PNGs including the cloud border for both worlds: `vanilla-light.png`, `vanilla-dark.png`, and `random-0001-light.png` / `random-0001-dark.png` through the requested count. Output defaults to `build/world-maps`; use `--output-dir <DIR>` to change it. Existing files with the same names are overwritten. The ROM is read only to resolve referenced graphics; it is not patched. Random layouts use the same pool sampler and compatible edge-variant selector as seed generation, with no reachability checks or item placement. The PNGs show the map artwork without player or dungeon markers.
-
-Use `--count 0` for vanilla only; this does not require a logic catalog or map pool. `--map-pool`, `--logic-catalog`, and `--retiling-catalog` override the default paths `maps/map_pool.bin`, `build/logic_catalog.bin`, and `build/retiling_catalog.bin`. Omit `--rng` to choose and print a random numeric seed. Themes use their authored areas, as in seed generation; Desert is the default.
-
-# How to test current engine changes
-
-Clone the repo:
+Install Rust with [rustup](https://www.rust-lang.org/tools/install), along with CMake and a C++ compiler, which are used to build a patched version of the Asar assembler (e.g. `sudo apt install build-essential cmake` on Ubuntu). Clone the repository with its submodules, and place the exported map pool at `maps/map_pool.bin`:
 
 ```sh
 git clone --recurse-submodules https://github.com/blkerby/z3-map-rando.git
 ```
 
-Install Rust and Cargo with [rustup](https://www.rust-lang.org/tools/install); for example, on Linux or macOS:
+From the repository root, generate a seed with the default settings and patch it:
 
 ```sh
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+cargo run --release -p cli --features bundle-catalogs -- --rom <path-to-vanilla-rom>
 ```
 
-Build the retiling and patch catalogs, then a test ROM:
+By using the `bundle-catalogs` feature, the map pool and various catalogs (logic data, retiling data, assembled IPS patches, etc.) are automatically built and embedded into the binary, `target/release/z3-map-rando`, so it can be run as a self-contained executable. If you install that binary into your PATH, you can then generate and patch a seed by simply running
 
 ```sh
-mkdir -p build
-cargo run -p catalog_builder -- retiling
-cargo run -p catalog_builder -- patches
-cargo run -p theme_check -- path/to/vanilla.sfc path/to/output.sfc build/retiling_catalog.bin --theme Base
+z3-map-rando --rom <path-to-vanilla-rom>
 ```
 
-The input must be the unheadered 1 MiB Japanese 1.0 ROM with SHA-256 digest `794e040b02c7591b59ad8843b51e7c619b88f87cddc6083a8e7a4027b96a2271`. `theme_check` reads the selected theme and current patch catalog, calls the shared patcher, and produces a 4 MiB ROM with an updated checksum. Its patch catalog defaults to `build/patch_catalog.bin`; use `--patch-catalog <PATH>` to override it. `--transition-asset-phase` accepts `pre-scroll`, `scroll`, and `post-scroll`, defaulting to `scroll`.
+The ROM must be the unheadered 1 MiB Japanese 1.0 ROM, with SHA-256 digest `794e040b02c7591b59ad8843b51e7c619b88f87cddc6083a8e7a4027b96a2271`. This writes the seed `z3-map-rando-<SEED-NAME>.json` and the ROM `z3-map-rando-<SEED-NAME>.sfc` to the current directory. Use `--output-dir` to write to a different directory. Omit `--rom` to generate only the seed JSON, or use `--seed seed.json --rom <path-to-vanilla-rom>` to patch a ROM using an existing generated seed. Use `--preset <ID>` or `--settings settings.json` to choose the settings (see [the settings format](docs/data-formats/settings.md)), and `--help` for all options.
 
-If you notice any issue while testing or if you run into any trouble following these instructions, please reach out in the [Discord](https://discord.gg/Mxb5zYZeVj) to let us know. Even in this early phase of the project, playtesting is very helpful!
+## How to run the website locally
 
-# How to build the retiling catalog
-
-The catalog bundles artwork and overworld layouts from `ALTTPRetiling` into one file for building retiled ROMs. Building it does not require a game ROM. Rebuild the catalog whenever you update your copy of `ALTTPRetiling`.
-
-From the repository root:
+In addition to the CLI setup above, install Node.js, the WebAssembly target, `wasm-pack`, and the frontend's packages:
 
 ```sh
-mkdir -p build
-cargo run -p catalog_builder -- retiling
+rustup target add wasm32-unknown-unknown
+cargo install wasm-pack
+npm install
 ```
 
-Initialize the source submodules from the repository root:
+From the repository root, run `npm run dev` and use a browser to open the "Local" URL that it prints (e.g., `http://localhost:5173/`). This builds the catalogs as needed, and rebuilds and reloads as files change. Arguments after `--` go to the randomizer server; for example, `npm run dev -- --store file:seeds` keeps generated seeds in `seeds/` instead of in memory. See [the frontend README](frontend/README.md) and [the backend setup](docs/backend.md) for details, including serving a production build.
 
-```sh
-git submodule update --init --recursive
-```
+## Other tools
 
-To build all four catalogs from the `z3-json-data` and `ALTTPRetiling` submodules and `data/` into `build/`, run:
+- `theme_check` builds a ROM from a single theme without randomization, for testing engine changes: `cargo run -p theme_check -- path/to/vanilla.sfc output.sfc build/retiling_catalog.bin --theme Base`.
+- `render_world_maps` renders Mode 7 world-map PNGs for the vanilla and random layouts, into `build/world-maps/` by default: `cargo run -p render_world_maps -- --rom path/to/vanilla.sfc --count 10`.
+- `build_tile_fingerprints` regenerates `data/tile_fingerprints.json`, which lets the catalog builder recognize vanilla graphics without a ROM: `cargo run -p build_tile_fingerprints -- path/to/vanilla.sfc data/tile_fingerprints.json`. This is done in order to avoid vanilla assets being copied into the retiling catalog.
 
-```sh
-cargo run -p catalog_builder -- all
-```
+## Catalog configuration
 
-Builders copy `catalog-build.default.toml` to the Git-ignored `catalog-build.toml` if missing, then read that local configuration without overwriting or merging it. Edit that local file to set source paths (including the `presets` directory and the `tech_data` and `notable_data` difficulty files), the output directory, tile fingerprints, assembler options, and compression level. All relative paths are resolved from the repository root. Building the patch catalog requires an initialized patched Asar submodule, CMake, and a C++ compiler unless `asar_executable` supplies an existing patched executable. Each catalog uses its fixed filename inside the configured output directory; the subcommands have no positional arguments.
-
-Catalog payloads use Zstd compression, defaulting to level `3` for every Cargo profile. Set `compression_level` in `catalog-build.toml` to change the level. Use level `18` when prioritizing smaller release artifacts. Unchanged catalogs are reused using fingerprints of source Git commits, Rust code, compression level, and external inputs. Dirty Git checkouts and non-Git source directories rebuild every time; ignored files do not affect Git status. The shared cache under `build/` survives `cargo clean`.
-
-```toml
-# In catalog-build.toml:
-compression_level = 18
-```
-
-# How to build the patch catalog
-
-The patch catalog bundles the separate IPS patches, their typed symbol manifest, and item/location patching data read directly from `z3-json-data`. It uses the same streaming Zstd-compressed bincode format as the other catalogs and requires neither a ROM nor a generated logic catalog.
-
-Shared-slot ownership (`item_inventory.asm`) and pause-menu Y-button switching (`item_menu_toggle.asm`) are separate patches. The patcher currently applies both; a future menu can replace the toggle patch while reusing the ownership byte defined in `symbols.inc`.
-
-From the repository root:
-
-```sh
-cargo run -p catalog_builder -- patches
-```
-
-This writes `build/patch_catalog.bin`, reusing cached assembly artifacts. Settings in `catalog-build.toml` select the data source, ASM directory, Asar checkout or executable, artifact directory, and compression level. Changing compression does not invalidate assembly. Unchanged catalog packaging is skipped through the shared cache and configuration. The main CLI and `theme_check` consume these catalog bytes and symbols directly.
-
-# How to build the tile fingerprint index
-
-The fingerprint index helps the catalog builder recognize graphics from the original game and store references to them. The index contains no artwork and allows the catalog to be built without a ROM.
-
-An index is already included in this repository. To regenerate it, use the same Japanese 1.0 ROM described above and run this command from the repository root:
-
-```sh
-cargo run -p build_tile_fingerprints -- path/to/vanilla.sfc data/tile_fingerprints.json
-```
-
-See the [catalog plan](plans/README.md#retiling-catalog) for implementation details.
-
-# How to build the patches from source
-
-The instructions above use the patch catalog built from ASM sources. To build cached patches locally, install a C++ compiler and CMake; for example, on Ubuntu:
-
-
-```sh
-sudo apt install build-essential cmake
-```
-
-From the repository root:
-
-```sh
-cargo run -p catalog_builder -- patches
-```
-
-This automatically builds the repository's patched Asar submodule in Release mode under `build/asar/`, using CMake's incremental compilation, writes IPS files and their fingerprints under `build/patches/`, and packages `build/patch_catalog.bin`. Initialize the submodule when cloning, as shown above. Only the standalone assembler target is compiled. Each patch is reused when its source files, transitive includes, assembler contents, and assembly options are unchanged. Builder implementation changes also invalidate the fingerprints. Updates hold `build/cache.lock`; temporary ROMs and outputs are local to each invocation, and failed assembly leaves the previous completed patch available.
-
-The builder also caches `build/patches/symbols.sym`, exported independently from `patches/src/symbols.asm`, and imports it into the catalog's typed `PatchSymbols`. `%export_symbol` in the shared interface marks Rust-facing symbols; missing or unconsumed exports fail the build. See [the symbol manifest design](plans/patches.md#symbol-manifest).
-
-`asm` selects the ASM source directory, defaulting to `patches/src/`. `asar_source` selects the patched Asar checkout containing `src/CMakeLists.txt`, defaulting to `asar/`. `output_directory` selects the artifact directory, defaulting to `build/`. An explicit `asar_executable` path in `catalog-build.toml` skips the automatic assembler build and takes precedence over `asar_source`:
-
-```toml
-# In catalog-build.toml:
-asar_executable = "path/to/patched/asar"
-```
-
-We use a patched version of Asar with IPS output support; an upstream Asar executable will not work. IPS files are local artifacts under `build/patches/`, and are not checked into source control. Both the CLI and `theme_check` consume the generated patch catalog. The Rust catalog builder owns assembler building, assembly, and caching; the former Python builder scripts have been retired.
-
-Dependency tracking supports only standalone, single-line `incsrc "literal/path"` directives. Paths are relative to the including file and followed recursively, including conditional branches. The scanner does not evaluate defines or macros, resolve include search paths, or track `incbin` or other file-reading directives. Extend it before adding any of these forms, or cached outputs could become stale.
+The catalog builder writes the catalogs to `build/`, configured by `catalog-build.toml`, which it copies from `catalog-build.default.toml` on first use. Edit it to change source paths, the output directory, or the Zstd `compression_level` (e.g., use `18` for smaller release artifacts). To use an existing patched Asar executable instead of building the `asar` submodule, set `asar_executable`; an upstream Asar will not work, since the build relies on its IPS output support. See [the catalog plan](plans/README.md#retiling-catalog) and [the patch plan](plans/patches.md) for how the catalogs are built and cached.

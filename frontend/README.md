@@ -7,7 +7,7 @@ Web UI for the randomizer (SvelteKit + Svelte 5 + Bootstrap), built as static fi
 From the repository root:
 
 ```sh
-npm --prefix frontend install
+npm install
 npm run dev                         # then open the URL printed by Vite
 npm run dev -- --store file:seeds   # arguments after -- go to the randomizer server
 ```

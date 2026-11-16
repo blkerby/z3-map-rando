@@ -1,6 +1,7 @@
 {
 	"private": true,
 	"scripts": {
+		"postinstall": "npm --prefix frontend install",
 		"dev": "npm --prefix frontend run dev --",
 		"build": "npm --prefix frontend run build"
 	}
