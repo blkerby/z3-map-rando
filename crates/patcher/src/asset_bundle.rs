@@ -20,7 +20,6 @@ pub struct AssetBundle {
     pub data_start: u32,
     pub pointer_table: Vec<u8>,
     pub data: Vec<u8>,
-    pub unique_blocks: usize,
 }
 
 pub struct DynamicTileEntry {
@@ -209,7 +208,6 @@ pub fn build(
         pointer_table_start,
         data_start: symbols.overworld_asset_data,
         pointer_table,
-        unique_blocks: data.offsets.len(),
         data: data.bytes,
     })
 }

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make `theme_check` compile the BG1 layers, composition mode, and camera behavior stored in ALTTPRetiling. Generated tables should replace vanilla's screen-specific BG1 selection, color-math, and scrolling branches wherever the retiling project provides data.
+Make the patcher compile the BG1 layers, composition mode, and camera behavior stored in ALTTPRetiling. Generated tables should replace vanilla's screen-specific BG1 selection, color-math, and scrolling branches wherever the retiling project provides data.
 
 Rain remains state-dependent and uses a separate static background. Area `$80` remains a small hard-coded exception because its two entrances use the same area ID as two functionally different areas.
 
@@ -25,7 +25,7 @@ Lost Woods has two BG1 alternatives: `Woods Fog` before the Master Sword event a
 
 An authored BG1 has the same dimensions as BG2 in that area. A 4x4-screen area uses a 64x64 grid of Map16 tiles in `$7E4000-$7E5FFF`, while a 2x2-screen area uses one 32x32-Map16 flat map.
 
-`theme_check` will:
+The patcher will:
 
 1. resolve the selected BG1 layers into one optional placement per 8x8 cell;
 2. divide the result into 2x2 cells;
@@ -108,13 +108,13 @@ Two sets of 8x8 rain graphics reproduce the same shapes with pixel indices appro
 | Light World | `3` (`Light World 1`) | `1=[5,5,5]`, `10=[6,9,15]`, `11=[7,12,21]`, `12=[14,22,30]` |
 | Dark World (sampled from Mire) | `8` (`Dark World 1`) | `11=[4,6,2]`, `13=[0,10,5]`, `14=[6,17,12]` |
 
-`theme_check` will construct these tiles and their Map16 definitions, add the applicable palette and character dependencies to every area without authored BG1, and emit the existing optimized rain layout using the new definitions. No new rain palette is needed.
+The patcher will construct these tiles and their Map16 definitions, add the applicable palette and character dependencies to every area without authored BG1, and emit the existing optimized rain layout using the new definitions. No new rain palette is needed.
 
 ## Implementation phases
 
 ### 1. Compile BG1 maps without runtime changes
 
-- Parse composition and camera fields in `theme_check`.
+- Parse composition and camera fields in the patcher.
 - Resolve layers by complete 8x8 placements within each background.
 - Build BG1 Map16 definitions and the area's flat maps per variant.
 - Include the resulting assets in existing allocations.
@@ -160,7 +160,7 @@ The game still follows vanilla background selection in this phase.
 
 - Delete or bypass hard-coded overlay selection, composition, camera-follow, drift, and Pyramid clamp paths now covered by generated data.
 - Retain only the area `$80` exception and presentation paths outside playable overworld gameplay, such as dungeons and credits.
-- Run allocation checks, patch assembly, `theme_check`, and representative emulator tests for every composition and camera mode.
+- Run allocation checks, patching a seed with the CLI, and representative emulator tests for every composition and camera mode.
 
 ## Completion checks
 

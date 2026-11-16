@@ -23,28 +23,6 @@ pub struct PatchSettings {
     pub transition_asset_phase: TransitionAssetPhase,
 }
 
-/// Development diagnostics; the patching core does not print them.
-#[derive(Debug)]
-pub struct RetilingStats {
-    pub screen_count: usize,
-    pub palette_count: usize,
-    pub character_count: usize,
-    pub map16_count: usize,
-    pub bg1_area_count: usize,
-    pub bg1_variant_names: Vec<String>,
-    pub bg1_bytes: usize,
-    pub background_record_count: usize,
-    pub background_modes: [usize; 3],
-    pub parallax_records: usize,
-    pub drifting_records: usize,
-    pub fullest_palette_screen: usize,
-    pub fullest_palette_half_slots: usize,
-    pub asset_pointer_table_bytes: usize,
-    pub asset_data_bytes: usize,
-    pub unique_asset_blocks: usize,
-    pub warnings: Vec<String>,
-}
-
 struct FlatMapTables {
     flat: FlatMap16,
     bg1_pointers: Vec<u8>,
@@ -63,7 +41,7 @@ pub fn patch_rom(
 ) -> Result<Vec<u8>> {
     verify_vanilla_rom(rom)?;
     let mut output = rom.to_vec();
-    let (mut patcher, _) =
+    let mut patcher =
         prepare_retiling(&mut output, &seed.world_layout, retiling, patches, settings)?;
     crate::items::apply_items(&mut patcher, rom, &seed.item_placements, patches)?;
     let starting = &seed.settings.starting_state;
@@ -193,29 +171,6 @@ pub fn patch_rom(
     Ok(output)
 }
 
-/// Apply engine patches and selected artwork to a verified vanilla ROM buffer.
-/// Call `finalize_rom` after all seed-specific writes are complete.
-pub fn apply_retiling(
-    rom: &mut Vec<u8>,
-    layout: &WorldLayout,
-    catalog: &RetilingCatalog,
-    patches: &PatchCatalog,
-    settings: &PatchSettings,
-) -> Result<RetilingStats> {
-    // Retiling previews use vanilla inventory and Zelda's rescued story stage.
-    let start = PcAddr::from(SnesAddr(0x84f1a6)).0 as usize;
-    let mut inventory = vec![0_u8; 0x51];
-    inventory[..0x3c].copy_from_slice(&rom[start..start + 0x3c]);
-    inventory[0x50] = 2;
-    let (mut patcher, stats) = prepare_retiling(rom, layout, catalog, patches, settings)?;
-    patcher
-        .context("preview starting state")
-        .write(SnesAddr(patches.symbols.starting_state).into(), inventory)?;
-    patcher.apply(rom)?;
-    rom[0x7fd7] = 0x0c;
-    Ok(stats)
-}
-
 /// Apply the FastROM base needed for import, then prepare the remaining writes.
 fn prepare_retiling(
     rom: &mut Vec<u8>,
@@ -223,7 +178,7 @@ fn prepare_retiling(
     catalog: &RetilingCatalog,
     patches: &PatchCatalog,
     settings: &PatchSettings,
-) -> Result<(Patcher, RetilingStats)> {
+) -> Result<Patcher> {
     let mut fastrom_base = Patcher::default();
     fastrom_base.use_ips(&patches.patches.fastrom_base)?;
     fastrom_base.apply(rom)?;
@@ -264,47 +219,6 @@ fn prepare_retiling(
         settings.transition_asset_phase,
         &patches.symbols,
     )?;
-
-    let mut stats = RetilingStats {
-        screen_count: compiled.screen_count,
-        palette_count: compiled.palette_count,
-        character_count: compiled.character_count,
-        map16_count: compiled.map16_count,
-        bg1_area_count: compiled.bg1_variants.len(),
-        bg1_variant_names: Vec::new(),
-        bg1_bytes: 0,
-        background_record_count: compiled.background_settings.len(),
-        background_modes: [0; 3],
-        parallax_records: 0,
-        drifting_records: 0,
-        fullest_palette_screen: compiled.fullest_palette_screen,
-        fullest_palette_half_slots: compiled.fullest_palette_half_slots,
-        asset_pointer_table_bytes: bundle.pointer_table.len(),
-        asset_data_bytes: bundle.data.len(),
-        unique_asset_blocks: bundle.unique_blocks,
-        warnings: compiled.warnings,
-    };
-    for variants in compiled.bg1_variants.values() {
-        for variant in variants {
-            stats.bg1_variant_names.push(variant.name.clone());
-            for map in variant.maps.values() {
-                stats.bg1_bytes += map.len();
-            }
-        }
-    }
-    for background in compiled.background_settings.values() {
-        match background.layering {
-            theme::BackgroundLayering::None => stats.background_modes[0] += 1,
-            theme::BackgroundLayering::HalfAdd => stats.background_modes[1] += 1,
-            theme::BackgroundLayering::Backdrop => stats.background_modes[2] += 1,
-        }
-        if background.camera_follow_x != 1.0 || background.camera_follow_y != 1.0 {
-            stats.parallax_records += 1;
-        }
-        if background.camera_drift_x != 0.0 || background.camera_drift_y != 0.0 {
-            stats.drifting_records += 1;
-        }
-    }
 
     rom.resize(4 * 1024 * 1024, 0);
     let mut patcher = Patcher::default();
@@ -425,11 +339,11 @@ fn prepare_retiling(
         patcher.use_ips(patch)?;
     }
     crate::topology::apply_topology(&mut patcher, rom, layout, patches)?;
-    Ok((patcher, stats))
+    Ok(patcher)
 }
 
 /// Update the checksum and complement after assembling the complete 4 MiB ROM.
-pub fn finalize_rom(rom: &mut [u8]) {
+fn finalize_rom(rom: &mut [u8]) {
     rom[0x7fdc..0x7fe0].copy_from_slice(&[0xff, 0xff, 0, 0]);
     let mut checksum = 0u16;
     for &byte in rom.iter() {

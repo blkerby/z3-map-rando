@@ -87,7 +87,7 @@ The BG2 wrappers select the BG2 parameters and call the shared core. Do not add 
 
 Before continuing:
 
-1. Build all patches and run `theme_check`.
+1. Build all patches and patch a seed with the CLI.
 2. Confirm that representative bulk and edge `$1100` lists are byte-for-byte unchanged.
 3. Retest ordinary and diagonal movement, all four area transitions, dynamic Map16 changes, mirror, portal, whirlpool, world-map return, and interior return.
 4. Confirm that BG2 still never writes VRAM `$0800-$0FFF`.

@@ -15,7 +15,7 @@ $A088BD-$A088FF [FREE]
 $A08900-$A098FF overworld_bg_tilemaps.asm (rain palette handling, BG1/BG2 renderers, and transition helpers)
 $A09900-$A099FF item_inventory.asm (reserved for shared-slot and bow ownership tracking)
 $A09A00-$A09DFF [FREE]
-$A09E00-$A09F3F theme_check generated overworld backdrop colors
+$A09E00-$A09F3F Patcher-generated overworld backdrop colors
 $A09F40-$A0A0C0 overworld_animations.asm (generated animation runtime)
 $A0A0C1-$A0A1C6 overworld_entrances.asm (area-local entrance runtime)
 $A0A1C7-$A0A3FF [FREE]

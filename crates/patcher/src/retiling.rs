@@ -53,7 +53,6 @@ pub struct CompiledTheme {
     pub world_map: CompiledWorldMap,
     pub screen_maps: BTreeMap<usize, Vec<u8>>,
     pub bg1_variants: BTreeMap<usize, Vec<CompiledBg1Variant>>,
-    pub background_settings: BTreeMap<usize, BackgroundSettings>,
     pub map16_definitions: [Vec<u8>; 4],
     pub map16_properties: [Vec<u8>; 4],
     pub background_colors: [u16; 0xa0],
@@ -63,13 +62,6 @@ pub struct CompiledTheme {
     pub dynamic_tile_groups: Vec<Vec<DynamicTileEntry>>,
     pub cutscenes: Vec<CompiledCutscene>,
     pub overworld_overlays: Vec<CompiledOverworldOverlay>,
-    pub screen_count: usize,
-    pub palette_count: usize,
-    pub character_count: usize,
-    pub map16_count: usize,
-    pub fullest_palette_screen: usize,
-    pub fullest_palette_half_slots: usize,
-    pub warnings: Vec<String>,
 }
 
 pub fn compile(
@@ -194,21 +186,6 @@ pub fn compile(
 
     let scrollable_transitions = build_scrollable_transition_pairs(layout);
     let palette_slots = allocate_palettes(&areas, &palettes, &scrollable_transitions)?;
-    let mut fullest_palette = (0, 0);
-    for area in &areas {
-        let mut occupied = [false; 12];
-        for palette in &area.palettes {
-            let slot = palette_slots[palette];
-            occupied[slot] = true;
-            if palettes[palette].uses_upper_half {
-                occupied[slot + 1] = true;
-            }
-        }
-        let count = occupied.into_iter().filter(|occupied| *occupied).count();
-        if count > fullest_palette.1 {
-            fullest_palette = (area.id, count);
-        }
-    }
     let (character_slots, area_tiles) =
         allocate_characters(&areas, &palettes, &scrollable_transitions)?;
     for variant in &bg1_variants {
@@ -317,7 +294,6 @@ pub fn compile(
         &dynamic_tile_groups,
     )?);
     overworld_overlays.extend(build_overworld_overlays(&areas, &mut map16)?);
-    let mut warnings = Vec::new();
     for &(area_id, name) in &VANILLA_OVERWORLD_OVERLAYS {
         let mut found = false;
         for overlay in &overworld_overlays {
@@ -327,9 +303,7 @@ pub fn compile(
             }
         }
         if !found {
-            warnings.push(format!(
-                "no generated {name} overlay for area ${area_id:02X}"
-            ));
+            eprintln!("Warning: no generated {name} overlay for area ${area_id:02X}");
         }
     }
 
@@ -363,16 +337,8 @@ pub fn compile(
     }
     Ok(CompiledTheme {
         world_map: world_map::build_world_map(&areas, &palettes, layout, catalog)?,
-        screen_count: screen_maps.len(),
-        palette_count: palette_slots.len(),
-        character_count,
-        map16_count: map16.definitions.len(),
-        fullest_palette_screen: fullest_palette.0,
-        fullest_palette_half_slots: fullest_palette.1,
-        warnings,
         screen_maps,
         bg1_variants: compiled_bg1_variants,
-        background_settings,
         map16_definitions,
         map16_properties: map16.properties,
         background_colors,

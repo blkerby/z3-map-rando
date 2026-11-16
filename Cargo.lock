@@ -2677,18 +2677,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "theme_check"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "patch_catalog",
- "patcher",
- "retiling_catalog",
- "seed_data",
-]
-
-[[package]]
 name = "thiserror"
 version = "2.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"

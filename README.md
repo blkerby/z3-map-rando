@@ -52,9 +52,8 @@ From the repository root, run `npm run dev` and use a browser to open the "Local
 
 ## Other tools
 
-- `theme_check` builds a ROM from a single theme without randomization, for testing engine changes: `cargo run -p theme_check -- path/to/vanilla.sfc output.sfc build/retiling_catalog.bin --theme Base`.
-- `render_world_maps` renders Mode 7 world-map PNGs for the vanilla and random layouts, into `build/world-maps/` by default: `cargo run -p render_world_maps -- --rom path/to/vanilla.sfc --count 10`.
-- `build_tile_fingerprints` regenerates `data/tile_fingerprints.json`, which lets the catalog builder recognize vanilla graphics without a ROM: `cargo run -p build_tile_fingerprints -- path/to/vanilla.sfc data/tile_fingerprints.json`. This is done in order to avoid vanilla assets being copied into the retiling catalog.
+- `render_world_maps` renders Mode 7 world-map PNGs for the vanilla and random layouts, into `build/world-maps/` by default: `cargo run -p render_world_maps -- --rom path/to/vanilla.sfc --count 10`. This can be used, for example, to test the appearance of new themes.
+- `build_tile_fingerprints` regenerates `data/tile_fingerprints.json`, which lets the catalog builder recognize vanilla graphics without a ROM: `cargo run -p build_tile_fingerprints -- path/to/vanilla.sfc data/tile_fingerprints.json`. This is done in order to avoid vanilla assets being copied into the retiling catalog. In practice it's not needed to ever run this again, but it is kept in the project in order to show where this data comes from.
 
 ## Catalog configuration
 

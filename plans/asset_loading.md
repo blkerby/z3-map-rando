@@ -10,7 +10,7 @@ The first checkpoint changes the shared `Module08_00_LoadProperties` path used b
 
 ## Payloads
 
-`theme_check` generates flat 4bpp graphics and BGR555 palette data matching the vanilla result. Keep the payload uncompressed unless its measured ROM cost requires reconsideration.
+The patcher generates flat 4bpp graphics and BGR555 palette data matching the vanilla result. Keep the payload uncompressed unless its measured ROM cost requires reconsideration.
 
 Use two fixed interned payload sizes:
 
@@ -60,7 +60,7 @@ A full reload is a null-terminated sequence of batch pointers. Batch pointers al
 
 The extra indirection costs three bytes per batch but lets the same batch bodies be reused and lets active-display code select a batch without scanning the variable-length bodies before it.
 
-Forced-blank loading processes all batches synchronously. For active-display full reloads such as mirror and whirlpool, the main loop processes one batch's palette list per frame and submits its VRAM list to NMI when nonempty. `theme_check` chooses how many payloads to place in each batch. Batch boundaries affect scheduling only; they do not duplicate payload data.
+Forced-blank loading processes all batches synchronously. For active-display full reloads such as mirror and whirlpool, the main loop processes one batch's palette list per frame and submits its VRAM list to NMI when nonempty. The patcher chooses how many payloads to place in each batch. Batch boundaries affect scheduling only; they do not duplicate payload data.
 
 ## Scrolling-transition schedules
 
@@ -84,7 +84,7 @@ Each scroll entry is:
 
 Entries are sorted by frame and at most one entry may select a given frame. A batch itself contains every payload scheduled for that frame. The `$FF` frame value ends the scrolling section. Horizontal transitions have 32 scrolling frames (`$00-$1F`), while vertical transitions have 28 (`$00-$1B`); generated schedules must stay within the applicable range. The post-scroll pointer sequence begins immediately after the terminator.
 
-This representation lets the runtime consume every section sequentially with one cursor. It does not need batch counts, offsets, or a scan over descriptor bodies. `theme_check` chooses the batch boundaries and frame assignments.
+This representation lets the runtime consume every section sequentially with one cursor. It does not need batch counts, offsets, or a scan over descriptor bodies. The patcher chooses the batch boundaries and frame assignments.
 
 The generated data must reject overlapping or out-of-range destinations and verify that every descriptor is contained within its payload. Graphics may only target the milestone 9A overworld BG character region or area-dependent OBJ rows `$50-$5F`. Palette descriptors may only target palette ranges owned by the overworld background loader.
 
@@ -131,9 +131,9 @@ A special-overworld transition list begins with its record count. Each record st
 
 Normal, Dark World, and special-overworld screen IDs use the same lookup without runtime classification. Credits overworld scenes use keys `$A0-$AF`, the initial OBJ seed uses `$FE`, and the cool credits background uses `$FF`. IDs which share data may point to the same list or record. Every reachable key must have a generated entry; unused keys point to one empty `$FF` variant.
 
-Area records, batch sequences, transition schedules, DMA batches, and animation definitions begin at `$A78300`. Keep each structure within one metadata bank. Store each generated graphics or palette payload once in banks `$AA-$B7` and let multiple batches reference it. Neither region may spill into the other. `theme_check` reports their independent usage and fails if either range overflows.
+Area records, batch sequences, transition schedules, DMA batches, and animation definitions begin at `$A78300`. Keep each structure within one metadata bank. Store each generated graphics or palette payload once in banks `$AA-$B7` and let multiple batches reference it. Neither region may spill into the other. The patcher fails if either range overflows.
 
-Submilestone 9B.1 uses this fixed ABI directly: the table starts at `$A78000`, metadata starts at `$A78300`, and payloads start at `$AA8000`. `theme_check` writes the vanilla bundle. A generated manifest is unnecessary unless these locations later become configurable.
+Submilestone 9B.1 uses this fixed ABI directly: the table starts at `$A78000`, metadata starts at `$A78300`, and payloads start at `$AA8000`. The patcher writes the vanilla bundle. A generated manifest is unnecessary unless these locations later become configurable.
 
 ## Modules `$08` and `$0A`
 
@@ -147,7 +147,7 @@ Reload the full descriptor list even when the destination area selects the same 
 
 ## Generated checks
 
-For every module `$08` or `$0A` destination, `theme_check` should:
+For every module `$08` or `$0A` destination, the patcher should:
 
 1. Reproduce the final vanilla BG character data and overworld-owned palette ranges.
 2. Apply the generated descriptors and the existing presentation step in software, then compare `$7EC300`, VRAM, and CGRAM with the reference.
@@ -158,7 +158,7 @@ Runtime validation should cover Light World, Dark World, special graphics sets r
 
 ## Submilestone 9B.1: forced-blank playable checkpoint
 
-Implemented: `theme_check` uses the importer's resolved map graphics and palette sets to generate deduplicated payloads, records, four-batch full-load sequences, and the 256-entry `$8A` lookup table. The shared module `$08`/`$0A` path loads those assets directly from ROM while retaining vanilla sprite, HUD, animated-tile, palette-cache, and presentation work. Other transition paths remain unchanged.
+Implemented: the patcher uses the importer's resolved map graphics and palette sets to generate deduplicated payloads, records, four-batch full-load sequences, and the 256-entry `$8A` lookup table. The shared module `$08`/`$0A` path loads those assets directly from ROM while retaining vanilla sprite, HUD, animated-tile, palette-cache, and presentation work. Other transition paths remain unchanged.
 
 Gameplay validation must confirm vanilla VRAM and CGRAM for Light World, Dark World, and special-overworld returns before this checkpoint is marked complete.
 
@@ -180,13 +180,13 @@ Store the persistent scrolling-schedule cursor at `$7EC906-$7EC908`. This is imm
 
 For each scrolling transition, select the list from the destination `$8A` and the edge through which it is entered. These lists use the same batch and descriptor formats as full reloads but contain only the payload rows required for that transition. They reference the same shared payload catalog as the full-reload lists.
 
-For the vanilla arrangement, `theme_check` derives the expected source area from the destination and entry side. Applying the transition list to the source area's complete asset state must produce the destination state required at the end of the transition. Empty lists are valid where no asset row changes.
+For the vanilla arrangement, the patcher derives the expected source area from the destination and entry side. Applying the transition list to the source area's complete asset state must produce the destination state required at the end of the transition. Empty lists are valid where no asset row changes.
 
 The existing transition submodules process one pre-scroll batch per frame, submit frame-indexed batches before their scroll step, and hold finalization until post-scroll batches finish. Palette descriptors update `$7EC300`, then copy the complete source palette to `$7EC500` so retained sprite-palette changes and generated BG rows become visible together through `$15`. A nonempty VRAM list uses `$17=$03`. Pre-scroll and post-scroll batches set `$0710` and `$0702`; scrolling batches set only `$0710`, retaining OAM updates while suppressing dynamic graphics and HUD work. The BG streamer's `$18` list remains independent.
 
 The generated vanilla schedule includes palette rows 2-4 unless the first auxiliary palette selector is `$FF`, and rows 5-7 unless the second selector is `$FF`. It then includes the character rows for each nonzero area-specific sheet override. Theme schedules instead transfer each allocated eight-color half-row, merging both halves into one 16-color descriptor when both are used. A graphics row costs 16 batching units and each eight palette colors cost one. All transition batches have a 128-unit limit. Omitted palette groups and zero sheet overrides preserve the assets already resident from the source area. Full reloads still resolve these neutral entries to defaults and load the complete asset set. The scroll and post-scroll sections are empty, and all four directional record fields may share the same schedule for now.
 
-Implemented: ordinary scrolling transitions now use generated ROM-source payloads and the new mode `$03` NMI list. Gameplay validation must still confirm all four directions, Light and Dark World boundaries, Castle/Pyramid parallax, sprite and animated-tile continuity, and the absence of NMI overruns. The `theme_check --transition-asset-phase` option can place the generated batches in the pre-scroll, consecutive scroll-frame, or post-scroll section to exercise each runtime path.
+Implemented: ordinary scrolling transitions now use generated ROM-source payloads and the new mode `$03` NMI list. Gameplay validation must still confirm all four directions, Light and Dark World boundaries, Castle/Pyramid parallax, sprite and animated-tile continuity, and the absence of NMI overruns. The CLI's `--transition-asset-phase` option can place the generated batches in the pre-scroll, consecutive scroll-frame, or post-scroll section to exercise each runtime path.
 
 ## Submilestone 9B.3: remaining transitions
 
@@ -206,9 +206,9 @@ The importer uses vanilla sprite-set IDs only while compiling the final 4bpp row
 
 Normal Light World records use the game-state variants described above. Dark World and fixed special areas use one `$FF` variant; Triforce uses asset key `$88`. Credits overworld scenes use their dedicated keys and scripted sprite sets. File initialization writes sheet `$46` to all four slots through key `$FE`, matching vanilla's initial resident state.
 
-Put sprite and background rows in the same batches so `theme_check` schedules their combined NMI cost and enforces the phase-specific weighted limits above. Converted overworld paths no longer stage these four slots in WRAM or run the vanilla `$19` upload. Common/effect sprites at `$4400-$47FF`, Link graphics, followers, fixed auxiliary graphics, sprite palettes, and unrelated NMI work remain on their existing paths. Dungeon and other non-generated callers retain the vanilla `$0AA3` cache behavior.
+Put sprite and background rows in the same batches so the patcher schedules their combined NMI cost and enforces the phase-specific weighted limits above. Converted overworld paths no longer stage these four slots in WRAM or run the vanilla `$19` upload. Common/effect sprites at `$4400-$47FF`, Link graphics, followers, fixed auxiliary graphics, sprite palettes, and unrelated NMI work remain on their existing paths. Dungeon and other non-generated callers retain the vanilla `$0AA3` cache behavior.
 
-Implemented: the shared runtime resolver selects records by game state for synchronous, full-sequence, and directional loads. Full loads and every converted overworld transition use generated OBJ rows, while zero overrides retain the current slots. `theme_check` validates variant coverage, full loads, ordinary adjacencies, credits keys, the initial seed, destinations, and batch limits. Gameplay validation must still cover game-state changes, dungeon/presentation boundaries, every transition type, and NMI timing.
+Implemented: the shared runtime resolver selects records by game state for synchronous, full-sequence, and directional loads. Full loads and every converted overworld transition use generated OBJ rows, while zero overrides retain the current slots. The patcher validates variant coverage, full loads, ordinary adjacencies, credits keys, the initial seed, destinations, and batch limits. Gameplay validation must still cover game-state changes, dungeon/presentation boundaries, every transition type, and NMI timing.
 
 ## Submilestone 9B.5: animated tiles
 
