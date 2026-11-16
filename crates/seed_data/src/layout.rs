@@ -1,13 +1,16 @@
 //! Overworld layout in terms of map areas and cell indexes, as used by generation and
 //! patching. Saved seeds store it in the room-based form of [`crate::SeedData`].
 
+use crate::{BorderSide, MapBorder};
+
 /// Area themes and, for a randomized layout, room placements and borders.
 #[derive(Clone, Debug)]
 pub struct WorldLayout {
     pub areas: Vec<AreaLayout>,
     /// Empty for the vanilla layout.
     pub rooms: Vec<OverworldRoomPlacement>,
-    pub borders: Vec<CellBorder>,
+    /// Open borders; any other border is closed.
+    pub borders: Vec<MapBorder>,
 }
 
 #[derive(Clone, Debug)]
@@ -16,14 +19,6 @@ pub struct OverworldRoomPlacement {
     pub vanilla_map_id: u8,
     pub position: u8,
     pub size: [u8; 2],
-}
-
-/// Cells are indexed as y * 8 + x.
-#[derive(Clone, Debug)]
-pub struct CellBorder {
-    /// Adjacent physical cells, in ascending order; exterior borders are closed.
-    pub cells: [u8; 2],
-    pub variant: String,
 }
 
 impl WorldLayout {
@@ -68,10 +63,17 @@ impl WorldLayout {
                 };
                 let mut variant = "closed";
                 if (0..8).contains(&nx) && (0..8).contains(&ny) {
-                    let first = (cy * 8 + cx) as u8;
-                    let second = (ny * 8 + nx) as u8;
-                    let cells = [first.min(second), first.max(second)];
-                    if let Some(border) = self.borders.iter().find(|border| border.cells == cells) {
+                    let position = [cx.min(nx) as u8, cy.min(ny) as u8];
+                    let border_side = if cx == nx {
+                        BorderSide::South
+                    } else {
+                        BorderSide::East
+                    };
+                    if let Some(border) = self
+                        .borders
+                        .iter()
+                        .find(|border| border.position == position && border.side == border_side)
+                    {
                         variant = &border.variant;
                     }
                 }

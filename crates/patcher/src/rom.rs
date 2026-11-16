@@ -10,8 +10,8 @@ use common_types::{Item, SourceRoomId};
 use patch_catalog::PatchCatalog;
 use retiling_catalog::RetilingCatalog;
 use seed_data::{
-    AreaLayout, BorderSide, CellBorder, OverworldRoomPlacement, StartingBoomerang, StartingBow,
-    StartingOcarina, WorldLayout,
+    AreaLayout, OverworldRoomPlacement, StartingBoomerang, StartingBow, StartingOcarina,
+    WorldLayout,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -213,23 +213,10 @@ fn resolve_world_layout(seed: &SeedData, patches: &PatchCatalog) -> Result<World
             theme_name: theme.clone(),
         });
     }
-    let mut borders = Vec::new();
-    for border in &seed.borders {
-        let [x, y] = border.position;
-        let first = y * 8 + x;
-        let second = match border.side {
-            BorderSide::East => first + 1,
-            BorderSide::South => first + 8,
-        };
-        borders.push(CellBorder {
-            cells: [first, second],
-            variant: border.variant.clone(),
-        });
-    }
     Ok(WorldLayout {
         areas,
         rooms,
-        borders,
+        borders: seed.borders.clone(),
     })
 }
 

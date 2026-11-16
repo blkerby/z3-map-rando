@@ -24,8 +24,8 @@ use map::{MapPool, select_borders};
 use placement::{PlacementState, PlacementStep};
 use rand::Rng;
 use seed_data::{
-    BorderSide, ItemPlacement, MapBorder, MapLayoutSetting, ResolvedSettings, RoomData,
-    SEED_FORMAT_VERSION, SeedMetadata, WorldLayout,
+    ItemPlacement, MapLayoutSetting, ResolvedSettings, RoomData, SEED_FORMAT_VERSION, SeedMetadata,
+    WorldLayout,
 };
 use std::collections::BTreeMap;
 
@@ -131,30 +131,13 @@ pub fn generate(
                 item,
             });
         }
-        let mut borders = Vec::new();
-        for border in &world_layout.borders {
-            if border.variant == "closed" {
-                continue;
-            }
-            let [first, second] = border.cells;
-            let side = if second == first + 1 {
-                BorderSide::East
-            } else {
-                BorderSide::South
-            };
-            borders.push(MapBorder {
-                position: [first % 8, first / 8],
-                side,
-                variant: border.variant.clone(),
-            });
-        }
         return Ok(SeedData {
             format_version: SEED_FORMAT_VERSION,
             metadata,
             settings,
             settings_document,
             rooms: rooms.into_values().collect(),
-            borders,
+            borders: world_layout.borders,
         });
     }
     bail!("generation exhausted {MAX_GENERATION_ATTEMPTS} complete attempts")

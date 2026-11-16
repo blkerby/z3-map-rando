@@ -1,6 +1,7 @@
 use super::{TileKey, areas::ThemeArea, graphics::Palette};
 use anyhow::{Context, Result, ensure};
 use retiling_catalog::PaletteId;
+use seed_data::BorderSide;
 use std::{
     cmp::Reverse,
     collections::{BTreeMap, BTreeSet},
@@ -278,11 +279,13 @@ pub(super) fn build_scrollable_transition_pairs(
         }
         let mut pairs = BTreeSet::new();
         for border in &layout.borders {
-            if border.variant == "closed" {
-                continue;
-            }
-            let a = cells[usize::from(border.cells[0])];
-            let b = cells[usize::from(border.cells[1])];
+            let [x, y] = border.position;
+            let cell = usize::from(y * 8 + x);
+            let a = cells[cell];
+            let b = match border.side {
+                BorderSide::East => cells[cell + 1],
+                BorderSide::South => cells[cell + 8],
+            };
             pairs.insert((a.min(b), a.max(b)));
             if border.variant != "light-only" && border.variant != "light-and-mirror" {
                 pairs.insert((a.min(b) + 0x40, a.max(b) + 0x40));

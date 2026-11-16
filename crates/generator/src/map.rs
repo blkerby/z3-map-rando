@@ -6,7 +6,7 @@ use logic_catalog::{
     BoundaryEndpoint, Connection, LogicCatalog, MapBoundaryKind, VertexIndex, World,
 };
 use rand::Rng;
-use seed_data::{CellBorder, OverworldRoomPlacement, WorldLayout};
+use seed_data::{BorderSide, MapBorder, OverworldRoomPlacement, WorldLayout};
 
 pub struct MapPool<'a> {
     records: &'a [u8],
@@ -124,7 +124,9 @@ pub fn select_borders(
     for cell in 0..64u8 {
         let first_index = cells[usize::from(cell)];
         let first = &layout.rooms[first_index];
-        for (delta, side, opposite) in [(1, 2, 3), (8, 1, 0)] {
+        for (delta, side, opposite, border_side) in
+            [(1, 2, 3, BorderSide::East), (8, 1, 0, BorderSide::South)]
+        {
             if (delta == 1 && cell % 8 == 7) || (delta == 8 && cell / 8 == 7) {
                 continue;
             }
@@ -163,10 +165,13 @@ pub fn select_borders(
             } else {
                 choices[rng.random_range(0..choices.len())].as_str()
             };
-            layout.borders.push(CellBorder {
-                cells: [cell, next],
-                variant: name.to_owned(),
-            });
+            if name != "closed" {
+                layout.borders.push(MapBorder {
+                    position: [cell % 8, cell / 8],
+                    side: border_side,
+                    variant: name.to_owned(),
+                });
+            }
             let a = &first_variants[name];
             let b = &second_variants[name];
             if name == "light-and-mirror" {
