@@ -63,7 +63,6 @@ async fn main() -> Result<()> {
         .context("reading retiling catalog; run catalog_builder first")?;
     let state = web::Data::new(GenerationState {
         logic: logic_catalog::decode_catalog(logic_bytes.as_slice())?,
-        retiling: retiling_catalog::decode_catalog(retiling_bytes.as_slice())?,
         presets: preset_catalog::decode_catalog(fs::File::open(
             catalog_dir.join("preset_catalog.bin"),
         )?)?,

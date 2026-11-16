@@ -11,5 +11,5 @@ export const load: PageLoad = async ({ fetch, params }) => {
 	if (response.status === 404) error(404, `Seed ${params.name} was not found.`);
 	if (!response.ok) error(response.status, 'Could not load the seed.');
 	const data = await response.json();
-	return { seed: params.name, settings: data.settings_source.document as Tree };
+	return { seed: params.name, settings: data.settings_document as Tree };
 };

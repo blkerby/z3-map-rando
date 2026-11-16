@@ -1,14 +1,14 @@
 use crate::{Patcher, PcAddr, SnesAddr, import::Importer};
 use anyhow::{Result, anyhow};
-use common_types::Item;
+use common_types::{Item, ItemLocationId};
 use patch_catalog::PatchCatalog;
-use seed_data::ItemPlacement;
+use seed_data::RoomData;
 
 /// Add saved item writes using the current catalog's encodings and carrier hooks.
 pub(crate) fn apply_items(
     patcher: &mut Patcher,
     rom: &[u8],
-    placements: &[ItemPlacement],
+    rooms: &[RoomData],
     catalog: &PatchCatalog,
 ) -> Result<()> {
     patcher.use_ips(&catalog.patches.capacity_upgrades)?;
@@ -42,25 +42,31 @@ pub(crate) fn apply_items(
     patcher
         .context("vanilla item graphics")
         .write(SnesAddr(catalog.symbols.item_graphics).into(), graphics)?;
-    for placement in placements {
-        let location = &catalog.item_locations[&placement.item_location_id];
-        if location.rom_addresses.is_empty() {
-            continue;
-        }
-        let item = match placement.item {
-            Item::SmallKey { .. } => &catalog.small_key,
-            item => catalog
-                .items
-                .get(&item)
-                .ok_or_else(|| anyhow!("no encoding for item {item:?}"))?,
-        };
-        let mut context = patcher.context(&format!("item {:?}", placement.item_location_id));
-        if let Some(bytes) = &item.prize_patch_bytes {
-            for (&address, &value) in location.rom_addresses.iter().zip(bytes) {
-                context.write(PcAddr(address), vec![value])?;
+    for room in rooms {
+        for placement in &room.items {
+            let id = ItemLocationId {
+                room_id: room.room_id,
+                item_id: placement.item_id,
+            };
+            let location = &catalog.item_locations[&id];
+            if location.rom_addresses.is_empty() {
+                continue;
             }
-        } else {
-            context.write(PcAddr(location.rom_addresses[0]), vec![item.receipt_id])?;
+            let item = match placement.item {
+                Item::SmallKey { .. } => &catalog.small_key,
+                item => catalog
+                    .items
+                    .get(&item)
+                    .ok_or_else(|| anyhow!("no encoding for item {item:?}"))?,
+            };
+            let mut context = patcher.context(&format!("item {id:?}"));
+            if let Some(bytes) = &item.prize_patch_bytes {
+                for (&address, &value) in location.rom_addresses.iter().zip(bytes) {
+                    context.write(PcAddr(address), vec![value])?;
+                }
+            } else {
+                context.write(PcAddr(location.rom_addresses[0]), vec![item.receipt_id])?;
+            }
         }
     }
     Ok(())

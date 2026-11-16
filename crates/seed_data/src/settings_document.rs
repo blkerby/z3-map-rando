@@ -46,23 +46,7 @@ pub struct StartingStatePreset {
     pub settings: StartingState,
 }
 
-/// Complete captured baselines, including the root's inherited scope presets and any overrides.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct PresetBundle {
-    pub root: RootPreset,
-    pub skill: Vec<SkillPreset>,
-    pub item_pool: Vec<ItemPoolPreset>,
-    pub starting_state: Vec<StartingStatePreset>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SettingsSource {
-    pub document: SettingsDocument,
-    pub source_revision: Option<String>,
-    pub presets: PresetBundle,
-}
-
 pub struct ResolvedSettings {
     pub values: Settings,
-    pub source: SettingsSource,
+    pub document: SettingsDocument,
 }

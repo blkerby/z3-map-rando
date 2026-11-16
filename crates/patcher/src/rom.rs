@@ -6,10 +6,13 @@ use crate::{
     retiling as theme, verify_vanilla_rom,
 };
 use anyhow::{Result, ensure};
-use common_types::Item;
+use common_types::{Item, SourceRoomId};
 use patch_catalog::PatchCatalog;
 use retiling_catalog::RetilingCatalog;
-use seed_data::{StartingBoomerang, StartingBow, StartingOcarina, WorldLayout};
+use seed_data::{
+    AreaLayout, BorderSide, CellBorder, OverworldRoomPlacement, StartingBoomerang, StartingBow,
+    StartingOcarina, WorldLayout,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -41,9 +44,9 @@ pub fn patch_rom(
 ) -> Result<Vec<u8>> {
     verify_vanilla_rom(rom)?;
     let mut output = rom.to_vec();
-    let mut patcher =
-        prepare_retiling(&mut output, &seed.world_layout, retiling, patches, settings)?;
-    crate::items::apply_items(&mut patcher, rom, &seed.item_placements, patches)?;
+    let layout = resolve_world_layout(seed, patches)?;
+    let mut patcher = prepare_retiling(&mut output, &layout, retiling, patches, settings)?;
+    crate::items::apply_items(&mut patcher, rom, &seed.rooms, patches)?;
     let starting = &seed.settings.starting_state;
     let equipment = &starting.equipment;
     let resources = &starting.resources;
@@ -169,6 +172,65 @@ pub fn patch_rom(
     output[0x7fd7] = 0x0c;
     finalize_rom(&mut output);
     Ok(output)
+}
+
+/// Express the seed's room choices as map areas and cell indexes.
+fn resolve_world_layout(seed: &SeedData, patches: &PatchCatalog) -> Result<WorldLayout> {
+    let mut themes = BTreeMap::new();
+    let mut rooms = Vec::new();
+    for room in &seed.rooms {
+        let Some(area) = patches.room_areas.get(&room.room_id) else {
+            continue;
+        };
+        if let Some(theme) = &room.theme {
+            let mut area_ids = vec![area.area_id];
+            if let SourceRoomId::Overworld(_) = room.room_id {
+                area_ids.push(area.area_id | 0x40);
+            }
+            for area_id in area_ids {
+                if let Some(existing) = themes.insert(area_id, theme) {
+                    // Sacred Grove and Under the Bridge share an area.
+                    ensure!(
+                        existing == theme,
+                        "rooms sharing area ${area_id:02X} have different themes"
+                    );
+                }
+            }
+        }
+        if let (SourceRoomId::Overworld(room_id), Some([x, y])) = (room.room_id, room.position) {
+            rooms.push(OverworldRoomPlacement {
+                room_id,
+                vanilla_map_id: area.area_id,
+                position: y * 8 + x,
+                size: area.size,
+            });
+        }
+    }
+    let mut areas = Vec::new();
+    for (vanilla_map_id, theme) in themes {
+        areas.push(AreaLayout {
+            vanilla_map_id,
+            theme_name: theme.clone(),
+        });
+    }
+    let mut borders = Vec::new();
+    for border in &seed.borders {
+        let [x, y] = border.position;
+        let first = y * 8 + x;
+        let second = match border.side {
+            BorderSide::East => first + 1,
+            BorderSide::South => first + 8,
+        };
+        borders.push(CellBorder {
+            cells: [first, second],
+            variant: border.variant.clone(),
+        });
+    }
+    Ok(WorldLayout {
+        areas,
+        rooms,
+        borders,
+    })
 }
 
 /// Apply the FastROM base needed for import, then prepare the remaining writes.

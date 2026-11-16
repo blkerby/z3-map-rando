@@ -1,6 +1,6 @@
 use crate::{
-    ItemPoolPreset, PresetBundle, ResolvedSettings, RootPreset, SETTINGS_FORMAT_VERSION, Settings,
-    SettingsDocument, SettingsSource, SkillPreset, StartingStatePreset,
+    ItemPoolPreset, ResolvedSettings, RootPreset, SETTINGS_FORMAT_VERSION, Settings,
+    SettingsDocument, SkillPreset, StartingStatePreset,
 };
 use anyhow::Result;
 use common_types::Item;
@@ -112,8 +112,8 @@ struct Finding {
 pub struct SettingsReport {
     /// Retained separately from the cleaned document until an explicit save.
     pub original: Value,
-    /// Cleaned sparse document, provenance, and captured preset baselines.
-    pub source: SettingsSource,
+    /// Cleaned sparse document.
+    pub document: SettingsDocument,
     pub values: Option<Settings>,
     pub notices: Vec<SettingsIssue>,
     pub errors: Vec<SettingsIssue>,
@@ -127,7 +127,7 @@ impl SettingsReport {
         }
         Ok(ResolvedSettings {
             values: self.values.unwrap(),
-            source: self.source,
+            document: self.document,
         })
     }
 }
@@ -299,34 +299,13 @@ impl SettingsContext {
         let mut tweaks = json!({});
         merge_tweaks(raw, &baseline, &mut values, &mut tweaks, &mut Vec::new());
 
-        let mut skills = vec![inherited_skill.clone()];
-        if skill.id != inherited_skill.id {
-            skills.push(skill.clone());
-        }
-        let mut item_pools = vec![inherited_item_pool.clone()];
-        if item_pool.id != inherited_item_pool.id {
-            item_pools.push(item_pool.clone());
-        }
-        let mut starting_states = vec![inherited_starting_state.clone()];
-        if starting_state.id != inherited_starting_state.id {
-            starting_states.push(starting_state.clone());
-        }
         let mut report = SettingsReport {
             original: original.clone(),
-            source: SettingsSource {
-                document: SettingsDocument {
-                    format_version: SETTINGS_FORMAT_VERSION,
-                    revision: self.revision.clone(),
-                    preset: root.id.clone(),
-                    tweaks: BTreeMap::new(),
-                },
-                source_revision,
-                presets: PresetBundle {
-                    root: root.clone(),
-                    skill: skills,
-                    item_pool: item_pools,
-                    starting_state: starting_states,
-                },
+            document: SettingsDocument {
+                format_version: SETTINGS_FORMAT_VERSION,
+                revision: self.revision.clone(),
+                preset: root.id.clone(),
+                tweaks: BTreeMap::new(),
             },
             values: None,
             notices,
@@ -444,11 +423,7 @@ impl SettingsContext {
             tweaks["starting_state"]["preset"] = json!(starting_state.id);
         }
         for (key, value) in tweaks.as_object().unwrap() {
-            report
-                .source
-                .document
-                .tweaks
-                .insert(key.clone(), value.clone());
+            report.document.tweaks.insert(key.clone(), value.clone());
         }
         Ok(report)
     }

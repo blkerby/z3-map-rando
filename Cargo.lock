@@ -971,7 +971,6 @@ dependencies = [
  "hashbrown",
  "logic_catalog",
  "rand 0.9.5",
- "retiling_catalog",
  "seed_data",
  "sha2",
 ]
@@ -2495,7 +2494,6 @@ dependencies = [
  "object_store",
  "preset_catalog",
  "rand 0.9.5",
- "retiling_catalog",
  "seed_data",
  "serde",
  "serde_json",

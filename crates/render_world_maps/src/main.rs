@@ -17,7 +17,7 @@ struct Args {
     /// Unheadered Japanese 1.0 vanilla ROM, used only to read graphics.
     #[arg(long)]
     rom: PathBuf,
-    #[arg(long, default_value = "Desert")]
+    #[arg(long, default_value = "desert")]
     theme: String,
     /// Number of random layouts, in addition to the vanilla layout; 0 renders only vanilla.
     #[arg(long, default_value_t = 10)]

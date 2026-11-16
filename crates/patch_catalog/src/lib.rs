@@ -49,6 +49,17 @@ pub struct PatchCatalog {
     pub items: BTreeMap<Item, ItemEncoding>,
     /// The encoding shared by all Small Keys.
     pub small_key: ItemEncoding,
+    /// Map area of each room drawn as an overworld area.
+    pub room_areas: BTreeMap<SourceRoomId, RoomArea>,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct RoomArea {
+    /// Vanilla map ID of the room's top-left Light World screen, or of its special area.
+    /// An overworld room's Dark World area ID adds $40.
+    pub area_id: u8,
+    /// Width and height in map cells.
+    pub size: [u8; 2],
 }
 
 /// A complete IPS payload with its diagnostic name.

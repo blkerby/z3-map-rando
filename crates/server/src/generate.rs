@@ -3,7 +3,6 @@ use generator::{inputs::InvalidSettings, metadata::create_metadata};
 use logic_catalog::LogicCatalog;
 use preset_catalog::PresetCatalog;
 use rand::{SeedableRng, rngs::StdRng};
-use retiling_catalog::RetilingCatalog;
 use seed_data::{SettingsErrors, SettingsMode};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -12,7 +11,6 @@ use tokio::sync::Semaphore;
 
 pub struct GenerationState {
     pub logic: LogicCatalog,
-    pub retiling: RetilingCatalog,
     pub presets: PresetCatalog,
     pub map_pool: Vec<u8>,
     pub logic_hash: String,
@@ -61,8 +59,7 @@ pub async fn generate_seed(
         let seed = generator::generate(
             settings,
             &worker_state.logic,
-            &worker_state.retiling,
-            "Desert",
+            "desert",
             Some(&worker_state.map_pool),
             metadata,
             &mut rng,

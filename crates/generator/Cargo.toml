@@ -9,7 +9,6 @@ common_types = { path = "../common_types" }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 hashbrown = "0.17"
 logic_catalog = { path = "../logic_catalog" }
-retiling_catalog = { path = "../retiling_catalog" }
 rand = { version = "0.9", default-features = false, features = ["std", "std_rng"] }
 seed_data = { path = "../seed_data" }
 sha2 = { version = "0.11", default-features = false }

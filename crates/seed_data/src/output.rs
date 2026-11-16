@@ -1,24 +1,27 @@
-use crate::{Settings, SettingsSource};
+use crate::{Settings, SettingsDocument};
 use anyhow::{Result, ensure};
-use common_types::{Item, ItemLocationId};
+use common_types::{Item, SourceRoomId};
 use serde::{Deserialize, Serialize};
 use std::io::{BufReader, BufWriter, Read, Write};
 
 /// Current saved-seed format; independent of generator and catalog versions.
 pub const SEED_FORMAT_VERSION: u32 = 2;
 
-/// Saved layout and typed placements allow patching with the current catalogs
+/// Saved room choices and typed placements allow patching with the current catalogs
 /// without the map pool or generation RNG.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SeedData {
     pub format_version: u32,
     pub metadata: SeedMetadata,
+    /// Authoritative resolved settings.
     pub settings: Settings,
-    /// Public document and captured baselines explaining the authoritative resolved settings.
-    pub settings_source: SettingsSource,
-    pub world_layout: WorldLayout,
-    /// Final placements of all locations, including empty slots, dungeon items, prizes, and Great Fairy upgrades.
-    pub item_placements: Vec<ItemPlacement>,
+    /// Public sparse document that the resolved settings came from.
+    pub settings_document: SettingsDocument,
+    /// Rooms with any saved choice, in ascending room ID order.
+    pub rooms: Vec<RoomData>,
+    /// Open borders between adjacent map cells of different rooms; any other border is closed.
+    /// Empty for the vanilla layout.
+    pub borders: Vec<MapBorder>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -42,111 +45,48 @@ pub struct SeedMetadata {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RoomData {
+    pub room_id: SourceRoomId,
+    /// Top-left map cell as [x, y], for overworld rooms in a randomized layout.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub position: Option<[u8; 2]>,
+    /// Retiling theme, for rooms drawn as overworld areas. Overworld rooms use it in both worlds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme: Option<String>,
+    /// Final placements of all the room's locations, including empty slots, dungeon items,
+    /// prizes, and Great Fairy upgrades.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub items: Vec<ItemPlacement>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ItemPlacement {
-    /// Permanent authored identity, independent of catalog ordering.
-    pub item_location_id: ItemLocationId,
+    /// The room's item entry ID, a permanent authored identity.
+    pub item_id: u32,
     /// Logical item identity, Nothing for an empty slot, or the assigned door for a Small Key.
     pub item: Item,
 }
 
-/// Persisted area choices, independent of catalog ordering and graphical content.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct WorldLayout {
-    pub areas: Vec<AreaLayout>,
-    pub rooms: Vec<OverworldRoomPlacement>,
-    pub borders: Vec<MapBorder>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct OverworldRoomPlacement {
-    pub room_id: u32,
-    pub vanilla_map_id: u8,
-    pub position: u8,
-    pub size: [u8; 2],
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MapBorder {
-    /// Adjacent physical cells, in ascending order; exterior borders are closed.
-    pub cells: [u8; 2],
+    /// Map cell as [x, y] on the west or north side of the border.
+    pub position: [u8; 2],
+    pub side: BorderSide,
     pub variant: String,
 }
 
-impl WorldLayout {
-    pub fn get_area_edges(&self, vanilla_map_id: u8) -> Vec<(String, String)> {
-        if vanilla_map_id >= 0x80 {
-            return Vec::new();
-        }
-        let Some(room) = self
-            .rooms
-            .iter()
-            .find(|room| room.vanilla_map_id == vanilla_map_id & 0x3f)
-        else {
-            return Vec::new();
-        };
-        let mut edges = Vec::new();
-        let x = i16::from(room.position % 8);
-        let y = i16::from(room.position / 8);
-        let [width, height] = room.size;
-        for (side, count) in [
-            ("north", width),
-            ("south", width),
-            ("east", height),
-            ("west", height),
-        ] {
-            for segment in 0..count {
-                let segment_offset = i16::from(segment);
-                let (cx, cy, nx, ny) = match side {
-                    "north" => (x + segment_offset, y, x + segment_offset, y - 1),
-                    "south" => (
-                        x + segment_offset,
-                        y + i16::from(height) - 1,
-                        x + segment_offset,
-                        y + i16::from(height),
-                    ),
-                    "east" => (
-                        x + i16::from(width) - 1,
-                        y + segment_offset,
-                        x + i16::from(width),
-                        y + segment_offset,
-                    ),
-                    _ => (x, y + segment_offset, x - 1, y + segment_offset),
-                };
-                let mut variant = "closed";
-                if (0..8).contains(&nx) && (0..8).contains(&ny) {
-                    let first = (cy * 8 + cx) as u8;
-                    let second = (ny * 8 + nx) as u8;
-                    let cells = [first.min(second), first.max(second)];
-                    if let Some(border) = self.borders.iter().find(|border| border.cells == cells) {
-                        variant = &border.variant;
-                    }
-                }
-                let slot = if count == 1 {
-                    side.to_owned()
-                } else {
-                    format!("{side}-{}", segment + 1)
-                };
-                edges.push((slot, variant.to_owned()));
-            }
-        }
-        edges
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct AreaLayout {
-    /// Top-left vanilla map ID, including the world, not a source room ID or
-    /// the area's eventual position. Existing IDs are permanent and not reused.
-    pub vanilla_map_id: u8,
-    /// Authored theme name used as a stable identity, not merely a display name.
-    pub theme_name: String,
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BorderSide {
+    East,
+    South,
 }
 
 impl SeedData {
-    /// Write plain JSON; storage transports own compression.
+    /// Write compact JSON; storage transports own compression.
     pub fn write(&self, writer: impl Write) -> Result<()> {
         let mut buffered = BufWriter::new(writer);
-        serde_json::to_writer_pretty(&mut buffered, self)?;
+        serde_json::to_writer(&mut buffered, self)?;
         buffered.flush()?;
         Ok(())
     }

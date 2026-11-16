@@ -40,7 +40,7 @@ pub(super) fn build_world_map(
         .into_iter()
         .enumerate()
     {
-        let clouds = &catalog.areas[name].themes["Base"];
+        let clouds = &catalog.areas[name].themes["base"];
         for layer in &clouds.layers {
             if layer.background != Background::Bg2 || layer.name != "Main" {
                 continue;

@@ -15,18 +15,19 @@ pub mod traversal;
 pub use seed_data::{SeedData, Settings};
 
 use anyhow::{Result, bail, ensure};
+use common_types::{Item, SourceRoomId};
 use graph::{TraversalGraph, build_graph};
 use inputs::{GenerationInputs, prepare_inputs};
 use key_assignment::{KeyAssignmentExhausted, KeyPlacementState, assign_small_keys};
-use logic_catalog::LogicCatalog;
+use logic_catalog::{LogicCatalog, RoomKind};
 use map::{MapPool, select_borders};
 use placement::{PlacementState, PlacementStep};
 use rand::Rng;
-use retiling_catalog::RetilingCatalog;
 use seed_data::{
-    AreaLayout, ItemPlacement, MapLayoutSetting, ResolvedSettings, SEED_FORMAT_VERSION,
-    SeedMetadata, WorldLayout,
+    BorderSide, ItemPlacement, MapBorder, MapLayoutSetting, ResolvedSettings, RoomData,
+    SEED_FORMAT_VERSION, SeedMetadata, WorldLayout,
 };
+use std::collections::BTreeMap;
 
 const MAX_GENERATION_ATTEMPTS: usize = 1000;
 const MAX_CANDIDATE_ATTEMPTS: usize = 100;
@@ -38,7 +39,6 @@ const MAX_EDGE_SELECTION_ATTEMPTS: usize = 10;
 pub fn generate(
     resolved: ResolvedSettings,
     logic_catalog: &LogicCatalog,
-    retiling_catalog: &RetilingCatalog,
     theme_name: &str,
     map_pool: Option<&[u8]>,
     metadata: SeedMetadata,
@@ -46,10 +46,9 @@ pub fn generate(
 ) -> Result<SeedData> {
     let ResolvedSettings {
         values: settings,
-        source: settings_source,
-        ..
+        document: settings_document,
     } = resolved;
-    ensure!(theme_name == "Desert", "only the Desert theme is supported");
+    ensure!(theme_name == "desert", "only the desert theme is supported");
     let inputs = prepare_inputs(logic_catalog, &settings)?;
     let pool = if settings.map_layout == MapLayoutSetting::Random {
         Some(MapPool::decode(
@@ -60,22 +59,10 @@ pub fn generate(
         None
     };
 
-    let mut areas = Vec::new();
-    for area in retiling_catalog.areas.values() {
-        if let Some(vanilla_map_id) = area.vanilla_map_id {
-            if area.themes.contains_key(theme_name) {
-                areas.push(AreaLayout {
-                    vanilla_map_id,
-                    theme_name: theme_name.to_owned(),
-                });
-            }
-        }
-    }
-    areas.sort_by_key(|area| area.vanilla_map_id);
     for attempt in 1..=MAX_GENERATION_ATTEMPTS {
         eprintln!("Starting generation attempt {attempt}/{MAX_GENERATION_ATTEMPTS}");
         let mut world_layout = WorldLayout {
-            areas: areas.clone(),
+            areas: Vec::new(),
             rooms: if let Some(pool) = &pool {
                 pool.select_rooms(logic_catalog, rng)?
             } else {
@@ -101,24 +88,74 @@ pub fn generate(
         } else {
             build_graph(logic_catalog, &logic_catalog.vanilla_connections)
         };
-        let placements = match generate_items(logic_catalog, &graph, &inputs, rng) {
-            Ok(placements) => placements,
+        let items = match generate_items(logic_catalog, &graph, &inputs, rng) {
+            Ok(Some(items)) => items,
+            Ok(None) => continue,
             Err(error) if pool.is_some() && error.is::<KeyAssignmentExhausted>() => {
                 eprintln!("Rejected map: {error:#}");
                 continue;
             }
             Err(error) => return Err(error),
         };
-        if let Some(item_placements) = placements {
-            return Ok(SeedData {
-                format_version: SEED_FORMAT_VERSION,
-                metadata,
-                settings,
-                settings_source,
-                world_layout,
-                item_placements,
+        let mut rooms = BTreeMap::new();
+        for room in &logic_catalog.rooms {
+            if matches!(room.kind, RoomKind::Overworld | RoomKind::Special) {
+                let room_id = room.room_id.unwrap();
+                rooms.insert(
+                    room_id,
+                    RoomData {
+                        room_id,
+                        position: None,
+                        theme: Some(theme_name.to_owned()),
+                        items: Vec::new(),
+                    },
+                );
+            }
+        }
+        for placement in &world_layout.rooms {
+            let room = rooms
+                .get_mut(&SourceRoomId::Overworld(placement.room_id))
+                .unwrap();
+            room.position = Some([placement.position % 8, placement.position / 8]);
+        }
+        for (location, item) in logic_catalog.item_locations.iter().zip(items) {
+            let room_id = location.id.room_id;
+            let room = rooms.entry(room_id).or_insert_with(|| RoomData {
+                room_id,
+                position: None,
+                theme: None,
+                items: Vec::new(),
+            });
+            room.items.push(ItemPlacement {
+                item_id: location.id.item_id,
+                item,
             });
         }
+        let mut borders = Vec::new();
+        for border in &world_layout.borders {
+            if border.variant == "closed" {
+                continue;
+            }
+            let [first, second] = border.cells;
+            let side = if second == first + 1 {
+                BorderSide::East
+            } else {
+                BorderSide::South
+            };
+            borders.push(MapBorder {
+                position: [first % 8, first / 8],
+                side,
+                variant: border.variant.clone(),
+            });
+        }
+        return Ok(SeedData {
+            format_version: SEED_FORMAT_VERSION,
+            metadata,
+            settings,
+            settings_document,
+            rooms: rooms.into_values().collect(),
+            borders,
+        });
     }
     bail!("generation exhausted {MAX_GENERATION_ATTEMPTS} complete attempts")
 }
@@ -129,7 +166,7 @@ fn generate_items(
     graph: &TraversalGraph,
     inputs: &GenerationInputs,
     rng: &mut impl Rng,
-) -> Result<Option<Vec<ItemPlacement>>> {
+) -> Result<Option<Vec<Item>>> {
     let key_initial_states = KeyPlacementState::initialize_dungeons(catalog, graph, inputs)?;
     let small_keys = assign_small_keys(catalog, graph, inputs, &key_initial_states, rng)?;
     let mut state = PlacementState::initialize(catalog, graph, inputs, &small_keys, rng)?;
@@ -151,12 +188,9 @@ fn generate_items(
     if state.global.collected_item_locations.contains(&false) {
         return Ok(None);
     }
-    let mut placements = Vec::new();
-    for (location, item) in catalog.item_locations.iter().zip(state.placements) {
-        placements.push(ItemPlacement {
-            item_location_id: location.id,
-            item: item.unwrap(),
-        });
+    let mut items = Vec::new();
+    for item in state.placements {
+        items.push(item.unwrap());
     }
-    Ok(Some(placements))
+    Ok(Some(items))
 }

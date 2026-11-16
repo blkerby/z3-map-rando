@@ -56,7 +56,7 @@ fn prepare_collision(catalog: &RetilingCatalog, area_id: u8) -> CollisionArea<'_
         .values()
         .find(|area| area.vanilla_map_id == Some(area_id))
         .unwrap();
-    let theme = &area.themes["Desert"];
+    let theme = &area.themes["desert"];
     let width = usize::from(theme.layers[0].grid.width);
     let height = usize::from(theme.layers[0].grid.height);
     let mut cutscene_layers = BTreeSet::new();

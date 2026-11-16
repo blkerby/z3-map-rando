@@ -3,7 +3,7 @@ use anyhow::{Context, Result, bail};
 use common_types::{FAIRY_UPGRADE_LOCATIONS, Item};
 use patch_catalog::{
     Ips, ItemEncoding, ItemLocation, ItemLocationId, PatchCatalog, PatchIps, PatchSymbols,
-    SourceRoomId,
+    RoomArea, SourceRoomId,
 };
 use serde::{
     Deserialize,
@@ -191,7 +191,8 @@ pub(crate) fn package_catalog(
     compression_level: i32,
 ) -> Result<()> {
     let encodings = read_item_encodings(source_directory)?;
-    let item_locations = read_item_locations(source_directory, &built.symbols, &encodings)?;
+    let (item_locations, room_areas) =
+        read_room_records(source_directory, &built.symbols, &encodings)?;
     let mut items = BTreeMap::new();
     let mut small_key = None;
     for record in crate::items::read_item_records(item_records)? {
@@ -219,6 +220,7 @@ pub(crate) fn package_catalog(
         item_locations,
         items,
         small_key: small_key.context("no small_key item record")?,
+        room_areas,
     };
     write_catalog(
         &catalog,
@@ -284,12 +286,28 @@ fn read_item_encodings(source_directory: &Path) -> Result<BTreeMap<String, ItemE
     Ok(encodings)
 }
 
-fn read_item_locations(
+/// Read item locations and the map areas of rooms drawn as overworld areas.
+fn read_room_records(
     source_directory: &Path,
     symbols: &PatchSymbols,
     encodings: &BTreeMap<String, ItemEncoding>,
-) -> Result<BTreeMap<ItemLocationId, ItemLocation>> {
+) -> Result<(
+    BTreeMap<ItemLocationId, ItemLocation>,
+    BTreeMap<SourceRoomId, RoomArea>,
+)> {
     let mut locations = BTreeMap::new();
+    // Special rooms have no grid position, so their areas are listed here. Sacred Grove and
+    // Under the Bridge share one area.
+    let mut room_areas = BTreeMap::new();
+    for (room_id, area_id) in [(102, 0x80), (103, 0x80), (104, 0x81)] {
+        room_areas.insert(
+            SourceRoomId::Underworld(room_id),
+            RoomArea {
+                area_id,
+                size: [1, 1],
+            },
+        );
+    }
     let mut room_paths = Vec::new();
     collect_source_files(&source_directory.join("rooms"), &mut room_paths)?;
     room_paths.sort();
@@ -300,6 +318,15 @@ fn read_item_locations(
         } else {
             SourceRoomId::Underworld(room.id)
         };
+        if let (Some([x, y]), Some([width, height])) = (room.position, room.size) {
+            room_areas.insert(
+                room_id,
+                RoomArea {
+                    area_id: y * 8 + x,
+                    size: [(width / 2) as u8, (height / 2) as u8],
+                },
+            );
+        }
         for item in room.items {
             // Flute activation is a fixed event, not an item placement location.
             if item.item == "OcarinaActive" {
@@ -361,7 +388,7 @@ fn read_item_locations(
             locations.insert(id, ItemLocation { rom_addresses });
         }
     }
-    Ok(locations)
+    Ok((locations, room_areas))
 }
 
 fn write_catalog(

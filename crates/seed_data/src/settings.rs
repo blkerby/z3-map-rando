@@ -5,7 +5,6 @@ use std::collections::BTreeMap;
 /// Generation settings: complete concrete values, in the shape of a settings document
 /// (see `docs/data-formats/settings.md`).
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct Settings {
     pub map_layout: MapLayoutSetting,
     pub skill: SkillSettings,
@@ -14,7 +13,6 @@ pub struct Settings {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ItemPoolSettings {
     pub deduct_starting_items: bool,
     pub bomb_upgrade_size: u8,
@@ -25,7 +23,6 @@ pub struct ItemPoolSettings {
 
 /// Concrete inventory, resources, and progress when a new game begins.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct StartingState {
     pub equipment: StartingEquipment,
     pub resources: StartingResources,
@@ -33,7 +30,6 @@ pub struct StartingState {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct StartingEquipment {
     pub fire_rod: bool,
     pub ice_rod: bool,
@@ -217,7 +213,6 @@ pub enum StartingOcarina {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct StartingResources {
     /// Empty bottles.
     pub bottles: u8,
@@ -231,7 +226,6 @@ pub struct StartingResources {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct StartingFlags {
     pub zelda_rescued: bool,
 }
@@ -285,7 +279,6 @@ pub enum MapLayoutSetting {
 
 /// Skill assumptions, keyed by stable z3-json-data identities.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct SkillSettings {
     /// Proficiency level by tech ID.
     pub proficiencies: BTreeMap<u32, u32>,
@@ -296,7 +289,6 @@ pub struct SkillSettings {
 
 /// Enabled flags of notables, keyed by room ID and then by room-scoped notable ID.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct NotableSettings {
     pub overworld: BTreeMap<u32, BTreeMap<u32, bool>>,
     pub underworld: BTreeMap<u32, BTreeMap<u32, bool>>,

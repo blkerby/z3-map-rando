@@ -150,7 +150,7 @@ pub enum Flip {
 pub struct Area {
     /// Top-left vanilla map ID; absent for editor templates without a ROM map.
     pub vanilla_map_id: Option<u8>,
-    /// Keys are source theme names, such as Base and Desert.
+    /// Keys are theme IDs: lowercase source theme names, such as base and desert.
     pub themes: BTreeMap<String, AreaTheme>,
 }
 

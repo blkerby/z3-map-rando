@@ -21,7 +21,6 @@ logic_catalog = { path = "../logic_catalog" }
 object_store = { version = "0.14", features = ["aws"] }
 preset_catalog = { path = "../preset_catalog" }
 rand = "0.9"
-retiling_catalog = { path = "../retiling_catalog" }
 seed_data = { path = "../seed_data" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

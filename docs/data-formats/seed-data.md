@@ -4,13 +4,12 @@ Status: draft, partially written. A seed record is everything stored for a gener
 
 ## Contents
 
-The current version-2 JSON record stores resolved values in `settings` and their provenance in `settings_source`: `document` is the cleaned settings document with the current `revision`, `source_revision` identifies the submitted definitions when supplied, and `presets` captures the selected root preset plus its inherited and explicitly selected skill, item pool, and starting state presets. The CLI writes plain JSON; the backend's object store transparently applies Zstd compression to stored objects.
+The current version-2 JSON record stores resolved values in `settings` and their provenance in `settings_document`, the cleaned settings document with the current `revision`. Generation results are stored per room in `rooms`, each identified by its `room_id`, with optional fields: `position` (the top-left map cell `[x, y]` of an overworld room in a randomized layout), `theme` (the retiling theme ID of a room drawn as an overworld area, applying to both worlds), and `items` (the `item_id` and `item` of each of the room's item locations). `borders` lists the open borders of a randomized layout, each by the `[x, y]` cell `position` on its west or north side, its `side` (`east` or `south`), and its edge `variant`; unlisted borders are closed. The CLI writes plain JSON; the backend's object store transparently applies Zstd compression to stored objects.
 
 A seed record contains at least:
 
 - its format version and the release that generated it;
 - the **pinned settings document** used for generation, with its source settings data revision identifying the shared definitions and presets used by the generating build (see [settings.md](settings.md#live-and-pinned-settings));
-- the bundled built-in preset definitions needed to resolve that settings document, including required transitive references and concrete default values;
 - the **resolved values** generation actually used;
 - the generation results (to be written).
 
@@ -20,15 +19,13 @@ The pinned settings document is the public form of the creator's settings docume
 
 The resolved values are authoritative for what generation used. They retain the scope hierarchy with concrete scalar values in place of preset references and sparse value entries. A behavior-preserving migration of these values supplies the seed baseline for customizable patch settings and racing rules, without needing current built-in preset resolution at patch time.
 
-The pinned settings document and bundled presets explain those values. The bundle captures required defaults and preset applications explicitly, so resolution does not need a historical shared-data export. It records preset scopes where needed, but not UI layout or control definitions.
+The pinned settings document explains those values. The preset definitions it references are not stored, so the seed does not record the defaults that its tweaks replaced; a baseline for tweak highlighting could be added later as an optional field.
 
-To display a seed, the backend migrates a copy of its settings document, bundled definitions, and resolved values to the current setting definitions, preserving behavior as closely as possible. Migrations apply inside captured presets as well as to final values. Resolve the migrated settings document against its bundle and use that baseline for tweak highlighting. Do not replace captured presets or defaults with current ones, or filter their entries by current scope membership.
+To display a seed, the backend migrates a copy of its settings document and resolved values to the current setting definitions, preserving behavior as closely as possible.
 
 The frontend displays the result with current Svelte components and [bundled display data](settings-data.md). New settings receive historical compatibility values from migration; renamed or removed options receive the closest current representation, with any limitation reported. No historical UI description or renderer is needed.
 
-Newly generated seeds use this same inspection path, including seeds requested by an outdated frontend. The displayed values and tweak baselines come from the backend's seed data, not from re-resolving the request against the frontend's bundled presets. Generation can also return notices explaining that older settings were upgraded.
-
-Re-resolution must agree with the migrated authoritative values. A mismatch indicates a bug in migration or resolution and is reported; it is not repaired by substituting current presets. Apply equivalent historical conversions to the explanation and concrete snapshot so they continue to describe the same generation inputs.
+Newly generated seeds use this same inspection path, including seeds requested by an outdated frontend. The displayed values come from the backend's seed data, not from re-resolving the request against the frontend's bundled presets. Generation can also return notices explaining that older settings were upgraded.
 
 The current patcher reads customizable gameplay values by their current keys. The same behavior-preserving migrations, including [vocabulary rules](settings.md#vocabulary-rules), therefore apply before its inputs are constructed. The stored seed is never rewritten. Importing its settings document for future generation additionally performs the separate live-settings update to current built-in presets/defaults; historical viewing and patching omit that update.
 
@@ -36,7 +33,7 @@ The current patcher reads customizable gameplay values by their current keys. Th
 
 Seed records, including their pinned settings documents, are read strictly. Malformed input, identifiers that are neither current nor retired, and records from a newer format version are errors, reported clearly and left unmodified in storage. A seed record that cannot be read is a bug to fix rather than something to approximate.
 
-Bundled preset references are checked against their captured registry rather than only the current preset bundle's IDs. A captured built-in may have been removed from the current bundle and still be valid in the seed's bundle. Recognized historical value conversions may report an unavoidable approximation; unknown input must not be silently replaced by today's preferred defaults.
+Recognized historical value conversions may report an unavoidable approximation; unknown input must not be silently replaced by today's preferred defaults.
 
 ## Versioning and migration
 

@@ -6,7 +6,7 @@ use logic_catalog::{
     BoundaryEndpoint, Connection, LogicCatalog, MapBoundaryKind, VertexIndex, World,
 };
 use rand::Rng;
-use seed_data::{MapBorder, OverworldRoomPlacement, WorldLayout};
+use seed_data::{CellBorder, OverworldRoomPlacement, WorldLayout};
 
 pub struct MapPool<'a> {
     records: &'a [u8],
@@ -163,7 +163,7 @@ pub fn select_borders(
             } else {
                 choices[rng.random_range(0..choices.len())].as_str()
             };
-            layout.borders.push(MapBorder {
+            layout.borders.push(CellBorder {
                 cells: [cell, next],
                 variant: name.to_owned(),
             });

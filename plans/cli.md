@@ -11,7 +11,7 @@ Implemented: generation, patching saved seeds, and generation followed by patchi
 | `--settings <PATH>` | Settings JSON used for generation | Default preset from the preset catalog |
 | `--seed <PATH>` | Existing plain seed JSON used for patching | Generate a new seed |
 | `--rom <PATH>` | Vanilla ROM to patch | Generate a seed file only |
-| `--theme <NAME>` | Whole-game theme selected during generation | `Base` |
+| `--theme <NAME>` | Whole-game theme selected during generation | `desert` |
 | `--rng <U64>` | Numeric seed for item randomization | Choose randomly |
 | `--output-dir <DIR>` | Existing directory for default seed and ROM output paths | Current directory; beside the input seed for patch-only ROM output |
 | `--output-seed <PATH>` | Output path for plain seed JSON | `z3-map-rando-<SEED-NAME>.json` |

@@ -231,6 +231,8 @@ fn compile_areas(retiling_project: &Path) -> Result<BTreeMap<String, Area>> {
             let theme = path.file_stem().unwrap().to_str().unwrap().to_owned();
             let vanilla_map_id = source.vanilla_map_id;
             let area_theme = compile_area_theme(source, &directory, &theme)?;
+            // Theme IDs are the lowercase source theme names.
+            let theme = theme.to_lowercase();
             let area = areas.entry(name.clone()).or_insert_with(|| Area {
                 vanilla_map_id,
                 themes: BTreeMap::new(),
