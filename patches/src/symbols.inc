@@ -44,6 +44,10 @@ endmacro
 %export_symbol(WorldMapTilemaps, world_map_tilemaps, $CB8000)
 %export_symbol(WorldMapPalettes, world_map_palettes, $8ADB39)
 
+; Vanilla HUD palette 6 color 3 (BGR555), which heart_color.asm uses for the HUD
+; hearts and the patcher sets to the customized heart color.
+%export_symbol(HeartColor, heart_color, $9BD696)
+
 ; A/X are 16-bit; preserve X and resolve a normal logical ID to its physical anchor.
 !GetPhysicalAreaAnchor = $A0F200
 

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:z3-map-rando:schema:settings:customization",
+  "title": "Customization settings",
+  "description": "Cosmetic choices applied while patching a ROM. They do not affect generation or the game link.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "heart_color"
+  ],
+  "properties": {
+    "heart_color": {
+      "description": "HUD heart color as hexadecimal rrggbb; each channel is reduced to the SNES's 5 bits.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{6}$"
+    }
+  }
+}

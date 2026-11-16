@@ -5,7 +5,8 @@ $A08040-$A08057 fastrom_extra.asm (FastROM startup and NMI entry)
 $A08058-$A0807F [FREE]
 $A08080-$A080FD mirror_bg1_hdma.asm (independent BG1 mirror-wave HDMA table)
 $A080FE-$A0811B disable_quickwarp.asm (not applied: mirror-wave completion check)
-$A0811C-$A0817F [FREE]
+$A0811C-$A08155 heart_color.asm (HUD heart-sheet upload and palette-index remap)
+$A08156-$A0817F [FREE]
 $A08180-$A08317 bg3_tilemap.asm (BG3 layout and row streaming)
 $A08318-$A0837F [FREE]
 $A08380-$A08395 nmi_optimize.asm (conditional OAM upload)

@@ -38,7 +38,7 @@
 		{#if mode === 'cards'}
 			<Cards {options} {value} {label} disabled={store.locked} onchange={set} />
 		{:else if mode === 'swatches'}
-			<Swatches {options} {value} {label} disabled={store.locked} columns={Math.min(12, options.length)} onchange={set} />
+			<Swatches {options} {value} {label} disabled={store.locked} columns={Math.min(10, options.length)} onchange={set} />
 		{:else if mode === 'dropdown'}
 			<select class="form-select form-select-sm" class:w-auto={!compact} class:compact disabled={store.locked} {value} onchange={(e) => set(e.currentTarget.value)}>
 				{#each options as o (o.value)}

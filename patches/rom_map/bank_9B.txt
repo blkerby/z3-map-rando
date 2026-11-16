@@ -37,3 +37,5 @@ $9BCA4D-$9BCA50 overworld_map16_graphics.asm (AlterMap16Hardcore bottom-left def
 $9BCA54-$9BCA57 overworld_map16_graphics.asm (AlterMap16Hardcore bottom-right definition)
 $9BCA69-$9BCA8C overworld_bg_tilemaps.asm (shared 64x32 Map16 VRAM address calculation)
 $9BCA8D-$9BCA9E [FREE] (remainder of vanilla FindMap16VRAMAddress)
+$9BD692-$9BD693 heart_color.asm (darkened HUD palette 6 navy)
+$9BD696-$9BD697 Patcher-generated heart color

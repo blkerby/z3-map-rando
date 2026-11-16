@@ -5,3 +5,4 @@ $8DDE4C-$8DDE54 bg3_tilemap.asm (defer initialized item-menu upload until scroll
 $8DDE5B-$8DDE65 bg3_tilemap.asm (stream item-menu opening rows)
 $8DDFAC-$8DDFAE bg3_tilemap.asm (rebuild HUD buffer without immediate upload)
 $8DDFBC-$8DDFC3 bg3_tilemap.asm (stream HUD rows while closing)
+$8DFA1D-$8DFA30 heart_color.asm (HUD heart tilemap words use palette 6)

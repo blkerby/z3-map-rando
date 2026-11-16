@@ -33,7 +33,7 @@ export interface RomRequest {
 	seed: string;
 	/** The player's vanilla ROM. */
 	rom: Uint8Array;
-	/** The player's cosmetic choices (never part of the game link). Not applied by the patcher yet. */
+	/** The player's cosmetic choices (never part of the game link). */
 	customization: Tree;
 }
 
@@ -51,7 +51,8 @@ export async function downloadRom(request: RomRequest): Promise<void> {
 		fetchBytes(retilingCatalogUrl),
 		fetchBytes(patchCatalogUrl)
 	]);
-	const output = browser.patch_rom(request.rom, seed, retiling, patches);
+	const customization = new TextEncoder().encode(JSON.stringify(request.customization));
+	const output = browser.patch_rom(request.rom, seed, customization, retiling, patches);
 	const url = URL.createObjectURL(new Blob([output as Uint8Array<ArrayBuffer>], { type: 'application/octet-stream' }));
 	const a = document.createElement('a');
 	a.href = url;

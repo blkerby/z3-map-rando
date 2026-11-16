@@ -145,7 +145,7 @@
 				</button>
 				<button type="button" class="btn btn-outline-secondary btn-sm" onclick={onreuse}>
 					<i class="bi bi-arrow-repeat"></i>
-					Use these settings for new game
+					Use these settings again
 				</button>
 			{:else}
 				<button

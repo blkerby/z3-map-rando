@@ -10,7 +10,7 @@
 		value,
 		label,
 		disabled = false,
-		columns = 12,
+		columns = 10,
 		onchange
 	}: {
 		options: ChoiceOption[];
@@ -81,7 +81,7 @@
 
 	@media (max-width: 36rem) {
 		.swatches {
-			grid-template-columns: repeat(6, 2rem);
+			grid-template-columns: repeat(5, 2rem);
 		}
 	}
 

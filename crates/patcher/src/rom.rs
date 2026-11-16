@@ -5,7 +5,7 @@ use crate::{
     import::{FlatMap16, Importer},
     retiling as theme, verify_vanilla_rom,
 };
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use common_types::{Item, SourceRoomId};
 use patch_catalog::PatchCatalog;
 use retiling_catalog::RetilingCatalog;
@@ -20,10 +20,27 @@ use std::collections::BTreeMap;
 const VANILLA_FLAT_MAPS_START: SnesAddr = SnesAddr(0xb80000);
 const BANK_SIZE: usize = 0x8000;
 
-/// Customization applied while patching, independently of saved generation settings.
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+/// Choices applied while patching, independently of saved generation settings.
+#[derive(Clone, Debug, Default)]
 pub struct PatchSettings {
     pub transition_asset_phase: TransitionAssetPhase,
+    pub customization: CustomizationSettings,
+}
+
+/// The player's cosmetic choices, as described by `schema/settings/customization.json`.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CustomizationSettings {
+    /// HUD heart color as hexadecimal `rrggbb`.
+    pub heart_color: String,
+}
+
+impl Default for CustomizationSettings {
+    fn default() -> Self {
+        Self {
+            heart_color: "c00000".to_owned(),
+        }
+    }
 }
 
 struct FlatMapTables {
@@ -167,6 +184,13 @@ pub fn patch_rom(
             seed.settings.item_pool.bomb_upgrade_size,
             seed.settings.item_pool.arrow_upgrade_size,
         ],
+    )?;
+    let rgb = u32::from_str_radix(&settings.customization.heart_color, 16)
+        .context("parsing heart color")?;
+    let bgr555 = (rgb >> 19 & 0x1f) | (rgb >> 11 & 0x1f) << 5 | (rgb >> 3 & 0x1f) << 10;
+    patcher.context("heart color").write(
+        SnesAddr(patches.symbols.heart_color).into(),
+        (bgr555 as u16).to_le_bytes().to_vec(),
     )?;
     patcher.apply(&mut output)?;
     output[0x7fd7] = 0x0c;
@@ -370,6 +394,7 @@ fn prepare_retiling(
         &patches.patches.overworld_map16_graphics,
         &patches.patches.overworld_map16_properties,
         &patches.patches.bg3_tilemap,
+        &patches.patches.heart_color,
         &patches.patches.overworld_bg_tilemaps,
         &patches.patches.overworld_camera_alignment,
         &patches.patches.nmi_optimize,

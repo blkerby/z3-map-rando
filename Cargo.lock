@@ -416,6 +416,7 @@ dependencies = [
  "patcher",
  "retiling_catalog",
  "seed_data",
+ "serde_json",
  "wasm-bindgen",
 ]
 

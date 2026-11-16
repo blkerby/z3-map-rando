@@ -75,6 +75,9 @@ struct Args {
     /// Output ROM file; overrides --output-dir. Defaults to z3-map-rando-<SEED-NAME>.sfc beside the input seed, or in the current directory.
     #[arg(long)]
     output_rom: Option<PathBuf>,
+    /// Customization settings JSON (schema/settings/customization.json); uses vanilla choices when omitted.
+    #[arg(long, requires = "rom")]
+    customization_settings: Option<PathBuf>,
     /// When to load transition assets while patching.
     #[arg(long, value_enum, default_value = "scroll")]
     transition_asset_phase: TransitionAssetPhase,
@@ -215,7 +218,16 @@ fn patch_seed(
         BUNDLED_PATCH_CATALOG,
     )?;
     let patch_catalog = patch_catalog::decode_catalog(patch_bytes.as_ref())?;
+    let customization = match &args.customization_settings {
+        Some(path) => serde_json::from_slice(
+            &fs::read(path)
+                .with_context(|| format!("reading customization settings {}", path.display()))?,
+        )
+        .with_context(|| format!("parsing customization settings {}", path.display()))?,
+        None => patcher::CustomizationSettings::default(),
+    };
     let settings = patcher::PatchSettings {
+        customization,
         transition_asset_phase: match args.transition_asset_phase {
             TransitionAssetPhase::PreScroll => patcher::TransitionAssetPhase::PreScroll,
             TransitionAssetPhase::Scroll => patcher::TransitionAssetPhase::Scroll,
