@@ -1,14 +1,13 @@
 # Randomizer backend
 
-Run commands from the repository root. The server loads `logic_catalog.bin`, `retiling_catalog.bin`, and `preset_catalog.bin` from the `output_directory` in `catalog-build.toml` (default `build/`), and reads the configured `map_pool` (default `maps/map_pool.bin`). Prepare the catalogs with `cargo run --package catalog_builder -- all`. The server loads catalogs once at startup; restart it after rebuilding them.
-
-Build the frontend with `npm --prefix frontend run build`, then start the server:
+Run commands from the repository root. For development, `npm run dev` runs the server together with the frontend's development server (see [the frontend README](../frontend/README.md#develop)); arguments after `--` go to the server, e.g. `npm run dev -- --store mem`. To serve the built site at `http://127.0.0.1:8080/` instead:
 
 ```sh
-cargo run --package server -- --store mem
+npm run build
+cargo run --release --package server -- --store mem
 ```
 
-The server serves the built site at `http://127.0.0.1:8080/`. For frontend hot reload, also run `npm --prefix frontend run dev` and open Vite's URL. Its `/api/` proxy targets the Rust server on port 8080.
+The server loads `logic_catalog.bin`, `retiling_catalog.bin`, and `preset_catalog.bin` from the `output_directory` in `catalog-build.toml` (default `build/`), and reads the configured `map_pool` (default `maps/map_pool.bin`), once at startup. Building the server updates the catalogs whenever their inputs change, using the same `catalog-build.toml` as the CLI.
 
 ## Seed storage
 

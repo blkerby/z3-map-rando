@@ -1,70 +1,22 @@
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
-import { execFileSync } from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
-import { defineConfig, type Plugin } from 'vite';
+import { browserPackage, buildDirectory, prepareBrowserPackage, prepareCatalogs, settingsData } from './scripts/prepare.js';
+import { defineConfig } from 'vite';
 
-// The randomizer's catalog builder prepares, in its output directory (`build/` by default, see
-// catalog-build.toml), the settings data (presets, skill classifications, items) as `settings_data.json`
-// and the retiling and patch catalogs that Save ROM patches with. Run the builder whenever this config is
-// loaded, so `dev`, `build` and `check` always see current data; unchanged inputs are reused from its cache.
-const repoRoot = path.resolve(import.meta.dirname, '..');
-const dataDirectory = path.join(repoRoot, 'data');
-const settingsData = path.join(repoRoot, 'build', 'settings_data.json');
-const buildDirectory = path.join(repoRoot, 'build');
-const browserPackage = path.join(repoRoot, 'build', 'browser');
-const browserWasm = path.join(repoRoot, 'target', 'wasm32-unknown-unknown', 'release', 'browser.wasm');
-
-function prepareCatalogs() {
-	execFileSync('cargo', ['run', '--quiet', '--package', 'catalog_builder', '--', 'all'], {
-		cwd: repoRoot,
-		stdio: 'inherit'
-	});
-}
-
-// Vite loads this config several times in one process (SvelteKit's build runs a nested Vite build with it),
-// each time as a fresh module, so the process environment records that the inputs are already prepared.
+// The frontend reads the settings data, browser package and catalogs that scripts/prepare.js builds, so prepare
+// them whenever this config is loaded, and `dev`, `build` and `check` always see current inputs. Vite loads this
+// config several times in one process (SvelteKit's build runs a nested Vite build with it), each time as a fresh
+// module, so the process environment records that the inputs are already prepared. During `npm run dev`, the dev
+// script (scripts/dev.js) prepares them again when the repository changes.
 if (!process.env.Z3_FRONTEND_INPUTS_PREPARED) {
-	prepareCatalogs();
-	// wasm-pack's slow step (wasm-opt) reruns even when nothing changed, so first run the same Cargo build
-	// that wasm-pack does, which leaves its output untouched when up to date, and package only if that
-	// output is newer than the package.
-	execFileSync('cargo', ['build', '--quiet', '--lib', '--release', '--target', 'wasm32-unknown-unknown', '--package', 'browser'], {
-		cwd: repoRoot,
-		stdio: 'inherit'
-	});
-	const packaged = fs.statSync(path.join(browserPackage, 'browser_bg.wasm'), { throwIfNoEntry: false });
-	if (!packaged || fs.statSync(browserWasm).mtimeMs > packaged.mtimeMs) {
-		execFileSync('wasm-pack', ['build', 'crates/browser', '--target', 'web', '--out-dir', browserPackage], {
-			cwd: repoRoot,
-			stdio: 'inherit'
-		});
-	}
+	await prepareCatalogs();
+	await prepareBrowserPackage();
 	process.env.Z3_FRONTEND_INPUTS_PREPARED = '1';
-}
-
-/** In dev, prepare the settings data again when its sources change; the page then reloads. */
-function watchSettingsData(): Plugin {
-	return {
-		name: 'watch-settings-data',
-		configureServer(server) {
-			server.watcher.add([dataDirectory, settingsData]);
-			server.watcher.on('change', (file) => {
-				if (!file.startsWith(dataDirectory + path.sep)) return;
-				try {
-					prepareCatalogs();
-				} catch {
-					// The builder has printed its error; the page keeps the last good data.
-				}
-			});
-		}
-	};
 }
 
 export default defineConfig({
 	server: {
-		fs: { allow: [path.dirname(settingsData)] },
+		fs: { allow: [buildDirectory] },
 		proxy: { '/api/': 'http://127.0.0.1:8080' }
 	},
 	css: {
@@ -78,7 +30,6 @@ export default defineConfig({
 		}
 	},
 	plugins: [
-		watchSettingsData(),
 		sveltekit({
 			compilerOptions: {
 				// Force runes mode for the project, except for libraries. Can be removed in svelte 6.

@@ -1,14 +1,34 @@
 # Overview
 
-The goal of this project is to create a randomizer for generating randomized *A Link to the Past* games, featuring a randomly rearranged and rethemed overworld. The randomizer will be usable primarily as a web service, but also as a library and command-line tool.
+This the repository for the Link to the Past Map Rando project, a randomizer that generates randomized *Zelda: A Link to the Past* games, featuring a randomly rearranged and rethemed overworld.
 
 # Current status
 
-An [overworld editor](https://github.com/blkerby/Z3OverworldEditor) lets artists define custom palettes, tilesets, conditional edge layers, animations, dungeon openings, and Mode 7 map artwork. Themes are in progress [here](https://github.com/kjbranch/ALTTPRetiling), and the randomizer compiles the authored assets into playable ROM data. The editor focuses on overworld artwork and collision; it may later support customizing other game elements such as enemies, entrances, secrets, items, and dungeons.
+The randomizer is available in pre-release form as a CLI and as a web service. It can generate playable games and needs only a bit more bug-fixing and polish before an initial release. The "Desert" theme is complete; more themes are under development and will be added in the future.
 
-A prototype generator and CLI produce structured seeds using logical item placement on vanilla or pool-selected random maps, and patch those seeds into ROMs. Random maps use paired-world room placements, compatible authored edge variants, and generated Mode 7 maps. This remains a prototype requiring broader gameplay verification; see [map randomization](docs/map_randomization.md) and [prototype gameplay](docs/gameplay.md). A [design doc](https://docs.google.com/document/d/1skZsIxZLKbCC8C_-3b3TTZVwblzNkN2ZTXraZ4Zxzkc) describes the planned tier-based item placement logic along with several balance-oriented gameplay changes.
+An [overworld editor](https://github.com/blkerby/Z3OverworldEditor) was developed specifically for this randomizer, allowing artist to define custom palettes, tilesets, conditional edge layers, animations, cutscenes, and Mode 7 map artwork. The editor currently focuses on overworld tiling; it may later support customizing other game elements such as enemies, entrances, secrets, items, and dungeons. The retiling happens in the [ALTTPRetiling](https://github.com/kjbranch/ALTTPRetiling) repository. 
 
-The current focus is on the technical foundation for the project, particularly the game engine changes needed to support the flexible palette and tileset system. For detailed plans, see the docs in [plans](plans/README.md).
+In order to support the flexible palette and tileset system, substantial changes to the game engine were needed. For some technical details about how this works, see the docs in [plans](plans/README.md).
+
+A [design doc](https://docs.google.com/document/d/1skZsIxZLKbCC8C_-3b3TTZVwblzNkN2ZTXraZ4Zxzkc) describes some plans for tier-based item placement logic along with balance-oriented gameplay changes. Many of these are not yet implemented in the randomizer but may become options in the future. Other options may be added based on player feedback.
+
+# How to run the website locally
+
+Clone the repository with its submodules (as [described below](#how-to-test-current-engine-changes)), and install Rust, Node.js, CMake, and a C++ compiler. Then add the WebAssembly target and `wasm-pack`, and install the frontend's packages:
+
+```sh
+rustup target add wasm32-unknown-unknown
+cargo install wasm-pack
+npm --prefix frontend install
+```
+
+Place the exported map pool at `maps/map_pool.bin` (see [below](#how-to-generate-and-patch-a-prototype-seed)). From the repository root, run:
+
+```sh
+npm run dev
+```
+
+This starts the randomizer server together with the frontend's development server, and builds the catalogs and frontend inputs as needed. Open the URL it prints. Arguments after `--` go to the server; for example, `npm run dev -- --store file:seeds` keeps generated seeds in `seeds/` instead of in memory. Changes to the frontend reload in the browser, and changes elsewhere rebuild and restart the server as needed. To build the site and serve it without the development server, run `npm run build` and then `cargo run --release --package server`. See [the frontend README](frontend/README.md) and [the backend setup](docs/backend.md) for details.
 
 # How to generate and patch a prototype seed
 

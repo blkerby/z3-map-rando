@@ -22,17 +22,22 @@ struct Args {
     /// Object store: mem, file:<directory>, or s3://<bucket>/<prefix>.
     #[arg(long, default_value = "mem")]
     store: String,
+    /// Serve only the API, not the built frontend (for the Vite dev server, which serves the pages).
+    #[arg(long)]
+    api_only: bool,
 }
 
 #[actix_web::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
-    std::fs::metadata(args.static_dir.join("index.html")).with_context(|| {
-        format!(
-            "reading {}/index.html; run npm run build in frontend/ first",
-            args.static_dir.display()
-        )
-    })?;
+    if !args.api_only {
+        std::fs::metadata(args.static_dir.join("index.html")).with_context(|| {
+            format!(
+                "reading {}/index.html; run npm run build in frontend/ first",
+                args.static_dir.display()
+            )
+        })?;
+    }
 
     let config_path = std::path::Path::new("catalog-build.toml");
     let config: toml::Table = if config_path.exists() {
@@ -71,32 +76,43 @@ async fn main() -> Result<()> {
     });
 
     let static_dir = args.static_dir.clone();
+    let api_only = args.api_only;
     let server = HttpServer::new(move || {
         App::new()
             .app_data(state.clone())
             .route("/api/generate", web::post().to(generate::generate_seed))
             .route("/api/seed/{name}", web::get().to(generate::get_seed))
-            .route(
-                "/seed/{name}/",
-                web::get().to({
-                    // Seed pages aren't prerendered; the frontend's SPA fallback renders them.
-                    let fallback = static_dir.join("spa.html");
-                    move || NamedFile::open_async(fallback.clone())
-                }),
-            )
-            .service(
-                Files::new("/", &static_dir)
-                    .index_file("index.html")
-                    .redirect_to_slash_directory(),
-            )
+            .configure(|config| {
+                if api_only {
+                    return;
+                }
+                config
+                    .route(
+                        "/seed/{name}/",
+                        web::get().to({
+                            // Seed pages aren't prerendered; the frontend's SPA fallback renders them.
+                            let fallback = static_dir.join("spa.html");
+                            move || NamedFile::open_async(fallback.clone())
+                        }),
+                    )
+                    .service(
+                        Files::new("/", &static_dir)
+                            .index_file("index.html")
+                            .redirect_to_slash_directory(),
+                    );
+            })
     })
     .bind(args.bind)?;
 
-    eprintln!(
-        "Serving {} at http://{}",
-        args.static_dir.display(),
-        args.bind
-    );
+    if api_only {
+        eprintln!("Serving the API at http://{}", args.bind);
+    } else {
+        eprintln!(
+            "Serving {} at http://{}",
+            args.static_dir.display(),
+            args.bind
+        );
+    }
     server.run().await?;
     Ok(())
 }

@@ -2488,6 +2488,7 @@ dependencies = [
  "actix-files",
  "actix-web",
  "anyhow",
+ "catalog_builder",
  "clap",
  "generator",
  "logic_catalog",
