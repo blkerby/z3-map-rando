@@ -95,7 +95,7 @@ UpdateWeatherMusic:
     CMP.b #$F1
     BEQ .retain_rain
 
-    ; Bunny music takes priority over rain.
+    ; Keep explicit bunny-track requests.
     CMP.b #$04
     BEQ .restore
 
@@ -113,6 +113,15 @@ UpdateWeatherMusic:
 
 .regional
     PHA
+    ; Transition recovery can request a regional track while Link is a bunny.
+    LDA.w $02E0
+    ORA.b $56
+    BEQ .weather
+    PLA
+    LDA.b #$04
+    BRA .store
+
+.weather
     LDA.l !EventFlags
     AND.b #$80
     BNE .dry
