@@ -3250,26 +3250,7 @@ RestoreMirrorFixedColor:
 ; Step 10 retains its animated-tile work, then repairs both layers' margins.
 hook_MirrorWarpMarginPhase:
     JSL $80D915                 ; Run hi-jacked instruction
-
-    LDA.b $10
-    CMP.b #$15
-    BNE .build
-
-    LDA.l !Module15LayerEnable+1
-    STA.b $1D
-
-.build
     JSR BGMirrorBuildMargins
-
-    LDA.b $10
-    CMP.b #$15
-    BNE .return
-
-    LDA.b $1D
-    AND.b #$F8
-    STA.b $1D
-
-.return
     RTL
 
 ;---------------------------------------------------------------------------------------------------
@@ -3278,7 +3259,7 @@ hook_MirrorWarpMarginPhase:
 ; The HDMA oscillator reaches -9..+9 pixels. Across every possible subpixel
 ; camera position, the normal left..left+32 window therefore needs columns
 ; left-2, left-1, and left+33. BG2 clamps source data at world edges and also
-; repairs an out-of-bounds left+32 column. BG1 wraps its logical 64x64 overlay.
+; repairs an out-of-bounds left+32 column. BG1 wraps at its logical map size.
 ;---------------------------------------------------------------------------------------------------
 
 BGMirrorBuildMargins:
@@ -3387,29 +3368,35 @@ BG1EmitMirrorColumn:
     RTS
 
 BG1BuildMirrorMargins:
-    JSR BG1CheckStreamingEnabled
+    ; Destination BG1 stays hidden during loading, but still needs its margins.
+    LDA.l !BackgroundSettings
+    AND.w #$00FF
+    BEQ .finish
+    LDA.b $8C
+    AND.w #$00FF
+    CMP.w #$009F                ; Rain uses its complete static tilemap.
     BEQ .finish
 
     JSR BG1SelectRenderer
     JSR BG1CalculateLogicalWindowOrigin
 
-    ; BG1's logical overlay wraps with its tilemap, so source and destination
-    ; use the same wrapped coordinate for all three exposed columns.
+    ; Source coordinates wrap at the selected logical map size; the renderer
+    ; maps their destinations into the physical tilemap ring.
     LDA.b $00
     DEC A
     DEC A
-    AND.w #$003F
+    AND.l !BGLogicalMask
     JSR BG1EmitMirrorColumn
 
     LDA.b $00
     DEC A
-    AND.w #$003F
+    AND.l !BGLogicalMask
     JSR BG1EmitMirrorColumn
 
     LDA.b $00
     CLC
     ADC.w #$0021
-    AND.w #$003F
+    AND.l !BGLogicalMask
     JSR BG1EmitMirrorColumn
 
 .finish
