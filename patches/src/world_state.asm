@@ -44,13 +44,8 @@ SynchronizeLoadedOverworldWorld:
 
     LDA.b $8A
     CMP.b #$03
-    BEQ .mountain
-    CMP.b #$05
-    BEQ .mountain
-    CMP.b #$07
     BNE .finish
 
-.mountain
     LDA.l !SpawnVisitFlags
     ORA.b #$02
     STA.l !SpawnVisitFlags

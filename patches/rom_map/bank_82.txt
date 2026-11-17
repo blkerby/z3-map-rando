@@ -23,7 +23,7 @@ $82A3C4-$82A3C7 overworld_bg_tilemaps.asm (run rain only for the selected genera
 $82A3FF-$82A402 overworld_bg_tilemaps.asm (match low OBJ palettes to lightning color math)
 $82A407-$82A422 overworld_bg_tilemaps.asm (64x32 rain animation scroll offsets)
 $82A9F3-$82A9F7 overworld_assets.asm (select scrolling-transition asset schedule)
-$82AA07-$82AA0B world_state.asm (synchronize destination world and record mountain visits)
+$82AA07-$82AA0B world_state.asm (synchronize destination world and record Tower of Hera overworld area visits)
 $82AAAF-$82AAB7 overworld_assets.asm (tail-dispatch scrolling asset preparation)
 $82AABB-$82AABE overworld_assets.asm (pre-scroll generated asset batches)
 $82AAD4-$82AAD7 overworld_assets.asm (skip obsolete sprite conversion)

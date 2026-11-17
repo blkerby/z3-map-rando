@@ -175,7 +175,7 @@ endmacro
 ; Finalized empty locations use a receipt below $80 so chests can open.
 !NothingReceipt = $5A
 
-; Saved spawn unlocks: bit 0 is Sanctuary entered; bit 1 is Light World mountain reached.
+; Saved spawn unlocks: bit 0 is Sanctuary entered; bit 1 is Tower of Hera overworld area ($03) visited.
 !SpawnVisitFlags = $7EF3D6
 
 ; Unified receipt tables, including room for all 256 receipt IDs.
