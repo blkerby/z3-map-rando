@@ -16,7 +16,7 @@
       "pattern": "^[0-9a-f]{6}$"
     },
     "reduced_flashing": {
-      "description": "Disable rain lightning and Ether medallion flashes.",
+      "description": "Suppresses lightning and other flashing effects.",
       "type": "boolean"
     }
   }

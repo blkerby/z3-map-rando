@@ -5,4 +5,4 @@
 </script>
 
 <ChoiceSetting path={['heart_color']} label="Heart color" help="Color of the hearts in the life meter." display="swatches" options={HEART_COLORS} />
-<ToggleSetting path={['reduced_flashing']} label="Reduced flashing" help="Disable rain lightning and Ether medallion flashes." />
+<ToggleSetting path={['reduced_flashing']} label="Reduced flashing" help="Suppress weather, spell, electrical, cutscene, and boss flashes while preserving Ether's invisible-floor reveal." />

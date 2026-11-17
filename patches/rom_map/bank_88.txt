@@ -1,1 +1,2 @@
-$88AACE-$88AACF reduced_flashing.asm (optional: skip Ether's palette flashes)
+$88AAF9-$88AAFA reduced_flashing.asm (optional: preserve Ether's revealed invisible-floor colors)
+$88C29E-$88C29F reduced_flashing.asm (optional: suppress the Master Sword pedestal's flashing effect)
