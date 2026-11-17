@@ -51,6 +51,16 @@ hook_initialize_zelda_spawn:
 org $85EBD7
 return_initialize_zelda_spawn:
 
+; Sanctuary's standing Zelda must not duplicate the Zelda follower.
+; Sprite preparation has 8-bit A/X/Y; only A and flags are clobbered.
+org $85EC07
+hook_check_sanctuary_zelda_spawn:
+    JML CheckSanctuaryZeldaSpawn
+return_check_sanctuary_zelda_spawn:
+
+org $85EC0F
+return_remove_sanctuary_zelda:
+
 ; The preceding follower check still suppresses a duplicate castle Zelda.
 org $85EC40
 hook_check_castle_zelda_spawn:
@@ -217,6 +227,17 @@ LoadPyramidSpawn:
     STZ.w $010A
     STZ.w $04AA
     JML $8280AC               ; Rebuild the HUD and load the Pyramid overworld spawn.
+
+CheckSanctuaryZeldaSpawn:
+    LDA.l $7EF3CC
+    CMP.b #$01
+    BEQ .following
+
+    LDA.l $7EF3C6             ; Run hi-jacked instruction
+    JML return_check_sanctuary_zelda_spawn
+
+.following
+    JML return_remove_sanctuary_zelda
 
 RecordSanctuaryVisit:
     LDA.l !SpawnVisitFlags
