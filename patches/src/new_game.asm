@@ -1,5 +1,5 @@
 ; New saves begin with the configured inventory, resources, and Zelda progress.
-; Restart choices depend on the saved world and visited destinations.
+; Restart choices use the Light World before Agahnim, then the saved world.
 lorom
 incsrc "symbols.inc"
 
@@ -134,6 +134,13 @@ SelectStartingLocation:
     JML $828118               ; Continue at the dungeon entrance.
 
 .menu
+    LDA.l $7EF3C5
+    CMP.b #$03
+    BCS .check_world
+    LDA.b #$00
+    STA.l $7EF3CA
+
+.check_world
     LDA.l $7EF3CA
     BEQ .light_world
     LDA.l $7EF353

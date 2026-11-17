@@ -22,7 +22,7 @@ Item pools after deduction may contain fewer pickups than the available ordinary
 
 ## Saving and restarting
 
-Save-and-quit and outdoor/cave deaths lose every follower and retain the current world regardless of Agahnim progress. Light World restarts offer Link's House, Sanctuary after entering it, and Mountain Cave after reaching Light World Death Mountain. Dark World restarts offer the Pyramid, plus Link's House when the Mirror is missing.
+Save-and-quit and outdoor/cave deaths lose every follower and return to the Light World before Agahnim is defeated, regardless of Mirror ownership. After defeating Agahnim, they retain the current world. Light World restarts offer Link's House, Sanctuary after entering it, and Mountain Cave after reaching Light World Death Mountain. Dark World restarts offer the Pyramid, plus Link's House when the Mirror is missing.
 
 The menu uses English labels and substitutes the saved player name in the house option. A single available destination loads directly. Dungeon deaths retain their entrance restart and vanilla follower handling, including retaining Zelda or the Old Man; Ganon's room uses outdoor recovery and loses every follower.
 
