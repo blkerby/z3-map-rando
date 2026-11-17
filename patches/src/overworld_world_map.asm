@@ -27,6 +27,17 @@ hook_initialize_world_map_tilemap_cursor:
 org $808E84
     ADC.w #!WorldMapTilemaps&$FFFF
 
+org $8ABA28
+hook_select_world_map_rain_color_math:
+    JSL GetWorldMapRainContext
+    NOP
+    NOP
+    BEQ return_world_map_color_math
+assert pc() == $8ABA30
+
+org $8ABA38
+return_world_map_color_math:
+
 ; Both worlds now upload a full tilemap in the preceding stage.
 org $8ABA99
 hook_load_dark_world_map:
@@ -77,6 +88,17 @@ InitializeWorldMapTilemapCursor:
     LDA.w #$1000
 .light
     STA.b $02
+    RTL
+
+; Entry and return use 8-bit A/X/Y; preserve X/Y and scratch RAM.
+GetWorldMapRainContext:
+    REP #$30
+    PHX
+    LDX.w $040A
+    JSL !GetRainContext
+    PLX
+    SEP #$30
+    CMP.b #$00
     RTL
 assert pc() <= !free_space_bank_a0_end
 
