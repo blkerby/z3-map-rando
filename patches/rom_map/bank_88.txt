@@ -1,0 +1,1 @@
+$88AACE-$88AACF reduced_flashing.asm (optional: skip Ether's palette flashes)
