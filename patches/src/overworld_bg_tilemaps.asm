@@ -320,12 +320,16 @@ org $80D903
 org $80D907
     RTL
 
-; AnimateMirrorWarp_LoadSubscreen, step 11: preserve the destination subscreen
-; state without exposing BG1 before its following character upload completes.
-org $80DACD
-hook_MirrorWarpSetDestinationSubscreen:
+; AnimateMirrorWarp_LoadSubscreen, step 11: reveal the selected destination
+; overlay instead of using vanilla's area list. Entry has A8/X8/Y8; only A/P
+; change, with X/Y, DB, DP, scratch RAM, and the caller's stack preserved.
+org $80DAA3
+hook_reveal_mirror_destination:
     JSL SetMirrorWarpDestinationSubscreen
-assert pc() == $80DAD1
+    BRA return_mirror_destination_subscreen
+
+org $80DAD1
+return_mirror_destination_subscreen:
 
 ; AnimateMirrorWarp vector entry 10
 ;
@@ -1351,17 +1355,22 @@ EnableMirrorWarpSubscreenUnlessModule15:
     RTL
 
 SetMirrorWarpDestinationSubscreen:
+    LDA.l !BackgroundSettings  ; Zero disables BG1; rain uses the $FF mode.
+    BEQ .selected
+    LDA.b #$01
+
+.selected
+    PHA
     LDA.b $10
     CMP.b #$15
     BNE .enable
 
-    LDA.b #$01
+    PLA
     STA.l !Module15LayerEnable+1
     RTL
 
 .enable
-    ; Run hi-jacked instructions:
-    LDA.b #$01
+    PLA
     STA.b $1D
     RTL
 
