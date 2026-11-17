@@ -1,3 +1,4 @@
+$80805D-$808060 overworld_music.asm (resolve weather-controlled music before yielding to NMI)
 $8083AA-$8083AC bg3_tilemap.asm (clear one BG3 screen block)
 $8086DF-$8086E2 overworld_animations.asm (generated overworld animation scheduling)
 $80884E-$808877 overworld_map16_properties.asm (independent Map16 quadrant property lookup)
@@ -28,5 +29,6 @@ $80DACD-$80DAD0 overworld_bg_tilemaps.asm (defer Agahnim-warp destination subscr
 $80E1F0-$80E1F5 overworld_assets.asm (skip generated area graphics)
 $80E259-$80E25D overworld_vram.asm (dynamic background-graphics destination)
 $80E36F-$80E373 heart_color.asm (upload HUD sheet $6B with remapped heart tiles)
+$80F310-$80F314 overworld_music.asm (resolve queued music before the iris renderer's scanline wait)
 $80F861-$80F864 overworld_bg_tilemaps.asm (finalize generated BG1 scroll during interfaces)
 $80FF7C-$80FF7F disable_quickwarp.asm (not applied: require all four mirror-wave tail samples to match the base scroll)

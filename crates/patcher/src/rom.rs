@@ -407,6 +407,7 @@ fn prepare_retiling(
         &patches.patches.overworld_dynamic_tiles,
         &patches.patches.overworld_cutscenes,
         &patches.patches.overworld_lightning,
+        &patches.patches.overworld_music,
         &patches.patches.overworld_topology,
         &patches.patches.overworld_world_map,
     ] {

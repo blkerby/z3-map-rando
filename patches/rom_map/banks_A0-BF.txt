@@ -15,7 +15,8 @@ $A08700-$A088BC overworld_map_data.asm (flat Map16 loaders)
 $A088BD-$A088FF [FREE]
 $A08900-$A098FF overworld_bg_tilemaps.asm (saved rain state, boss-defeat bookkeeping, rain palettes, BG1/BG2 renderers, and transition helpers)
 $A09900-$A099FF item_inventory.asm (reserved for shared-slot and bow ownership tracking)
-$A09A00-$A09DFF [FREE]
+$A09A00-$A09AFF overworld_music.asm (reserved for foreground weather music and house-spawn music)
+$A09B00-$A09DFF [FREE]
 $A09E00-$A09F3F Patcher-generated overworld backdrop colors
 $A09F40-$A0A0C0 overworld_animations.asm (generated animation runtime)
 $A0A0C1-$A0A1C6 overworld_entrances.asm (area-local entrance runtime)
@@ -27,8 +28,8 @@ $A0ABB1-$A0ABFF [FREE]
 $A0AC00-$A0AE57 overworld_vram.asm (VRAM layout runtime)
 $A0AE58-$A0AEFF [FREE]
 $A0AF00-$A0B69F overworld_dynamic_tiles.asm (generated dynamic-tile runtime)
-$A0B6A0-$A0B910 overworld_cutscenes.asm (generated cutscene and live-overlay runtime, including Mire's rain-ending event)
-$A0B911-$A0BFFF [FREE]
+$A0B6A0-$A0B928 overworld_cutscenes.asm (generated cutscene and live-overlay runtime, including Mire's rain-ending event and music)
+$A0B929-$A0BFFF [FREE]
 $A0C000-$A0EFFF item_placements.asm (reserved for item carriers, empty rewards, receipts, and graphics)
 $A0F000-$A0F03F [FREE]
 $A0F040-$A0F05F mothula_sword.asm (reserved for sword damage selection)

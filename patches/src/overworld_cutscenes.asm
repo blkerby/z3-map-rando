@@ -113,6 +113,20 @@ RunGeneratedEntranceCutscene:
     CMP.b #$03
     BNE .select_script
     JSL !EndRain               ; Opening Mire ends the storm in every area.
+    PHA
+    LDA.w $0130
+    CMP.b #$03
+    BNE .restore_script_index
+    LDA.l $7EF357
+    BNE .dark_world_music
+    LDA.b #$04                 ; Retain the bunny theme without Moon Pearl.
+    BRA .set_music
+.dark_world_music
+    LDA.b #$09
+.set_music
+    STA.w $012C
+.restore_script_index
+    PLA
 .select_script
     DEC A
     REP #$30                   ; Use 16-bit A and index registers for pointers.

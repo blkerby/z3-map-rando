@@ -98,6 +98,7 @@ pub struct PatchIps {
     pub overworld_dynamic_tiles: Ips,
     pub overworld_entrances: Ips,
     pub overworld_lightning: Ips,
+    pub overworld_music: Ips,
     pub overworld_map16_graphics: Ips,
     pub overworld_map16_properties: Ips,
     pub overworld_map_data: Ips,
