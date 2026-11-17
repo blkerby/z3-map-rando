@@ -18,8 +18,16 @@ endmacro
 !OverworldSpriteWorld = $7FF18B
 
 ; Saved event bits: $01 Bat, $02 Powder, $04 Smith, $08 Waterfall fairy upgrade,
-; $10 Pyramid fairy upgrade, $20 Ether, $40 Bombos.
+; $10 Pyramid fairy upgrade, $20 Ether, $40 Bombos, $80 rain ended.
 !EventFlags = $7EF3D5
+
+; A/X are 16-bit. Returns the active rain context (0 dry, 1 light, 2 dark)
+; for area X in A; preserves X/Y and scratch RAM. Defined in overworld_bg_tilemaps.asm.
+!GetRainContext = $A09700
+
+; Sets the saved rain-ended bit, preserving A/X/Y/DB/P and scratch RAM.
+; Defined in overworld_bg_tilemaps.asm.
+!EndRain = $A09720
 
 ; Items for the vanilla thrown-gift sprites, whose subtype remains unchanged.
 %export_symbol(CatfishItem, catfish_item, $B08040)

@@ -110,6 +110,10 @@ RunGeneratedEntranceCutscene:
     BNE .initialized           ; A nonzero cursor resumes the current script.
 
     LDA.w $04C6                ; Convert the one-based trigger to table index.
+    CMP.b #$03
+    BNE .select_script
+    JSL !EndRain               ; Opening Mire ends the storm in every area.
+.select_script
     DEC A
     REP #$30                   ; Use 16-bit A and index registers for pointers.
     AND.w #$00FF

@@ -13,6 +13,13 @@ org $82A932
 hook_prepare_overworld_transition:
     JML PrepareAlignedOverworldTransition
 
+; The source area is still on the stack here; the destination is in $8A.
+; Replace the vanilla area-only choice with the same rule used by preparation.
+org $82A9D9
+hook_select_overworld_transition:
+    PLA                        ; Run hi-jacked instruction
+    JML SelectPreparedOverworldTransition
+
 ; Ordinary transitions skip phase $05; use it to wait for source-side preloading.
 ; Mosaic phase $13 still dispatches to vanilla StartOverworldScrollTransition.
 org $82A30E
@@ -43,10 +50,6 @@ PrepareAlignedOverworldTransition:
     LDA.w #$0000
     STA.l !TransitionCameraSnap
 
-    LDA.b $8A
-    AND.w #$003F
-    BEQ .ready                  ; Keep mosaic transitions unchanged.
-
     TYX
     LDA.w $0700
     CLC
@@ -55,7 +58,16 @@ PrepareAlignedOverworldTransition:
     TAX
     LDA.l !SlotToArea,X
     AND.w #$00FF
-    BEQ .ready
+    ORA.l $7EF3CA
+    AND.w #$00FF
+    TAX
+    LDA.b $8A
+    AND.w #$00FF
+    JSR CheckOverworldMosaicTransition
+    BCS .ready
+
+    TXA
+    AND.w #$003F
     TAX
     LDA.l $82A73B,X             ; Destination large/small flag.
     AND.w #$00FF
@@ -122,6 +134,63 @@ PrepareAlignedOverworldTransition:
     STZ.b $03
 
     JML $82A936
+
+; A/X are the 16-bit source/destination IDs. Preserve A/X/Y and scratch RAM;
+; return carry set for vanilla mosaic boundaries or an active rain boundary.
+CheckOverworldMosaicTransition:
+    PHA
+    AND.w #$003F
+    BEQ .mosaic
+    TXA
+    AND.w #$00BF
+    BEQ .mosaic
+    LDA.l !GeneratedBG1Enabled
+    AND.w #$00FF
+    BEQ .scroll
+
+    JSL !GetRainContext
+    BEQ .destination_dry
+    LDA.w #$0001
+.destination_dry
+    PHA
+    PHX
+    LDA.b $05,S                ; Source ID below destination ID and rain state.
+    TAX
+    JSL !GetRainContext
+    BEQ .source_dry
+    LDA.w #$0001
+.source_dry
+    PLX
+    EOR.b $01,S
+    BEQ .same_rain
+    PLA
+.mosaic
+    PLA
+    SEC
+    RTS
+.same_rain
+    PLA
+.scroll
+    PLA
+    CLC
+    RTS
+
+SelectPreparedOverworldTransition:
+    REP #$30
+    AND.w #$00FF
+    PHX
+    PHA
+    LDA.b $8A
+    AND.w #$00FF
+    TAX
+    PLA
+    JSR CheckOverworldMosaicTransition
+    PLX
+    SEP #$30
+    BCS .mosaic
+    JML $82A9F3
+.mosaic
+    JML $82A9E4
 
 PreloadOverworldTransitionCamera:
     REP #$30

@@ -104,6 +104,10 @@ InitializeGameState:
 AdvanceGameProgress:
     PHP
     PHA
+    CMP.b #$02
+    BNE .advance
+    JSL !EndRain
+.advance
     CMP.l $7EF3C5
     BCC .done
     STA.l $7EF3C5

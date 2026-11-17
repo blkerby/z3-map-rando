@@ -76,6 +76,14 @@ hook_CreditsCameraHorizontalDelta:
     JSL RecordCameraDeltaX
     NOP
 
+; VerifyExplosionPrize reaches this only after the boss explosion succeeds.
+; Entry has 8-bit A/X/Y. Preserve A/X/DB and scratch; only displaced LDY/CPY
+; change Y and flags. This covers ordinary bosses, Agahnim, and Ganon.
+org $89EE30
+hook_complete_boss_defeat:
+    JSL EndRainAfterBossDefeat
+    NOP
+
 ; OverworldOverlay_HandleRain
 ;
 ; Every fourth game frame, the rain animation advances to another quarter of
@@ -116,7 +124,7 @@ org $82A423
 ; ReloadSubscreenOverlay
 ;
 ; Generated gameplay backgrounds replace vanilla's area-specific synthetic
-; overlay selection. Retain only rain's game-state predicate; authored BG1
+; overlay selection. Rain uses its saved event bit; authored BG1
 ; takes precedence through the generated rain-context table. Presentation
 ; modules continue through the vanilla selector.
 org $82AE77
@@ -874,28 +882,10 @@ assert UpdateRainSpritePalettes == !UpdateRainSpritePalettes
     AND.w #$00FF
     TAX
 
+    JSL !GetRainContext
     SEP #$20
-    LDA.l !RainContexts,X
     BEQ .mode_ready
 
-    CPX.w #$0070
-    BEQ .mire
-
-    LDA.l $7EF3C5
-    CMP.b #$02
-    BCS .mode_ready
-    BRA .rain
-
-.mire
-    LDA.w $04C6
-    CMP.b #$03
-    BEQ .mode_ready
-    LDA.l $7EF2F0
-    AND.b #$20
-    BNE .mode_ready
-
-.rain
-    LDA.l !RainContexts,X
     CMP.b #$02
     BEQ .dark_rain
     LDY.w #$0001              ; Light rain on all four palettes.
@@ -1030,31 +1020,23 @@ RunRainEffectsWhenSelected:
     CMP.b #$9F
     BNE .done
 
-    LDA.b $11
-    BNE .run
-    LDA.b $8A
-    CMP.b #$70
-    BNE .run_vanilla
-    LDA.w $04C6
-    CMP.b #$03
-    BEQ .clear_rain
-    LDA.l $7EF2F0
-    AND.b #$20
-    BEQ .run
+    LDA.l !EventFlags
+    AND.b #$80
+    BEQ .animate
 
-.clear_rain
-    ; Hide rain as Mire's opening starts, before the entrance is marked complete.
     STZ.b $8C
     STZ.b $1D
     LDA.b #$20
     STA.b $9A
     RTL
 
+.animate
+    JML $82A3DA                ; Selected rain bypasses vanilla story predicates.
+
 .run
+    ; Run hi-jacked instructions:
     LDA.b $8A
     CMP.b #$70
-
-.run_vanilla
     JML $82A3C8
 
 .done
@@ -1100,28 +1082,9 @@ SelectGeneratedBackground:
     AND.w #$00FF
     TAX
 
-    SEP #$20
-    LDA.l !RainContexts,X
-    REP #$20
-    AND.w #$00FF
+    JSL !GetRainContext
     BEQ .no_rain
 
-    TXA
-    CMP.w #$0070
-    BEQ .mire
-
-    LDA.l $7EF3C5
-    AND.w #$00FF
-    CMP.w #$0002
-    BCS .no_rain
-    BRA .rain
-
-.mire
-    LDA.l $7EF2F0
-    AND.w #$0020
-    BNE .no_rain
-
-.rain
     LDX.w #$009F
     BRA .selected
 
@@ -3448,6 +3411,44 @@ BG1BuildMirrorMargins:
 
     PLP
     RTS
+
+
+assert pc() <= !GetRainContext
+org !GetRainContext
+GetRainContext:
+assert GetRainContext == !GetRainContext
+    LDA.l !EventFlags
+    AND.w #$0080
+    BNE .dry
+    LDA.l !RainContexts,X
+    AND.w #$00FF
+    RTL
+.dry
+    LDA.w #$0000
+    RTL
+
+assert pc() <= !EndRain
+org !EndRain
+EndRain:
+assert EndRain == !EndRain
+    PHP
+    SEP #$20
+    PHA
+    LDA.l !EventFlags
+    ORA.b #$80
+    STA.l !EventFlags
+    PLA
+    PLP
+    RTL
+
+EndRainAfterBossDefeat:
+    JSL EndRain
+
+    ; Run hi-jacked instructions:
+    LDY.w $0E20,X
+    CPY.b #$D6
+
+    RTL
 
 assert pc() <= !PreloadAlignedTransitionEdge
 org !PreloadAlignedTransitionEdge

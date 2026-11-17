@@ -13,7 +13,7 @@ $A08380-$A08395 nmi_optimize.asm (conditional OAM upload)
 $A08396-$A086FF [FREE]
 $A08700-$A088BC overworld_map_data.asm (flat Map16 loaders)
 $A088BD-$A088FF [FREE]
-$A08900-$A098FF overworld_bg_tilemaps.asm (rain palette handling, BG1/BG2 renderers, and transition helpers)
+$A08900-$A098FF overworld_bg_tilemaps.asm (saved rain state, boss-defeat bookkeeping, rain palettes, BG1/BG2 renderers, and transition helpers)
 $A09900-$A099FF item_inventory.asm (reserved for shared-slot and bow ownership tracking)
 $A09A00-$A09DFF [FREE]
 $A09E00-$A09F3F Patcher-generated overworld backdrop colors
@@ -27,8 +27,8 @@ $A0ABB1-$A0ABFF [FREE]
 $A0AC00-$A0AE57 overworld_vram.asm (VRAM layout runtime)
 $A0AE58-$A0AEFF [FREE]
 $A0AF00-$A0B69F overworld_dynamic_tiles.asm (generated dynamic-tile runtime)
-$A0B6A0-$A0B908 overworld_cutscenes.asm (generated cutscene and live-overlay runtime)
-$A0B909-$A0BFFF [FREE]
+$A0B6A0-$A0B910 overworld_cutscenes.asm (generated cutscene and live-overlay runtime, including Mire's rain-ending event)
+$A0B911-$A0BFFF [FREE]
 $A0C000-$A0EFFF item_placements.asm (reserved for item carriers, empty rewards, receipts, and graphics)
 $A0F000-$A0F03F [FREE]
 $A0F040-$A0F05F mothula_sword.asm (reserved for sword damage selection)
@@ -37,8 +37,8 @@ $A0F100-$A0F1FF item_menu_toggle.asm (reserved for Y-button item switching)
 $A0F200-$A0F3FF overworld_topology.asm (reserved for physical area origins)
 $A0F400-$A0F4FF overworld_world_map.asm (reserved for world map loading)
 $A0F500-$A0F57F world_state.asm (reserved for loaded world context, Tower of Hera overworld area visits, and recovery follower loss)
-$A0F580-$A0F8FF overworld_camera_alignment.asm (reserved for transition camera and follow-threshold alignment)
-$A0F900-$A0FAFF new_game.asm (reserved for initial state, monotonic progress, Agahnim-dependent restart menus, dungeon Mirror returns, and priest initialization)
+$A0F580-$A0F8FF overworld_camera_alignment.asm (reserved for transition camera alignment and weather-dependent mosaic selection)
+$A0F900-$A0FAFF new_game.asm (reserved for initial state, monotonic progress, Zelda's rain-ending event, Agahnim-dependent restart menus, dungeon Mirror returns, and priest initialization)
 $A0FB00-$A0FBFF capacity_upgrades.asm (capacity upgrades and seed-specific bomb/arrow upgrade sizes)
 $A0FC00-$A0FEFF fairy_ponds.asm (reserved for Great Fairy ponds and closed-upgrade messages)
 $A0FF00-$A0FFFF [FREE]
