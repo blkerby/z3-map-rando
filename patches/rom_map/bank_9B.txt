@@ -1,5 +1,5 @@
 $9BB1E0-$9BB7FC [FREE]
-$9BBC1D-$9BBC20 overworld_dynamic_tiles.asm (generated animated-door entrance dispatch)
+$9BBC1D-$9BBC20 overworld_dynamic_tiles.asm (honor pending Mirror returns before generated entrance dispatch)
 $9BBC22-$9BBC23 overworld_map16_graphics.asm (UseOverworldEntrance Map16 index)
 $9BBC2C-$9BBC2F overworld_map16_graphics.asm (UseOverworldEntrance top-right definition)
 $9BBC48-$9BBC49 overworld_map16_graphics.asm (adjacent Map16 index)

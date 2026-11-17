@@ -2,11 +2,11 @@
 ;
 ; Vanilla points HDMA channels 6 and 7 at the same horizontal-scroll table.
 ; Since that table is based on BG2 scroll $E2, channel 6 abruptly replaces
-; BG1's $E0-based parallax when the mirror starts. Give channel 6 a parallel
-; table containing the same wave displacement relative to $E0 instead:
+; BG1's independent scroll when the mirror starts. Give channel 6 a parallel
+; table containing the same wave displacement relative to finalized $0120:
 ;
 ;   BG2 scanline scroll = vanilla table value
-;   BG1 scanline scroll = vanilla table value + ($E0 - $E2)
+;   BG1 scanline scroll = vanilla table value + ($0120 - $E2)
 
 lorom
 
@@ -29,7 +29,7 @@ org $80FE57
 
 ; MirrorWarp_BuildWavingHDMATable
 ;
-; AnimateMirrorWarp runs before this parity check and may change $E0 while
+; AnimateMirrorWarp runs before this parity check and may change $0120 while
 ; loading the destination. Refresh BG1 even on frames where vanilla leaves
 ; its wave table unchanged. Updating frames refresh it after finishing $1B00.
 org $80FE68
@@ -107,6 +107,7 @@ hook_MirrorWarpWavingTableComplete:
     STA.w $1B08
     STA.w $1B0C
 
+CopyMirrorBG1TableAndReturn:
     JSR MirrorBG1CopyTable
     SEP #$30
     RTL
@@ -127,11 +128,7 @@ hook_MirrorWarpDewavingFrameStart:
 
 MirrorBG1FinishDewavingFrame:
     REP #$30
-    JSR MirrorBG1CopyTable
-
-    ; Run hi-jacked instructions:
-    SEP #$30
-    RTL
+    BRA CopyMirrorBG1TableAndReturn
 
 ; Copy all 240 scanline words, preserving the caller's X and direct-page
 ; scratch word. Sixteen-bit addition naturally wraps like the PPU scroll.
@@ -141,7 +138,7 @@ MirrorBG1CopyTable:
     LDA.b $00
     PHA
 
-    LDA.b $E0
+    LDA.w $0120
     SEC
     SBC.b $E2
     STA.b $00

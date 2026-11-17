@@ -224,6 +224,17 @@ assert OpenDynamicWoodenDoorAtEntrance == !OpenDynamicWoodenDoorAtEntrance
     RTL
 
 OpenDynamicAnimatedDoorAtEntrance:
+    ; A/X/Y are 16-bit. A rejected Mirror landing must keep its return warp
+    ; before animated doors or coordinate-based entrances can replace it.
+    LDA.b $11
+    AND.w #$00FF
+    CMP.w #$002C
+    BNE .check_door
+    STZ.w $04B8
+    SEP #$30
+    RTL
+
+.check_door
     TXA
     PHA
     SEC

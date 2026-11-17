@@ -3,7 +3,8 @@ $A08000-$A0800F overworld_map16_properties.asm (overworld-only shallow-water spr
 $A08010-$A0803F [FREE]
 $A08040-$A08057 fastrom_extra.asm (FastROM startup and NMI entry)
 $A08058-$A0807F [FREE]
-$A08080-$A080FD mirror_bg1_hdma.asm (independent BG1 mirror-wave HDMA table)
+$A08080-$A080FA mirror_bg1_hdma.asm (mirror-wave HDMA table based on finalized BG1 scroll)
+$A080FB-$A080FD [FREE]
 $A080FE-$A0811B disable_quickwarp.asm (not applied: mirror-wave completion check)
 $A0811C-$A08155 heart_color.asm (HUD heart-sheet upload and palette-index remap)
 $A08156-$A0817F [FREE]
@@ -27,7 +28,7 @@ $A0A620-$A0ABB0 overworld_assets.asm (generated overworld asset runtime)
 $A0ABB1-$A0ABFF [FREE]
 $A0AC00-$A0AE57 overworld_vram.asm (VRAM layout runtime)
 $A0AE58-$A0AEFF [FREE]
-$A0AF00-$A0B69F overworld_dynamic_tiles.asm (generated dynamic-tile runtime)
+$A0AF00-$A0B69F overworld_dynamic_tiles.asm (reserved for generated dynamic-tile runtime and Mirror-return entrance guard)
 $A0B6A0-$A0B928 overworld_cutscenes.asm (generated cutscene and live-overlay runtime, including Mire's rain-ending event and music)
 $A0B929-$A0BFFF [FREE]
 $A0C000-$A0EFFF item_placements.asm (reserved for item carriers, empty rewards, receipts, and graphics)
