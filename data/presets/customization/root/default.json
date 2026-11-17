@@ -2,6 +2,7 @@
   "id": "default",
   "label": "Default",
   "settings": {
-    "heart_color": "c00000"
+    "heart_color": "c00000",
+    "reduced_flashing": true
   }
 }

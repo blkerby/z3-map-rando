@@ -105,6 +105,7 @@ pub struct PatchIps {
     pub overworld_topology: Ips,
     pub overworld_vram: Ips,
     pub overworld_world_map: Ips,
+    pub reduced_flashing: Ips,
     pub rom_size: Ips,
     pub world_state: Ips,
 }

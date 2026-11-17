@@ -6,13 +6,18 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "heart_color"
+    "heart_color",
+    "reduced_flashing"
   ],
   "properties": {
     "heart_color": {
       "description": "HUD heart color as hexadecimal rrggbb; each channel is reduced to the SNES's 5 bits.",
       "type": "string",
       "pattern": "^[0-9a-f]{6}$"
+    },
+    "reduced_flashing": {
+      "description": "Disable lightning flashes during rain.",
+      "type": "boolean"
     }
   }
 }

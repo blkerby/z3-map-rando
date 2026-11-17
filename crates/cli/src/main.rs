@@ -75,7 +75,7 @@ struct Args {
     /// Output ROM file; overrides --output-dir. Defaults to z3-map-rando-<SEED-NAME>.sfc beside the input seed, or in the current directory.
     #[arg(long)]
     output_rom: Option<PathBuf>,
-    /// Customization settings JSON (schema/settings/customization.json); uses vanilla choices when omitted.
+    /// Customization settings JSON (schema/settings/customization.json); uses defaults when omitted.
     #[arg(long, requires = "rom")]
     customization_settings: Option<PathBuf>,
     /// When to load transition assets while patching.

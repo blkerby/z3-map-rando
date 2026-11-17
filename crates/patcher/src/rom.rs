@@ -33,12 +33,14 @@ pub struct PatchSettings {
 pub struct CustomizationSettings {
     /// HUD heart color as hexadecimal `rrggbb`.
     pub heart_color: String,
+    pub reduced_flashing: bool,
 }
 
 impl Default for CustomizationSettings {
     fn default() -> Self {
         Self {
             heart_color: "c00000".to_owned(),
+            reduced_flashing: true,
         }
     }
 }
@@ -412,6 +414,9 @@ fn prepare_retiling(
         &patches.patches.overworld_world_map,
     ] {
         patcher.use_ips(patch)?;
+    }
+    if settings.customization.reduced_flashing {
+        patcher.use_ips(&patches.patches.reduced_flashing)?;
     }
     crate::topology::apply_topology(&mut patcher, rom, layout, patches)?;
     Ok(patcher)
