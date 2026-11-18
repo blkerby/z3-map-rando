@@ -131,8 +131,8 @@ fn compose_collision(
 // Collision writes are prepared once per area; each combination still evaluates
 // every layer condition and applies selected layers in their authored order.
 //
-// Checks the outermost 8-pixel aperture strips for small-1, small-2, dual-small,
-// and wide, including a solid tile or correctly oriented slope at either end.
+// Checks four tiles of inward clearance for small-1, small-2, dual-small, and
+// wide, with a solid tile or correctly oriented slope at either end of the edge strip.
 // Inner and outer slopes must have their solid corner outside the aperture.
 // Collision classes combine ordinary/diggable ground and full-tile blockers,
 // preserving slopes and direction.
@@ -141,7 +141,8 @@ fn compose_collision(
 // light-only and light-and-mirror count as one geometry choice. Specialized
 // variants participate in uniqueness checks but do not yet have aperture profiles.
 // Uniqueness failures report one pair per room with the fewest differing slots.
-// Failures report the area, edge, variant, tile range, and an example combination.
+// Aperture failures report the failing strip closest to the transition across
+// all combinations, with an example combination.
 //
 // Run: cargo test -p patcher --release check_overworld_edge_geometry -- --nocapture
 #[test]
@@ -168,6 +169,7 @@ fn check_overworld_edge_geometry() -> Result<()> {
     }
     paths.sort();
     let mut failures = BTreeMap::<String, Vec<(String, String)>>::new();
+    let mut aperture_failures = BTreeMap::new();
     let mut configurations = 0;
     let mut apertures = 0;
     for path in paths {
@@ -229,29 +231,34 @@ fn check_overworld_edge_geometry() -> Result<()> {
                         (false, "wide") => &[(16, 53)],
                         _ => &[],
                     };
+                    if openings.is_empty() {
+                        continue;
+                    }
                     let boundary_slopes = match slot.side {
                         0 => [0x10, 0x11], // Northwest, northeast.
                         1 => [0x12, 0x13], // Southwest, southeast.
                         2 => [0x11, 0x13], // Northeast, southeast.
                         _ => [0x10, 0x12], // Northwest, southwest.
                     };
-                    let mut strip = Vec::new();
-                    for along in 0..64 {
-                        let offset = slot.segment * 64 + along;
-                        let (x, y) = match slot.side {
-                            0 => (offset, 0),
-                            1 => (offset, height - 1),
-                            2 => (width - 1, offset),
-                            _ => (0, offset),
-                        };
-                        strip.push(collision[y * width + x]);
+                    let mut strips = [[0; 64]; 4];
+                    for (depth, strip) in strips.iter_mut().enumerate() {
+                        for (along, property) in strip.iter_mut().enumerate() {
+                            let offset = slot.segment * 64 + along;
+                            let (x, y) = match slot.side {
+                                0 => (offset, depth),
+                                1 => (offset, height - 1 - depth),
+                                2 => (width - 1 - depth, offset),
+                                _ => (depth, offset),
+                            };
+                            *property = collision[y * width + x];
+                        }
                     }
                     for &(start, end) in openings {
                         apertures += 1;
                         let mut expected = vec![0x00; end - start + 2];
                         expected[0] = 0x01;
                         expected[end - start + 1] = 0x01;
-                        let actual = &strip[start - 1..=end];
+                        let actual = &strips[0][start - 1..=end];
                         for (index, slope) in [
                             (0, boundary_slopes[0]),
                             (expected.len() - 1, boundary_slopes[1]),
@@ -260,15 +267,30 @@ fn check_overworld_edge_geometry() -> Result<()> {
                                 expected[index] = actual[index];
                             }
                         }
-                        if actual != expected {
-                            let message = format!(
-                                "${:02X} {} {}={variant}, tiles {}..={end}: expected {expected:02x?}, got {actual:02x?}",
-                                area_id + world,
-                                area_name,
-                                slot.name,
-                                start - 1,
-                            );
-                            failures.entry(message).or_insert_with(|| edges.clone());
+                        for (depth, strip) in strips.iter().enumerate() {
+                            let (first, last, expected) = if depth == 0 {
+                                (start - 1, end, expected.as_slice())
+                            } else {
+                                (start, end - 1, &expected[1..expected.len() - 1])
+                            };
+                            let actual = &strip[first..=last];
+                            if actual == expected {
+                                continue;
+                            }
+                            let key = (area_id + world, slot.name.clone(), variant.clone(), start);
+                            if aperture_failures
+                                .get(&key)
+                                .is_none_or(|(previous_depth, _, _)| depth < *previous_depth)
+                            {
+                                let message = format!(
+                                    "${:02X} {} {}={variant}, {depth} tiles inward, tiles {first}..={last}: expected {expected:02x?}, got {actual:02x?}",
+                                    area_id + world,
+                                    area_name,
+                                    slot.name,
+                                );
+                                aperture_failures.insert(key, (depth, message, edges.clone()));
+                            }
+                            break;
                         }
                     }
                 }
@@ -328,9 +350,12 @@ fn check_overworld_edge_geometry() -> Result<()> {
             );
         }
     }
+    for (_, message, example) in aperture_failures.into_values() {
+        failures.insert(message, example);
+    }
     eprintln!("Checked {configurations} paired-world configurations and {apertures} apertures.");
     for (message, example) in &failures {
-        eprintln!("{message}\n  example: {example:?}");
+        eprintln!("{message}\n  example: {example:?}\n");
     }
     assert!(
         failures.is_empty(),
