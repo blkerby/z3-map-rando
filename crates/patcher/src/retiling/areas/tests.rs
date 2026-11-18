@@ -289,6 +289,8 @@ fn check_overworld_edge_geometry() -> Result<()> {
                                 (before.as_str(), after.as_str()),
                                 ("light-only", "light-and-mirror")
                                     | ("light-and-mirror", "light-only")
+                                    | ("dual-small", "dual-upper")
+                                    | ("dual-upper", "dual-small")
                             ) {
                                 different_geometry = true;
                             }
