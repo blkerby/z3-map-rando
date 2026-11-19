@@ -12,7 +12,7 @@ pub use output::{
 };
 pub use settings::{
     InsufficientPoolItems, ItemPoolSettings, MapLayoutSetting, NotableSettings, Settings,
-    SkillSettings, StartingBoomerang, StartingBow, StartingEquipment, StartingFlags, StartingGlove,
+    SkillSettings, StartingBoomerang, StartingBow, StartingEquipment, StartingGlove,
     StartingMail, StartingOcarina, StartingResources, StartingShield, StartingState, StartingSword,
 };
 pub use settings_document::{

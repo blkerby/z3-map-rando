@@ -81,12 +81,12 @@ pub struct GlobalState {
 }
 
 impl GlobalState {
-    /// Begin with the configured inventory, resources, and progression flags.
+    /// Begin with the configured inventory and resources, with Zelda already rescued.
     pub fn initialize(catalog: &LogicCatalog, inputs: &GenerationInputs) -> Self {
         let starting = &inputs.starting_state;
         let mut flags = Vec::with_capacity(catalog.flags.len());
         for flag in &catalog.flags {
-            flags.push(flag == "GameStateZelda" && starting.flags.zelda_rescued);
+            flags.push(flag == "GameStateZelda");
         }
         let mut state = Self {
             unique_items: [false; UniqueItem::COUNT],

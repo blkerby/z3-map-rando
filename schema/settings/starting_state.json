@@ -6,8 +6,7 @@
   "additionalProperties": false,
   "required": [
     "equipment",
-    "resources",
-    "flags"
+    "resources"
   ],
   "properties": {
     "equipment": {
@@ -215,18 +214,6 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 999
-        }
-      }
-    },
-    "flags": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "zelda_rescued"
-      ],
-      "properties": {
-        "zelda_rescued": {
-          "type": "boolean"
         }
       }
     }

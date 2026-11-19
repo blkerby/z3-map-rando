@@ -191,7 +191,7 @@ pub fn patch_rom(
     inventory[0x2d] = inventory[0x2c];
     inventory[0x20..0x22].copy_from_slice(&resources.rupees.to_le_bytes());
     inventory[0x22..0x24].copy_from_slice(&resources.rupees.to_le_bytes());
-    inventory[0x50] = if starting.flags.zelda_rescued { 2 } else { 1 };
+    inventory[0x50] = 2; // Game state: Zelda rescued.
     patcher
         .context("starting state")
         .write(SnesAddr(patches.symbols.starting_state).into(), inventory)?;

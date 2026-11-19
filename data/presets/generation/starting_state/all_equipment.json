@@ -40,9 +40,6 @@
       "bombs": 50,
       "arrows": 70,
       "rupees": 999
-    },
-    "flags": {
-      "zelda_rescued": true
     }
   }
 }

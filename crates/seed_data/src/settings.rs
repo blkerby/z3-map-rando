@@ -26,7 +26,6 @@ pub struct ItemPoolSettings {
 pub struct StartingState {
     pub equipment: StartingEquipment,
     pub resources: StartingResources,
-    pub flags: StartingFlags,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -223,11 +222,6 @@ pub struct StartingResources {
     pub bombs: u8,
     pub arrows: u8,
     pub rupees: u16,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct StartingFlags {
-    pub zelda_rescued: bool,
 }
 
 #[derive(Debug)]

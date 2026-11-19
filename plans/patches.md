@@ -131,7 +131,7 @@ Item graphics use a fixed 128-byte 4bpp ROM array at the exported `ItemGraphics`
 
 `Item::Nothing` encodes an empty ordinary location as receipt `$5A`, which chests accept. The shared grant hook returns without granting inventory or starting an item-receipt pose. Freestanding carriers suppress empty rewards; boss-heart suppression also sets the completion flag needed to release the dungeon prize. Empty Zora/Catfish gifts record their collection flags, and empty Grove/tablet rewards retain their source event flags.
 
-The patcher encodes starting equipment, resources, shared-slot ownership, and ability flags in the 80-byte `$7EF340-$7EF38F` inventory image at `StartingState`, followed by the initial game-state byte (1 before Zelda rescue, 2 after). New-save initialization copies the inventory into the selected SRAM slot before its checksum is calculated, preserving the player name and unrelated save data. Uncle and Zelda progress updates advance the story stage monotonically.
+The patcher encodes starting equipment, resources, shared-slot ownership, and ability flags in the 80-byte `$7EF340-$7EF38F` inventory image at `StartingState`, followed by the initial game-state byte (always 2, Zelda rescued). New-save initialization copies the inventory into the selected SRAM slot before its checksum is calculated, preserving the player name and unrelated save data. Uncle and Zelda progress updates advance the story stage monotonically.
 
 ### Ammo capacity
 

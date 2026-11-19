@@ -163,9 +163,6 @@
 			max={999}
 		/>
 	</Group>
-	<Group heading="Progress" layout="grid">
-		<ToggleSetting path={['starting_state', 'flags', 'zelda_rescued']} label="Zelda rescued" />
-	</Group>
 </SectionCard>
 
 <SectionCard
