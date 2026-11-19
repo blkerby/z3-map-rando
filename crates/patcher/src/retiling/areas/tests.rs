@@ -134,6 +134,7 @@ fn compose_collision(
 // Checks four tiles of inward clearance for small-1, small-2, dual-small, and
 // wide, with a solid tile or correctly oriented slope at either end of the edge strip.
 // Inner and outer slopes must have their solid corner outside the aperture.
+// Shallow water counts as ground in the three strips inward from the edge strip.
 // Collision classes combine ordinary/diggable ground and full-tile blockers,
 // preserving slopes and direction.
 //
@@ -274,7 +275,10 @@ fn check_overworld_edge_geometry() -> Result<()> {
                                 (start, end - 1, &expected[1..expected.len() - 1])
                             };
                             let actual = &strip[first..=last];
-                            if actual == expected {
+                            if actual.iter().zip(expected).all(|(&actual, &expected)| {
+                                actual == expected
+                                    || (depth > 0 && actual == 0x09 && expected == 0x00)
+                            }) {
                                 continue;
                             }
                             let key = (area_id + world, slot.name.clone(), variant.clone(), start);
