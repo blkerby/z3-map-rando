@@ -25,6 +25,9 @@ pub enum SourceRoomId {
     Underworld(u32),
 }
 
+/// Special overworld areas without a grid position. Sacred Grove and Under the Bridge share $80.
+pub const SPECIAL_ROOM_AREAS: [(u32, u8); 3] = [(102, 0x80), (103, 0x80), (104, 0x81)];
+
 /// Authored identity, independent of catalog ordering and patching addresses.
 /// Existing IDs are permanent; removed IDs must not be reused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

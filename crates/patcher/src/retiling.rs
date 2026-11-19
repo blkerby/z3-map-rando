@@ -5,7 +5,13 @@ use crate::{
 };
 use anyhow::{Context, Result, ensure};
 pub use retiling_catalog::BackgroundLayering;
-use retiling_catalog::{PaletteId, RetilingCatalog};
+use retiling_catalog::{
+    PaletteId, RetilingCatalog,
+    palette::{
+        DARK_WORLD_RAIN_PALETTE, LIGHT_WORLD_RAIN_PALETTE, PALETTE_ATTEMPTS, allocate_palettes,
+        select_palette_profiles,
+    },
+};
 use seed_data::WorldLayout;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -19,20 +25,16 @@ mod rain;
 mod world_map;
 pub use world_map::{CompiledWorldMap, compile_world_map};
 
-use allocation::{
-    CHARACTER_CAPACITY, allocate_characters, allocate_palettes, build_scrollable_transition_pairs,
-};
+use allocation::{CHARACTER_CAPACITY, allocate_characters};
 use areas::{SelectedAreas, select_areas};
 use events::{
     DynamicTileGroup, DynamicTileVariant, VANILLA_OVERWORLD_OVERLAYS, add_dynamic_dependencies,
     build_cutscenes, build_dynamic_overworld_overlays, build_dynamic_tile_groups,
     build_overworld_overlays, expand_dynamic_grid,
 };
-use graphics::{
-    build_animation_tracks, build_character_rows, build_palette_rows, resolve_palettes,
-};
+use graphics::{build_animation_tracks, build_character_rows, resolve_palettes};
 use maps::{MAP16_CAPACITY, Map16Builder, build_bg1_maps, build_map};
-use rain::{DARK_WORLD_RAIN_PALETTE, LIGHT_WORLD_RAIN_PALETTE, add_rain_tiles, build_rain_maps};
+use rain::{add_rain_tiles, build_rain_maps};
 
 type TileKey = (PaletteId, usize);
 
@@ -71,9 +73,33 @@ pub fn compile(
     vanilla_tile_types: &[u8],
     mut area_assets: Vec<OverworldAreaAssets>,
     layout: &WorldLayout,
+    palette_seed: u64,
 ) -> Result<CompiledTheme> {
     let mut graphics = TileGraphicResolver::create(importer);
     let mut palettes = resolve_palettes(catalog, &mut graphics)?;
+    let scrollable_transitions = layout.build_scrollable_transition_pairs();
+    let profiles = select_palette_profiles(
+        &catalog.palette_profiles,
+        layout
+            .areas
+            .iter()
+            .map(|area| (usize::from(area.vanilla_map_id), area.theme_name.as_str())),
+    )?;
+    let allocation = allocate_palettes(&profiles, &scrollable_transitions, palette_seed)
+        .with_context(|| {
+            format!("no overworld palette assignment found in {PALETTE_ATTEMPTS} passes")
+        })?;
+    let mut color_indices = BTreeMap::new();
+    for (&id, table) in &allocation {
+        let mut indices = [0; 16];
+        for (i, &rgb) in palettes[&id].colors.iter().enumerate().skip(1) {
+            let color = crate::graphics::encode_bgr555(rgb);
+            if let Some(j) = table.colors.iter().position(|&entry| entry == color) {
+                indices[i] = (j + 1) as u8;
+            }
+        }
+        color_indices.insert(id, indices);
+    }
     let mut dynamic_tiles = Vec::new();
     for group in &catalog.dynamic_tile_groups {
         let mut variants = Vec::new();
@@ -184,8 +210,6 @@ pub fn compile(
     add_dynamic_dependencies(&mut areas, &mut dynamic_tiles);
     ensure!(area_assets.len() == 0xa0);
 
-    let scrollable_transitions = build_scrollable_transition_pairs(layout);
-    let palette_slots = allocate_palettes(&areas, &palettes, &scrollable_transitions)?;
     let (character_slots, area_tiles) =
         allocate_characters(&areas, &palettes, &scrollable_transitions)?;
     for variant in &bg1_variants {
@@ -217,17 +241,16 @@ pub fn compile(
         vanilla_tiles,
         vanilla_tile_types,
         &palettes,
-        &palette_slots,
+        &allocation,
         &character_slots,
     );
 
     let mut screen_maps = BTreeMap::new();
     for (area, tiles) in areas.iter().zip(&area_tiles) {
-        let palette_rows = build_palette_rows(area, &palettes, &palette_slots);
         let character_rows =
-            build_character_rows(tiles, &palettes, &palette_slots, &character_slots)?;
+            build_character_rows(tiles, &palettes, &color_indices, &character_slots)?;
         let animation_tracks =
-            build_animation_tracks(tiles, &palettes, &palette_slots, &character_slots);
+            build_animation_tracks(tiles, &palettes, &color_indices, &character_slots);
         for map_y in 0..area.height / 64 {
             for map_x in 0..area.width / 64 {
                 let map = build_map(area, map_x, map_y, &mut map16)?;
@@ -235,22 +258,28 @@ pub fn compile(
             }
         }
 
-        let mut transition_palette_halves = [false; 12];
-        for palette in &area.palettes {
-            let slot = palette_slots[palette];
-            transition_palette_halves[slot] = true;
-            if palettes[palette].uses_upper_half {
-                transition_palette_halves[slot + 1] = true;
+        let mut palette_rows = vec![[0; 32]; 6];
+        let mut active_rows = [false; 6];
+        for id in &area.palettes {
+            let table = &allocation[id];
+            if table.colors.is_empty() || active_rows[table.row] {
+                continue;
+            }
+            active_rows[table.row] = true;
+            for (&color, entry) in table
+                .colors
+                .iter()
+                .zip(palette_rows[table.row][2..].chunks_exact_mut(2))
+            {
+                entry.copy_from_slice(&color.to_le_bytes());
             }
         }
         let mut transition_palette_ranges = Vec::new();
-        for row in 0..6 {
-            let lower = transition_palette_halves[row * 2];
-            let upper = transition_palette_halves[row * 2 + 1];
-            if lower || upper {
+        for (row, active) in active_rows.into_iter().enumerate() {
+            if active {
                 transition_palette_ranges.push(crate::import::OverworldPaletteRange {
-                    start_color: (2 + row) as u8 * 16 + if lower { 0 } else { 8 },
-                    color_count: if lower && upper { 16 } else { 8 },
+                    start_color: (row + 2) as u8 * 16,
+                    color_count: 16,
                 });
             }
         }
@@ -259,7 +288,7 @@ pub fn compile(
             transition_character_rows[character_slots[tile] / 16] = true;
         }
         let assets = &mut area_assets[area.id];
-        assets.palette_rows = palette_rows.to_vec();
+        assets.palette_rows = palette_rows;
         assets.character_rows = character_rows.to_vec();
         assets.transition_palette_ranges = transition_palette_ranges;
         assets.transition_character_rows = transition_character_rows;

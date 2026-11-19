@@ -5,7 +5,7 @@ use super::{
 };
 use crate::import::{Tile8, Tile16};
 use anyhow::{Result, ensure};
-use retiling_catalog::PaletteId;
+use retiling_catalog::{PaletteId, palette::AllocatedPalette};
 use std::collections::BTreeMap;
 
 pub(super) const MAP16_CAPACITY: usize = 0x4000;
@@ -13,7 +13,7 @@ const TRANSPARENT_CHARACTER: u16 = 0x03bf;
 
 pub(super) struct Map16Builder<'a> {
     palettes: &'a BTreeMap<PaletteId, Palette>,
-    pub(super) palette_slots: &'a BTreeMap<PaletteId, usize>,
+    pub(super) palette_allocation: &'a BTreeMap<PaletteId, AllocatedPalette>,
     pub(super) character_slots: &'a CharacterSlots,
     pub(super) definitions: Vec<[u16; 4]>,
     pub(super) properties: [Vec<u8>; 4],
@@ -26,7 +26,7 @@ impl<'a> Map16Builder<'a> {
         vanilla_tiles: &[Tile16],
         vanilla_tile_types: &[u8],
         palettes: &'a BTreeMap<PaletteId, Palette>,
-        palette_slots: &'a BTreeMap<PaletteId, usize>,
+        palette_allocation: &'a BTreeMap<PaletteId, AllocatedPalette>,
         character_slots: &'a CharacterSlots,
     ) -> Self {
         let mut definitions = Vec::with_capacity(vanilla_tiles.len());
@@ -46,7 +46,7 @@ impl<'a> Map16Builder<'a> {
         }
         Self {
             palettes,
-            palette_slots,
+            palette_allocation,
             character_slots,
             definitions,
             properties,
@@ -59,7 +59,7 @@ impl<'a> Map16Builder<'a> {
         let tile = &self.palettes[&placement.palette].tiles[placement.tile];
         Ok(
             u16::try_from(self.character_slots[&(placement.palette, placement.tile)])?
-                | u16::try_from(2 + self.palette_slots[&placement.palette] / 2)? << 10
+                | u16::try_from(2 + self.palette_allocation[&placement.palette].row)? << 10
                 | if tile.priority { 1 << 13 } else { 0 }
                 | u16::from(placement.flip) << 14,
         )

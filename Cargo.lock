@@ -972,6 +972,7 @@ dependencies = [
  "hashbrown",
  "logic_catalog",
  "rand 0.9.5",
+ "retiling_catalog",
  "seed_data",
  "sha2",
 ]
@@ -2208,6 +2209,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode-next",
+ "rand 0.9.5",
  "serde",
  "zstd",
 ]
@@ -2495,6 +2497,7 @@ dependencies = [
  "object_store",
  "preset_catalog",
  "rand 0.9.5",
+ "retiling_catalog",
  "seed_data",
  "serde",
  "serde_json",

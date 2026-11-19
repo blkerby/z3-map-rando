@@ -13,6 +13,7 @@ pub struct GenerationState {
     pub logic: LogicCatalog,
     pub presets: PresetCatalog,
     pub map_pool: Vec<u8>,
+    pub palette_profiles: retiling_catalog::palette::PaletteProfiles,
     pub logic_hash: String,
     pub retiling_hash: String,
     pub store: Store,
@@ -59,6 +60,7 @@ pub async fn generate_seed(
         let seed = generator::generate(
             settings,
             &worker_state.logic,
+            &worker_state.palette_profiles,
             "desert",
             Some(&worker_state.map_pool),
             metadata,

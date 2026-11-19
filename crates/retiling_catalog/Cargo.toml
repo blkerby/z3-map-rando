@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+rand = { version = "0.9", default-features = false, features = ["std", "std_rng"] }
 anyhow = "1"
 bincode-next = { version = "3.1.1", default-features = false, features = ["std", "derive"] }
 serde = { version = "1", features = ["derive"] }

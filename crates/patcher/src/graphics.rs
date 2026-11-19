@@ -67,9 +67,7 @@ pub fn decode_3bpp_tiles(data: &[u8]) -> Vec<[[u8; 8]; 8]> {
     tiles
 }
 
-pub(crate) fn encode_bgr555([red, green, blue]: [u8; 3]) -> u16 {
-    u16::from(red) | u16::from(green) << 5 | u16::from(blue) << 10
-}
+pub(crate) use retiling_catalog::graphics::encode_bgr555;
 
 pub(crate) fn encode_4bpp_tile(pixels: &[[u8; 8]; 8], upper_half: bool) -> [u8; 32] {
     let mut output = [0; 32];

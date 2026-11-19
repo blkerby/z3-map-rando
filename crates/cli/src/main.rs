@@ -123,7 +123,7 @@ fn main() -> Result<()> {
         let file = File::open(path).with_context(|| format!("opening seed {}", path.display()))?;
         SeedData::read(file).with_context(|| format!("reading seed {}", path.display()))?
     } else {
-        let seed = generate_seed(&args, &retiling_bytes)?;
+        let seed = generate_seed(&args, &retiling_bytes, &retiling_catalog.palette_profiles)?;
         let output_path = args.output_seed.clone().unwrap_or_else(|| {
             args.output_dir
                 .as_deref()
@@ -150,7 +150,11 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn generate_seed(args: &Args, retiling_bytes: &[u8]) -> Result<SeedData> {
+fn generate_seed(
+    args: &Args,
+    retiling_bytes: &[u8],
+    palette_profiles: &retiling_catalog::palette::PaletteProfiles,
+) -> Result<SeedData> {
     let settings = load_settings(args)?;
     let logic_bytes = load_catalog(
         args.logic_catalog.as_deref(),
@@ -198,6 +202,7 @@ fn generate_seed(args: &Args, retiling_bytes: &[u8]) -> Result<SeedData> {
     generator::generate(
         settings,
         &logic_catalog,
+        palette_profiles,
         &args.theme,
         map_pool.as_deref(),
         metadata,

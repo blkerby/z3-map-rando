@@ -8,11 +8,12 @@ use crate::{
     rain_tilemap::RAIN_TILEMAP,
 };
 use anyhow::Result;
-use retiling_catalog::PaletteId;
+use retiling_catalog::{
+    PaletteId,
+    palette::{DARK_WORLD_RAIN_PALETTE, LIGHT_WORLD_RAIN_PALETTE},
+};
 use std::collections::BTreeMap;
 
-pub(super) const LIGHT_WORLD_RAIN_PALETTE: PaletteId = 3;
-pub(super) const DARK_WORLD_RAIN_PALETTE: PaletteId = 8;
 const RAIN_CHARACTERS: [u16; 6] = [0x01ed, 0x009b, 0x01b1, 0x01fd, 0x01a1, 0x01ff];
 const RAIN_MAP16S: [u16; 8] = [
     0x026f, 0x0c62, 0x0c63, 0x0c64, 0x0c65, 0x0c66, 0x0c67, 0x0c68,
@@ -93,7 +94,7 @@ pub(super) fn build_rain_maps(
                     .unwrap();
                 let tile = rain_tiles[context][tile_index];
                 words[quadrant] = u16::try_from(map16.character_slots[&(palette, tile)])?
-                    | u16::try_from(2 + map16.palette_slots[&palette] / 2)? << 10
+                    | u16::try_from(2 + map16.palette_allocation[&palette].row)? << 10
                     | source & 0xe000;
             }
             let id = map16.intern_background(words)?;

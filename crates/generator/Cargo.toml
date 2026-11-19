@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+retiling_catalog = { path = "../retiling_catalog" }
 anyhow = "1"
 common_types = { path = "../common_types" }
 chrono = { version = "0.4", default-features = false, features = ["std"] }

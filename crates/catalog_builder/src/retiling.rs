@@ -141,12 +141,14 @@ pub fn build_catalog(
     compression_level: i32,
 ) -> Result<()> {
     let fingerprints = read_tile_fingerprints(tile_fingerprints)?;
-    let catalog = RetilingCatalog {
+    let mut catalog = RetilingCatalog {
         palettes: compile_palettes(retiling_project, &fingerprints)?,
         areas: compile_areas(retiling_project)?,
         dynamic_tile_groups: compile_dynamic_tiles(retiling_project)?,
         conditions: read_json(&retiling_project.join("conditions.json"))?,
+        palette_profiles: BTreeMap::new(),
     };
+    catalog.palette_profiles = retiling_catalog::palette::build_palette_profiles(&catalog);
     write_catalog(&catalog, output_catalog, compression_level)
 }
 

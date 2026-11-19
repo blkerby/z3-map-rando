@@ -296,10 +296,8 @@ fn read_room_records(
     BTreeMap<SourceRoomId, RoomArea>,
 )> {
     let mut locations = BTreeMap::new();
-    // Special rooms have no grid position, so their areas are listed here. Sacred Grove and
-    // Under the Bridge share one area.
     let mut room_areas = BTreeMap::new();
-    for (room_id, area_id) in [(102, 0x80), (103, 0x80), (104, 0x81)] {
+    for (room_id, area_id) in common_types::SPECIAL_ROOM_AREAS {
         room_areas.insert(
             SourceRoomId::Underworld(room_id),
             RoomArea {

@@ -69,6 +69,8 @@ async fn main() -> Result<()> {
         map_pool: fs::read(&map_pool_path)
             .with_context(|| format!("reading map pool {}", map_pool_path.display()))?,
         logic_hash: compute_catalog_hash(&logic_bytes),
+        palette_profiles: retiling_catalog::decode_catalog(retiling_bytes.as_slice())?
+            .palette_profiles,
         retiling_hash: compute_catalog_hash(&retiling_bytes),
         store: Store::open_store(&args.store)?,
         slot: Arc::new(Semaphore::new(1)),

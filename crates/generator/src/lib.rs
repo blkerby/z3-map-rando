@@ -23,6 +23,9 @@ use logic_catalog::{LogicCatalog, RoomKind};
 use map::{MapPool, select_borders};
 use placement::{PlacementState, PlacementStep};
 use rand::Rng;
+use retiling_catalog::palette::{
+    PALETTE_ATTEMPTS, PaletteProfiles, allocate_palettes, select_palette_profiles,
+};
 use seed_data::{
     ItemPlacement, MapLayoutSetting, ResolvedSettings, RoomData, SEED_FORMAT_VERSION, SeedMetadata,
     WorldLayout,
@@ -39,6 +42,7 @@ const MAX_EDGE_SELECTION_ATTEMPTS: usize = 10;
 pub fn generate(
     resolved: ResolvedSettings,
     logic_catalog: &LogicCatalog,
+    palette_profiles: &PaletteProfiles,
     theme_name: &str,
     map_pool: Option<&[u8]>,
     metadata: SeedMetadata,
@@ -58,6 +62,23 @@ pub fn generate(
     } else {
         None
     };
+
+    let palette_seed = metadata.rng_seed.parse()?;
+    let mut area_themes = Vec::new();
+    for room in &logic_catalog.rooms {
+        if let Some([x, y]) = room.position {
+            let area = usize::from(y * 8 + x);
+            area_themes.push((area, theme_name));
+            area_themes.push((area | 0x40, theme_name));
+        } else if room.kind == RoomKind::Special {
+            for (room_id, area) in common_types::SPECIAL_ROOM_AREAS {
+                if room.room_id == Some(SourceRoomId::Underworld(room_id)) {
+                    area_themes.push((usize::from(area), theme_name));
+                }
+            }
+        }
+    }
+    let profiles = select_palette_profiles(palette_profiles, area_themes)?;
 
     for attempt in 1..=MAX_GENERATION_ATTEMPTS {
         eprintln!("Starting generation attempt {attempt}/{MAX_GENERATION_ATTEMPTS}");
@@ -88,6 +109,21 @@ pub fn generate(
         } else {
             build_graph(logic_catalog, &logic_catalog.vanilla_connections)
         };
+        if allocate_palettes(
+            &profiles,
+            &world_layout.build_scrollable_transition_pairs(),
+            palette_seed,
+        )
+        .is_none()
+        {
+            if pool.is_some() {
+                eprintln!("Rejected map: no palette assignment found in {PALETTE_ATTEMPTS} passes");
+                continue;
+            }
+            bail!(
+                "no palette assignment found for the vanilla layout in {PALETTE_ATTEMPTS} passes"
+            );
+        }
         let items = match generate_items(logic_catalog, &graph, &inputs, rng) {
             Ok(Some(items)) => items,
             Ok(None) => continue,

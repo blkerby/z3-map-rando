@@ -2,6 +2,7 @@
 //! vanilla tile graphics rather than contain a copy of them.
 
 pub mod graphics;
+pub mod palette;
 
 use anyhow::{Result, ensure};
 use bincode_next::{Decode, Encode};
@@ -59,6 +60,7 @@ pub struct RetilingCatalog {
     pub areas: BTreeMap<String, Area>,
     pub dynamic_tile_groups: Vec<DynamicTileGroup>,
     pub conditions: EdgeConditions,
+    pub palette_profiles: palette::PaletteProfiles,
 }
 
 #[derive(Clone, Debug, Deserialize, Encode, Decode)]

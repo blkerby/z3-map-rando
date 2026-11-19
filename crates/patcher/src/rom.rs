@@ -64,7 +64,14 @@ pub fn patch_rom(
     verify_vanilla_rom(rom)?;
     let mut output = rom.to_vec();
     let layout = resolve_world_layout(seed, patches)?;
-    let mut patcher = prepare_retiling(&mut output, &layout, retiling, patches, settings)?;
+    let mut patcher = prepare_retiling(
+        &mut output,
+        &layout,
+        retiling,
+        patches,
+        settings,
+        seed.metadata.rng_seed.parse()?,
+    )?;
     crate::items::apply_items(&mut patcher, rom, &seed.rooms, patches)?;
     let starting = &seed.settings.starting_state;
     let equipment = &starting.equipment;
@@ -253,6 +260,7 @@ fn prepare_retiling(
     catalog: &RetilingCatalog,
     patches: &PatchCatalog,
     settings: &PatchSettings,
+    palette_seed: u64,
 ) -> Result<Patcher> {
     let mut fastrom_base = Patcher::default();
     fastrom_base.use_ips(&patches.patches.fastrom_base)?;
@@ -274,6 +282,7 @@ fn prepare_retiling(
         &tile_types,
         area_assets,
         layout,
+        palette_seed,
     )?;
     let credits_overworld = importer.credits_overworld_assets(&compiled.area_assets)?;
     let flat = assemble_flat_maps(

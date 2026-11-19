@@ -56,3 +56,7 @@ pub fn canonicalize_tile(tile: &[[u8; 8]; 8]) -> CanonicalTile {
     }
     best
 }
+
+pub fn encode_bgr555([red, green, blue]: [u8; 3]) -> u16 {
+    u16::from(red) | u16::from(green) << 5 | u16::from(blue) << 10
+}
