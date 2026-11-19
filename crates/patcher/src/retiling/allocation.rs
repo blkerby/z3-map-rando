@@ -54,7 +54,9 @@ pub(super) fn allocate_characters(
                 groups.push(GraphicGroup { tiles, areas });
             }
         }
+        let mut scores = vec![0; palettes[&palette].tiles.len()];
         while !unassigned.is_empty() {
+            scores.fill(0);
             let mut seed = *unassigned.first().unwrap();
             for &tile in &unassigned {
                 if tile_areas[&(palette, tile)].len() > tile_areas[&(palette, seed)].len() {
@@ -66,15 +68,15 @@ pub(super) fn allocate_characters(
             while tiles.len() < 16 && !unassigned.is_empty() {
                 let mut best = *unassigned.first().unwrap();
                 let mut best_score = 0;
+                // The running scores already include every earlier member of this row.
+                let member_areas = &tile_areas[tiles.last().unwrap()];
                 for &candidate in &unassigned {
-                    let mut score = 0;
-                    for member in &tiles {
-                        for area in &tile_areas[&(palette, candidate)] {
-                            if tile_areas[member].contains(area) {
-                                score += 1;
-                            }
+                    for area in &tile_areas[&(palette, candidate)] {
+                        if member_areas.contains(area) {
+                            scores[candidate] += 1;
                         }
                     }
+                    let score = scores[candidate];
                     if score > best_score || score == best_score && candidate < best {
                         best = candidate;
                         best_score = score;
