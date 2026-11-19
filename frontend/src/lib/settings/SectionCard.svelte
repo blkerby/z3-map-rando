@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { tooltip } from '$lib/tooltip';
 	import ScopePicker from './ScopePicker.svelte';
 	import { getStore, setCardId } from './context';
 	import type { Scope } from './store.svelte';
@@ -74,7 +73,7 @@
 				type="button"
 				class="btn btn-link btn-sm p-0 card-reset"
 				disabled={store.locked}
-				use:tooltip={`Undo the changes in ${title}. The other sections are not touched.`}
+				title={`Undo the changes in ${title}. The other sections are not touched.`}
 				aria-label="Reset {title}"
 				onclick={() => store.resetCard(id, scope)}
 			>

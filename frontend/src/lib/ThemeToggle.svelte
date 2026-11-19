@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { tooltip } from '$lib/tooltip';
 	import { onMount } from 'svelte';
 	import lightWorld from '$lib/assets/light-world.png';
 	import darkWorld from '$lib/assets/dark-world.png';
@@ -21,7 +20,7 @@
 	class="btn btn-outline-primary btn-sm"
 	onclick={toggle}
 	aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-	use:tooltip={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+	title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
 >
 	<img class="icon-light" src={darkWorld} alt="" />
 	<img class="icon-dark" src={lightWorld} alt="" />

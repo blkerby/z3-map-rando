@@ -27,7 +27,7 @@
 
 	onMount(async () => {
 		void rom.init();
-		await import('bootstrap');
+		await import('bootstrap/dist/js/bootstrap.bundle.min.js');
 	});
 </script>
 

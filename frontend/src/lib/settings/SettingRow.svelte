@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { tooltip } from '$lib/tooltip';
 	import { getCardId, getCompact, getStore } from './context';
 	import { getAt, type Path, type Value } from './tree';
 
@@ -49,7 +48,7 @@
 	<div class="left">
 		<div class="label-col">
 			{#if help}
-				<i class="bi bi-info-circle help" use:tooltip={help} aria-label={help}></i>
+				<i class="bi bi-info-circle help" title={help} aria-label={help}></i>
 			{/if}
 			<label class="label" class:clickable={labelFor && !store.locked} for={labelFor}>{label}</label>
 			{#if badge && !compact}<span class="badge-tag">{badge}</span>{/if}
@@ -57,7 +56,7 @@
 				<button
 					type="button"
 					class="btn btn-link btn-sm p-0 reset"
-					use:tooltip={`Reset to ${format(getAt(store.applied, path) as Value)}`}
+					title={`Reset to ${format(getAt(store.applied, path) as Value)}`}
 					aria-label="Reset {label}"
 					onclick={() => store.reset(path)}
 				>

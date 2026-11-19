@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { tooltip } from '$lib/tooltip';
 	import type { ChoiceOption } from '../types';
 
 	// Color picker drawn as pixel hearts (the life-meter heart). The white border keeps every color,
@@ -50,7 +49,7 @@
 			role="radio"
 			aria-checked={value === o.value}
 			aria-label={o.label}
-			use:tooltip={o.label}
+			title={o.label}
 			{disabled}
 			class="heart"
 			class:selected={value === o.value}

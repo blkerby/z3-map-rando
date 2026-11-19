@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { tooltip } from '$lib/tooltip';
 	import type { Scope, SettingsStore } from './store.svelte';
 
 	// The preset dropdown of a child scope (e.g. Skill assumptions). It takes what the root preset chooses
@@ -18,7 +17,7 @@
 	class="form-select form-select-sm w-auto"
 	class:changed={picked}
 	class:tweaked={store.isScopeTweaked(scope)}
-	use:tooltip={picked ? `Picked by hand. Reset goes back to “${store.inheritedScopeLabel(scope)}”.` : undefined}
+	title={picked ? `Picked by hand. Reset goes back to “${store.inheritedScopeLabel(scope)}”.` : undefined}
 	disabled={store.locked}
 	value={shown}
 	onchange={(e) => store.pickScopePreset(scope, e.currentTarget.value)}

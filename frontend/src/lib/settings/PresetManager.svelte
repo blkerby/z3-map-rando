@@ -1,6 +1,5 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { tooltip } from '$lib/tooltip';
 	import type { SettingsStore } from './store.svelte';
 	import {
 		MAX_IMPORT_BYTES,
@@ -274,7 +273,7 @@
 			<button
 				type="button"
 				class="btn btn-link btn-sm p-0 icon-btn"
-				use:tooltip={`Update “${selected.name}” with your current ${noun}.`}
+				title={`Update “${selected.name}” with your current ${noun}.`}
 				aria-label="Update “{selected.name}”"
 				onclick={updateSelected}
 			>
@@ -284,7 +283,7 @@
 			<button
 				type="button"
 				class="btn btn-link btn-sm p-0 icon-btn"
-				use:tooltip={`Save your current ${noun} as a new preset.`}
+				title={`Save your current ${noun} as a new preset.`}
 				aria-label="Save as new preset"
 				onclick={() => openMode('save')}
 			>
@@ -299,7 +298,7 @@
 				aria-haspopup="menu"
 				aria-expanded={menuOpen}
 				aria-label="Manage presets"
-				use:tooltip={'Manage presets'}
+				title="Manage presets"
 				onclick={() => (menuOpen = !menuOpen)}
 			>
 				<i class="bi bi-three-dots"></i>
@@ -337,7 +336,7 @@
 				type="button"
 				class="btn btn-link btn-sm p-0 icon-btn"
 				disabled={store.locked}
-				use:tooltip={`Put all the ${noun} back to ${store.presetName}.`}
+				title={`Put all the ${noun} back to ${store.presetName}.`}
 				aria-label="Reset all the {noun}"
 				onclick={() => store.resetAll()}
 			>
