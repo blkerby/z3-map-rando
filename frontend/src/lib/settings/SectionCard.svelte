@@ -56,7 +56,8 @@
 				>
 					<i class="bi" class:bi-chevron-down={open} class:bi-chevron-right={!open}></i>
 					<span>{title}</span>
-					{#if !open && changes}<span class="changes">{changes} changed</span>{/if}
+					<!-- A scope's preset dropdown already shows its unsaved changes. -->
+					{#if !open && changes && !scope}<span class="changes">{changes} changed</span>{/if}
 				</button>
 			{:else}
 				{title}

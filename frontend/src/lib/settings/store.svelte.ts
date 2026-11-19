@@ -297,6 +297,13 @@ export class SettingsStore {
 		return this.isScopePicked(scope) ? this.selectedScopePreset(scope).label : this.inheritedScopeLabel(scope);
 	}
 
+	/** How many settings in a scope differ from what the selected presets give (not counting its pick). */
+	countScopeChanges(scope: Scope): number {
+		let n = 0;
+		for (const p of this.leaves) if (p[0] === scope.id && this.isChanged(p)) n++;
+		return n;
+	}
+
 	/** Unsaved changes: changed settings and picked scopes. */
 	get changeCount(): number {
 		return this.changedPaths.length + this.pickedScopes.length;
