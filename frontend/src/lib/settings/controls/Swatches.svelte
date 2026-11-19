@@ -119,7 +119,7 @@
 
 	/* Locked: the chosen color stays outlined, the rest fade back. */
 	.locked .heart {
-		cursor: default;
+		cursor: not-allowed;
 	}
 
 	.locked .heart:not(.selected) {

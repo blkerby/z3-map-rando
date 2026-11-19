@@ -55,7 +55,13 @@
 					<i class="bi bi-info-circle"></i>
 				</button>
 			{/if}
-			<label class="label" class:clickable={labelFor && !store.locked} for={labelFor}>{label}</label>
+			<label
+				class="label"
+				class:clickable={labelFor && !store.locked}
+				class:locked={labelFor && store.locked}
+				for={labelFor}
+				data-lockable={labelFor ? '' : undefined}
+			>{label}</label>
 			{#if badge && !compact}<span class="badge-tag">{badge}</span>{/if}
 			{#if changed && !store.locked}
 				<button
@@ -74,8 +80,8 @@
 		{#if notes}<div class="notes">{notes}</div>{/if}
 	</div>
 
-	<div class="control-col" title={store.lockReason ?? undefined}>
-		{@render control()}
+	<div class="control-col">
+		<div data-lockable>{@render control()}</div>
 		{#if nested}
 			<div class="nested">{@render nested()}</div>
 		{/if}
@@ -166,6 +172,10 @@
 
 	.label.clickable {
 		cursor: pointer;
+	}
+
+	.label.locked {
+		cursor: not-allowed;
 	}
 
 	.left {

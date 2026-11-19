@@ -70,8 +70,8 @@
 			</div>
 		{/if}
 		{#if changes}
-			<!-- Bootstrap's disabled buttons ignore the pointer, so the lock reason goes on a wrapper. -->
-			<span title={store.lockReason ?? undefined}>
+			<!-- Bootstrap's disabled buttons ignore the pointer, so the marker goes on a wrapper. -->
+			<span data-lockable>
 				<button
 					type="button"
 					class="btn btn-link btn-sm p-0 card-reset"

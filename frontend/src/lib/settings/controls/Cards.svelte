@@ -69,7 +69,7 @@
 
 	/* Locked: the chosen card stays highlighted, the rest fade back. */
 	.opt-card:disabled {
-		cursor: default;
+		cursor: not-allowed;
 	}
 
 	.opt-card:disabled:not(.selected) {

@@ -72,6 +72,6 @@
 	}
 
 	.tick:disabled {
-		cursor: default;
+		cursor: not-allowed;
 	}
 </style>

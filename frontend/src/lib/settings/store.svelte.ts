@@ -89,7 +89,7 @@ export class SettingsStore {
 	/** Child scope id -> preset picked by hand, or null when it takes what the root preset chooses. */
 	scopePicks = $state<Record<string, string | null>>({});
 	userPresets = $state<UserPreset[]>([]);
-	/** Why the settings are read-only (shown as the locked controls' tooltip), or null when editable. */
+	/** Why the settings are read-only (shown when a locked control is pressed), or null when editable. */
 	lockReason = $state<string | null>(null);
 	get locked() {
 		return this.lockReason !== null;

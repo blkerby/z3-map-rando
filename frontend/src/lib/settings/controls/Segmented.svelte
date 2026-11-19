@@ -47,7 +47,7 @@
 
 	/* Locked: the chosen option stays clearly highlighted, the rest fade back. */
 	.locked .btn {
-		cursor: default;
+		cursor: not-allowed;
 	}
 
 	.locked .btn:disabled.btn-primary {

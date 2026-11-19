@@ -226,7 +226,24 @@
 		await tick();
 		document.getElementById(settings.elementId(path))?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 	}
+
+	// ---- Lock toast ---------------------------------------------------------
+	// Pressing a control that the lock disables (marked `data-lockable`, directly or on a wrapper) shows
+	// the lock reason in a toast for a few seconds. Only the Generate section's controls lock; the
+	// Customization ones carry the same marker but stay editable. Pointerdown rather than click, since browsers don't
+	// fire click on disabled controls.
+	let lockToast = $state(false);
+	let lockToastTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function onWindowPointerDown(e: PointerEvent) {
+		if (!store.locked || !(e.target as Element).closest('#generate [data-lockable]')) return;
+		lockToast = true;
+		clearTimeout(lockToastTimer);
+		lockToastTimer = setTimeout(() => (lockToast = false), 3000);
+	}
 </script>
+
+<svelte:window onpointerdown={onWindowPointerDown} />
 
 <!-- Links to a store's cards. -->
 {#snippet navLinks(settings: SettingsStore, page: Section)}
@@ -352,7 +369,26 @@
 	</div>
 </main>
 
+{#if lockToast}
+	<div class="toast show lock-toast" role="status">
+		<div class="toast-body d-flex align-items-center gap-2">
+			<i class="bi bi-lock-fill" aria-hidden="true"></i>
+			{store.lockReason}
+		</div>
+	</div>
+{/if}
+
 <style>
+	.lock-toast {
+		position: fixed;
+		bottom: 1.5rem;
+		left: 50%;
+		transform: translateX(-50%);
+		z-index: 1090;
+		max-width: calc(100vw - 2rem);
+		pointer-events: none;
+	}
+
 	/* Wider than the other pages (see the layout), to give the central column more room. */
 	main.container {
 		max-width: 1200px;
