@@ -9,7 +9,7 @@ pub struct ResolvedRetiling {
     pub selected: SelectedAreas,
 }
 
-#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Placement {
     pub palette: PaletteId,
     pub tile: usize,

@@ -61,15 +61,21 @@ pub fn filter_retiling_catalog(
         areas.insert(name.to_owned(), clouds);
     }
 
+    let mut patterns = Vec::new();
+    for group in &catalog.dynamic_tile_groups {
+        for variant in &group.variants {
+            patterns.push(expand_dynamic_grid(&variant.before, &catalog.palettes));
+        }
+    }
+    let mut matches = find_dynamic_areas(&selected.areas, &patterns).into_iter();
     let mut dynamic_tile_groups = catalog.dynamic_tile_groups.clone();
     for group in &mut dynamic_tile_groups {
         group.variants.retain_mut(|variant| {
-            let before = expand_dynamic_grid(&variant.before, &catalog.palettes);
-            let matches = find_dynamic_areas(&selected.areas, &before);
-            if matches.is_empty() {
+            let areas = matches.next().unwrap();
+            if areas.is_empty() {
                 return false;
             }
-            variant.areas = Some(matches);
+            variant.areas = Some(areas);
             true
         });
     }

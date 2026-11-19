@@ -7,7 +7,7 @@ use retiling_catalog::{
     CutsceneAction, DynamicTileType, Palette, PaletteId, TileGrid,
     resolved::{Placement, StateLayer, ThemeArea, ThemeCutscene},
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 pub(super) const VANILLA_OVERWORLD_OVERLAYS: [(u8, &str); 23] = [
     (0x02, "Lumberjack tree"),
@@ -77,25 +77,47 @@ pub(super) fn expand_dynamic_grid(
     tiles
 }
 
-pub(super) fn find_dynamic_areas(areas: &[ThemeArea], before: &DynamicTiling) -> Vec<usize> {
-    let height = before.len();
-    let width = before[0].len();
-    let anchor_palette = before[0][0].palette;
+/// Return one list of matching area IDs per pattern, in input order.
+pub(super) fn find_dynamic_areas<'a>(
+    areas: &[ThemeArea],
+    patterns: impl IntoIterator<Item = &'a DynamicTiling>,
+) -> Vec<Vec<usize>> {
+    let mut by_anchor = HashMap::<Placement, Vec<(usize, &DynamicTiling)>>::new();
     let mut matches = Vec::new();
+    for (index, before) in patterns.into_iter().enumerate() {
+        by_anchor
+            .entry(before[0][0])
+            .or_default()
+            .push((index, before));
+        matches.push(Vec::new());
+    }
+    if by_anchor.is_empty() {
+        return matches;
+    }
+
     for area in areas {
-        if !area.palettes.contains(&anchor_palette) || width > area.width || height > area.height {
-            continue;
-        }
-        'area: for start_y in 0..=area.height - height {
-            'position: for start_x in 0..=area.width - width {
-                for (y, row) in before.iter().enumerate() {
-                    let start = (start_y + y) * area.width + start_x;
-                    if area.placements[start..start + width] != row[..] {
-                        continue 'position;
+        for (y, row) in area.placements.chunks_exact(area.width).enumerate() {
+            for (x, anchor) in row.iter().enumerate() {
+                let Some(candidates) = by_anchor.get(anchor) else {
+                    continue;
+                };
+                'candidate: for &(index, before) in candidates {
+                    let matched = &mut matches[index];
+                    let width = before[0].len();
+                    if matched.last() == Some(&area.id)
+                        || x + width > area.width
+                        || y + before.len() > area.height
+                    {
+                        continue;
                     }
+                    for (dy, pattern_row) in before.iter().enumerate() {
+                        let start = (y + dy) * area.width + x;
+                        if area.placements[start..start + width] != pattern_row[..] {
+                            continue 'candidate;
+                        }
+                    }
+                    matched.push(area.id);
                 }
-                matches.push(area.id);
-                break 'area;
             }
         }
     }
@@ -106,13 +128,20 @@ pub(super) fn add_dynamic_dependencies(
     areas: &mut [ThemeArea],
     dynamic_tiles: &mut [DynamicTileGroup],
 ) {
+    let mut patterns = Vec::new();
+    for group in dynamic_tiles.iter() {
+        for variant in &group.variants {
+            if variant.areas.is_none() {
+                patterns.push(&variant.before);
+            }
+        }
+    }
+    let mut matches = find_dynamic_areas(areas, patterns).into_iter();
     let mut area_palettes = BTreeMap::<usize, BTreeSet<PaletteId>>::new();
     let mut area_tiles = BTreeMap::<usize, BTreeSet<TileKey>>::new();
     for group in dynamic_tiles {
         for variant in &mut group.variants {
-            let matching_areas = variant
-                .areas
-                .get_or_insert_with(|| find_dynamic_areas(areas, &variant.before));
+            let matching_areas = variant.areas.get_or_insert_with(|| matches.next().unwrap());
             for frame in &variant.after_frames {
                 for row in frame {
                     for placement in row {
