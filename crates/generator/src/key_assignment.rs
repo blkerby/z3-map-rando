@@ -72,7 +72,7 @@ impl KeyPlacementState {
             }
         }
         if !missing.is_empty() {
-            eprintln!(
+            log::info!(
                 "{} undiscovered item locations; first entries: {:?}",
                 missing.len(),
                 &missing[..missing.len().min(8)]

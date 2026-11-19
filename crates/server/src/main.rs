@@ -1,4 +1,5 @@
 use actix_files::{Files, NamedFile};
+use actix_web::middleware::Logger;
 use actix_web::{App, HttpServer, web};
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -30,6 +31,9 @@ struct Args {
 #[actix_web::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .format_timestamp_millis()
+        .init();
     if !args.api_only {
         std::fs::metadata(args.static_dir.join("index.html")).with_context(|| {
             format!(
@@ -80,6 +84,7 @@ async fn main() -> Result<()> {
     let api_only = args.api_only;
     let server = HttpServer::new(move || {
         App::new()
+            .wrap(Logger::default())
             .app_data(state.clone())
             .route("/api/generate", web::post().to(generate::generate_seed))
             .route("/api/seed/{name}", web::get().to(generate::get_seed))
@@ -106,9 +111,9 @@ async fn main() -> Result<()> {
     .bind(args.bind)?;
 
     if api_only {
-        eprintln!("Serving the API at http://{}", args.bind);
+        log::info!("Serving the API at http://{}", args.bind);
     } else {
-        eprintln!(
+        log::info!(
             "Serving {} at http://{}",
             args.static_dir.display(),
             args.bind

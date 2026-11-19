@@ -81,7 +81,7 @@ pub fn generate(
     let profiles = select_palette_profiles(palette_profiles, area_themes)?;
 
     for attempt in 1..=MAX_GENERATION_ATTEMPTS {
-        eprintln!("Starting generation attempt {attempt}/{MAX_GENERATION_ATTEMPTS}");
+        log::info!("Starting generation attempt {attempt}/{MAX_GENERATION_ATTEMPTS}");
         let mut world_layout = WorldLayout {
             areas: Vec::new(),
             rooms: if let Some(pool) = &pool {
@@ -94,7 +94,7 @@ pub fn generate(
         let graph = if pool.is_some() {
             let mut accepted = None;
             for edge_attempt in 1..=MAX_EDGE_SELECTION_ATTEMPTS {
-                eprintln!("Checking edge selection {edge_attempt}/{MAX_EDGE_SELECTION_ATTEMPTS}");
+                log::info!("Checking edge selection {edge_attempt}/{MAX_EDGE_SELECTION_ATTEMPTS}");
                 let connections = select_borders(logic_catalog, &mut world_layout, rng)?;
                 let graph = build_graph(logic_catalog, &connections);
                 if KeyPlacementState::discover_all_items(logic_catalog, &graph, &inputs)? {
@@ -117,7 +117,9 @@ pub fn generate(
         .is_none()
         {
             if pool.is_some() {
-                eprintln!("Rejected map: no palette assignment found in {PALETTE_ATTEMPTS} passes");
+                log::info!(
+                    "Rejected map: no palette assignment found in {PALETTE_ATTEMPTS} passes"
+                );
                 continue;
             }
             bail!(
@@ -128,7 +130,7 @@ pub fn generate(
             Ok(Some(items)) => items,
             Ok(None) => continue,
             Err(error) if pool.is_some() && error.is::<KeyAssignmentExhausted>() => {
-                eprintln!("Rejected map: {error:#}");
+                log::info!("Rejected map: {error:#}");
                 continue;
             }
             Err(error) => return Err(error),
@@ -192,7 +194,7 @@ fn generate_items(
     let mut wave = 0;
     while state.placements.contains(&None) {
         wave += 1;
-        eprintln!("Starting placement wave {wave}");
+        log::info!("Starting placement wave {wave}");
         let mut accepted = false;
         for _ in 0..MAX_CANDIDATE_ATTEMPTS {
             if let PlacementStep::Accepted = state.place_items(catalog, graph, inputs, rng)? {

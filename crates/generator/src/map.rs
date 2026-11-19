@@ -54,7 +54,7 @@ impl<'a> MapPool<'a> {
     ) -> Result<Vec<OverworldRoomPlacement>> {
         let index = rng.random_range(0..self.records.len() / 40);
         let record = &self.records[index * 40..index * 40 + 40];
-        eprintln!("Selected pool map {index}");
+        log::info!("Selected pool map {index}");
         let mut rooms = Vec::new();
         let mut occupied = [false; 64];
         for (&room_index, &position) in self.room_indices.iter().zip(record) {

@@ -17,6 +17,7 @@ catalog_builder = { path = "../catalog_builder", optional = true }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 common_types = { path = "../common_types" }
+env_logger = { version = "0.11", default-features = false, features = ["auto-color", "humantime"] }
 generator = { path = "../generator" }
 logic_catalog = { path = "../logic_catalog" }
 patch_catalog = { path = "../patch_catalog" }

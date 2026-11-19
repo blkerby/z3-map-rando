@@ -104,6 +104,9 @@ enum TransitionAssetPhase {
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .format_timestamp_millis()
+        .init();
     let rom = if let Some(path) = &args.rom {
         let rom = fs::read(path).with_context(|| format!("reading ROM {}", path.display()))?;
         patcher::verify_vanilla_rom(&rom)

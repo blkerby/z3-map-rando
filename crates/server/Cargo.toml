@@ -17,7 +17,9 @@ actix-files = "0.6"
 actix-web = { version = "4", default-features = false, features = ["macros"] }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+env_logger = { version = "0.11", default-features = false, features = ["auto-color", "humantime"] }
 generator = { path = "../generator" }
+log = "0.4"
 logic_catalog = { path = "../logic_catalog" }
 object_store = { version = "0.14", features = ["aws"] }
 preset_catalog = { path = "../preset_catalog" }

@@ -83,7 +83,7 @@ pub async fn generate_seed(
             return HttpResponse::UnprocessableEntity().json(json!({ "error": error.to_string() }));
         }
         error => {
-            eprintln!("Generating seed: {error:?}");
+            log::error!("Generating seed: {error:?}");
             return HttpResponse::InternalServerError()
                 .json(json!({ "error": "Seed generation failed." }));
         }
@@ -93,7 +93,7 @@ pub async fn generate_seed(
         .save_object(&format!("seeds/{seed}.json"), bytes)
         .await
     {
-        eprintln!("Saving seed {seed}: {error:#}");
+        log::error!("Saving seed {seed}: {error:#}");
         return HttpResponse::InternalServerError()
             .json(json!({ "error": "Could not save the generated seed." }));
     }
@@ -110,7 +110,7 @@ pub async fn get_seed(state: web::Data<GenerationState>, name: web::Path<String>
                 HttpResponse::NotFound().json(json!({ "error": "Seed not found." }))
             }
             _ => {
-                eprintln!("Loading seed {name}: {error:#}");
+                log::error!("Loading seed {name}: {error:#}");
                 HttpResponse::InternalServerError()
                     .json(json!({ "error": "Could not load the seed." }))
             }
