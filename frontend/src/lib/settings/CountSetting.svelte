@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import NumberInput from './controls/NumberInput.svelte';
 	import SettingRow from './SettingRow.svelte';
 	import { getStore } from './context';
@@ -11,7 +12,7 @@
 		notes,
 		min,
 		max
-	}: { path: Path; label: string; help?: string; notes?: string; min: number; max: number } = $props();
+	}: { path: Path; label: string; help?: Snippet; notes?: string; min: number; max: number } = $props();
 
 	const store = getStore();
 </script>

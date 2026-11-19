@@ -184,22 +184,31 @@
 		<ToggleSetting
 			path={['item_pool', 'deduct_starting_items']}
 			label="Deduct starting equipment"
-			help="Remove starting equipment from the counts below. Bottles, health, capacities, ammunition, rupees, and flags do not reduce the pool."
-		/>
+		>
+			{#snippet help()}
+				<p>Remove starting equipment from the counts below. Bottles, health, capacities, ammunition, rupees, and flags do not reduce the pool.</p>
+			{/snippet}
+		</ToggleSetting>
 		<CountSetting
 			path={['item_pool', 'bomb_upgrade_size']}
 			label="Bomb upgrade size"
-			help="Capacity and ammunition granted by each bomb capacity upgrade."
 			min={1}
 			max={99}
-		/>
+		>
+			{#snippet help()}
+				<p>Capacity and ammunition granted by each bomb capacity upgrade.</p>
+			{/snippet}
+		</CountSetting>
 		<CountSetting
 			path={['item_pool', 'arrow_upgrade_size']}
 			label="Arrow upgrade size"
-			help="Capacity and ammunition granted by each arrow capacity upgrade."
 			min={1}
 			max={99}
-		/>
+		>
+			{#snippet help()}
+				<p>Capacity and ammunition granted by each arrow capacity upgrade.</p>
+			{/snippet}
+		</CountSetting>
 	</Group>
 	{#each ITEM_CATEGORIES as category (category.id)}
 		<Group heading={category.title} layout="grid">

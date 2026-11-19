@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import Cards from './controls/Cards.svelte';
 	import Segmented from './controls/Segmented.svelte';
 	import Swatches from './controls/Swatches.svelte';
@@ -17,7 +18,7 @@
 	}: {
 		path: Path;
 		label: string;
-		help?: string;
+		help?: Snippet;
 		notes?: string;
 		options: ChoiceOption[];
 		/** Default: segmented buttons, or a dropdown for more than 5 options. 'cards' suits options with real consequences. */

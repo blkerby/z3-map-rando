@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import Level from './controls/Level.svelte';
 	import SettingRow from './SettingRow.svelte';
 	import { getStore } from './context';
@@ -14,7 +15,7 @@
 	}: {
 		path: Path;
 		label: string;
-		help?: string;
+		help?: Snippet;
 		notes?: string;
 		/** The named steps of the slider, lowest first. */
 		levels: LevelOption[];

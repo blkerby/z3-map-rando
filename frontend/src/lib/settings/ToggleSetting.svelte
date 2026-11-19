@@ -15,7 +15,7 @@
 	}: {
 		path: Path;
 		label: string;
-		help?: string;
+		help?: Snippet;
 		notes?: string;
 		badge?: string;
 		/** Settings shown underneath while the toggle is on. */
