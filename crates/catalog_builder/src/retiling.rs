@@ -147,6 +147,7 @@ pub fn build_catalog(
         dynamic_tile_groups: compile_dynamic_tiles(retiling_project)?,
         conditions: read_json(&retiling_project.join("conditions.json"))?,
         palette_profiles: BTreeMap::new(),
+        resolved: None,
     };
     catalog.palette_profiles = retiling_catalog::palette::build_palette_profiles(&catalog);
     write_catalog(&catalog, output_catalog, compression_level)
@@ -196,6 +197,10 @@ fn compile_palettes(
                 collision: source_tile.collision,
                 h_flippable: source_tile.h_flippable,
                 v_flippable: source_tile.v_flippable,
+                flip_map: retiling_catalog::graphics::compute_flip_map(
+                    &source_tile.pixels,
+                    source_tile.collision,
+                ),
             });
         }
         for group in source.animated_tile_groups {
@@ -350,6 +355,7 @@ fn compile_dynamic_tiles(retiling_project: &Path) -> Result<Vec<DynamicTileGroup
             variants.push(DynamicTileVariant {
                 before: convert_dynamic_grid(variant.before),
                 after_frames,
+                areas: None,
             });
         }
         groups.push(DynamicTileGroup {

@@ -7,7 +7,7 @@ npm run build
 cargo run --release --package server -- --store mem
 ```
 
-The server loads `logic_catalog.bin`, `retiling_catalog.bin`, and `preset_catalog.bin` from the `output_directory` in `catalog-build.toml` (default `build/`), and reads the configured `map_pool` (default `maps/map_pool.bin`), once at startup. Building the server updates the catalogs whenever their inputs change, using the same `catalog-build.toml` as the CLI.
+The server loads `logic_catalog.bin`, `retiling_catalog.bin`, `patch_catalog.bin`, and `preset_catalog.bin` from the `output_directory` in `catalog-build.toml` (default `build/`), and reads the configured `map_pool` (default `maps/map_pool.bin`), once at startup. Building the server updates the catalogs whenever their inputs change, using the same `catalog-build.toml` as the CLI.
 
 ## Seed storage
 
@@ -40,5 +40,7 @@ After successfully saving the seed, the server returns HTTP 201 with `{"seed":"<
 ## Seed retrieval
 
 `GET /api/seed/<seed name>` returns the saved seed JSON, or HTTP 404 if no such seed exists. The frontend's game link is `/seed/<seed name>/`; seeds are not known at build time, so the server answers that path with the frontend's SPA fallback page (`spa.html`), which loads the seed through the API.
+
+`GET /api/seed/<seed name>/retiling` returns the binary retiling catalog for that seed. The server resolves static layers and dynamic tile dependencies from the current catalogs on request. Save ROM uses the result with the matching browser patcher and patch catalog. The CLI can use it when patching the same seed with `--seed` and `--retiling-catalog`.
 
 The CLI uses the same processor in strict mode by default. Pass `--recover-settings` alongside `--settings path/to/settings.json` to remove unknown entries and restore invalid submitted entries from the selected baseline, with notices. Cross-setting failures remain blocking. It shares the seed metadata helpers, but reads and writes plain `.json` seeds. Compression belongs to object storage, independently of seed serialization.

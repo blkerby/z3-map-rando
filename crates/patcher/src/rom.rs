@@ -61,6 +61,14 @@ pub fn patch_rom(
     patches: &PatchCatalog,
     settings: &PatchSettings,
 ) -> Result<Vec<u8>> {
+    if let Some(resolved) = &retiling.resolved {
+        ensure!(
+            resolved.seed_name == seed.metadata.seed_name,
+            "retiling catalog is for seed {}, expected {}",
+            resolved.seed_name,
+            seed.metadata.seed_name
+        );
+    }
     verify_vanilla_rom(rom)?;
     let mut output = rom.to_vec();
     let layout = resolve_world_layout(seed, patches)?;
@@ -208,7 +216,7 @@ pub fn patch_rom(
 }
 
 /// Express the seed's room choices as map areas and cell indexes.
-fn resolve_world_layout(seed: &SeedData, patches: &PatchCatalog) -> Result<WorldLayout> {
+pub(crate) fn resolve_world_layout(seed: &SeedData, patches: &PatchCatalog) -> Result<WorldLayout> {
     let mut themes = BTreeMap::new();
     let mut rooms = Vec::new();
     for room in &seed.rooms {

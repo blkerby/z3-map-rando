@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use clap::Parser;
 use generator::metadata::{compute_catalog_hash, create_metadata};
 use rand::{SeedableRng, rngs::StdRng};
@@ -84,7 +84,7 @@ struct Args {
     /// Logic catalog override; defaults to bundled data or build/logic_catalog.bin.
     #[arg(long)]
     logic_catalog: Option<PathBuf>,
-    /// Retiling catalog override; defaults to bundled data or build/retiling_catalog.bin.
+    /// Full catalog or, when patching a saved seed, its filtered catalog. Defaults to bundled data or build/retiling_catalog.bin.
     #[arg(long)]
     retiling_catalog: Option<PathBuf>,
     /// Patch catalog override; defaults to bundled data or build/patch_catalog.bin.
@@ -126,6 +126,10 @@ fn main() -> Result<()> {
         let file = File::open(path).with_context(|| format!("opening seed {}", path.display()))?;
         SeedData::read(file).with_context(|| format!("reading seed {}", path.display()))?
     } else {
+        ensure!(
+            retiling_catalog.resolved.is_none(),
+            "generating a seed requires the full retiling catalog"
+        );
         let seed = generate_seed(&args, &retiling_bytes, &retiling_catalog.palette_profiles)?;
         let output_path = args.output_seed.clone().unwrap_or_else(|| {
             args.output_dir

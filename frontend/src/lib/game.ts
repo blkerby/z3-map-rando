@@ -1,6 +1,5 @@
 import type { Tree } from '$lib/settings/tree';
 import { loadBrowser } from '$lib/browser';
-import retilingCatalogUrl from '$build/retiling_catalog.bin?url';
 import patchCatalogUrl from '$build/patch_catalog.bin?url';
 
 export interface GenerateResult {
@@ -45,10 +44,11 @@ async function fetchBytes(url: string): Promise<Uint8Array> {
 
 /** Patch the player's ROM in the browser with the saved seed, and save the result. */
 export async function downloadRom(request: RomRequest): Promise<void> {
+	const seedUrl = `/api/seed/${encodeURIComponent(request.seed)}`;
 	const [browser, seed, retiling, patches] = await Promise.all([
 		loadBrowser(),
-		fetchBytes(`/api/seed/${encodeURIComponent(request.seed)}`),
-		fetchBytes(retilingCatalogUrl),
+		fetchBytes(seedUrl),
+		fetchBytes(`${seedUrl}/retiling`),
 		fetchBytes(patchCatalogUrl)
 	]);
 	const customization = new TextEncoder().encode(JSON.stringify(request.customization));

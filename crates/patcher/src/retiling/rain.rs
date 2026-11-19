@@ -64,7 +64,6 @@ pub(super) fn add_rain_tiles(
             priority: false,
             collision: 0,
             pixels,
-            flips: [0, 1, 2, 3],
         });
     }
     tiles

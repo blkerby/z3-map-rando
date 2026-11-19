@@ -60,3 +60,35 @@ pub fn canonicalize_tile(tile: &[[u8; 8]; 8]) -> CanonicalTile {
 pub fn encode_bgr555([red, green, blue]: [u8; 3]) -> u16 {
     u16::from(red) | u16::from(green) << 5 | u16::from(blue) << 10
 }
+
+/// Map each flip to the first equivalent orientation for this tile.
+pub fn compute_flip_map(pixels: &[[u8; 8]; 8], collision: u8) -> [u8; 4] {
+    let mut flips = [0, 1, 2, 3];
+    if !(0x10..0x1c).contains(&collision) {
+        for flip in 1..4 {
+            for candidate in 0..flip {
+                let mut identical = true;
+                for y in 0..8 {
+                    for x in 0..8 {
+                        let flip_x = if flip & 1 != 0 { 7 - x } else { x };
+                        let flip_y = if flip & 2 != 0 { 7 - y } else { y };
+                        let candidate_x = if candidate & 1 != 0 { 7 - x } else { x };
+                        let candidate_y = if candidate & 2 != 0 { 7 - y } else { y };
+                        if pixels[flip_y][flip_x] != pixels[candidate_y][candidate_x] {
+                            identical = false;
+                            break;
+                        }
+                    }
+                    if !identical {
+                        break;
+                    }
+                }
+                if identical {
+                    flips[flip] = candidate as u8;
+                    break;
+                }
+            }
+        }
+    }
+    flips
+}

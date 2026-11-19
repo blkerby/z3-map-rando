@@ -11,6 +11,7 @@ use retiling_catalog::{
         DARK_WORLD_RAIN_PALETTE, LIGHT_WORLD_RAIN_PALETTE, PALETTE_ATTEMPTS, allocate_palettes,
         select_palette_profiles,
     },
+    resolved::SelectedAreas,
 };
 use seed_data::WorldLayout;
 use std::collections::{BTreeMap, BTreeSet};
@@ -19,14 +20,16 @@ mod allocation;
 mod areas;
 mod condition;
 mod events;
+mod filter;
 mod graphics;
 mod maps;
 mod rain;
+pub use filter::filter_retiling_catalog;
 mod world_map;
 pub use world_map::{CompiledWorldMap, compile_world_map};
 
 use allocation::{CHARACTER_CAPACITY, allocate_characters};
-use areas::{SelectedAreas, select_areas};
+use areas::select_areas;
 use events::{
     DynamicTileGroup, DynamicTileVariant, VANILLA_OVERWORLD_OVERLAYS, add_dynamic_dependencies,
     build_cutscenes, build_dynamic_overworld_overlays, build_dynamic_tile_groups,
@@ -41,14 +44,6 @@ type TileKey = (PaletteId, usize);
 pub struct CompiledBg1Variant {
     pub name: String,
     pub maps: BTreeMap<usize, Vec<u8>>,
-}
-
-pub struct BackgroundSettings {
-    pub layering: BackgroundLayering,
-    pub camera_follow_x: f32,
-    pub camera_drift_x: f32,
-    pub camera_follow_y: f32,
-    pub camera_drift_y: f32,
 }
 
 pub struct CompiledTheme {
@@ -106,12 +101,12 @@ pub fn compile(
         for variant in &group.variants {
             let mut after_frames = Vec::new();
             for frame in &variant.after_frames {
-                after_frames.push(expand_dynamic_grid(frame));
+                after_frames.push(expand_dynamic_grid(frame, &catalog.palettes));
             }
             variants.push(DynamicTileVariant {
-                before: expand_dynamic_grid(&variant.before),
+                before: expand_dynamic_grid(&variant.before, &catalog.palettes),
                 after_frames,
-                used: false,
+                areas: variant.areas.clone(),
             });
         }
         dynamic_tiles.push(DynamicTileGroup {
@@ -122,10 +117,13 @@ pub fn compile(
     let SelectedAreas {
         mut areas,
         background_colors,
-        mut bg1_variants,
+        bg1_variants,
         background_settings,
-        mut cutscenes,
-    } = select_areas(catalog, layout)?;
+        cutscenes,
+    } = match &catalog.resolved {
+        Some(resolved) => resolved.selected.clone(),
+        None => select_areas(catalog, layout)?,
+    };
     let rain_tiles = [
         add_rain_tiles(&mut palettes, &area_assets[0x2c], LIGHT_WORLD_RAIN_PALETTE),
         add_rain_tiles(&mut palettes, &area_assets[0x70], DARK_WORLD_RAIN_PALETTE),
@@ -164,49 +162,6 @@ pub fn compile(
         }
     }
 
-    for palette in palettes.values_mut() {
-        for tile in &mut palette.tiles {
-            tile.canonicalize_flips();
-        }
-    }
-    for area in &mut areas {
-        for placement in &mut area.placements {
-            placement.canonicalize_flip(&palettes);
-        }
-        if let Some(layer) = &mut area.overworld_overlay {
-            for placement in layer.placements.iter_mut().flatten() {
-                placement.canonicalize_flip(&palettes);
-            }
-        }
-    }
-    for variant in &mut bg1_variants {
-        for placement in variant.placements.iter_mut().flatten() {
-            placement.canonicalize_flip(&palettes);
-        }
-    }
-    for cutscene in &mut cutscenes {
-        for layer in cutscene.layers.values_mut() {
-            for placement in layer.placements.iter_mut().flatten() {
-                placement.canonicalize_flip(&palettes);
-            }
-        }
-    }
-    for group in &mut dynamic_tiles {
-        for variant in &mut group.variants {
-            for row in &mut variant.before {
-                for placement in row {
-                    placement.canonicalize_flip(&palettes);
-                }
-            }
-            for frame in &mut variant.after_frames {
-                for row in frame {
-                    for placement in row {
-                        placement.canonicalize_flip(&palettes);
-                    }
-                }
-            }
-        }
-    }
     add_dynamic_dependencies(&mut areas, &mut dynamic_tiles);
     ensure!(area_assets.len() == 0xa0);
 
@@ -299,10 +254,10 @@ pub fn compile(
                 BackgroundLayering::HalfAdd => 1,
                 BackgroundLayering::Backdrop => 2,
             },
-            camera_follow_x: encode_eighths(background_settings[&area.id].camera_follow_x)?,
-            camera_drift_x: encode_eighths(background_settings[&area.id].camera_drift_x)?,
-            camera_follow_y: encode_eighths(background_settings[&area.id].camera_follow_y)?,
-            camera_drift_y: encode_eighths(background_settings[&area.id].camera_drift_y)?,
+            camera_follow_x: encode_eighths(background_settings[&area.id].camera_follow[0])?,
+            camera_drift_x: encode_eighths(background_settings[&area.id].camera_drift[0])?,
+            camera_follow_y: encode_eighths(background_settings[&area.id].camera_follow[1])?,
+            camera_drift_y: encode_eighths(background_settings[&area.id].camera_drift[1])?,
         };
         for map_y in 0..area.height / 64 {
             for map_x in 0..area.width / 64 {

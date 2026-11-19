@@ -1,13 +1,12 @@
-use super::{
-    TileKey,
-    areas::{Placement, StateLayer, ThemeArea, ThemeCutscene},
-    maps::Map16Builder,
-};
+use super::{TileKey, maps::Map16Builder};
 use crate::asset_bundle::{
     CompiledCutscene, CompiledOverworldOverlay, DYNAMIC_TILE_GROUP_COUNT, DynamicTileEntry,
 };
 use anyhow::Result;
-use retiling_catalog::{CutsceneAction, DynamicTileType, PaletteId};
+use retiling_catalog::{
+    CutsceneAction, DynamicTileType, Palette, PaletteId, TileGrid,
+    resolved::{Placement, StateLayer, ThemeArea, ThemeCutscene},
+};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) const VANILLA_OVERWORLD_OVERLAYS: [(u8, &str); 23] = [
@@ -46,10 +45,13 @@ pub(super) struct DynamicTileGroup {
 pub(super) struct DynamicTileVariant {
     pub(super) before: DynamicTiling,
     pub(super) after_frames: Vec<DynamicTiling>,
-    pub(super) used: bool,
+    pub(super) areas: Option<Vec<usize>>,
 }
 
-pub(super) fn expand_dynamic_grid(grid: &retiling_catalog::TileGrid) -> DynamicTiling {
+pub(super) fn expand_dynamic_grid(
+    grid: &TileGrid,
+    palettes: &BTreeMap<PaletteId, Palette>,
+) -> DynamicTiling {
     let width = usize::from(grid.width);
     let height = usize::from(grid.height);
     let mut tiles = vec![
@@ -64,13 +66,40 @@ pub(super) fn expand_dynamic_grid(grid: &retiling_catalog::TileGrid) -> DynamicT
         height
     ];
     for placement in &grid.tiles {
-        tiles[usize::from(placement.y)][usize::from(placement.x)] = Placement {
+        let mut tile = Placement {
             palette: placement.palette,
             tile: usize::from(placement.tile),
             flip: placement.flip as u8,
         };
+        tile.canonicalize_flip(palettes);
+        tiles[usize::from(placement.y)][usize::from(placement.x)] = tile;
     }
     tiles
+}
+
+pub(super) fn find_dynamic_areas(areas: &[ThemeArea], before: &DynamicTiling) -> Vec<usize> {
+    let height = before.len();
+    let width = before[0].len();
+    let anchor_palette = before[0][0].palette;
+    let mut matches = Vec::new();
+    for area in areas {
+        if !area.palettes.contains(&anchor_palette) || width > area.width || height > area.height {
+            continue;
+        }
+        'area: for start_y in 0..=area.height - height {
+            'position: for start_x in 0..=area.width - width {
+                for (y, row) in before.iter().enumerate() {
+                    let start = (start_y + y) * area.width + start_x;
+                    if area.placements[start..start + width] != row[..] {
+                        continue 'position;
+                    }
+                }
+                matches.push(area.id);
+                break 'area;
+            }
+        }
+    }
+    matches
 }
 
 pub(super) fn add_dynamic_dependencies(
@@ -81,29 +110,13 @@ pub(super) fn add_dynamic_dependencies(
     let mut area_tiles = BTreeMap::<usize, BTreeSet<TileKey>>::new();
     for group in dynamic_tiles {
         for variant in &mut group.variants {
-            let height = variant.before.len();
-            let width = variant.before[0].len();
-            let mut matching_areas = BTreeSet::new();
-            for area in areas.iter() {
-                for start_y in 0..=area.height - height {
-                    'position: for start_x in 0..=area.width - width {
-                        for y in 0..height {
-                            for x in 0..width {
-                                if area.placements[(start_y + y) * area.width + start_x + x]
-                                    != variant.before[y][x]
-                                {
-                                    continue 'position;
-                                }
-                            }
-                        }
-                        matching_areas.insert(area.id);
-                    }
-                }
-            }
+            let matching_areas = variant
+                .areas
+                .get_or_insert_with(|| find_dynamic_areas(areas, &variant.before));
             for frame in &variant.after_frames {
                 for row in frame {
                     for placement in row {
-                        for &area in &matching_areas {
+                        for &area in matching_areas.iter() {
                             area_palettes
                                 .entry(area)
                                 .or_default()
@@ -116,7 +129,6 @@ pub(super) fn add_dynamic_dependencies(
                     }
                 }
             }
-            variant.used = !matching_areas.is_empty();
         }
     }
 
@@ -330,7 +342,7 @@ pub(super) fn build_dynamic_tile_groups(
     }
     for group in dynamic_tiles {
         for variant in &group.variants {
-            if !variant.used {
+            if variant.areas.as_ref().unwrap().is_empty() {
                 continue;
             }
             let before = build_tiling(&variant.before, map16)?;

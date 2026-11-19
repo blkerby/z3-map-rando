@@ -65,6 +65,9 @@ async fn main() -> Result<()> {
         .context("reading logic catalog; run catalog_builder first")?;
     let retiling_bytes = fs::read(catalog_dir.join("retiling_catalog.bin"))
         .context("reading retiling catalog; run catalog_builder first")?;
+    let patches =
+        patch_catalog::decode_catalog(fs::File::open(catalog_dir.join("patch_catalog.bin"))?)
+            .context("decoding patch catalog")?;
     let state = web::Data::new(GenerationState {
         logic: logic_catalog::decode_catalog(logic_bytes.as_slice())?,
         presets: preset_catalog::decode_catalog(fs::File::open(
@@ -73,8 +76,8 @@ async fn main() -> Result<()> {
         map_pool: fs::read(&map_pool_path)
             .with_context(|| format!("reading map pool {}", map_pool_path.display()))?,
         logic_hash: compute_catalog_hash(&logic_bytes),
-        palette_profiles: retiling_catalog::decode_catalog(retiling_bytes.as_slice())?
-            .palette_profiles,
+        retiling: retiling_catalog::decode_catalog(retiling_bytes.as_slice())?,
+        patches,
         retiling_hash: compute_catalog_hash(&retiling_bytes),
         store: Store::open_store(&args.store)?,
         slot: Arc::new(Semaphore::new(1)),
@@ -88,6 +91,10 @@ async fn main() -> Result<()> {
             .app_data(state.clone())
             .route("/api/generate", web::post().to(generate::generate_seed))
             .route("/api/seed/{name}", web::get().to(generate::get_seed))
+            .route(
+                "/api/seed/{name}/retiling",
+                web::get().to(generate::get_seed_retiling),
+            )
             .configure(|config| {
                 if api_only {
                     return;

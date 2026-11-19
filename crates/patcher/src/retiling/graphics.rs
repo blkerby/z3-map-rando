@@ -29,41 +29,6 @@ pub(super) struct Tile {
     pub(super) priority: bool,
     pub(super) collision: u8,
     pub(super) pixels: Pixels,
-    pub(super) flips: [u8; 4],
-}
-
-impl Tile {
-    pub(super) fn canonicalize_flips(&mut self) {
-        let mut flips = [0, 1, 2, 3];
-        if !(0x10..0x1c).contains(&self.collision) {
-            for flip in 1..4 {
-                for candidate in 0..flip {
-                    let mut identical = true;
-                    for y in 0..8 {
-                        for x in 0..8 {
-                            let flip_x = if flip & 1 != 0 { 7 - x } else { x };
-                            let flip_y = if flip & 2 != 0 { 7 - y } else { y };
-                            let candidate_x = if candidate & 1 != 0 { 7 - x } else { x };
-                            let candidate_y = if candidate & 2 != 0 { 7 - y } else { y };
-                            if self.pixels[flip_y][flip_x] != self.pixels[candidate_y][candidate_x]
-                            {
-                                identical = false;
-                                break;
-                            }
-                        }
-                        if !identical {
-                            break;
-                        }
-                    }
-                    if identical {
-                        flips[flip] = candidate as u8;
-                        break;
-                    }
-                }
-            }
-        }
-        self.flips = flips;
-    }
 }
 
 pub(super) fn resolve_palettes(
@@ -82,7 +47,6 @@ pub(super) fn resolve_palettes(
                 priority: tile.priority,
                 collision: tile.collision,
                 pixels: graphics.resolve(&tile.graphic)?,
-                flips: [0, 1, 2, 3],
             });
         }
         for group in &source.animated_tile_groups {

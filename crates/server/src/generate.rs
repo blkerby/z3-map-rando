@@ -3,7 +3,7 @@ use generator::{inputs::InvalidSettings, metadata::create_metadata};
 use logic_catalog::LogicCatalog;
 use preset_catalog::PresetCatalog;
 use rand::{SeedableRng, rngs::StdRng};
-use seed_data::{SettingsErrors, SettingsMode};
+use seed_data::{SeedData, SettingsErrors, SettingsMode};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use server::store::Store;
@@ -13,7 +13,8 @@ pub struct GenerationState {
     pub logic: LogicCatalog,
     pub presets: PresetCatalog,
     pub map_pool: Vec<u8>,
-    pub palette_profiles: retiling_catalog::palette::PaletteProfiles,
+    pub retiling: retiling_catalog::RetilingCatalog,
+    pub patches: patch_catalog::PatchCatalog,
     pub logic_hash: String,
     pub retiling_hash: String,
     pub store: Store,
@@ -60,7 +61,7 @@ pub async fn generate_seed(
         let seed = generator::generate(
             settings,
             &worker_state.logic,
-            &worker_state.palette_profiles,
+            &worker_state.retiling.palette_profiles,
             "desert",
             Some(&worker_state.map_pool),
             metadata,
@@ -101,18 +102,53 @@ pub async fn generate_seed(
 }
 
 pub async fn get_seed(state: web::Data<GenerationState>, name: web::Path<String>) -> HttpResponse {
-    match state.store.load_object(&format!("seeds/{name}.json")).await {
+    match load_seed(&state, &name).await {
         Ok(bytes) => HttpResponse::Ok()
             .content_type("application/json")
             .body(bytes),
+        Err(response) => response,
+    }
+}
+
+pub async fn get_seed_retiling(
+    state: web::Data<GenerationState>,
+    name: web::Path<String>,
+) -> HttpResponse {
+    let bytes = match load_seed(&state, &name).await {
+        Ok(bytes) => bytes,
+        Err(response) => return response,
+    };
+    let result = web::block(move || -> anyhow::Result<Vec<u8>> {
+        let seed = SeedData::read(bytes.as_slice())?;
+        let catalog = patcher::filter_retiling_catalog(&seed, &state.retiling, &state.patches)?;
+        let mut output = Vec::new();
+        retiling_catalog::encode_catalog(&catalog, &mut output, 3)?;
+        Ok(output)
+    })
+    .await;
+    match result {
+        Ok(Ok(bytes)) => HttpResponse::Ok()
+            .content_type("application/octet-stream")
+            .body(bytes),
+        error => {
+            log::error!("Preparing retiling catalog for seed {name}: {error:?}");
+            HttpResponse::InternalServerError()
+                .json(json!({ "error": "Could not prepare the retiling catalog." }))
+        }
+    }
+}
+
+async fn load_seed(state: &GenerationState, name: &str) -> Result<Vec<u8>, HttpResponse> {
+    match state.store.load_object(&format!("seeds/{name}.json")).await {
+        Ok(bytes) => Ok(bytes),
         Err(error) => match error.downcast_ref::<object_store::Error>() {
             Some(object_store::Error::NotFound { .. }) => {
-                HttpResponse::NotFound().json(json!({ "error": "Seed not found." }))
+                Err(HttpResponse::NotFound().json(json!({ "error": "Seed not found." })))
             }
             _ => {
                 log::error!("Loading seed {name}: {error:#}");
-                HttpResponse::InternalServerError()
-                    .json(json!({ "error": "Could not load the seed." }))
+                Err(HttpResponse::InternalServerError()
+                    .json(json!({ "error": "Could not load the seed." })))
             }
         },
     }

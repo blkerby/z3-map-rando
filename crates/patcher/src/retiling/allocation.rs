@@ -1,6 +1,6 @@
-use super::{TileKey, areas::ThemeArea, graphics::Palette};
+use super::{TileKey, graphics::Palette};
 use anyhow::{Context, Result};
-use retiling_catalog::PaletteId;
+use retiling_catalog::{PaletteId, resolved::ThemeArea};
 use std::{
     cmp::Reverse,
     collections::{BTreeMap, BTreeSet},

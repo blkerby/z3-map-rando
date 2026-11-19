@@ -1,11 +1,11 @@
-use super::{
-    allocation::CharacterSlots,
-    areas::{Bg1Variant, Placement, ThemeArea},
-    graphics::Palette,
-};
+use super::{allocation::CharacterSlots, graphics::Palette};
 use crate::import::{Tile8, Tile16};
 use anyhow::{Result, ensure};
-use retiling_catalog::{PaletteId, palette::AllocatedPalette};
+use retiling_catalog::{
+    PaletteId,
+    palette::AllocatedPalette,
+    resolved::{Bg1Variant, Placement, ThemeArea},
+};
 use std::collections::BTreeMap;
 
 pub(super) const MAP16_CAPACITY: usize = 0x4000;

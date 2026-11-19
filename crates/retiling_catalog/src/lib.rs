@@ -3,6 +3,7 @@
 
 pub mod graphics;
 pub mod palette;
+pub mod resolved;
 
 use anyhow::{Result, ensure};
 use bincode_next::{Decode, Encode};
@@ -12,7 +13,7 @@ use std::{
     io::{BufReader, BufWriter, Read, Write},
 };
 
-const CATALOG_MAGIC: [u8; 8] = *b"Z3RETILE";
+const CATALOG_MAGIC: [u8; 8] = *b"Z3RETIL2";
 const CATALOG_CONFIG: bincode_next::config::Configuration = bincode_next::config::standard();
 
 /// Write the uncompressed envelope followed by a Zstd-compressed bincode payload.
@@ -61,9 +62,10 @@ pub struct RetilingCatalog {
     pub dynamic_tile_groups: Vec<DynamicTileGroup>,
     pub conditions: EdgeConditions,
     pub palette_profiles: palette::PaletteProfiles,
+    pub resolved: Option<resolved::ResolvedRetiling>,
 }
 
-#[derive(Clone, Debug, Deserialize, Encode, Decode)]
+#[derive(Clone, Debug, Default, Deserialize, Encode, Decode)]
 pub struct EdgeConditions {
     pub edge_variants: Vec<String>,
     pub edge_variant_aliases: BTreeMap<String, Vec<String>>,
@@ -89,6 +91,7 @@ pub struct Tile {
     pub collision: u8,
     pub h_flippable: bool,
     pub v_flippable: bool,
+    pub flip_map: [u8; 4],
 }
 
 #[derive(Clone, Debug, Encode, Decode)]
@@ -251,6 +254,8 @@ pub enum DynamicTileType {
 pub struct DynamicTileVariant {
     pub before: TileGrid,
     pub after_frames: Vec<TileGrid>,
+    /// Areas using this variant, resolved from the seed’s composited BG2 grids.
+    pub areas: Option<Vec<usize>>,
 }
 
 #[derive(Clone, Debug, Encode, Decode)]

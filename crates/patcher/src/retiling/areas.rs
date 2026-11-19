@@ -1,63 +1,11 @@
-use super::{BackgroundSettings, TileKey, graphics::Palette};
 use crate::graphics::encode_bgr555;
 use anyhow::{Context, Result, ensure};
 use retiling_catalog::{
-    Background, CutsceneAction, CutsceneEvent, Layer, PaletteId, RetilingCatalog,
+    Background, CutsceneAction, CutsceneEvent, Layer, RetilingCatalog,
+    resolved::{Bg1Variant, Placement, SelectedAreas, StateLayer, ThemeArea, ThemeCutscene},
 };
 use seed_data::WorldLayout;
 use std::collections::{BTreeMap, BTreeSet};
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) struct Placement {
-    pub(super) palette: PaletteId,
-    pub(super) tile: usize,
-    pub(super) flip: u8,
-}
-
-pub(super) struct ThemeArea {
-    pub(super) id: usize,
-    pub(super) width: usize,
-    pub(super) height: usize,
-    pub(super) placements: Vec<Placement>,
-    pub(super) map_tiles: Vec<Option<Placement>>,
-    pub(super) palettes: BTreeSet<PaletteId>,
-    pub(super) extra_tiles: BTreeSet<TileKey>,
-    pub(super) overworld_overlay: Option<StateLayer>,
-}
-
-pub(super) struct Bg1Variant {
-    pub(super) name: String,
-    pub(super) area: usize,
-    pub(super) width: usize,
-    pub(super) height: usize,
-    pub(super) placements: Vec<Option<Placement>>,
-}
-
-#[derive(Clone)]
-pub(super) struct StateLayer {
-    pub(super) placements: Vec<Option<Placement>>,
-}
-
-pub(super) struct ThemeCutscene {
-    pub(super) trigger: u8,
-    pub(super) area: usize,
-    pub(super) actions: Vec<CutsceneAction>,
-    pub(super) layers: BTreeMap<String, StateLayer>,
-}
-
-impl Placement {
-    pub(super) fn canonicalize_flip(&mut self, palettes: &BTreeMap<PaletteId, Palette>) {
-        self.flip = palettes[&self.palette].tiles[self.tile].flips[usize::from(self.flip)];
-    }
-}
-
-pub(super) struct SelectedAreas {
-    pub(super) areas: Vec<ThemeArea>,
-    pub(super) background_colors: [u16; 0xa0],
-    pub(super) bg1_variants: Vec<Bg1Variant>,
-    pub(super) background_settings: BTreeMap<usize, BackgroundSettings>,
-    pub(super) cutscenes: Vec<ThemeCutscene>,
-}
 
 fn is_overworld_overlay(area_id: usize, layer: &Layer) -> bool {
     matches!(
@@ -282,16 +230,7 @@ pub(super) fn select_areas(
             for map_x in 0..width / 64 {
                 let id = area_id + map_x + map_y * 8;
                 background_colors[id] = encode_bgr555(area.background.color);
-                background_settings.insert(
-                    id,
-                    BackgroundSettings {
-                        layering: area.background.layering,
-                        camera_follow_x: area.background.camera_follow[0],
-                        camera_drift_x: area.background.camera_drift[0],
-                        camera_follow_y: area.background.camera_follow[1],
-                        camera_drift_y: area.background.camera_drift[1],
-                    },
-                );
+                background_settings.insert(id, area.background.clone());
             }
         }
         let mut placements = Vec::with_capacity(width * height);
@@ -321,6 +260,28 @@ pub(super) fn select_areas(
         );
     }
     result.sort_by_key(|area| area.id);
+    for area in &mut result {
+        for placement in &mut area.placements {
+            placement.canonicalize_flip(&catalog.palettes);
+        }
+        if let Some(layer) = &mut area.overworld_overlay {
+            for placement in layer.placements.iter_mut().flatten() {
+                placement.canonicalize_flip(&catalog.palettes);
+            }
+        }
+    }
+    for variant in &mut bg1_variants {
+        for placement in variant.placements.iter_mut().flatten() {
+            placement.canonicalize_flip(&catalog.palettes);
+        }
+    }
+    for cutscene in &mut cutscenes {
+        for layer in cutscene.layers.values_mut() {
+            for placement in layer.placements.iter_mut().flatten() {
+                placement.canonicalize_flip(&catalog.palettes);
+            }
+        }
+    }
     Ok(SelectedAreas {
         areas: result,
         background_colors,

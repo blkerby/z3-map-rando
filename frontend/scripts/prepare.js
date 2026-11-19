@@ -25,8 +25,8 @@ export function run(command, args) {
 }
 
 /**
- * Prepare the settings data (presets, skill classifications, items) as `settings_data.json`, and the
- * retiling and patch catalogs that Save ROM patches with. Unchanged inputs are reused from the builder's cache.
+ * Prepare the settings data and patch catalog used by the frontend, and the catalogs
+ * loaded by the server. Unchanged inputs are reused from the builder's cache.
  */
 export async function prepareCatalogs() {
 	await run('cargo', ['run', '--quiet', '--package', 'catalog_builder', '--', 'all']);

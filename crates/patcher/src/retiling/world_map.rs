@@ -1,5 +1,5 @@
 use super::{
-    areas::{Placement, ThemeArea, select_areas},
+    areas::select_areas,
     graphics::{Palette, resolve_palettes},
 };
 use crate::{
@@ -7,9 +7,14 @@ use crate::{
     import::Importer,
 };
 use anyhow::{Context, Result, ensure};
-use retiling_catalog::{Background, PaletteId, RetilingCatalog};
+use retiling_catalog::{
+    Background, PaletteId, RetilingCatalog,
+    resolved::{Placement, ThemeArea},
+};
 use seed_data::WorldLayout;
 use std::collections::BTreeMap;
+
+pub(super) const WORLD_MAP_CLOUDS: [&str; 2] = ["Light World Clouds", "Dark World Clouds"];
 
 pub struct CompiledWorldMap {
     pub graphics: Vec<u8>,
@@ -25,8 +30,14 @@ pub fn compile_world_map(
 ) -> Result<CompiledWorldMap> {
     let mut graphics = TileGraphicResolver::create(importer);
     let palettes = resolve_palettes(catalog, &mut graphics)?;
-    let selected = select_areas(catalog, layout)?;
-    build_world_map(&selected.areas, &palettes, layout, catalog)
+    let selected;
+    let areas = if let Some(resolved) = &catalog.resolved {
+        &resolved.selected.areas
+    } else {
+        selected = select_areas(catalog, layout)?;
+        &selected.areas
+    };
+    build_world_map(areas, &palettes, layout, catalog)
 }
 
 pub(super) fn build_world_map(
@@ -36,10 +47,7 @@ pub(super) fn build_world_map(
     catalog: &RetilingCatalog,
 ) -> Result<CompiledWorldMap> {
     let mut worlds = [vec![None; 4096], vec![None; 4096]];
-    for (world, name) in ["Light World Clouds", "Dark World Clouds"]
-        .into_iter()
-        .enumerate()
-    {
+    for (world, name) in WORLD_MAP_CLOUDS.into_iter().enumerate() {
         let clouds = &catalog.areas[name].themes["base"];
         for layer in &clouds.layers {
             if layer.background != Background::Bg2 || layer.name != "Main" {
