@@ -26,7 +26,7 @@
 	class="form-select form-select-sm w-auto"
 	class:changed={picked || changeCount > 0}
 	class:tweaked={!changeCount && store.isScopeTweaked(scope)}
-	title={picked ? `Picked by hand. Reset goes back to “${store.inheritedScopeLabel(scope)}”.` : undefined}
+	title={store.lockReason ?? (picked ? `Picked by hand. Reset goes back to “${store.inheritedScopeLabel(scope)}”.` : undefined)}
 	disabled={store.locked}
 	value={shown}
 	onchange={(e) => store.pickScopePreset(scope, e.currentTarget.value)}

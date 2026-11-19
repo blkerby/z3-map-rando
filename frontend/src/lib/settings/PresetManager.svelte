@@ -249,6 +249,7 @@
 			class="form-select form-select-sm w-auto preset-select"
 			class:changed={changeCount > 0}
 			disabled={store.locked}
+			title={store.lockReason ?? undefined}
 			value={changeCount ? CURRENT : store.selectedId}
 			onchange={(e) => store.applyPreset(e.currentTarget.value)}
 		>
@@ -311,7 +312,7 @@
 					<button type="button" role="menuitem" class="menu-item" disabled={!selected} onclick={() => openMode('rename')}>
 						<i class="bi bi-pencil"></i> Rename…
 					</button>
-					<button type="button" role="menuitem" class="menu-item" disabled={store.locked} onclick={() => openMode('switch')}>
+					<button type="button" role="menuitem" class="menu-item" disabled={store.locked} title={store.lockReason ?? undefined} onclick={() => openMode('switch')}>
 						<i class="bi bi-arrow-left-right"></i> Switch preset, keeping settings…
 					</button>
 					<button type="button" role="menuitem" class="menu-item" disabled={!selected} onclick={() => openMode('delete')}>
@@ -332,16 +333,19 @@
 		</div>
 
 		{#if changeCount}
-			<button
-				type="button"
-				class="btn btn-link btn-sm p-0 icon-btn"
-				disabled={store.locked}
-				title={`Put all the ${noun} back to ${store.presetName}.`}
-				aria-label="Reset all the {noun}"
-				onclick={() => store.resetAll()}
-			>
-				<i class="bi bi-arrow-counterclockwise"></i>
-			</button>
+			<!-- Bootstrap's disabled buttons ignore the pointer, so the lock reason goes on a wrapper. -->
+			<span title={store.lockReason ?? undefined}>
+				<button
+					type="button"
+					class="btn btn-link btn-sm p-0 icon-btn"
+					disabled={store.locked}
+					title={`Put all the ${noun} back to ${store.presetName}.`}
+					aria-label="Reset all the {noun}"
+					onclick={() => store.resetAll()}
+				>
+					<i class="bi bi-arrow-counterclockwise"></i>
+				</button>
+			</span>
 		{/if}
 
 		{@render children?.()}

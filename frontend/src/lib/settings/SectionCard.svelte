@@ -70,16 +70,19 @@
 			</div>
 		{/if}
 		{#if changes}
-			<button
-				type="button"
-				class="btn btn-link btn-sm p-0 card-reset"
-				disabled={store.locked}
-				title={`Undo the changes in ${title}. The other sections are not touched.`}
-				aria-label="Reset {title}"
-				onclick={() => store.resetCard(id, scope)}
-			>
-				<i class="bi bi-arrow-counterclockwise"></i>
-			</button>
+			<!-- Bootstrap's disabled buttons ignore the pointer, so the lock reason goes on a wrapper. -->
+			<span title={store.lockReason ?? undefined}>
+				<button
+					type="button"
+					class="btn btn-link btn-sm p-0 card-reset"
+					disabled={store.locked}
+					title={`Undo the changes in ${title}. The other sections are not touched.`}
+					aria-label="Reset {title}"
+					onclick={() => store.resetCard(id, scope)}
+				>
+					<i class="bi bi-arrow-counterclockwise"></i>
+				</button>
+			</span>
 		{/if}
 	</header>
 	<!-- Kept mounted while folded, so its settings stay known to the summary and search. -->

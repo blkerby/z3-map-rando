@@ -62,6 +62,8 @@
 	type Section = 'generate' | 'customization';
 
 	const generated = $derived(seed !== null);
+	const GENERATED_LOCK = 'This game has already been generated, so its settings can no longer be changed.';
+	const GENERATING_LOCK = 'Settings are locked while the game is generating.';
 	let generating = $state(false);
 	let error = $state<string | null>(null);
 	/** Passed along by `generate` when it navigates to the seed, so they show only right after generating. */
@@ -140,7 +142,7 @@
 		}
 		if (settings) {
 			store.loadDocument(store.readDocument(settings));
-			store.locked = true;
+			store.lockReason = GENERATED_LOCK;
 		} else {
 			loadDraft();
 		}
@@ -156,12 +158,12 @@
 		if (generating) return; // state may have changed while the dialog was open
 		generating = true;
 		error = null;
-		store.locked = true; // freeze the settings while the server works
+		store.lockReason = GENERATING_LOCK; // freeze the settings while the server works
 		try {
 			const result = await generateGame(store.captureDocument());
 			await goto(resolve('/seed/[name]', { name: result.seed }), { state: { notices: result.notices } });
 		} catch (e) {
-			store.locked = false;
+			store.lockReason = null;
 			error = e instanceof Error ? e.message : 'Something went wrong generating the game. Please try again.';
 		} finally {
 			generating = false;
@@ -301,6 +303,7 @@
 				title="Generate"
 				badge={generated ? 'Locked' : undefined}
 				badgeIcon="lock-fill"
+				badgeTooltip={GENERATED_LOCK}
 				bind:open={generateOpen}
 			>
 				{#snippet actions()}

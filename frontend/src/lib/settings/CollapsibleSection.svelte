@@ -7,6 +7,7 @@
 		icon,
 		badge,
 		badgeIcon,
+		badgeTooltip,
 		open = $bindable(false),
 		actions,
 		children
@@ -17,6 +18,7 @@
 		/** Small label next to the title, e.g. "Locked". */
 		badge?: string;
 		badgeIcon?: string;
+		badgeTooltip?: string;
 		open?: boolean;
 		/** Controls shown at the end of the header, so they stay visible while the section is collapsed. */
 		actions?: Snippet;
@@ -38,7 +40,7 @@
 				{#if icon}<i class="bi bi-{icon}" aria-hidden="true"></i>{/if}
 				<span>{title}</span>
 				{#if badge}
-					<span class="badge rounded-pill text-bg-secondary ms-1 fw-normal">
+					<span class="badge rounded-pill text-bg-secondary ms-1 fw-normal" title={badgeTooltip}>
 						{#if badgeIcon}<i class="bi bi-{badgeIcon}" aria-hidden="true"></i>{/if}
 						{badge}
 					</span>

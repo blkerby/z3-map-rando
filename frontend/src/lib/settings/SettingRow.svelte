@@ -74,7 +74,7 @@
 		{#if notes}<div class="notes">{notes}</div>{/if}
 	</div>
 
-	<div class="control-col">
+	<div class="control-col" title={store.lockReason ?? undefined}>
 		{@render control()}
 		{#if nested}
 			<div class="nested">{@render nested()}</div>

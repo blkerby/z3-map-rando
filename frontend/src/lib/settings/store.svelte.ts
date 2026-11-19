@@ -89,8 +89,11 @@ export class SettingsStore {
 	/** Child scope id -> preset picked by hand, or null when it takes what the root preset chooses. */
 	scopePicks = $state<Record<string, string | null>>({});
 	userPresets = $state<UserPreset[]>([]);
-	/** When true the settings are read-only (a game has been generated from them). */
-	locked = $state(false);
+	/** Why the settings are read-only (shown as the locked controls' tooltip), or null when editable. */
+	lockReason = $state<string | null>(null);
+	get locked() {
+		return this.lockReason !== null;
+	}
 	/** Cards folded or unfolded by hand, by card id. */
 	opened = $state<Record<string, boolean>>({});
 	/** Set when the player's presets couldn't be saved in this browser. */
