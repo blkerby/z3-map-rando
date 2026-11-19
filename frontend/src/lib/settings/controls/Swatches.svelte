@@ -21,8 +21,6 @@
 		onchange: (v: string) => void;
 	} = $props();
 
-	const selectedLabel = $derived(options.find((o) => o.value === value)?.label ?? '');
-
 	// The heart, one character per pixel: 0 transparent, 1 white, 2 the chosen color.
 	const ART = ['0110110', '1221221', '1222221', '1222221', '0122210', '0012100', '0001000'];
 	const SIZE = ART.length;
@@ -66,7 +64,6 @@
 		</button>
 	{/each}
 </div>
-<div class="name small text-body-secondary">{selectedLabel}</div>
 
 <style>
 	/* Wraps instead of scrolling (a scroll container would clip the outline and hover growth). */

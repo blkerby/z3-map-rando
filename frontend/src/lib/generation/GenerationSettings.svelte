@@ -41,7 +41,6 @@
 <SectionCard
 	id="skill"
 	title="Skill assumptions"
-	icon="speedometer2"
 	collapsible
 	collapsed
 	scope={skillScope}
@@ -71,7 +70,7 @@
 	{/each}
 </SectionCard>
 
-<SectionCard id="general" title="General" icon="map">
+<SectionCard id="general" title="General">
 	<ChoiceSetting
 		path={['map_layout']}
 		label="Map layout"
@@ -105,7 +104,6 @@
 <SectionCard
 	id="starting_state"
 	title="Starting state"
-	icon="backpack"
 	collapsible
 	collapsed
 	scope={startingStateScope}
@@ -168,7 +166,6 @@
 <SectionCard
 	id="item_pool"
 	title="Item pool"
-	icon="box-seam"
 	collapsible
 	collapsed
 	scope={itemPoolScope}

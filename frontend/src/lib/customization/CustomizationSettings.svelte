@@ -6,11 +6,11 @@
 
 <ChoiceSetting path={['heart_color']} label="Heart color" display="swatches" options={HEART_COLORS}>
 	{#snippet help()}
-		<p>Color of the hearts in the life meter.</p>
+		<p>Color of hearts in Link's life meter.</p>
 	{/snippet}
 </ChoiceSetting>
 <ToggleSetting path={['reduced_flashing']} label="Reduced flashing">
 	{#snippet help()}
-		<p>Suppress weather, spell, electrical, cutscene, and boss flashes while preserving Ether's invisible-floor reveal.</p>
+		<p>Remove the game's whole-screen bright flashes, including from lightning, cutscenes, and bosses.</p>
 	{/snippet}
 </ToggleSetting>
