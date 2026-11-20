@@ -5,7 +5,7 @@ use common_types::allows_frog_dwarf;
 use hashbrown::{HashMap, HashSet};
 use logic_catalog::{
     Connection, Edge, EdgeIndex, Effect, EntranceIndex, EntranceKind, EventEndpoint, Follower,
-    FollowerMask, LogicCatalog, MapBoundaryKind, NodeType, OverheadClass, Requirement, RoomKind,
+    FollowerMask, LogicCatalog, MapBoundaryKind, NodeType, OverheadClass, Requirement,
     TransitionState, UniqueItem, VertexIndex, VertexOrigin, World,
 };
 
@@ -176,17 +176,8 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                         Requirement::LoseFollowers(FollowerMask::make([Follower::SuperBomb]))
                     }
                 };
-                let requirement = if catalog
-                    .room(catalog.vertex(*interior_vertex_idx).room_idx)
-                    .kind
-                    == RoomKind::Dungeon
-                {
-                    // FIXME: Entering a dungeon temporarily requires IsNoBunny,
-                    // because bunny logic is not yet complete in dungeons.
-                    Requirement::make_and(vec![Requirement::IsNotBunny, requirement])
-                } else {
-                    requirement
-                };
+                // Indoor traversal assumes Link is not in bunny form.
+                let requirement = Requirement::make_and(vec![Requirement::IsNotBunny, requirement]);
                 (
                     ConnectionEndpoint {
                         vertex_idx: catalog.entrance(*entrance_idx).vertex_idx,
