@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use logic_catalog::{Direction, NodeType, OverheadClass, ProficiencyTier, RoomKind, World};
+use logic_catalog::{Direction, NodeType, OverheadClass, RoomKind, World};
 use serde::{Deserialize, de::DeserializeOwned};
 use std::{
     fs,
@@ -291,9 +291,13 @@ pub struct Obstacle {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Notable {
     pub id: u32,
     pub name: String,
+    pub note: Vec<String>,
+    #[serde(default)]
+    pub detail_note: Vec<String>,
 }
 
 #[derive(Clone, Copy, Deserialize)]
@@ -431,14 +435,23 @@ pub struct TechCategory {
 pub struct Tech {
     pub id: u32,
     pub name: String,
+    /// Absent on proficiencies, whose tiers have their own notes.
     #[serde(default)]
-    pub tiers: Vec<ProficiencyTier>,
+    pub note: Vec<String>,
+    #[serde(default)]
+    pub tiers: Vec<SourceProficiencyTier>,
     #[serde(default)]
     pub tech_requires: Vec<Requirement>,
     #[serde(default)]
     pub other_requires: Vec<Requirement>,
     #[serde(default)]
     pub extension_techs: Vec<Tech>,
+}
+
+#[derive(Deserialize)]
+pub struct SourceProficiencyTier {
+    pub value: u32,
+    pub note: Vec<String>,
 }
 
 #[derive(Deserialize)]

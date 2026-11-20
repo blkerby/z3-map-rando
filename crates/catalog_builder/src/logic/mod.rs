@@ -34,10 +34,14 @@ fn collect_techs(
     for mut tech in techs {
         let extensions = std::mem::take(&mut tech.extension_techs);
         let tech_idx = TechIndex(catalog.techs.len() as u32);
+        let mut tiers = Vec::new();
+        for tier in &tech.tiers {
+            tiers.push(ProficiencyTier { value: tier.value });
+        }
         catalog.techs.push(TechDefinition {
             tech_id: tech.id,
             name: tech.name.clone(),
-            tiers: std::mem::take(&mut tech.tiers),
+            tiers,
         });
         compiler.techs.insert(tech.name.clone(), (tech_idx, tech));
         collect_techs(extensions, catalog, compiler);

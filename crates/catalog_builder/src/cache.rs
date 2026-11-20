@@ -174,6 +174,8 @@ impl CatalogCache {
         self.update_logic()?;
         let output = self.config.output_directory.join("preset_catalog.bin");
         let mut fingerprint = self.create_fingerprint(PRESET_CODE_INPUTS);
+        // For the upstream notes.
+        let clean = hash_repository(&mut fingerprint, &self.config.logic_source)?;
         let mut inputs = vec![
             self.config.tech_data.clone(),
             self.config.notable_data.clone(),
@@ -186,7 +188,7 @@ impl CatalogCache {
             hash_input(&mut fingerprint, path.as_os_str().as_encoded_bytes());
             hash_input(&mut fingerprint, &fs::read(path)?);
         }
-        update_catalog(&output, fingerprint, true, || {
+        update_catalog(&output, fingerprint, clean, || {
             presets::build_catalog(&self.config, &output)
         })
     }

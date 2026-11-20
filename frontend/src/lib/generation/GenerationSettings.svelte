@@ -50,21 +50,38 @@
 			<LevelSetting
 				path={['skill', 'proficiencies', p.id]}
 				label={p.name}
-				levels={p.levels.map((l) => ({ value: l.level, label: l.difficulty }))}
-			/>
+				levels={p.levels.map((l) => ({ value: l.level, label: l.level === 0 ? 'Off' : String(l.level) }))}
+			>
+				{#snippet help()}
+					{#each p.levels as l (l.level)}
+						{#if l.note !== null}
+							<p><strong>Level {l.level}</strong> ({l.difficulty}): {l.note}</p>
+						{/if}
+					{/each}
+				{/snippet}
+			</LevelSetting>
 		{/each}
 	</Group>
 	<!-- Techniques and notables by difficulty. Unranked ones (e.g. "Ignored") are not shown and keep their default. -->
 	{#each DIFFICULTIES as difficulty (difficulty)}
 		<Group heading={difficulty} layout="compact">
 			{#each tech.filter((t) => t.difficulty === difficulty) as t (t.id)}
-				<ToggleSetting path={['skill', 'tech', t.id]} label={t.name} />
+				<ToggleSetting path={['skill', 'tech', t.id]} label={t.name}>
+					{#snippet help()}
+						<p>{t.note}</p>
+					{/snippet}
+				</ToggleSetting>
 			{/each}
 			{#each notables.filter((n) => n.difficulty === difficulty) as n (`${n.world}/${n.room}/${n.id}`)}
 				<ToggleSetting
 					path={['skill', 'notables', n.world, n.room, n.id]}
 					label="{n.roomName}: {n.name}"
-				/>
+				>
+					{#snippet help()}
+						<p>{n.note}</p>
+						{#if n.detailNote !== null}<p>{n.detailNote}</p>{/if}
+					{/snippet}
+				</ToggleSetting>
 			{/each}
 		</Group>
 	{/each}

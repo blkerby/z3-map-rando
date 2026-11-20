@@ -9,8 +9,14 @@ import type { Tree } from '$lib/settings/tree';
 interface SettingsData {
 	/** Ranked easiest to hardest. */
 	difficulties: string[];
-	proficiencies: { id: number; name: string; levels: { level: number; difficulty: string }[] }[];
-	techs: { id: number; name: string; difficulty: string }[];
+	/** Notes are upstream descriptions, each joined into one paragraph. */
+	proficiencies: {
+		id: number;
+		name: string;
+		/** A level's note is null for level 0 (no proficiency). */
+		levels: { level: number; difficulty: string; note: string | null }[];
+	}[];
+	techs: { id: number; name: string; difficulty: string; note: string }[];
 	notables: {
 		world: string;
 		room: number;
@@ -18,6 +24,8 @@ interface SettingsData {
 		id: number;
 		name: string;
 		difficulty: string;
+		note: string;
+		detail_note: string | null;
 	}[];
 	items: ItemRecord[];
 	generation: {
@@ -113,11 +121,11 @@ export const ITEM_LABELS: Record<string, string> = {
 export const proficiencies: {
 	id: string;
 	name: string;
-	levels: { level: number; difficulty: string }[];
+	levels: { level: number; difficulty: string; note: string | null }[];
 }[] = [];
 for (const p of settingsData.proficiencies) proficiencies.push({ ...p, id: String(p.id) });
 
-export const tech: { id: string; name: string; difficulty: string }[] = [];
+export const tech: { id: string; name: string; difficulty: string; note: string }[] = [];
 for (const t of settingsData.techs) tech.push({ ...t, id: String(t.id) });
 
 export const notables: {
@@ -127,6 +135,8 @@ export const notables: {
 	id: string;
 	name: string;
 	difficulty: string;
+	note: string;
+	detailNote: string | null;
 }[] = [];
 for (const n of settingsData.notables) {
 	notables.push({
@@ -135,7 +145,9 @@ for (const n of settingsData.notables) {
 		roomName: n.room_name,
 		id: String(n.id),
 		name: n.name,
-		difficulty: n.difficulty
+		difficulty: n.difficulty,
+		note: n.note,
+		detailNote: n.detail_note
 	});
 }
 

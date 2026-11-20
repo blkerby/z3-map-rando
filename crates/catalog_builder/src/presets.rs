@@ -1,6 +1,8 @@
 use crate::config::BuildConfig;
-use anyhow::{Context, Result, anyhow};
+use crate::z3_json_data::{self, collect_source_files, read_source};
+use anyhow::{Context, Result, anyhow, bail};
 use common_types::SourceRoomId;
+use logic_catalog::RoomKind;
 use preset_catalog::{ItemPoolPreset, PresetCatalog, RootPreset, SkillPreset, StartingStatePreset};
 use seed_data::{NotableSettings, SkillSettings};
 use serde::{Deserialize, Serialize};
@@ -61,6 +63,8 @@ struct ProficiencyData {
 struct LevelData {
     level: u32,
     difficulty: String,
+    /// The upstream note of the tier with this value; absent for level 0 (no proficiency).
+    note: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -68,6 +72,7 @@ struct TechData {
     id: u32,
     name: String,
     difficulty: String,
+    note: String,
 }
 
 #[derive(Serialize)]
@@ -78,6 +83,8 @@ struct NotableData {
     id: u32,
     name: String,
     difficulty: String,
+    note: String,
+    detail_note: Option<String>,
 }
 
 /// Prepare the built-in presets, writing the preset catalog and `settings_data.json`.
@@ -88,6 +95,9 @@ struct NotableData {
 /// members are disabled. Root presets come from `<context>/root/*.json` under the preset directory,
 /// the default first; generation root presets are resolved into complete settings by applying the
 /// skill, item pool, and starting state presets they select.
+///
+/// Each technique, proficiency level, and notable is described by its upstream note in
+/// z3-json-data, matched by ID. A note's lines are joined into one paragraph.
 pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
     let techs: Vec<TechRecord> = serde_json::from_slice(&fs::read(&config.tech_data)?)
         .with_context(|| format!("reading {}", config.tech_data.display()))?;
@@ -95,6 +105,31 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
         .with_context(|| format!("reading {}", config.notable_data.display()))?;
     let items: serde_json::Value = serde_json::from_slice(&fs::read(&config.items)?)
         .with_context(|| format!("reading {}", config.items.display()))?;
+
+    let source_techs: z3_json_data::Techs = read_source(&config.logic_source.join("tech.json"))?;
+    let mut tech_sources = BTreeMap::new();
+    let mut pending = Vec::new();
+    for category in source_techs.tech_categories {
+        pending.extend(category.techs);
+    }
+    while let Some(mut tech) = pending.pop() {
+        pending.append(&mut tech.extension_techs);
+        tech_sources.insert(tech.id, tech);
+    }
+    let mut room_paths = Vec::new();
+    collect_source_files(&config.logic_source.join("rooms"), &mut room_paths)?;
+    let mut notable_sources = BTreeMap::new();
+    for path in room_paths {
+        let room: z3_json_data::Room = read_source(&path)?;
+        let room_id = if room.room_type == RoomKind::Overworld {
+            SourceRoomId::Overworld(room.id)
+        } else {
+            SourceRoomId::Underworld(room.id)
+        };
+        for notable in room.notables {
+            notable_sources.insert((room_id, notable.id), notable);
+        }
+    }
 
     let mut catalog = PresetCatalog {
         root: Vec::new(),
@@ -267,17 +302,35 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
         customization: read_presets(&config.presets.join("customization/root"))?,
     };
     for tech in techs {
+        let source = tech_sources
+            .get(&tech.tech_id)
+            .with_context(|| format!("tech {} is not in tech.json", tech.name))?;
         let Some(level) = tech.level else {
+            if source.note.is_empty() {
+                bail!("tech {} has no note", tech.name);
+            }
             settings_data.techs.push(TechData {
                 id: tech.tech_id,
                 name: tech.name,
                 difficulty: tech.difficulty,
+                note: source.note.join(" "),
             });
             continue;
+        };
+        let note = if level == 0 {
+            None
+        } else {
+            let tier = source
+                .tiers
+                .iter()
+                .find(|t| t.value == level)
+                .with_context(|| format!("tech {} has no tier {level}", tech.name))?;
+            Some(tier.note.join(" "))
         };
         let level = LevelData {
             level,
             difficulty: tech.difficulty,
+            note,
         };
         match settings_data
             .proficiencies
@@ -293,6 +346,9 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
         }
     }
     for notable in notables {
+        let source = notable_sources
+            .get(&(notable.room_id, notable.notable_id))
+            .with_context(|| format!("notable {} is not in the room data", notable.name))?;
         let (world, room) = match notable.room_id {
             SourceRoomId::Overworld(room) => ("overworld", room),
             SourceRoomId::Underworld(room) => ("underworld", room),
@@ -304,6 +360,12 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
             id: notable.notable_id,
             name: notable.name,
             difficulty: notable.difficulty,
+            note: source.note.join(" "),
+            detail_note: if source.detail_note.is_empty() {
+                None
+            } else {
+                Some(source.detail_note.join(" "))
+            },
         });
     }
 
