@@ -151,7 +151,7 @@ To be written: URL scheme and encoding of settings documents in share links.
 
 ## Customization presets
 
-To be written: saved presentation/control preferences, their relationship to the generation settings format, and the temporary per-seed Gameplay adjustment draft.
+To be written: saved presentation/control preferences and their relationship to the generation settings format. Temporary per-seed gameplay adjustments are proposed in the [customization plan](../../plans/customization.md).
 
 ## Open questions
 

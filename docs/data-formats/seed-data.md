@@ -43,6 +43,6 @@ The seed record format has its own format version. A commit changing the structu
 
 - Generation results needed for viewing and patching.
 - Spoiler log.
-- Captured racing ruleset.
+- Captured racing ruleset (see the [customization plan](../../plans/customization.md#racing-rulesets)).
 - Seed IDs and URL scheme.
 - Re-patching policy: whether old seeds are patched by the current patcher, and which generation results that makes a permanent contract.

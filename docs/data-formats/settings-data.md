@@ -88,7 +88,7 @@ The frontend bundles current built-ins for editing and preview. Seed inspection 
 
 ## Setting definitions and scopes
 
-Settings are organized hierarchically by semantic scope. Root scope is the settings document itself; `skill` contains skill assumptions, `item_pool` contains ordinary-item counts and pickup behavior, and `starting_state` contains initial equipment, resources, and flags. Each has its own built-in presets. Scope membership determines the persisted path independently of frontend layout. Moving a control between UI sections does not change that path; moving a setting across scopes requires explicit migration, whose details are deferred until needed.
+Settings are organized hierarchically by semantic scope. Root scope is the settings document itself; `skill` contains skill assumptions (what the player can execute: techniques, proficiencies, and notables; item progression rules belong in their own scope), `item_pool` contains ordinary-item counts and pickup behavior, and `starting_state` contains initial equipment, resources, and flags. Each has its own built-in presets. Scope membership determines the persisted path independently of frontend layout. Moving a control between UI sections does not change that path; moving a setting across scopes requires explicit migration, whose details are deferred until needed.
 
 Shared semantics include defaults, option tokens, upstream proficiency tiers, and preset baselines. Values are booleans, integers, or option tokens. A setting needing fractional precision uses an integer with a fixed scale, so equality and tweak comparisons behave consistently in Rust and JavaScript.
 
