@@ -1,4 +1,4 @@
-use crate::{ItemPoolSettings, Settings, SkillSettings, StartingState};
+use crate::{CustomizationSettings, ItemPoolSettings, Settings, SkillSettings, StartingState};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -43,6 +43,48 @@ pub struct StartingStatePreset {
     pub id: String,
     pub label: String,
     pub settings: StartingState,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CustomizationPreset {
+    pub id: String,
+    pub label: String,
+    pub settings: CustomizationSettings,
+}
+
+/// A built-in preset, identified within its scope.
+pub trait Preset {
+    fn id(&self) -> &str;
+}
+
+impl Preset for RootPreset {
+    fn id(&self) -> &str {
+        &self.id
+    }
+}
+
+impl Preset for SkillPreset {
+    fn id(&self) -> &str {
+        &self.id
+    }
+}
+
+impl Preset for ItemPoolPreset {
+    fn id(&self) -> &str {
+        &self.id
+    }
+}
+
+impl Preset for StartingStatePreset {
+    fn id(&self) -> &str {
+        &self.id
+    }
+}
+
+impl Preset for CustomizationPreset {
+    fn id(&self) -> &str {
+        &self.id
+    }
 }
 
 pub struct ResolvedSettings {

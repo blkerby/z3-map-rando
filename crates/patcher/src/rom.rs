@@ -10,10 +10,9 @@ use common_types::{Item, SourceRoomId};
 use patch_catalog::PatchCatalog;
 use retiling_catalog::RetilingCatalog;
 use seed_data::{
-    AreaLayout, OverworldRoomPlacement, StartingBoomerang, StartingBow, StartingOcarina,
-    WorldLayout,
+    AreaLayout, CustomizationSettings, OverworldRoomPlacement, StartingBoomerang, StartingBow,
+    StartingOcarina, WorldLayout,
 };
-use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 // Temporary address space used only to split the importer's vanilla flat maps.
@@ -21,28 +20,10 @@ const VANILLA_FLAT_MAPS_START: SnesAddr = SnesAddr(0xb80000);
 const BANK_SIZE: usize = 0x8000;
 
 /// Choices applied while patching, independently of saved generation settings.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct PatchSettings {
     pub transition_asset_phase: TransitionAssetPhase,
     pub customization: CustomizationSettings,
-}
-
-/// The player's cosmetic choices, as described by `schema/settings/customization.json`.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct CustomizationSettings {
-    /// HUD heart color as hexadecimal `rrggbb`.
-    pub heart_color: String,
-    pub reduced_flashing: bool,
-}
-
-impl Default for CustomizationSettings {
-    fn default() -> Self {
-        Self {
-            heart_color: "c00000".to_owned(),
-            reduced_flashing: true,
-        }
-    }
 }
 
 struct FlatMapTables {

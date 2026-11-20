@@ -10,6 +10,7 @@ use std::{fs, net::SocketAddr, path::PathBuf, sync::Arc};
 use tokio::sync::Semaphore;
 
 mod generate;
+mod settings;
 
 #[derive(Parser)]
 #[command(name = "z3-map-rando-server", about = "Serve the randomizer website")]
@@ -92,6 +93,10 @@ async fn main() -> Result<()> {
             .wrap(Logger::default())
             .app_data(state.clone())
             .route("/api/generate", web::post().to(generate::generate_seed))
+            .route(
+                "/api/settings/process",
+                web::post().to(settings::process_settings),
+            )
             .route("/api/seed/{name}", web::get().to(generate::get_seed))
             .route(
                 "/api/seed/{name}/retiling",

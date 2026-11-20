@@ -85,7 +85,7 @@ struct Args {
     /// Output ROM file; overrides --output-dir. Defaults to z3-map-rando-<SEED-NAME>.sfc beside the input seed, or in the current directory.
     #[arg(long)]
     output_rom: Option<PathBuf>,
-    /// Customization settings JSON (schema/settings/customization.json); uses defaults when omitted.
+    /// Customization settings JSON (schema/settings/customization.json); uses the default customization preset when omitted.
     #[arg(long, requires = "rom")]
     customization_settings: Option<PathBuf>,
     /// When to load transition assets while patching.
@@ -247,7 +247,16 @@ fn patch_seed(
                 .with_context(|| format!("reading customization settings {}", path.display()))?,
         )
         .with_context(|| format!("parsing customization settings {}", path.display()))?,
-        None => patcher::CustomizationSettings::default(),
+        None => {
+            let bytes = load_catalog(
+                args.preset_catalog.as_deref(),
+                "preset",
+                "build/preset_catalog.bin",
+                BUNDLED_PRESET_CATALOG,
+            )?;
+            let mut catalog = preset_catalog::decode_catalog(bytes.as_ref())?;
+            catalog.customization.swap_remove(0).settings
+        }
     };
     let settings = patcher::PatchSettings {
         customization,

@@ -16,7 +16,7 @@ mod topology;
 
 pub use asset_bundle::TransitionAssetPhase;
 pub use retiling::filter_retiling_catalog;
-pub use rom::{CustomizationSettings, PatchSettings, patch_rom};
+pub use rom::{PatchSettings, patch_rom};
 
 pub const VANILLA_ROM_SHA256: &str =
     "794e040b02c7591b59ad8843b51e7c619b88f87cddc6083a8e7a4027b96a2271";

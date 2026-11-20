@@ -12,7 +12,13 @@ pub fn write_version(root: &Path, output_directory: &Path) -> Result<()> {
         run_git(root, &["tag", "--points-at", "HEAD"]),
         run_git(
             root,
-            &["show", "-s", "--format=%cd", "--date=format-local:%Y%m%d.%H%M%S", "HEAD"],
+            &[
+                "show",
+                "-s",
+                "--format=%cd",
+                "--date=format-local:%Y%m%d.%H%M%S",
+                "HEAD",
+            ],
         ),
         run_git(root, &["rev-parse", "--short", "HEAD"]),
     ) {

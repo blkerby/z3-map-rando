@@ -28,7 +28,10 @@ interface SettingsData {
 		detail_note: string | null;
 	}[];
 	items: ItemRecord[];
-	generation: {
+	/** The built-in presets of both settings contexts. */
+	presets: {
+		/** Identifies the settings processing code and data of this build. */
+		revision: string;
 		/** The default first; settings are complete, with the selected scope presets applied. */
 		root: {
 			id: string;
@@ -41,8 +44,8 @@ interface SettingsData {
 		skill: { id: string; label: string; settings: Tree }[];
 		item_pool: { id: string; label: string; settings: Tree }[];
 		starting_state: { id: string; label: string; settings: Tree }[];
+		customization: { id: string; label: string; settings: Tree }[];
 	};
-	customization: { id: string; label: string; settings: Tree }[];
 }
 
 export interface ItemRecord {
@@ -154,21 +157,21 @@ for (const n of settingsData.notables) {
 export const skillScope: Scope = {
 	id: 'skill',
 	label: 'Skill assumptions',
-	presets: settingsData.generation.skill
+	presets: settingsData.presets.skill
 };
 export const startingStateScope: Scope = {
 	id: 'starting_state',
 	label: 'Starting state',
-	presets: settingsData.generation.starting_state
+	presets: settingsData.presets.starting_state
 };
 export const itemPoolScope: Scope = {
 	id: 'item_pool',
 	label: 'Item pool',
-	presets: settingsData.generation.item_pool
+	presets: settingsData.presets.item_pool
 };
 
 const rootPresets = [];
-for (const p of settingsData.generation.root) {
+for (const p of settingsData.presets.root) {
 	rootPresets.push({
 		id: p.id,
 		label: p.label,
@@ -234,7 +237,7 @@ const STARTING_TIERS: Record<string, StartingTier[]> = {
 	]
 };
 
-const defaultStartingEquipment = settingsData.generation.starting_state[0].settings
+const defaultStartingEquipment = settingsData.presets.starting_state[0].settings
 	.equipment as Tree;
 
 /** Starting equipment, in item pool order. Unique items have no tiers and are switches. */

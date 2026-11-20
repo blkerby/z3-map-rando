@@ -21,7 +21,7 @@ pub fn patch_rom(
         let seed = SeedData::read(seed_json)?;
         let settings = patcher::PatchSettings {
             customization: serde_json::from_slice(customization_json)?,
-            ..Default::default()
+            transition_asset_phase: Default::default(),
         };
         let retiling = retiling_catalog::decode_catalog(retiling_catalog)?;
         let patches = patch_catalog::decode_catalog(patch_catalog)?;

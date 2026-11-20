@@ -287,3 +287,12 @@ pub struct NotableSettings {
     pub overworld: BTreeMap<u32, BTreeMap<u32, bool>>,
     pub underworld: BTreeMap<u32, BTreeMap<u32, bool>>,
 }
+
+/// The player's cosmetic choices, as described by `schema/settings/customization.json`.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CustomizationSettings {
+    /// HUD heart color as hexadecimal `rrggbb`.
+    pub heart_color: String,
+    pub reduced_flashing: bool,
+}

@@ -25,17 +25,29 @@ Applications save and load whole objects using logical keys. The store compresse
 
 ## Generation
 
-`POST /api/generate` accepts a JSON object containing a scoped `settings` document. Settings retain built-in preset selections and sparse tweaks, rather than requiring resolved values. See [the settings format](data-formats/settings.md).
+`POST /api/generate` accepts a JSON object containing a scoped `settings` document and the settings `revision` of the frontend's bundled data (`presets.revision` in `settings_data.json`). Settings retain built-in preset selections and sparse tweaks, rather than requiring resolved values. See [the settings format](data-formats/settings.md).
 
 ```json
-{"settings":{"format_version":1,"preset":"default","map_layout":"vanilla"}}
+{"settings":{"format_version":1,"preset":"default","map_layout":"vanilla"},"revision":"<settings revision>"}
 ```
+
+A revision differing from the server's returns HTTP 409: the page was built against other settings data and must be reloaded.
 
 The backend processes settings strictly: it applies migrations, resolves current preset scopes, validates schema and semantic constraints, normalizes redundant tweaks, and calls the generator. Unknown keys, unknown presets, and invalid values return HTTP 422 with structured findings rather than being recovered. The current settings format is version 1; no historical structural or vocabulary migrations are needed yet. Item pools after optional starting-equipment deduction may be smaller than the ordinary-location count; unused locations are empty. Oversized pools return HTTP 422 before allocating the item pool; generation and storage failures return HTTP 500.
 
 Requests wait asynchronously in acquisition order for one shared generation slot. Generation, serialization, and compression run on blocking workers, and storage uploads are awaited before releasing the slot. The queue is process-local and keeps HTTP requests open; it does not survive server restart and does not supply job IDs or polling. Deployment proxy timeouts must accommodate queueing and generation.
 
 After successfully saving the seed, the server returns HTTP 201 with `{"seed":"<seed name>","notices":[]}`. No seed data is returned. Each saved seed contains its resolved generation settings, cleaned public settings document, metadata, and generation results.
+
+## Settings processing
+
+`POST /api/settings/process` processes one stored or imported settings document in recovery mode, so the frontend can load it. The request names the settings context, `generation` or `customization`:
+
+```json
+{"kind":"generation","document":{"format_version":1,"preset":"default","map_layout":"weird"}}
+```
+
+The response always has HTTP 200 and the server's settings `revision`. A `status` of `processed` comes with the cleaned `document`, the `notices` describing what recovery changed, and the cross-setting `errors` left for the player to fix, such as an item pool larger than the available locations. A `status` of `unrecoverable` means recovery failed even without tweaks, which indicates a bug; it is logged, and the frontend can only offer to discard the document. Other HTTP errors are about the request or server, not the document.
 
 ## Seed retrieval
 

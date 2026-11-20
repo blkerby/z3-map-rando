@@ -4,8 +4,12 @@ use anyhow::{Context, Result, anyhow, bail};
 use common_types::SourceRoomId;
 use logic_catalog::RoomKind;
 use preset_catalog::{ItemPoolPreset, PresetCatalog, RootPreset, SkillPreset, StartingStatePreset};
-use seed_data::{NotableSettings, SkillSettings};
+use seed_data::{
+    CustomizationPreset, NotableSettings, SETTINGS_FORMAT_VERSION, SettingsErrors, SettingsMode,
+    SkillSettings,
+};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::{collections::BTreeMap, fs, fs::File, io::BufWriter, path::Path};
 
 /// Difficulties ranked easiest to hardest. Others (e.g. "Ignored") never take part in skill presets.
@@ -48,8 +52,8 @@ struct SettingsData {
     notables: Vec<NotableData>,
     /// The item records, unchanged.
     items: serde_json::Value,
-    generation: PresetCatalog,
-    customization: Vec<PresetFile>,
+    /// The prepared presets of both contexts, with the settings revision.
+    presets: PresetCatalog,
 }
 
 #[derive(Serialize)]
@@ -139,6 +143,7 @@ pub fn build_catalog(config: &BuildConfig, output: &Path, revision: String) -> R
         skill: Vec::new(),
         item_pool: Vec::new(),
         starting_state: Vec::new(),
+        customization: Vec::new(),
         proficiency_levels: BTreeMap::new(),
         item_minimums: BTreeMap::new(),
         ordinary_item_count: logic_catalog::decode_catalog(File::open(
@@ -295,14 +300,34 @@ pub fn build_catalog(config: &BuildConfig, output: &Path, revision: String) -> R
         });
     }
 
+    for file in read_presets(&config.presets.join("customization/root"))? {
+        catalog.customization.push(CustomizationPreset {
+            settings: serde_json::from_value(file.settings)
+                .with_context(|| format!("reading customization preset {}", file.id))?,
+            id: file.id,
+            label: file.label,
+        });
+    }
+    // Processing a customization preset without tweaks validates it against the schema.
+    for preset in &catalog.customization {
+        let document = json!({"format_version": SETTINGS_FORMAT_VERSION, "preset": preset.id});
+        let report = catalog.process_customization(&document, SettingsMode::Strict)?;
+        if !report.errors.is_empty() {
+            bail!(
+                "validating customization preset {}: {}",
+                preset.id,
+                SettingsErrors(report.errors)
+            );
+        }
+    }
+
     let mut settings_data = SettingsData {
         difficulties: DIFFICULTIES,
         proficiencies: Vec::new(),
         techs: Vec::new(),
         notables: Vec::new(),
         items,
-        generation: catalog,
-        customization: read_presets(&config.presets.join("customization/root"))?,
+        presets: catalog,
     };
     for tech in techs {
         let source = tech_sources
@@ -373,7 +398,7 @@ pub fn build_catalog(config: &BuildConfig, output: &Path, revision: String) -> R
     }
 
     preset_catalog::encode_catalog(
-        &settings_data.generation,
+        &settings_data.presets,
         BufWriter::new(File::create(output)?),
         config.compression_level,
     )?;
