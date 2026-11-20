@@ -150,9 +150,8 @@ An Actix handler check verified aggregate strict-validation findings and item-to
 
 ## Milestone 4 Settings revision and project version
 
-- [ ] Compute a settings revision during preset preparation, covering everything that can change processing results: the dependency lockfile, the settings processing, preset, and common-type sources, the settings schemas, prepared semantic facts, and the built-in generation and customization presets. Reusing the preset catalog's cache fingerprint is acceptable; it is conservative, since unrelated edits to its inputs also advance it. Export the same revision through the preset catalog for the backend and `settings_data.json` for the frontend.
-- [ ] Derive the project version as described in the [architecture overview](README.md#project-version), in a `common_types` build script that reruns only when `VERSION`, `.git/HEAD`, or the current branch ref changes, so ordinary edits do not recompile the workspace.
-- [ ] Export the version through `settings_data.json` so frontend and backend builds from the same sources report the same version.
+- [x] Compute a settings revision during preset preparation, covering everything that can change processing results. The preset catalog's cache fingerprint serves as the revision: it covers the dependency lockfile, the catalog builder, settings processing, preset, and common-type sources, the settings schemas, the preset and classification data, and the logic catalog. It is conservative, since unrelated edits to its inputs also advance it. The revision is `SettingsContext::revision`, so it reaches the backend through the preset catalog and the frontend through `settings_data.json` as `generation.revision`.
+- [x] Compute the project version as described in the [architecture overview](README.md#project-version). The catalog builder writes it to `build/version.txt` on every run, outside its catalog cache, so neither the revision nor any Rust compilation depends on it. The server reads the file at startup, the CLI reads or bundles it like the catalogs, and the generator receives the version from its caller. `common_types::VERSION` is removed.
 
 ## Milestone 5 Backend processing endpoint
 
@@ -174,7 +173,7 @@ An Actix handler check verified aggregate strict-validation findings and item-to
 - [ ] Show recovery notices once, in a dismissible alert at the top of the main content, grouped by document, with setting paths. Show remaining cross-setting errors through the editor's existing problem display.
 - [ ] If the endpoint's revision differs from the bundled revision, the page is stale: ask the player to reload instead of loading the results.
 - [ ] Process imported files and preset codes through the endpoint before adding them; the import dialog waits for the result and shows its notices.
-- [ ] Record the randomizer version in exported preset files, for provenance only. Exports carry no settings revision.
+- [ ] Record the randomizer version, imported from `build/version.txt`, in exported preset files, for provenance only. Exports carry no settings revision.
 - [ ] Read the settings format version from `settings_data.json` rather than the WebAssembly package, so generation does not wait for it.
 - [ ] Remove the type filtering from `readDocument`, keeping its conversion of preset selections and known setting paths into store state.
 - [ ] Keep ordinary editing local. Generation requests submit the cleaned scoped document; the backend independently runs strict processing and reports remaining invalid input.

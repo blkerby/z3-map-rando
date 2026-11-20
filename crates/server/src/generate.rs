@@ -10,6 +10,8 @@ use server::store::Store;
 use tokio::sync::Semaphore;
 
 pub struct GenerationState {
+    /// Project version, from the catalog builder's `version.txt`.
+    pub version: String,
     pub logic: LogicCatalog,
     pub presets: PresetCatalog,
     pub map_pool: Vec<u8>,
@@ -53,6 +55,7 @@ pub async fn generate_seed(
         let settings = report.finish_processing()?;
         let numeric_seed = rand::random();
         let metadata = create_metadata(
+            &worker_state.version,
             numeric_seed,
             &worker_state.logic_hash,
             &worker_state.retiling_hash,

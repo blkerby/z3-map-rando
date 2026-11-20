@@ -1,5 +1,5 @@
 use anyhow::Result;
-use catalog_builder::{cache::CatalogCache, config::BuildConfig};
+use catalog_builder::{cache::CatalogCache, config::BuildConfig, version::write_version};
 use clap::{Parser, Subcommand};
 use std::path::Path;
 
@@ -33,7 +33,9 @@ fn main() -> Result<()> {
         .unwrap();
     let mut config = BuildConfig::read_config(root)?;
     config.resolve_paths(root);
+    let output_directory = config.output_directory.clone();
     let cache = CatalogCache::open_cache(config)?;
+    write_version(root, &output_directory)?;
     match args.command {
         Command::Logic => cache.update_logic()?,
         Command::Retiling => cache.update_retiling()?,

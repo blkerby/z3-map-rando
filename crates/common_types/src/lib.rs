@@ -6,9 +6,6 @@ pub use item::Item;
 
 use serde::{Deserialize, Serialize};
 
-/// Shared project release version:
-pub const VERSION: &str = include_str!("../../../VERSION").trim_ascii();
-
 /// Check Frog/Dwarf permission for an ordinary native ROM door entrance.
 /// IDs below $3C are the first 59 forbidden door-table entries. Drops and
 /// special overworld transitions bypass this check.

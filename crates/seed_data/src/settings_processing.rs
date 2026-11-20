@@ -47,6 +47,9 @@ pub enum SettingsMode {
 /// Prepared live-settings data, independent of catalog encoding and the host environment.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SettingsContext {
+    /// Identifies the processing code and prepared data: documents processed under the same
+    /// revision give the same results.
+    pub revision: String,
     /// Complete built-in baselines, the default first.
     pub root: Vec<RootPreset>,
     pub skill: Vec<SkillPreset>,

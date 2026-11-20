@@ -5,4 +5,5 @@ pub mod logic;
 pub mod patches;
 pub mod presets;
 pub mod retiling;
+pub mod version;
 mod z3_json_data;

@@ -69,6 +69,8 @@ async fn main() -> Result<()> {
         patch_catalog::decode_catalog(fs::File::open(catalog_dir.join("patch_catalog.bin"))?)
             .context("decoding patch catalog")?;
     let state = web::Data::new(GenerationState {
+        version: fs::read_to_string(catalog_dir.join("version.txt"))
+            .context("reading version; run catalog_builder first")?,
         logic: logic_catalog::decode_catalog(logic_bytes.as_slice())?,
         presets: preset_catalog::decode_catalog(fs::File::open(
             catalog_dir.join("preset_catalog.bin"),

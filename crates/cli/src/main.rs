@@ -8,6 +8,7 @@ use std::{
     fs::{self, File},
     io::BufReader,
     path::{Path, PathBuf},
+    sync::LazyLock,
 };
 
 #[cfg(feature = "bundle-catalogs")]
@@ -35,10 +36,19 @@ const BUNDLED_PRESET_CATALOG: Option<&[u8]> = Some(include_bytes!(env!("Z3_PRESE
 #[cfg(not(feature = "bundle-catalogs"))]
 const BUNDLED_PRESET_CATALOG: Option<&[u8]> = None;
 
+/// Project version, from the catalog builder's `version.txt`: bundled with the catalogs, or read
+/// from `build/` like them. Unknown if the file has not been written yet.
+static VERSION: LazyLock<String> = LazyLock::new(|| {
+    #[cfg(feature = "bundle-catalogs")]
+    return include_str!(env!("Z3_VERSION")).to_owned();
+    #[cfg(not(feature = "bundle-catalogs"))]
+    return fs::read_to_string("build/version.txt").unwrap_or_else(|_| "unknown".to_owned());
+});
+
 #[derive(Parser)]
 #[command(
     name = "z3-map-rando",
-    version = common_types::VERSION,
+    version = VERSION.as_str(),
     about = "Generate a randomized seed, patch a ROM, or both"
 )]
 struct Args {
@@ -201,6 +211,7 @@ fn generate_seed(
     };
     let numeric_seed: u64 = args.rng.unwrap_or_else(rand::random);
     let metadata = create_metadata(
+        &VERSION,
         numeric_seed,
         &compute_catalog_hash(&logic_bytes),
         &compute_catalog_hash(retiling_bytes),

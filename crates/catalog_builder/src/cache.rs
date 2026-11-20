@@ -1,6 +1,7 @@
 use crate::{config::BuildConfig, logic, patches, presets, retiling};
 use anyhow::Result;
 use sha2::{Digest, Sha256};
+use std::fmt::Write as _;
 use std::{
     fs::{self, File},
     path::{Path, PathBuf},
@@ -188,8 +189,14 @@ impl CatalogCache {
             hash_input(&mut fingerprint, path.as_os_str().as_encoded_bytes());
             hash_input(&mut fingerprint, &fs::read(path)?);
         }
+        // The fingerprint covers the settings processing code and every input of the prepared
+        // data, so it also serves as the settings revision.
+        let mut revision = String::new();
+        for byte in fingerprint.clone().finalize() {
+            write!(&mut revision, "{byte:02x}").unwrap();
+        }
         update_catalog(&output, fingerprint, clean, || {
-            presets::build_catalog(&self.config, &output)
+            presets::build_catalog(&self.config, &output, revision)
         })
     }
 

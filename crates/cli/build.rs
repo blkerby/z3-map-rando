@@ -3,7 +3,7 @@ fn main() {}
 
 #[cfg(feature = "bundle-catalogs")]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use catalog_builder::{cache::CatalogCache, config::BuildConfig};
+    use catalog_builder::{cache::CatalogCache, config::BuildConfig, version::write_version};
     use std::path::Path;
 
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -25,7 +25,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("cargo:rerun-if-changed={}", path.display());
     }
     cache.update_all()?;
+    write_version(root, &output_directory)?;
     for (name, filename) in [
+        ("Z3_VERSION", "version.txt"),
         ("Z3_LOGIC_CATALOG", "logic_catalog.bin"),
         ("Z3_RETILING_CATALOG", "retiling_catalog.bin"),
         ("Z3_PATCH_CATALOG", "patch_catalog.bin"),

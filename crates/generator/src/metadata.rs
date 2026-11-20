@@ -7,6 +7,7 @@ use std::fmt::Write as _;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub fn create_metadata(
+    version: &str,
     numeric_seed: u64,
     logic_hash: &str,
     retiling_hash: &str,
@@ -25,7 +26,7 @@ pub fn create_metadata(
     }
     Ok(SeedMetadata {
         seed_name,
-        generator_version: common_types::VERSION.to_owned(),
+        generator_version: version.to_owned(),
         generator_commit: None,
         logic_catalog_hash: logic_hash.to_owned(),
         retiling_catalog_hash: retiling_hash.to_owned(),

@@ -18,7 +18,7 @@ fn validate_builtin_presets() -> anyhow::Result<()> {
         config.compression_level,
     )?;
     let path = output.path().join("preset_catalog.bin");
-    presets::build_catalog(&config, &path)?;
+    presets::build_catalog(&config, &path, String::new())?;
     let context = preset_catalog::decode_catalog(File::open(path)?)?;
     for root in &context.root {
         let mut document = json!({

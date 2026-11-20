@@ -98,7 +98,9 @@ struct NotableData {
 ///
 /// Each technique, proficiency level, and notable is described by its upstream note in
 /// z3-json-data, matched by ID. A note's lines are joined into one paragraph.
-pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
+///
+/// `revision` identifies the processing code and prepared data; it is recorded in both outputs.
+pub fn build_catalog(config: &BuildConfig, output: &Path, revision: String) -> Result<()> {
     let techs: Vec<TechRecord> = serde_json::from_slice(&fs::read(&config.tech_data)?)
         .with_context(|| format!("reading {}", config.tech_data.display()))?;
     let notables: Vec<NotableRecord> = serde_json::from_slice(&fs::read(&config.notable_data)?)
@@ -132,6 +134,7 @@ pub fn build_catalog(config: &BuildConfig, output: &Path) -> Result<()> {
     }
 
     let mut catalog = PresetCatalog {
+        revision,
         root: Vec::new(),
         skill: Vec::new(),
         item_pool: Vec::new(),
