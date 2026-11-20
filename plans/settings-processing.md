@@ -1,21 +1,24 @@
-# Browser WebAssembly and settings recovery
+# Settings processing and browser loading
 
-Status: Milestones 1 through 3 are complete. The native consumers share schema and semantic validation, explicit strict/recovery modes, batch repair, and blocking cross-setting findings. Browser bindings and frontend integration remain Milestones 4 onward. Use one Rust implementation of settings migration, preset resolution, validation, and optional recovery from the backend, CLI, and browser. Introduce one browser WebAssembly package for settings processing, then extend that package with ROM patching when browser patching is implemented. Saved presets are processed locally without backend requests.
+Status: Milestones 1 through 3 are complete. The native consumers share schema and semantic validation, explicit strict/recovery modes, batch repair, and blocking cross-setting findings. Milestones 4 onward bring browser loading onto the same processing through a backend endpoint. Use one Rust implementation of settings migration, preset resolution, validation, and recovery, called directly by the backend and CLI. The browser sends stored and imported documents to the backend for processing; its WebAssembly package is used only for ROM patching.
 
-The settings semantics and persisted formats are described in [settings](../docs/data-formats/settings.md), [shared settings data](../docs/data-formats/settings-data.md), and [seed data](../docs/data-formats/seed-data.md). This plan tracks the implementation of the shared processing boundary and browser integration.
+The settings semantics and persisted formats are described in [settings](../docs/data-formats/settings.md), [shared settings data](../docs/data-formats/settings-data.md), and [seed data](../docs/data-formats/seed-data.md). This plan tracks the implementation of the shared processing boundary and its use when loading settings in the browser.
 
 ## Scope and decisions
 
-- Start with generation settings. The customization controls currently contain sample options; move customization onto the shared processing model when its real Rust settings are defined.
-- Maintain migration and recovery code in Rust. Native consumers call it directly; the browser calls it through WebAssembly.
-- Keep Svelte components responsible for presentation and ordinary editing. Replace the frontend's independent loading and type-recovery heuristics with the shared loader.
+- Cover both generation and customization settings. Customization already has a Rust type (`patcher::CustomizationSettings`), a schema (`schema/settings/customization.json`), and built-in presets (`data/presets/customization/`), but no shared processing.
+- Maintain migration and recovery code in Rust. Native consumers call it directly; the browser calls it through the backend. Processing in browser WebAssembly was measured and rejected: the `jsonschema` validator alone is about 4.2 MB (1.3 MB gzipped), roughly four times the current patching package, while the settings code itself is about 0.4 MB.
+- Keep Svelte components responsible for presentation and ordinary editing. Replace the frontend's independent loading and type-recovery heuristics with the backend's processing results. Documents reaching the store are either backend results or stored by this browser with the current revision, so `readDocument` only converts them into store state, without type filtering.
 - Keep Rust structs and JSON schemas separately maintained. JSON Schema defines object structure, scalar types, choices, and static numeric bounds; explicit Rust semantic verification uses existing prepared data for dynamic identities, allowed proficiency levels, and item-specific minimums. `PresetCatalog::definitions` remains removed.
-- Use `schema/` as the project-wide home for JSON schemas, including a future `seed-data.json` for saved seed records. `schema/settings/generation.json` describes complete resolved generation values and references `schema/settings/skill.json` for skill assumptions. Small subordinate structures are inlined. Presets are validated after resolution; no separate preset-wrapper schema is needed for this work. Add a customization schema under `schema/settings/` when the real customization model is defined. Schemas for sparse document envelopes, seed records, and API wrappers are outside this implementation scope.
+- Use `schema/` as the project-wide home for JSON schemas, including a future `seed-data.json` for saved seed records. `schema/settings/generation.json` describes complete resolved generation values and references `schema/settings/skill.json` for skill assumptions; `schema/settings/customization.json` describes complete customization values. Small subordinate structures are inlined. Presets are validated after resolution; no separate preset-wrapper schema is needed for this work. Schemas for sparse document envelopes, seed records, and API wrappers are outside this implementation scope.
 - Close fixed objects with `additionalProperties: false` and require fields guaranteed by preset resolution. Data-driven maps use generic value schemas through `additionalProperties`; specific technique, proficiency, room, notable, and item IDs never appear in the schema. Rust verifies their keys against the correct prepared sets.
 - Apply structural and vocabulary migrations in every processing mode. Explicit migration rules rename, translate, or drop known retired identifiers before validation; recovery handles remaining unexpected or invalid input. Historical rules are added for concrete changes.
-- Make strict processing the default. Enable recovery explicitly for frontend loading/import and through an opt-in CLI option. The generation endpoint and pinned seed reading are strict; pinned records continue using their captured baselines. Recovery is especially useful for development documents with incomplete migrations and documents from newer versions.
+- Make strict processing the default. Recovery is used for browser loading and import, and through an opt-in CLI option. The generation endpoint and pinned seed reading are strict; pinned records continue using their captured baselines. Recovery is especially useful for development documents with incomplete migrations and documents from newer versions.
+- Recovery always produces a loadable document: one whose remaining errors, if any, are cross-setting findings the player can fix in the editor. A document is unrecoverable only if even its root preset with no tweaks cannot be processed, which indicates a bug.
 - Accept whole-valued numeric representations such as `10`, `10.0`, and `1e1` equivalently. Normalize the working JSON to checked integer representations before typed deserialization, without rounding fractions, clamping values, or converting strings. This normalization and ordinary preset inheritance apply in both modes and are not recovery.
-- Begin with one browser package and one WASM module. Keep large patch catalogs and assets separate from the binary. Split the module only if measured download or initialization costs justify it.
+- A settings revision identifies the processing code and prepared data. The browser stores it alongside each document it saves; documents stored with the current revision are loaded without a backend request. The revision is not part of the settings document, so it never appears in exports, share links, generation requests, or seed records.
+- Cleaned documents replace the stored originals as soon as processing finishes. Notices are therefore shown once, when the change happens.
+- Imported files and codes are always processed by the backend, whatever their origin. Exports record the randomizer version for provenance only.
 - The backend independently processes generation requests even when the browser has already processed them. A browser may be stale, and callers may bypass it.
 
 ## Milestone 1 Establish the browser build
@@ -64,8 +67,6 @@ The preset catalog and patcher compile for `wasm32-unknown-unknown`; the full pa
 - [x] Retain authoritative Rust validation for capacities, dynamic member identities, and permitted proficiency levels using existing prepared data.
 - [x] Update the settings revision computation so changes to accepted types, semantic rules, and prepared preset data are represented after removing `definitions`. Frontend and backend builds from the same sources must still use the same revision.
 - [x] Return a processing report containing the cleaned sparse document, resolved values, structured notices, and remaining blocking errors. Keep the captured preset baselines and provenance needed to construct a seed.
-
-Initialize the browser's settings context once using the prepared data already bundled with the frontend. Processing each additional saved preset must not reload the context or make a backend request.
 
 `seed_data::SettingsContext::process_settings` accepts a JSON document and returns a `SettingsReport`. The report holds the untouched original, cleaned document and captured baselines under `source`, optional resolved `values`, and structured `notices` and `errors` with string-segment paths and replacement values where applicable. `finish_processing` admits the resolved values to generation only when no blocking error remains. `preset_catalog::PresetCatalog` names the same context type; its crate supplies only the compressed codec. The context holds proficiency levels and ordinary-item minimums from preparation, and uses derived skill baselines and the ordinary-item vocabulary for known dynamic identities. The server retains its string notice response, and the CLI prints the same structured findings as text.
 
@@ -147,54 +148,48 @@ Temporary integrated checks covered 145 documents in both modes (290 reports), i
 
 An Actix handler check verified aggregate strict-validation findings and item-total findings in HTTP 422 responses. The CLI rejected simultaneous invalid entries by default and generated a seed with explicit recovery, preserving a valid sibling capacity, the selected Testing baseline, and sparse source settings. Workspace checks, browser-target compilation, and frontend type checks pass. Only the requested built-in-preset consistency test remains; other verification sources were removed.
 
-## Milestone 4 Expose the shared loader through WASM
+## Milestone 4 Settings revision and project version
 
-- [ ] Expose initialization and generation-settings processing through the browser binding crate.
-- [ ] Choose a straightforward Serde interchange format for documents and reports. Use typed arrays for future ROM byte buffers.
-- [ ] Expose the processing mode explicitly and keep the prepared data, schema, and compiled validator initialized so processing a list of presets does not repeatedly transfer data or compile the schema across the JavaScript boundary.
-- [ ] Reuse one initialized module instance within the open page.
-- [ ] Keep server, object-store, and generation dependencies out of the browser binding crate.
+- [ ] Compute a settings revision during preset preparation, covering everything that can change processing results: the dependency lockfile, the settings processing, preset, and common-type sources, the settings schemas, prepared semantic facts, and the built-in generation and customization presets. Reusing the preset catalog's cache fingerprint is acceptable; it is conservative, since unrelated edits to its inputs also advance it. Export the same revision through the preset catalog for the backend and `settings_data.json` for the frontend.
+- [ ] Derive the project version as described in the [architecture overview](README.md#project-version), in a `common_types` build script that reruns only when `VERSION`, `.git/HEAD`, or the current branch ref changes, so ordinary edits do not recompile the workspace.
+- [ ] Export the version through `settings_data.json` so frontend and backend builds from the same sources report the same version.
 
-Only export implemented functionality. Add ROM-patching exports to this package when the browser patching feature is implemented; do not add placeholder exports now.
+## Milestone 5 Backend processing endpoint
 
-## Milestone 5 Integrate frontend loading and storage
+- [ ] Move `CustomizationSettings` into `seed_data`, add the customization presets to the preset catalog, and process customization documents through the same `SettingsContext` path with their own schema. Replace the Rust `Default` for customization with the default customization preset, so the defaults have one source; the CLI uses that preset when no customization file is given.
+- [ ] Guarantee a loadable result in recovery mode. If findings other than cross-setting ones remain after per-setting repair, fall back in steps, reporting each: drop the tweaks of each child scope that still has errors while keeping its preset selection, then drop all tweaks while keeping the root preset (or the default root preset if it is unknown). A document still failing after that is unrecoverable.
+- [ ] Add `POST /api/settings/process`, taking batches of generation and customization documents and processing each in recovery mode. Return one result per document: the cleaned document, notices, and remaining cross-setting errors, or an unrecoverable marker. Include the backend's settings revision in the response. Processing uses no generation slot.
+- [ ] Process each document under `catch_unwind`, so a panic or error caused by one document makes only that document unrecoverable rather than failing the batch.
+- [ ] Size the request body limit for the largest valid batch: the maximum user presets of both kinds plus drafts, and the import size limit.
+- [ ] Include the frontend's revision in the generation request wrapper, outside the settings document. A mismatch returns an error the frontend shows as a reload prompt.
+- [ ] Verify recovery robustness with temporary fuzzing: mutated documents with swapped types, removed and added keys, and scalars in place of containers must each produce a loadable result, never a panic or `Err`. Remove the fuzzing code afterwards.
 
-- [ ] Process generation drafts, saved user presets, imported files and preset codes, and share-link settings with recovery enabled before placing them into editor state. Keep this behavior available for development documents and settings from newer versions.
-- [ ] Replace generation settings calls to `readDocument` and its basic `typeof` filtering with the shared processing result. Keep customization on its existing loader until its Rust model is defined.
-- [ ] Display recovery notices and blocking errors, including their setting paths.
-- [ ] Preserve the original imported or stored document until an explicit save accepts the cleaned version. Decide its browser-storage representation before changing the autosave behavior.
-- [ ] Prevent loading and recovery alone from triggering autosave effects that overwrite the preserved original. Handle drafts and saved user presets consistently.
+## Milestone 6 Frontend loading and storage
+
+- [ ] Store the settings revision alongside each stored document: the generation draft, the customization draft, and each user preset list. A document stored with the current revision is loaded directly; one with another revision, or none, is sent to the endpoint and written back with the current revision as soon as its result arrives.
+- [ ] Hold back everything below the navbar until the stored documents are ready, on both Generate and seed pages. Show a progress indicator only after a short delay, so fast responses do not flash. Move the seed page's data loading from its SvelteKit `load` into the page component, so the navbar stays visible there too.
+- [ ] On a network failure, timeout, or server error for the whole request, show the error with a Retry button. Leave stored data untouched; autosave stays disabled until loading completes.
+- [ ] Treat stored values that are not valid JSON as unrecoverable without sending them.
+- [ ] For each unrecoverable document, show a blocking prompt naming it ("Your draft", "Preset *X*"), offering to reset a draft to Default or delete a preset. Offer "Copy settings" first, so the raw input can be kept for a bug report. Other documents load normally.
+- [ ] Show recovery notices once, in a dismissible alert at the top of the main content, grouped by document, with setting paths. Show remaining cross-setting errors through the editor's existing problem display.
+- [ ] If the endpoint's revision differs from the bundled revision, the page is stale: ask the player to reload instead of loading the results.
+- [ ] Process imported files and preset codes through the endpoint before adding them; the import dialog waits for the result and shows its notices.
+- [ ] Record the randomizer version in exported preset files, for provenance only. Exports carry no settings revision.
+- [ ] Read the settings format version from `settings_data.json` rather than the WebAssembly package, so generation does not wait for it.
+- [ ] Remove the type filtering from `readDocument`, keeping its conversion of preset selections and known setting paths into store state.
 - [ ] Keep ordinary editing local. Generation requests submit the cleaned scoped document; the backend independently runs strict processing and reports remaining invalid input.
-- [ ] Handle module-loading failure without discarding stored presets or drafts.
-
-## Milestone 6 Integrate development builds and caching
-
-- [ ] Build the browser package before frontend development, checking, or production builds need its generated bindings and type declarations.
-- [ ] Rebuild WASM when relevant Rust sources change and refresh the browser to load the new module. Track schema edits in prepared-data invalidation and browser refresh behavior.
-- [ ] Preserve normal Vite hot reload for Svelte, TypeScript, and CSS edits without restarting Rust.
-- [ ] Load the browser module when entering Generate rather than on unrelated pages.
-- [ ] Emit WASM and its JavaScript glue as content-hashed build assets.
-- [ ] Serve hashed immutable assets with a long-lived immutable cache policy. Revalidate HTML and update metadata so browsers discover changed asset URLs.
-- [ ] Keep API responses outside the static-asset cache policy.
-- [ ] Confirm unchanged WASM keeps a reusable asset URL and changed WASM receives a new URL.
-
-Use normal browser caching initially. A release that does not change the WASM bytes need not force another WASM download; browser cache eviction can still cause a download.
 
 ## Milestone 7 Verify and document
 
-- [ ] Compare native and WASM processing results in both modes for complete values, sparse documents, preset scopes, normalization, and captured provenance.
-- [ ] Cover multiple simultaneous findings, wrong scalar types, invalid choices, invalid integer ranges, invalid proficiency levels, unknown properties and dynamic IDs, malformed containers, missing entries, and documents from newer formats. Verify additional-property errors remove only the offending submitted keys in recovery mode.
-- [ ] Cover whole-valued decimal/exponent notation, fractional values, numeric strings, and Rust numeric boundaries; ensure the schema, normalization, semantic checks, and final Serde conversion agree.
-- [ ] Confirm required fields are supplied by resolution, partial objects preserve inherited siblings, and a broken baseline or schema mismatch blocks processing in both modes.
+- [ ] Cover multiple simultaneous findings, wrong scalar types, invalid choices, invalid integer ranges, invalid proficiency levels, unknown properties and dynamic IDs, malformed containers, missing entries, and documents from newer formats, for both generation and customization. Verify additional-property errors remove only the offending submitted keys in recovery mode.
+- [ ] Confirm required fields are supplied by resolution, partial objects preserve inherited siblings, and a broken baseline or schema mismatch blocks strict processing.
 - [ ] Confirm migration runs before recovery when the first actual migration is introduced, including explicit obsolete-key removal accepted by strict consumers.
-- [ ] Verify original drafts and presets survive loading and recovery until explicit save.
-- [ ] Check bulk preset loading for repeated catalog transfers, backend requests, and browser responsiveness.
+- [ ] Check in the browser: current-revision storage loads without a request; stale storage is processed, written back, and its notices shown once; network failure leaves storage intact and retries; an unrecoverable document can be copied and discarded; a stale tab is asked to reload.
 - [ ] Verify strict backend generation, strict CLI defaults, and explicit CLI recovery through the shared loader. Keep pinned seed reading strict against captured baselines.
-- [ ] Verify fresh-checkout frontend builds, development rebuilds, asset hashes, and production cache headers.
-- [ ] Record WASM download size and initialization time. Use those measurements to decide whether the combined module needs changing.
-- [ ] Update the settings, shared-data, and backend documentation to describe the implemented processing boundary and recovery behavior.
+- [ ] Verify release and dev version strings from tagged and untagged commits.
+- [ ] Update the settings, shared-data, backend API, and backend documentation to describe the implemented endpoint, revision, and loading behavior.
 - [ ] Keep the user-requested built-in-preset consistency test. Remove other temporary verification code before completing each implementation task, following the repository instructions.
 
 ## Deferred work
 
-Full browser ROM patching, retrieval endpoints, real customization settings and their schema, schemas for seed records or API wrappers, additional WASM modules, and background-worker execution are separate work. Historical transformations are added for concrete format or vocabulary changes rather than speculative old formats.
+Full browser ROM patching, share links, retrieval endpoints, schemas for seed records or API wrappers, and background-worker execution are separate work. When browser patching is implemented, its WebAssembly package needs development rebuilds on Rust changes, content-hashed assets with long-lived immutable caching, and loading only on pages that patch. Historical transformations are added for concrete format or vocabulary changes rather than speculative old formats.

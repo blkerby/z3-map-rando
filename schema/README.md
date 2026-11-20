@@ -1,6 +1,6 @@
 # JSON schemas
 
-This directory holds JSON schemas for the project's JSON formats. Settings validation is the initial implementation scope, tracked in [the browser settings plan](../plans/browser-settings.md#milestone-3-implement-validation-and-recovery). A future `seed-data.json` schema for saved seed records belongs here too.
+This directory holds JSON schemas for the project's JSON formats. Settings validation is the initial implementation scope, tracked in [the settings processing plan](../plans/settings-processing.md#milestone-3-implement-validation-and-recovery). A future `seed-data.json` schema for saved seed records belongs here too.
 
 The settings schemas use JSON Schema Draft 2020-12. [settings/generation.json](settings/generation.json) describes complete generation values after preset resolution and references [settings/skill.json](settings/skill.json) for skill assumptions. Small subordinate structures are inlined. [settings/customization.json](settings/customization.json) describes the customization settings applied while patching.
 

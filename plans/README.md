@@ -94,7 +94,9 @@ Successful seed generation produces the area placement coordinates, selected the
 
 ### Project version
 
-The root [`VERSION`](../VERSION) file is the single source for the CLI, future web service, seed metadata, and release packaging. `common_types::VERSION` embeds this value at compile time. Versions have two components: the first increments for regular releases, and the second increments for rare hotfixes addressing severe bugs. For example, `7.0` can be followed by `7.1` and `7.2`, then `8.0` for the next regular release. Cargo package versions are unused. The seed data's integer `format_version` has its separate compatibility rules.
+The root [`VERSION`](../VERSION) file is the single source for the CLI, web service, frontend, seed metadata, and release packaging. `common_types::VERSION` embeds the project version at compile time, and catalog preparation exports it to the frontend through `settings_data.json`. Versions have two components: the first increments for regular releases, and the second increments for rare hotfixes addressing severe bugs. For example, `7.0` can be followed by `7.1` and `7.2`, then `8.0` for the next regular release. Cargo package versions are unused. The seed data's integer `format_version` has its separate compatibility rules.
+
+`VERSION` names the upcoming release: bump it right after tagging a release, and set it on a hotfix branch to the hotfix version. A build whose HEAD carries the tag `v<VERSION>` is that release and reports `<VERSION>`. Any other build reports a prerelease of it, `<VERSION>-dev.<commit UTC date>.<commit UTC time>+<short commit hash>`, such as `8.0-dev.20261119.193204+1c63b11`, which orders before `8.0`. Using the commit time rather than the build time makes the version reproducible from the source. Builds without git report `<VERSION>-dev`. Uncommitted changes are not marked.
 
 ### Saved seed format
 
