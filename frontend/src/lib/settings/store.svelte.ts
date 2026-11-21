@@ -109,6 +109,8 @@ export class SettingsStore {
 	values = $state<Tree>({});
 	/** The selected root preset: built-in or one of the player's own. */
 	selectedId = $state('');
+	/** A generated game's settings document, which then takes the place of the selected preset. */
+	seedDocument = $state<Tree | null>(null);
 	/** Child scope id -> preset picked by hand, or null when it takes what the root preset chooses. */
 	scopePicks = $state<Record<string, string | null>>({});
 	userPresets = $state<UserPreset[]>([]);
@@ -176,8 +178,9 @@ export class SettingsStore {
 		return this.userPreset(this.selectedId)?.name ?? this.builtIn(this.selectedId)?.label ?? '';
 	}
 
-	/** The selected root preset as a settings document. */
+	/** The selected root preset as a settings document (the seed's document, if one is loaded). */
 	get selectedDocument(): Tree {
+		if (this.seedDocument) return this.seedDocument;
 		return this.userPreset(this.selectedId)?.document ?? { preset: this.selectedId };
 	}
 
@@ -441,6 +444,24 @@ export class SettingsStore {
 				|| (own && this.inheritedTweakCount(scope) > 0) ? id : null;
 		}
 		this.values = this.resolve(doc, {}, true);
+	}
+
+	/**
+	 * Take a generated game's settings document as the selected preset, so its differences from its built-in
+	 * preset show as tweaks rather than unsaved changes.
+	 */
+	loadSeed(doc: Tree) {
+		this.seedDocument = doc;
+		this.selectedId = this.rootOf(doc).id;
+		for (const scope of this.model.scopes) this.scopePicks[scope.id] = null;
+		this.values = this.resolve(doc, {}, true);
+	}
+
+	/** Stop treating the seed's document as the selected preset: its scope selections become picks and its tweaks unsaved changes. */
+	releaseSeed() {
+		const doc = this.capture();
+		this.seedDocument = null;
+		this.loadDocument(doc);
 	}
 
 	/** Capture the public settings document. */

@@ -85,6 +85,8 @@
 		<div class="small mb-2 text-body-secondary">
 			{#if changeCount}
 				{changeCount} change{changeCount === 1 ? '' : 's'} from <strong>{presetName}</strong>
+			{:else if generated}
+				Based on <strong>{presetName}</strong>
 			{:else}
 				Matches <strong>{presetName}</strong>
 			{/if}
@@ -116,7 +118,7 @@
 		{#if tweakCount}
 			<button type="button" class="tweaks-toggle" aria-expanded={tweaksOpen} onclick={() => (tweaksOpenByHand = !tweaksOpen)}>
 				<i class="bi" class:bi-chevron-down={tweaksOpen} class:bi-chevron-right={!tweaksOpen}></i>
-				{tweakCount} tweak{tweakCount === 1 ? '' : 's'} in <strong>{presetName}</strong>
+				{tweakCount} tweak{tweakCount === 1 ? '' : 's'}{#if !generated}{' '}in <strong>{presetName}</strong>{/if}
 			</button>
 			{#if tweaksOpen}
 				{#each tweakGroups as g (g.title)}

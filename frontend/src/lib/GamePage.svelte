@@ -179,7 +179,7 @@
 		if (response.status === 404) return false;
 		if (!response.ok) throw new Error(`Couldn't load the seed (server error ${response.status}).`);
 		const data = await response.json();
-		store.loadDocument(store.readDocument(data.settings_document));
+		store.loadSeed(store.readDocument(data.settings_document));
 		store.lockReason = GENERATED_LOCK;
 		return true;
 	}
@@ -299,6 +299,7 @@
 	 * were saved under the revision that generated the game, so the draft is processed when loaded.
 	 */
 	function useSettingsForNewGame() {
+		store.releaseSeed();
 		saveDraft(null);
 		goto(resolve('/generate'));
 	}
