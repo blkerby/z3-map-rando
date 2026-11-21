@@ -33,12 +33,12 @@
 	const mine = $derived(store.userPreset(store.selectedId));
 	const changeCount = $derived(store.changeCount);
 
-	/** The selected preset's tweaks, grouped by scope: the root's own settings, then each child scope. */
+	/** The selected preset's tweaks, grouped by scope: the root's own settings (untitled), then each child scope. */
 	const tweakGroups = $derived.by(() => {
-		const groups: { title: string; paths: Path[] }[] = [];
+		const groups: { title: string; paths: Path[] }[] = [{ title: '', paths: [] }];
 		for (const path of store.tweakedPaths) {
 			const scope = store.scopeOf(path);
-			const title = scope ? `${scope.label}: ${store.scopeLabel(scope)}` : presetName;
+			const title = scope ? `${scope.label}: ${store.scopeLabel(scope)}` : '';
 			let group = groups.find((g) => g.title === title);
 			if (!group) {
 				group = { title, paths: [] };
@@ -46,6 +46,7 @@
 			}
 			group.paths.push(path);
 		}
+		if (!groups[0].paths.length) groups.shift();
 		return groups;
 	});
 	const tweakCount = $derived(store.tweakedPaths.length);
@@ -109,7 +110,7 @@
 			</button>
 			{#if tweaksOpen}
 				{#each tweakGroups as g (g.title)}
-					<div class="tweak-group">{g.title}</div>
+					{#if g.title}<div class="tweak-group">{g.title}</div>{/if}
 					<div class="chips mb-2">
 						{#each g.paths as path (path.join('/'))}
 							<button type="button" class="chip tweak" onclick={() => onjump(path)}>
