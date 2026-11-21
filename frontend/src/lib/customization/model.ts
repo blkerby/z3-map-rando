@@ -5,4 +5,4 @@ import type { RootPreset, SettingsModel } from '$lib/settings/store.svelte';
 const rootPresets: RootPreset[] = [];
 for (const p of settingsData.presets.customization) rootPresets.push({ ...p, scopes: {} });
 
-export const customizationModel: SettingsModel = { rootPresets, scopes: [] };
+export const customizationModel: SettingsModel = { kind: 'customization', rootPresets, scopes: [] };

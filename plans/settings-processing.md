@@ -160,24 +160,25 @@ An Actix handler check verified aggregate strict-validation findings and item-to
 - [x] Add `POST /api/settings/process`, taking one generation or customization document and processing it in recovery mode. It returns either the cleaned document, notices, and remaining cross-setting errors, or an unrecoverable status, together with the backend's settings revision. Processing uses no generation slot.
 - [x] Process the document under `catch_unwind`, so a panic or error caused by the input is reported as unrecoverable rather than as a server error, which the frontend treats as possibly temporary.
 - [x] Keep Actix's default JSON body limit of 2 MiB, ample for one document.
-- [x] Include the frontend's revision in the generation request wrapper, outside the settings document. A mismatch returns HTTP 409, which the frontend currently shows as an error message.
+- [x] Generation accepts documents from any settings revision, migrating and updating them like any live document, so an outdated page can still generate; the seed view shows the settings actually used. Only processing results are tied to the page's revision (see Milestone 6).
 - [x] Verify recovery robustness with temporary fuzzing. 20,000 mutated generation and customization documents (swapped types, removed and added keys, scalars in place of containers, unknown presets) all produced loadable results, and reprocessing each cleaned document gave no further notices or changes. None needed the fallback steps; a broken prepared baseline exercised them, ending as unrecoverable. The fuzzing code was removed.
 
 ## Milestone 6 Frontend loading and storage
 
-- [ ] Store the settings revision alongside each stored document: the generation and customization drafts, and each user preset. A document stored with the current revision is loaded directly; one with another revision, or none, is sent to the endpoint and written back with the current revision as soon as its result arrives.
-- [ ] On page load, process each stale draft and, if stale, the user preset its draft has selected, since the editor compares the draft against that preset. Send these requests in parallel. Hold back everything below the navbar until they are ready, on both Generate and seed pages. Show a progress indicator only after a short delay, so fast responses do not flash. Move the seed page's data loading from its SvelteKit `load` into the page component, so the navbar stays visible there too.
-- [ ] When the player selects a stale user preset, show a brief pending state in the preset menu, ignoring further selections, and apply the preset once its result arrives. If the request fails, keep the current selection and show the error with a Retry button.
-- [ ] On a network failure, timeout, or server error while loading, show the error with a Retry button. Leave stored data untouched; autosave stays disabled until loading completes.
-- [ ] Treat stored values that are not valid JSON as unrecoverable without sending them.
-- [ ] For each unrecoverable document, show a blocking prompt naming it ("Your draft", "Preset *X*"), offering to reset a draft to Default or delete a preset. Offer "Copy settings" first, so the raw input can be kept for a bug report. Other documents load normally.
-- [ ] Show recovery notices once, in a dismissible alert at the top of the main content, naming the document they concern, with setting paths. Show remaining cross-setting errors through the editor's existing problem display.
-- [ ] If the endpoint's revision differs from the bundled revision, the page is stale: ask the player to reload instead of loading the results.
-- [ ] Process each imported preset through the endpoint before adding it; the import dialog waits for the results and shows their notices.
-- [ ] Record the randomizer version, imported from `build/version.txt`, in exported preset files, for provenance only. Exports carry no settings revision.
-- [ ] Read the settings format version from `settings_data.json` rather than the WebAssembly package, so generation does not wait for it.
-- [ ] Remove the type filtering from `readDocument`, keeping its conversion of preset selections and known setting paths into store state.
-- [ ] Keep ordinary editing local. Generation requests submit the cleaned scoped document; the backend independently runs strict processing and reports remaining invalid input.
+- [x] Store the settings revision alongside each stored document: the generation and customization drafts, and each user preset. A document stored with the current revision is loaded directly; one with another revision, or none, is sent to the endpoint and written back with the current revision once loading completes. Server requests go through `frontend/src/lib/settings/processing.ts`.
+- [x] On page load, process each stale draft and, if stale, the user preset its draft has selected, in parallel. Everything below the navbar is held back until they are ready, on both Generate and seed pages, with a progress indicator only after 300 ms. The seed page loads its seed in the page component rather than a SvelteKit `load`.
+- [x] When the player selects or switches to a stale user preset, the preset menu shows a spinner and ignores further choices until it is processed, then applies it. If the request fails, the selection is unchanged and the error is shown with a Retry button.
+- [x] On a network failure or server error while loading, show the error with a Retry button. Storage is untouched, since autosave stays off until loading completes.
+- [x] Treat stored values that are not valid JSON as unreadable without sending them, including a whole preset list.
+- [x] Unreadable documents found while loading (the drafts, a draft's selected preset, or a preset list) are listed in a prompt in place of the page content, offering "Copy settings" and "Discard and continue". A preset found unreadable when selected gets a dialog offering to copy or delete it, or cancel.
+- [x] Show recovery notices once, in a dismissible alert at the top of the main content, naming the document they concern and the affected settings' labels. Notices from imports appear there too, rather than in the import dialog. Remaining cross-setting errors are left to the editor's own problem checks, which currently cover the item pool but not starting ammunition above capacity; generation reports that one.
+- [x] If the endpoint's revision differs from the bundled revision, the page is stale: whether this happens while loading, selecting a preset, or importing, the page content is replaced by a prompt to reload, and nothing from the response is used. Autosave stops, so the stale page writes nothing further.
+- [x] Process each imported preset through the endpoint before adding it; the import dialog waits for the results. Unreadable imported presets are skipped and counted.
+- [x] Record the randomizer version, imported from `build/version.txt`, in exported preset files, for provenance only. Exports carry no settings revision.
+- [x] Read the settings format version from `settings_data.json` (its `format_version`) rather than the WebAssembly package, so generation does not wait for it.
+- [x] Remove the type filtering from `readDocument` and from the store's overlay of document values, keeping the conversion of preset selections and known setting paths into store state.
+- [x] Keep ordinary editing local. Generation requests submit the cleaned scoped document; the backend independently runs strict processing and reports remaining invalid input.
+- [x] "Use these settings for a new game" on a seed page stores the seed's settings as a draft without a revision, since they were saved under the revision that generated the game, so Generate processes them.
 
 ## Milestone 7 Verify and document
 

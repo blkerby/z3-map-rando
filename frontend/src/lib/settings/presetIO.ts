@@ -1,4 +1,5 @@
-import { FORMAT_VERSION } from './store.svelte';
+import version from '$build/version.txt?raw';
+import { FORMAT_VERSION } from './processing';
 import { isTree, type Tree } from './tree';
 
 /** Which preset list a preset belongs to ('settings' or 'customization'). Presets for one can't be imported into another. */
@@ -35,22 +36,26 @@ export function uniqueName(name: string, taken: string[]): string {
 	}
 }
 
-/** An export file, which is also what "Copy as code" puts on the clipboard (with one preset). */
+/**
+ * An export file, which is also what "Copy as code" puts on the clipboard (with one preset). `version`, the
+ * randomizer version that wrote it, is provenance only; importing never depends on it.
+ */
 export function buildExportFile(kind: PresetKind, presets: { name: string; document: Tree }[]): string {
 	const out = [];
 	for (const p of presets) out.push({ name: p.name, document: { format_version: FORMAT_VERSION, ...p.document } });
-	return JSON.stringify({ format: FORMAT, kind, presets: out }, null, 2);
+	return JSON.stringify({ format: FORMAT, version, kind, presets: out }, null, 2);
 }
 
 export interface ParsedPreset {
 	name: string;
-	document: Tree;
+	/** As found in the file; it needs processing before use. */
+	document: unknown;
 }
 
 export type ParseResult = { ok: true; presets: ParsedPreset[] } | { ok: false; error: string };
 
-/** Reads an export file (or a copied preset code). `readDocument` reads each document leniently. */
-export function parseImport(text: string, kind: PresetKind, readDocument: (raw: unknown) => Tree): ParseResult {
+/** Reads an export file (or a copied preset code). */
+export function parseImport(text: string, kind: PresetKind): ParseResult {
 	const input = text.trim();
 	if (!input) return { ok: false, error: 'Paste a preset code or choose a preset file.' };
 	if (input.length > MAX_IMPORT_BYTES) return { ok: false, error: 'That is too large to be a preset file.' };
@@ -73,7 +78,7 @@ export function parseImport(text: string, kind: PresetKind, readDocument: (raw: 
 	const presets: ParsedPreset[] = [];
 	for (const item of data.presets.slice(0, MAX_IMPORT_PRESETS)) {
 		if (!isTree(item)) continue;
-		presets.push({ name: cleanName(item.name) || 'Imported preset', document: readDocument(item.document) });
+		presets.push({ name: cleanName(item.name) || 'Imported preset', document: item.document });
 	}
 	if (!presets.length) return { ok: false, error: 'That file has no usable presets in it.' };
 	return { ok: true, presets };

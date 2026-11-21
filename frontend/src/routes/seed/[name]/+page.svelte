@@ -5,4 +5,4 @@
 	let { data }: PageProps = $props();
 </script>
 
-<GamePage seed={data.seed} settings={data.settings} />
+<GamePage seed={data.seed} />

@@ -7,6 +7,8 @@ import type { Tree } from '$lib/settings/tree';
 
 /** The shape of `settings_data.json`. */
 interface SettingsData {
+	/** Format version of the settings documents this build writes. */
+	format_version: number;
 	/** Ranked easiest to hardest. */
 	difficulties: string[];
 	/** Notes are upstream descriptions, each joined into one paragraph. */
@@ -185,6 +187,7 @@ for (const p of settingsData.presets.root) {
 }
 
 export const generationModel: SettingsModel = {
+	kind: 'generation',
 	rootPresets,
 	scopes: [skillScope, startingStateScope, itemPoolScope]
 };

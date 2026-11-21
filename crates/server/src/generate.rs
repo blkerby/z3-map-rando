@@ -26,8 +26,6 @@ pub struct GenerationState {
 #[derive(Deserialize)]
 pub struct GenerateRequest {
     pub settings: Value,
-    /// Settings revision of the requesting frontend's bundled data.
-    pub revision: String,
 }
 
 #[derive(Serialize)]
@@ -40,13 +38,6 @@ pub async fn generate_seed(
     state: web::Data<GenerationState>,
     request: web::Json<GenerateRequest>,
 ) -> HttpResponse {
-    // A frontend built against other settings data may have edited settings this server reads
-    // differently; the player reloads the page to get the matching frontend.
-    if request.revision != state.presets.revision {
-        return HttpResponse::Conflict().json(json!({
-            "error": "The randomizer has been updated. Reload the page to continue.",
-        }));
-    }
     // Wait without occupying an HTTP or blocking-pool worker; all Actix workers share this slot.
     let permit = state.slot.clone().acquire_owned().await.unwrap();
     let request = request.into_inner();

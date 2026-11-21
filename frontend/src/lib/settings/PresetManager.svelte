@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { StaleError, processDocument, type ProcessResult } from './processing';
 	import type { SettingsStore } from './store.svelte';
 	import {
 		MAX_IMPORT_BYTES,
@@ -19,16 +20,19 @@
 		store,
 		kind,
 		selectId = 'preset',
+		onstale,
 		children
 	}: {
 		store: SettingsStore;
 		kind: PresetKind;
 		selectId?: string;
+		/** The server runs other settings data than this page, which must be reloaded. */
+		onstale: () => void;
 		/** Extra controls shown at the end of the row (e.g. a search box). */
 		children?: Snippet;
 	} = $props();
 
-	type Mode = 'save' | 'rename' | 'switch' | 'delete' | 'import' | null;
+	type Mode = 'save' | 'rename' | 'switch' | 'delete' | 'import' | 'unreadable' | null;
 
 	let mode = $state<Mode>(null);
 	let menuOpen = $state(false);
@@ -39,7 +43,14 @@
 	let formError = $state<string | null>(null);
 	let overwriteConfirm = $state(false);
 	/** Shown only for what isn't visible on screen: a failure, or an import that didn't go as asked. */
-	let notice = $state<{ type: 'info' | 'danger'; text: string } | null>(null);
+	let notice = $state<{ type: 'info' | 'danger'; text: string; retry?: () => void } | null>(null);
+	/** A preset of the player's being processed on the server before it is used. */
+	let pending = $state<string | null>(null);
+	/** Unreadable: the preset the server could not read. */
+	let unreadable = $state<{ id: string; name: string; document: unknown } | null>(null);
+	/** Import: the presets are being processed on the server. */
+	let importing = $state(false);
+	let selectEl = $state<HTMLSelectElement>();
 
 	let menuEl = $state<HTMLElement>();
 	let dialog = $state<HTMLDialogElement>();
@@ -156,8 +167,55 @@
 		if (selected) store.updatePreset(selected.id);
 	}
 
+	/**
+	 * Use a preset: after processing it on the server first if it was stored under another settings revision.
+	 * Further choices are ignored meanwhile. A failed request keeps the current selection.
+	 */
+	async function choose(id: string, use: (id: string) => void) {
+		if (pending) return;
+		if (!store.isStale(id)) {
+			use(id);
+			return;
+		}
+		pending = id;
+		notice = null;
+		try {
+			if ((await store.processPreset(id)) === 'processed') use(id);
+			else {
+				const preset = store.userPreset(id)!;
+				unreadable = { id, name: preset.name, document: preset.document };
+				mode = 'unreadable';
+			}
+		} catch (e) {
+			if (e instanceof StaleError) onstale();
+			else {
+				const text = e instanceof Error ? e.message : "Couldn't load that preset.";
+				notice = { type: 'danger', text, retry: () => choose(id, use) };
+			}
+		} finally {
+			pending = null;
+			// The select shows the chosen option even when the selection didn't change.
+			if (selectEl) selectEl.value = changeCount ? CURRENT : store.selectedId;
+		}
+	}
+
 	function confirmSwitch() {
-		store.switchPreset(presetDraft);
+		const id = presetDraft;
+		closeForm();
+		choose(id, (id) => store.switchPreset(id));
+	}
+
+	async function copyUnreadable() {
+		try {
+			await navigator.clipboard.writeText(JSON.stringify(unreadable?.document, null, 2));
+		} catch {
+			formError = "Couldn't copy to the clipboard.";
+		}
+	}
+
+	function deleteUnreadable() {
+		if (unreadable) store.deletePreset(unreadable.id);
+		unreadable = null;
 		closeForm();
 	}
 
@@ -190,8 +248,10 @@
 		setTimeout(() => URL.revokeObjectURL(url), 1000);
 	}
 
-	function runImport(text: string) {
-		const result = parseImport(text, kind, (raw) => store.readDocument(raw));
+	/** Import presets, each processed on the server first; what processing changed is shown with the other notices. */
+	async function runImport(text: string) {
+		if (importing) return;
+		const result = parseImport(text, kind);
 		if (!result.ok) {
 			formError = result.error;
 			return;
@@ -201,24 +261,50 @@
 			formError = `You already have ${MAX_USER_PRESETS} presets. Delete some first.`;
 			return;
 		}
+		const items = result.presets.slice(0, room);
+		importing = true;
+		let processed: ProcessResult[];
+		try {
+			processed = await Promise.all(items.map((item) => processDocument(store.model.kind, item.document)));
+		} catch (e) {
+			if (e instanceof StaleError) {
+				closeForm();
+				onstale();
+			} else formError = e instanceof Error ? e.message : "Couldn't import those presets.";
+			return;
+		} finally {
+			importing = false;
+		}
 
 		const taken = [...store.rootPresets.map((p) => p.label), ...store.userPresets.map((p) => p.name)];
 		const added = [];
 		let renamed = 0;
-		for (const item of result.presets.slice(0, room)) {
+		let unrecoverable = 0;
+		for (const [i, item] of items.entries()) {
+			const outcome = processed[i];
+			if (outcome.status === 'unrecoverable') {
+				unrecoverable++;
+				continue;
+			}
 			const name = uniqueName(item.name, taken);
 			if (name !== item.name) renamed++;
 			taken.push(name);
-			added.push(store.addPreset(name, item.document));
+			added.push(store.addPreset(name, store.readDocument(outcome.document)));
+			if (outcome.notices.length) store.notices.push({ source: `Imported preset “${name}”`, issues: outcome.notices });
 		}
-		const skipped = result.presets.length - added.length;
+		const skipped = result.presets.length - items.length;
 
 		// A single preset is applied straight away so you can see what you imported.
 		if (added.length === 1 && !store.locked) store.applyPreset(added[0].id);
 
-		if (renamed || skipped) {
+		if (!added.length) {
+			formError = "Those presets couldn't be read.";
+			return;
+		}
+		if (renamed || skipped || unrecoverable) {
 			let text2 = `Imported ${added.length} preset${added.length === 1 ? '' : 's'}`;
 			if (renamed) text2 += ` (${renamed} renamed to avoid duplicates)`;
+			if (unrecoverable) text2 += `; ${unrecoverable} couldn't be read`;
 			if (skipped) text2 += `; ${skipped} skipped because the list is full`;
 			notice = { type: 'info', text: text2 + '.' };
 		}
@@ -248,10 +334,11 @@
 			aria-label="Preset"
 			class="form-select form-select-sm w-auto preset-select"
 			class:changed={changeCount > 0}
-			disabled={store.locked}
+			disabled={store.locked || pending !== null}
 			data-lockable
+			bind:this={selectEl}
 			value={changeCount ? CURRENT : store.selectedId}
-			onchange={(e) => store.applyPreset(e.currentTarget.value)}
+			onchange={(e) => choose(e.currentTarget.value, (id) => store.applyPreset(id))}
 		>
 			{#if changeCount}
 				<option value={CURRENT} hidden disabled>{label}</option>
@@ -269,6 +356,10 @@
 				</optgroup>
 			{/if}
 		</select>
+
+		{#if pending}
+			<span class="spinner-border spinner-border-sm text-body-secondary" role="status" aria-label="Loading preset"></span>
+		{/if}
 
 		{#if selected && store.canUpdate}
 			<button
@@ -359,6 +450,9 @@
 	{#if notice}
 		<div class="alert alert-{notice.type} small py-1 px-2 mt-2 mb-0 d-flex align-items-center" role="status">
 			<span class="me-auto">{notice.text}</span>
+			{#if notice.retry}
+				<button type="button" class="btn btn-outline-danger btn-sm py-0 me-2" onclick={notice.retry}>Retry</button>
+			{/if}
 			<button type="button" class="btn-close btn-sm" aria-label="Dismiss" onclick={() => (notice = null)}></button>
 		</div>
 	{/if}
@@ -378,7 +472,7 @@
 	>
 		<div class="p-4">
 			<h2 id="{selectId}-dialog-title" class="h5 fw-bold mb-3">
-				{mode === 'save' ? 'Save preset' : mode === 'rename' ? 'Rename preset' : mode === 'switch' ? 'Switch preset' : mode === 'delete' ? 'Delete preset' : 'Import presets'}
+				{mode === 'save' ? 'Save preset' : mode === 'rename' ? 'Rename preset' : mode === 'switch' ? 'Switch preset' : mode === 'delete' ? 'Delete preset' : mode === 'unreadable' ? 'Preset can’t be read' : 'Import presets'}
 			</h2>
 			{#if mode === 'save' || mode === 'rename'}
 				<form
@@ -447,6 +541,19 @@
 					<button type="button" class="btn btn-outline-secondary btn-sm" onclick={closeForm}>Cancel</button>
 					<button type="button" class="btn btn-danger btn-sm" onclick={confirmDelete}>Delete</button>
 				</div>
+			{:else if mode === 'unreadable' && unreadable}
+				<p class="small mb-0">
+					Preset “{unreadable.name}” couldn't be read, so it can't be used. This is a bug; copying its settings
+					lets you include them in a report before deleting it.
+				</p>
+				{#if formError}<div class="form-text text-danger">{formError}</div>{/if}
+				<div class="d-flex gap-2 mt-3">
+					<button type="button" class="btn btn-outline-secondary btn-sm me-auto" onclick={copyUnreadable}>
+						<i class="bi bi-clipboard"></i> Copy settings
+					</button>
+					<button type="button" class="btn btn-outline-secondary btn-sm" onclick={closeForm}>Cancel</button>
+					<button type="button" class="btn btn-danger btn-sm" onclick={deleteUnreadable}>Delete</button>
+				</div>
 			{:else if mode === 'import'}
 				<form
 					onsubmit={(e) => {
@@ -474,7 +581,9 @@
 							<i class="bi bi-folder2-open"></i> Choose file…
 						</button>
 						<button type="button" class="btn btn-outline-secondary btn-sm" onclick={closeForm}>Cancel</button>
-						<button type="submit" class="btn btn-primary btn-sm" disabled={!importText.trim()}>Import</button>
+						<button type="submit" class="btn btn-primary btn-sm" disabled={!importText.trim() || importing}>
+							{importing ? 'Importing…' : 'Import'}
+						</button>
 						<input
 							bind:this={fileInput}
 							type="file"

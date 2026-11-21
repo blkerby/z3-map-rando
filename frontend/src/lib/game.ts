@@ -1,6 +1,5 @@
 import type { Tree } from '$lib/settings/tree';
 import { loadBrowser } from '$lib/browser';
-import { settingsData } from '$lib/generation/data';
 import patchCatalogUrl from '$build/patch_catalog.bin?url';
 
 export interface GenerateResult {
@@ -10,14 +9,10 @@ export interface GenerateResult {
 
 /** Submit a scoped settings document; the response identifies the stored seed. */
 export async function generateGame(settings: Tree): Promise<GenerateResult> {
-	const browser = await loadBrowser();
 	const response = await fetch('/api/generate', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({
-			settings: { ...settings, format_version: browser.get_settings_format_version() },
-			revision: settingsData.presets.revision
-		})
+		body: JSON.stringify({ settings })
 	});
 	if (!response.ok) {
 		const text = await response.text();

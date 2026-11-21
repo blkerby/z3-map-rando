@@ -1,4 +1,5 @@
 import { untrack } from 'svelte';
+import { FORMAT_VERSION, REVISION, processDocument, type SettingsIssue, type SettingsKind } from './processing';
 import { SearchState } from './search.svelte';
 import { cloneTree, getAt, isTree, leafPaths, pathKey, setAt, startsWith, type Path, type Tree, type Value } from './tree';
 
@@ -17,9 +18,10 @@ import { cloneTree, getAt, isTree, leafPaths, pathKey, setAt, startsWith, type P
  *
  * The store knows settings only by path. Labels and value formatting come from the controls on the page,
  * which register themselves while mounted (see `register`).
+ *
+ * Every document the store holds is either a result of server processing or was stored by this browser
+ * under the current settings revision (see `processing.ts`), so it is read without further checks.
  */
-
-export const FORMAT_VERSION = 1;
 
 export interface ScopePreset {
 	id: string;
@@ -45,6 +47,7 @@ export interface Scope {
 }
 
 export interface SettingsModel {
+	kind: SettingsKind;
 	/** Built-in root presets; the first is the default. */
 	rootPresets: RootPreset[];
 	scopes: Scope[];
@@ -53,8 +56,28 @@ export interface SettingsModel {
 export interface UserPreset {
 	id: string;
 	name: string;
-	/** A settings document (without `format_version`). */
+	/**
+	 * A settings document (without `format_version` once processed). Stored, it records its format version;
+	 * until processed, it is kept as stored.
+	 */
 	document: Tree;
+	/** The settings revision the document was processed under; another one needs processing before use. */
+	revision: string | null;
+}
+
+/** The stored editor state: the current settings and selections. */
+export interface Draft {
+	selected: string;
+	picks: Record<string, string | null>;
+	/** A settings document. As stored, it records its `format_version`, which loading ignores. */
+	document: Tree;
+}
+
+/** What server processing changed in one document, shown to the player once. */
+export interface NoticeGroup {
+	/** The document, e.g. "Preset “Mine”". */
+	source: string;
+	issues: SettingsIssue[];
 }
 
 /** What a mounted control tells the store about its setting. */
@@ -98,6 +121,8 @@ export class SettingsStore {
 	opened = $state<Record<string, boolean>>({});
 	/** Set when the player's presets couldn't be saved in this browser. */
 	storageFailed = $state(false);
+	/** Changes server processing made to loaded documents, until dismissed. */
+	notices = $state<NoticeGroup[]>([]);
 	/** Mounted controls, by path key. */
 	controls = $state.raw<Record<string, ControlInfo>>({});
 	/** Mounted cards, in page order. */
@@ -206,7 +231,7 @@ export class SettingsStore {
 			for (const path of this.leaves) {
 				if (picked.some((p) => startsWith(path, p))) continue;
 				const v = getAt(doc, path);
-				if (typeof v === typeof getAt(out, path)) setAt(out, path, v as Value);
+				if (v !== undefined) setAt(out, path, v as Value);
 			}
 		}
 		return out;
@@ -387,8 +412,8 @@ export class SettingsStore {
 	}
 
 	/**
-	 * Read a settings document from untrusted input, leniently: unknown presets fall back to the default, and
-	 * unknown settings or values of the wrong type are dropped.
+	 * Read a processed settings document into the form the store holds: its preset selections and the values
+	 * at the settings' paths.
 	 */
 	readDocument(raw: unknown): Tree {
 		const doc: Tree = { preset: this.builtIn(getAt(raw, ['preset']))?.id ?? this.model.rootPresets[0].id };
@@ -396,10 +421,9 @@ export class SettingsStore {
 			const preset = this.scopePreset(scope, getAt(raw, [scope.id, 'preset']));
 			if (preset) doc[scope.id] = { preset: preset.id };
 		}
-		const defaults = this.model.rootPresets[0].settings;
 		for (const path of this.leaves) {
 			const v = getAt(raw, path);
-			if (typeof v === typeof getAt(defaults, path) && (typeof v !== 'number' || Number.isFinite(v))) setAt(doc, path, v as Value);
+			if (v !== undefined) setAt(doc, path, v as Value);
 		}
 		return doc;
 	}
@@ -424,21 +448,22 @@ export class SettingsStore {
 		return { format_version: FORMAT_VERSION, ...this.capture() };
 	}
 
-	/** The current settings and selections, for keeping a draft in this browser. */
-	serializeDraft(): string {
-		return JSON.stringify({ selected: this.selectedId, picks: this.scopePicks, document: this.capture() });
+	/**
+	 * The current settings and selections, for keeping a draft in this browser, with the revision its
+	 * document was processed under (null when it needs processing before use). The stored document records
+	 * its format version, so it can be migrated later.
+	 */
+	serializeDraft(revision: string | null = REVISION): string {
+		const draft: Draft = { selected: this.selectedId, picks: this.scopePicks, document: this.captureDocument() };
+		return JSON.stringify({ revision, ...draft });
 	}
 
-	loadDraft(text: string) {
-		try {
-			const draft = JSON.parse(text);
-			this.loadDocument(this.readDocument(draft.document));
-			this.switchPreset(draft.selected);
-			for (const scope of this.model.scopes) {
-				this.scopePicks[scope.id] = this.scopePreset(scope, getAt(draft, ['picks', scope.id]))?.id ?? null;
-			}
-		} catch {
-			/* unreadable draft: keep the defaults */
+	/** Take a draft's settings and selections. Its document and its selected user preset must be processed. */
+	loadDraft(draft: Draft) {
+		this.loadDocument(this.readDocument(draft.document));
+		this.switchPreset(draft.selected);
+		for (const scope of this.model.scopes) {
+			this.scopePicks[scope.id] = this.scopePreset(scope, draft.picks[scope.id])?.id ?? null;
 		}
 	}
 
@@ -450,8 +475,9 @@ export class SettingsStore {
 		return preset !== undefined && JSON.stringify(this.capture()) !== JSON.stringify(preset.document);
 	}
 
+	/** Add one of the player's presets, holding a processed document. */
 	addPreset(name: string, document: Tree): UserPreset {
-		const preset = { id: newPresetId(), name, document };
+		const preset = { id: newPresetId(), name, document, revision: REVISION };
 		this.userPresets.push(preset);
 		return this.userPresets[this.userPresets.length - 1];
 	}
@@ -461,6 +487,7 @@ export class SettingsStore {
 		const preset = this.userPreset(id);
 		if (!preset) return;
 		preset.document = this.capture();
+		preset.revision = REVISION;
 		this.selectedId = id;
 		for (const scope of this.model.scopes) this.scopePicks[scope.id] = null;
 	}
@@ -476,33 +503,59 @@ export class SettingsStore {
 		this.userPresets = this.userPresets.filter((p) => p.id !== id);
 	}
 
-	loadUserPresets(key: string) {
-		let data: unknown;
-		try {
-			data = JSON.parse(localStorage.getItem(key) ?? '{}');
-		} catch {
-			/* storage unavailable or unreadable: start without saved presets */
-		}
+	/** Does one of the player's presets need processing before use? */
+	isStale(id: string): boolean {
+		const preset = this.userPreset(id);
+		return preset !== undefined && preset.revision !== REVISION;
+	}
+
+	/**
+	 * Process one of the player's presets on the server and keep the result, so it can be used. Its notices
+	 * are shown with the others. Throws when the request fails (see `processDocument`).
+	 */
+	async processPreset(id: string): Promise<'processed' | 'unrecoverable'> {
+		const preset = this.userPreset(id);
+		if (!preset) return 'processed';
+		const result = await processDocument(this.model.kind, preset.document);
+		if (result.status === 'unrecoverable') return 'unrecoverable';
+		preset.document = this.readDocument(result.document);
+		preset.revision = REVISION;
+		if (result.notices.length) this.notices.push({ source: `Preset “${preset.name}”`, issues: result.notices });
+		return 'processed';
+	}
+
+	/** Take stored presets, as saved by `saveUserPresets`. */
+	loadUserPresets(data: unknown) {
 		this.userPresets = this.readPresets(getAt(data, ['presets']));
 	}
 
+	/**
+	 * Store the player's presets. Processed documents record the current format version, so they can be
+	 * migrated later; presets not yet processed are kept as they were stored.
+	 */
 	saveUserPresets(key: string) {
+		const presets: UserPreset[] = [];
+		for (const preset of this.userPresets) {
+			if (preset.revision === REVISION) presets.push({ ...preset, document: { format_version: FORMAT_VERSION, ...preset.document } });
+			else presets.push(preset);
+		}
 		try {
-			localStorage.setItem(key, JSON.stringify({ format_version: FORMAT_VERSION, presets: this.userPresets }));
+			localStorage.setItem(key, JSON.stringify({ presets }));
 			this.storageFailed = false;
 		} catch {
 			this.storageFailed = true;
 		}
 	}
 
-	/** Read stored presets back, discarding anything malformed. */
+	/** Read stored presets back, discarding anything malformed. Documents are kept as stored until processed. */
 	private readPresets(raw: unknown): UserPreset[] {
 		const out: UserPreset[] = [];
 		if (!Array.isArray(raw)) return out;
 		for (const item of raw) {
-			if (!isTree(item) || typeof item.name !== 'string') continue;
+			if (!isTree(item) || typeof item.name !== 'string' || !isTree(item.document)) continue;
 			const id = typeof item.id === 'string' && /^user-[a-z0-9]{4,32}$/.test(item.id) && !out.some((p) => p.id === item.id) ? item.id : newPresetId();
-			out.push({ id, name: item.name, document: this.readDocument(item.document) });
+			const revision = typeof item.revision === 'string' ? item.revision : null;
+			out.push({ id, name: item.name, document: revision === REVISION ? this.readDocument(item.document) : item.document, revision });
 		}
 		return out;
 	}

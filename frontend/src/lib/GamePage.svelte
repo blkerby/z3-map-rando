@@ -14,19 +14,17 @@
 	import SettingsProvider from '$lib/settings/SettingsProvider.svelte';
 	import SummaryPanel from '$lib/settings/SummaryPanel.svelte';
 	import { SearchState } from '$lib/settings/search.svelte';
-	import { SettingsStore } from '$lib/settings/store.svelte';
-	import { pathKey, type Path, type Tree } from '$lib/settings/tree';
+	import { REVISION, StaleError, processDocument, type SettingsIssue } from '$lib/settings/processing';
+	import { SettingsStore, type Draft } from '$lib/settings/store.svelte';
+	import { pathKey, type Path } from '$lib/settings/tree';
 	import { useRomStore } from '$lib/rom/store.svelte';
 	import { generateGame } from '$lib/game';
 
 	let {
-		seed = null,
-		settings = null
+		seed = null
 	}: {
 		/** The generated game to show (settings locked), or null to configure a new one. */
 		seed?: string | null;
-		/** The game's public settings document, as saved with the seed. */
-		settings?: Tree | null;
 	} = $props();
 
 	const rom = useRomStore();
@@ -68,7 +66,6 @@
 	let error = $state<string | null>(null);
 	/** Passed along by `generate` when it navigates to the seed, so they show only right after generating. */
 	const generationNotices = $derived(page.state.notices ?? []);
-	let ready = $state(false);
 
 	// svelte-ignore state_referenced_locally
 	let generateOpen = $state(!generated);
@@ -84,21 +81,145 @@
 	const CUSTOM_KEY = 'alttp-maprando:customization';
 	const CUSTOM_PRESETS_KEY = 'alttp-maprando:presets:customization';
 
-	function loadDraft() {
+	function saveDraft(revision?: string | null) {
 		try {
-			const draft = sessionStorage.getItem(DRAFT_KEY);
-			if (draft) store.loadDraft(draft);
-		} catch {
-			/* storage unavailable: start fresh */
-		}
-	}
-
-	function saveDraft() {
-		try {
-			sessionStorage.setItem(DRAFT_KEY, store.serializeDraft());
+			sessionStorage.setItem(DRAFT_KEY, store.serializeDraft(revision));
 		} catch {
 			/* ignore */
 		}
+	}
+
+	// ---- Loading --------------------------------------------------------------
+	// Nothing below the navbar is shown until the stored settings are loaded, so defaults never show in their
+	// place. Stored documents saved under another settings revision are processed on the server first, and
+	// written back once loading completes; until then, autosave is off and storage is left untouched.
+
+	type LoadState =
+		| { status: 'loading' }
+		| { status: 'ready' }
+		/** The request failed, possibly temporarily. */
+		| { status: 'failed'; message: string }
+		/** The server runs other settings data than this page. */
+		| { status: 'stale' }
+		/** No seed of this name. */
+		| { status: 'missing' };
+
+	let load = $state<LoadState>({ status: 'loading' });
+	/** Loading is taking long enough to show that it is happening. */
+	let slow = $state(false);
+	/** Stored settings the server couldn't read, which are discarded once the player has seen them. */
+	let unreadable = $state<{ name: string; raw: string }[]>([]);
+	const ready = $derived(load.status === 'ready' && unreadable.length === 0);
+
+	/** A stored JSON value: null when absent or storage is unavailable, `raw` text when it isn't valid JSON. */
+	function readStored(storage: () => Storage, key: string): { value: unknown } | { raw: string } | null {
+		let raw: string | null;
+		try {
+			raw = storage().getItem(key);
+		} catch {
+			return null;
+		}
+		if (raw === null) return null;
+		try {
+			return { value: JSON.parse(raw) };
+		} catch {
+			return { raw };
+		}
+	}
+
+	/**
+	 * Restore a store's presets and, if given, its draft. The draft and the user preset it selects (which the
+	 * editor compares it with) are processed on the server if stored under another revision; other presets
+	 * are processed when selected. Returns what couldn't be read, which is left out.
+	 */
+	async function restore(
+		settings: SettingsStore,
+		noun: string,
+		presetsKey: string,
+		draft: { storage: () => Storage; key: string } | null
+	): Promise<{ name: string; raw: string }[]> {
+		const out = [];
+		settings.notices = [];
+		const presets = readStored(() => localStorage, presetsKey);
+		if (presets && 'raw' in presets) out.push({ name: `Your saved ${noun} presets`, raw: presets.raw });
+		settings.loadUserPresets(presets && 'value' in presets ? presets.value : null);
+		if (!draft) return out;
+		const stored = readStored(draft.storage, draft.key);
+		if (!stored) return out;
+		if ('raw' in stored) {
+			out.push({ name: `Your current ${noun}`, raw: stored.raw });
+			return out;
+		}
+		const saved = stored.value as Draft & { revision: string | null };
+		const [presetOutcome, result] = await Promise.all([
+			settings.isStale(saved.selected) ? settings.processPreset(saved.selected) : 'processed',
+			saved.revision === REVISION ? null : processDocument(settings.model.kind, saved.document)
+		]);
+		if (presetOutcome === 'unrecoverable') {
+			const preset = settings.userPreset(saved.selected)!;
+			out.push({ name: `Preset “${preset.name}”`, raw: JSON.stringify(preset.document) });
+			settings.deletePreset(preset.id);
+		}
+		if (result?.status === 'unrecoverable') {
+			out.push({ name: `Your current ${noun}`, raw: JSON.stringify(saved.document) });
+			return out;
+		}
+		if (result?.notices.length) settings.notices.push({ source: `Your current ${noun}`, issues: result.notices });
+		settings.loadDraft(result ? { ...saved, document: result.document } : saved);
+		return out;
+	}
+
+	/** Load the seed's settings into the (locked) store. Returns false if there is no such seed. */
+	async function loadSeed(name: string): Promise<boolean> {
+		const response = await fetch(`/api/seed/${encodeURIComponent(name)}`);
+		if (response.status === 404) return false;
+		if (!response.ok) throw new Error(`Couldn't load the seed (server error ${response.status}).`);
+		const data = await response.json();
+		store.loadDocument(store.readDocument(data.settings_document));
+		store.lockReason = GENERATED_LOCK;
+		return true;
+	}
+
+	async function loadPage() {
+		load = { status: 'loading' };
+		slow = false;
+		const timer = setTimeout(() => (slow = true), 300);
+		try {
+			const [found, generationUnreadable, customUnreadable] = await Promise.all([
+				seed === null || loadSeed(seed),
+				restore(store, 'generation settings', PRESETS_KEY, seed === null ? { storage: () => sessionStorage, key: DRAFT_KEY } : null),
+				restore(custom, 'customization', CUSTOM_PRESETS_KEY, { storage: () => localStorage, key: CUSTOM_KEY })
+			]);
+			unreadable = [...generationUnreadable, ...customUnreadable];
+			load = found ? { status: 'ready' } : { status: 'missing' };
+		} catch (e) {
+			if (e instanceof StaleError) showStale();
+			else load = { status: 'failed', message: e instanceof Error ? e.message : "Couldn't load your settings." };
+		} finally {
+			clearTimeout(timer);
+		}
+	}
+
+	/**
+	 * The server runs other settings data than this page: replace the content with the prompt to reload. This
+	 * also stops autosave, so the stale page writes nothing further.
+	 */
+	function showStale() {
+		load = { status: 'stale' };
+	}
+
+	async function copyUnreadable() {
+		const text = unreadable.map((item) => `${item.name}:\n${item.raw}`).join('\n\n');
+		try {
+			await navigator.clipboard.writeText(text);
+		} catch {
+			/* nothing to fall back to */
+		}
+	}
+
+	/** A notice line: the setting's label, if it has a control, and what happened. */
+	function noticeText(settings: SettingsStore, issue: SettingsIssue): string {
+		return issue.path.length ? `${settings.label(issue.path)}: ${issue.message}` : issue.message;
 	}
 
 	$effect(() => {
@@ -130,23 +251,7 @@
 		void loadBrowser().catch((e) => {
 			error = e instanceof Error ? e.message : 'Could not load browser settings support.';
 		});
-
-		// Presets before the drafts, which may name one of them.
-		store.loadUserPresets(PRESETS_KEY);
-		custom.loadUserPresets(CUSTOM_PRESETS_KEY);
-		try {
-			const draft = localStorage.getItem(CUSTOM_KEY);
-			if (draft) custom.loadDraft(draft);
-		} catch {
-			/* storage unavailable: start from defaults */
-		}
-		if (settings) {
-			store.loadDocument(store.readDocument(settings));
-			store.lockReason = GENERATED_LOCK;
-		} else {
-			loadDraft();
-		}
-		ready = true;
+		void loadPage();
 	});
 
 	// ---- Actions ------------------------------------------------------------
@@ -170,9 +275,12 @@
 		}
 	}
 
-	/** Make this game's settings the /generate draft, so the player can tweak them and generate again. */
+	/**
+	 * Make this game's settings the /generate draft, so the player can tweak them and generate again. They
+	 * were saved under the revision that generated the game, so the draft is processed when loaded.
+	 */
 	function useSettingsForNewGame() {
-		saveDraft();
+		saveDraft(null);
 		goto(resolve('/generate'));
 	}
 
@@ -262,7 +370,68 @@
 	{/each}
 {/snippet}
 
+{#if !ready}
+	<main class="container my-4">
+		{#if load.status === 'loading'}
+			{#if slow}
+				<div class="d-flex align-items-center gap-2 text-body-secondary" role="status">
+					<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+					Loading your settings…
+				</div>
+			{/if}
+		{:else if load.status === 'failed'}
+			<div class="alert alert-danger d-flex align-items-center gap-3" role="alert">
+				<span class="me-auto">{load.message}</span>
+				<button type="button" class="btn btn-outline-danger btn-sm" onclick={loadPage}>Retry</button>
+			</div>
+		{:else if load.status === 'stale'}
+			<div class="alert alert-warning d-flex align-items-center gap-3" role="alert">
+				<span class="me-auto">The randomizer has been updated. Reload the page to continue.</span>
+				<button type="button" class="btn btn-outline-secondary btn-sm" onclick={() => location.reload()}>Reload</button>
+			</div>
+		{:else if load.status === 'missing'}
+			<div class="alert alert-warning" role="alert">There is no game called “{seed}”.</div>
+		{:else}
+			<div class="card p-4 unreadable" role="alert">
+				<h2 class="h5 fw-bold mb-2">Some saved settings can’t be read</h2>
+				<p class="small mb-2">
+					This is a bug. These will be discarded; copying them first lets you include them in a report.
+				</p>
+				<ul class="small">
+					{#each unreadable as item (item.name)}
+						<li>{item.name}</li>
+					{/each}
+				</ul>
+				<div class="d-flex gap-2">
+					<button type="button" class="btn btn-outline-secondary btn-sm me-auto" onclick={copyUnreadable}>
+						<i class="bi bi-clipboard"></i> Copy settings
+					</button>
+					<button type="button" class="btn btn-primary btn-sm" onclick={() => (unreadable = [])}>Discard and continue</button>
+				</div>
+			</div>
+		{/if}
+	</main>
+{:else}
 <main class="container my-4">
+	{#each [store, custom] as settings (settings.idPrefix)}
+		{#if settings.notices.length}
+			<div class="alert alert-info small py-2 px-3 d-flex align-items-start" role="status">
+				<div class="me-auto">
+					<div class="fw-semibold">Some saved settings were updated for this version of the randomizer.</div>
+					{#each settings.notices as group, i (i)}
+						<div class="mt-1">{group.source}:</div>
+						<ul class="mb-0">
+							{#each group.issues as issue, j (j)}
+								<li>{noticeText(settings, issue)}</li>
+							{/each}
+						</ul>
+					{/each}
+				</div>
+				<button type="button" class="btn-close btn-sm" aria-label="Dismiss" onclick={() => (settings.notices = [])}></button>
+			</div>
+		{/if}
+	{/each}
+
 	{#if generationNotices.length}
 		<div class="alert alert-warning small py-2 px-3" role="status">
 			{#each generationNotices as notice}
@@ -324,7 +493,7 @@
 				bind:open={generateOpen}
 			>
 				{#snippet actions()}
-					<PresetManager bind:this={settingsPresets} {store} kind="settings" selectId="preset" />
+					<PresetManager bind:this={settingsPresets} {store} kind="settings" selectId="preset" onstale={showStale} />
 				{/snippet}
 				<SettingsProvider {store}><GenerationSettings /></SettingsProvider>
 				{#if !generateMatches}
@@ -334,7 +503,7 @@
 
 			<CollapsibleSection id="customization" title="Customization" bind:open={customizationOpen}>
 				{#snippet actions()}
-					<PresetManager bind:this={customPresets} store={custom} kind="customization" selectId="custom-preset" />
+					<PresetManager bind:this={customPresets} store={custom} kind="customization" selectId="custom-preset" onstale={showStale} />
 				{/snippet}
 				<SettingsProvider store={custom}><CustomizationSettings /></SettingsProvider>
 				{#if !customMatches}
@@ -368,6 +537,7 @@
 		</div>
 	</div>
 </main>
+{/if}
 
 {#if lockToast}
 	<div class="toast show lock-toast" role="status">
@@ -379,6 +549,10 @@
 {/if}
 
 <style>
+	.unreadable {
+		max-width: 36rem;
+	}
+
 	.lock-toast {
 		position: fixed;
 		bottom: 1.5rem;

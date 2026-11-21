@@ -46,6 +46,8 @@ struct PresetFile {
 /// `settings_data.json` beside the preset catalog.
 #[derive(Serialize)]
 struct SettingsData {
+    /// Format version of settings documents written by this build.
+    format_version: u32,
     difficulties: [&'static str; 5],
     proficiencies: Vec<ProficiencyData>,
     techs: Vec<TechData>,
@@ -322,6 +324,7 @@ pub fn build_catalog(config: &BuildConfig, output: &Path, revision: String) -> R
     }
 
     let mut settings_data = SettingsData {
+        format_version: SETTINGS_FORMAT_VERSION,
         difficulties: DIFFICULTIES,
         proficiencies: Vec::new(),
         techs: Vec::new(),
