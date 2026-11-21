@@ -526,12 +526,12 @@
 					<div class="alert alert-warning small py-2 px-3" role="alert">{problem}</div>
 				{/each}
 				{#if !generated}
-					<button type="button" class="btn btn-primary" disabled={generating || problems.length > 0} onclick={generate}>
+					<button type="button" class="btn btn-primary px-4 py-2" disabled={generating || problems.length > 0} onclick={generate}>
 						{#if generating}
 							<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
 							Generating…
 						{:else}
-							Generate game
+							<i class="bi bi-dice-5"></i> Generate game
 						{/if}
 					</button>
 				{/if}
@@ -549,7 +549,7 @@
 					<div class="alert alert-danger small py-2 px-3" role="alert">{romError}</div>
 				{/if}
 				<span title={generated ? undefined : 'Generate a game first, before a ROM can be saved.'}>
-					<button type="button" class="btn btn-primary" disabled={!generated || downloading} onclick={download}>
+					<button type="button" class="btn btn-primary px-4 py-2" disabled={!generated || downloading} onclick={download}>
 						{#if downloading}
 							<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
 							Preparing…
