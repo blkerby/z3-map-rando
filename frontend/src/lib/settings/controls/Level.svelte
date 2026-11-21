@@ -23,12 +23,24 @@
 
 	let slider = $state<HTMLInputElement>();
 
-	function selectNearest(e: PointerEvent) {
+	// The stop nearest the pointer while it is over the box, shown as a faint thumb.
+	let hoverIndex = $state<number | null>(null);
+
+	function findNearest(e: PointerEvent): number {
 		const rect = slider!.getBoundingClientRect();
 		const inset = THUMB_HALF_REM * parseFloat(getComputedStyle(document.documentElement).fontSize);
 		const fraction = (e.clientX - rect.left - inset) / (rect.width - 2 * inset);
-		const i = Math.min(levels.length - 1, Math.max(0, Math.round(fraction * (levels.length - 1))));
+		return Math.min(levels.length - 1, Math.max(0, Math.round(fraction * (levels.length - 1))));
+	}
+
+	function selectNearest(e: PointerEvent) {
+		const i = findNearest(e);
 		if (i !== index) onchange(levels[i].value);
+	}
+
+	// Stop positions, shared by the tick labels and the hover thumb.
+	function positionOf(i: number): string {
+		return `calc(var(--thumb-half) + (100% - 2 * var(--thumb-half)) * ${i / Math.max(1, levels.length - 1)})`;
 	}
 
 	// Pressing anywhere in the box outside the native slider selects the nearest stop, and dragging
@@ -43,31 +55,40 @@
 
 	function onpointermove(e: PointerEvent) {
 		const box = e.currentTarget as HTMLElement;
+		hoverIndex = findNearest(e);
 		if (box.hasPointerCapture(e.pointerId)) selectNearest(e);
 	}
 </script>
 
-<div class="level" role="presentation" style:--thumb-half="{THUMB_HALF_REM}rem" {onpointerdown} {onpointermove}>
-	<input
-		bind:this={slider}
-		type="range"
-		class="form-range"
-		min="0"
-		max={levels.length - 1}
-		step="1"
-		value={index}
-		{disabled}
-		aria-label={label}
-		aria-valuetext={levels[index]?.label}
-		oninput={(e) => onchange(levels[Number(e.currentTarget.value)].value)}
-	/>
+<div
+	class="level"
+	role="presentation"
+	style:--thumb-half="{THUMB_HALF_REM}rem"
+	{onpointerdown}
+	{onpointermove}
+	onpointerleave={() => (hoverIndex = null)}
+>
+	<div class="track">
+		<input
+			bind:this={slider}
+			type="range"
+			class="form-range"
+			min="0"
+			max={levels.length - 1}
+			step="1"
+			value={index}
+			{disabled}
+			aria-label={label}
+			aria-valuetext={levels[index]?.label}
+			oninput={(e) => onchange(levels[Number(e.currentTarget.value)].value)}
+		/>
+		{#if hoverIndex !== null && hoverIndex !== index && !disabled}
+			<span class="hover-thumb" style:left={positionOf(hoverIndex)} aria-hidden="true"></span>
+		{/if}
+	</div>
 	<div class="ticks" aria-hidden="true">
 		{#each levels as l, i (l.value)}
-			<span
-				class="tick"
-				class:on={i === index}
-				style:left="calc(var(--thumb-half) + (100% - 2 * var(--thumb-half)) * {i / Math.max(1, levels.length - 1)})"
-			>
+			<span class="tick" class:on={i === index} style:left={positionOf(i)}>
 				{l.label}
 			</span>
 		{/each}
@@ -97,6 +118,23 @@
 	/* The browser's own stylesheet gives range inputs `cursor: default`. */
 	.level input {
 		cursor: inherit;
+	}
+
+	.track {
+		position: relative;
+	}
+
+	/* Same size as Bootstrap's range thumb, centered on its 1.5rem-tall range input. */
+	.hover-thumb {
+		position: absolute;
+		top: 0.75rem;
+		width: calc(2 * var(--thumb-half));
+		height: calc(2 * var(--thumb-half));
+		border-radius: 50%;
+		background: var(--bs-emphasis-color);
+		opacity: 0.25;
+		transform: translate(-50%, -50%);
+		pointer-events: none;
 	}
 
 	.ticks {

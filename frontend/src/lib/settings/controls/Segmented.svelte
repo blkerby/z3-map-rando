@@ -47,7 +47,7 @@
 
 	/* Hovering an unchosen option only tints it, so it doesn't look already chosen. */
 	.btn-outline-primary {
-		--bs-btn-hover-bg: rgba(var(--bs-primary-rgb), 0.15);
+		--bs-btn-hover-bg: rgba(var(--bs-body-color-rgb), 0.1);
 		--bs-btn-hover-color: var(--bs-btn-color);
 		--bs-btn-hover-border-color: var(--bs-btn-border-color);
 	}
