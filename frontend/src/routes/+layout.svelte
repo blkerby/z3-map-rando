@@ -7,7 +7,6 @@
 	import DiscordIcon from '$lib/assets/DiscordIcon.png';
 	import ThemeToggle from '$lib/ThemeToggle.svelte';
 	import RomDialog from '$lib/rom/RomDialog.svelte';
-	import RomMenu from '$lib/rom/RomMenu.svelte';
 	import { provideRomStore } from '$lib/rom/store.svelte';
 	import 'bootstrap-icons/font/bootstrap-icons.css';
 
@@ -26,7 +25,6 @@
 	];
 
 	onMount(async () => {
-		void rom.init();
 		await import('bootstrap/dist/js/bootstrap.bundle.min.js');
 	});
 </script>
@@ -76,7 +74,6 @@
 				<a class="navbar-icon-link d-flex align-items-center gap-1" href="https://discord.gg/Mxb5zYZeVj" target="_blank" rel="noopener">
 					<i class="bi bi-discord"></i> Discord
 				</a>
-				<RomMenu {rom} />
 				<ThemeToggle />
 				<span class="version-badge">{version}</span>
 			</div>

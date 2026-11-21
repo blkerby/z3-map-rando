@@ -1,6 +1,6 @@
 /**
  * IndexedDB persistence for the player's ROM. Every function swallows storage failures
- * (private windows, blocked site data, quota) and reports them as "nothing stored" / false,
+ * (private windows, blocked site data, quota) and reports them as "nothing stored",
  * so the app still works when the ROM can only be kept for the current page.
  */
 
@@ -11,9 +11,6 @@ const KEY = 'rom';
 export interface StoredRom {
 	bytes: ArrayBuffer;
 	sha1: string;
-	/** Original file name, only for display. */
-	name: string;
-	savedAt: number;
 }
 
 function open(): Promise<IDBDatabase> {
@@ -45,8 +42,8 @@ export async function loadStoredRom(): Promise<StoredRom | null> {
 	try {
 		const v = await run<unknown>('readonly', (s) => s.get(KEY));
 		const r = v as Partial<StoredRom> | undefined;
-		if (r && r.bytes instanceof ArrayBuffer && typeof r.sha1 === 'string' && typeof r.name === 'string') {
-			return { bytes: r.bytes, sha1: r.sha1, name: r.name, savedAt: Number(r.savedAt) || 0 };
+		if (r && r.bytes instanceof ArrayBuffer && typeof r.sha1 === 'string') {
+			return { bytes: r.bytes, sha1: r.sha1 };
 		}
 	} catch {
 		/* storage unavailable */
@@ -54,15 +51,13 @@ export async function loadStoredRom(): Promise<StoredRom | null> {
 	return null;
 }
 
-/** Returns true if the ROM was kept. */
-export async function saveStoredRom(rom: StoredRom): Promise<boolean> {
+export async function saveStoredRom(rom: StoredRom): Promise<void> {
 	try {
 		await run('readwrite', (s) => s.put(rom, KEY));
 		// Ask the browser not to evict it under storage pressure. Best effort.
 		void navigator.storage?.persist?.().catch(() => {});
-		return true;
 	} catch {
-		return false;
+		/* kept only for this page */
 	}
 }
 

@@ -17,7 +17,6 @@
 	import { REVISION, StaleError, processDocument, type SettingsIssue } from '$lib/settings/processing';
 	import { SettingsStore, type Draft } from '$lib/settings/store.svelte';
 	import { pathKey, type Path } from '$lib/settings/tree';
-	import { useRomStore } from '$lib/rom/store.svelte';
 	import { generateGame } from '$lib/game';
 
 	let {
@@ -27,7 +26,6 @@
 		seed?: string | null;
 	} = $props();
 
-	const rom = useRomStore();
 
 	// The top-level preset controls, which the side panels' Save buttons go through.
 	let settingsPresets = $state<PresetManager>();
@@ -263,9 +261,6 @@
 	async function generate() {
 		if (generating || generated) return;
 		if (problems.length) return; // the button is disabled too; this covers any other caller
-		// ROM first: nothing is requested from the server until the player has a valid ROM loaded.
-		if (!(await rom.require())) return;
-		if (generating) return; // state may have changed while the dialog was open
 		generating = true;
 		error = null;
 		store.lockReason = GENERATING_LOCK; // freeze the settings while the server works

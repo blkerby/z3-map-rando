@@ -36,16 +36,11 @@
 	}}
 >
 	<div class="p-4">
-		<h2 id="rom-title" class="h5 fw-bold mb-2">{rom.ready ? 'Change your ROM' : 'Select your ROM'}</h2>
+		<h2 id="rom-title" class="h5 fw-bold mb-2">Select your ROM</h2>
 		<p class="small mb-3">
-			Generating a game needs your own copy of <b>A Link to the Past</b> (<em>Zelda no Densetsu (V1.0) (J).sfc</em>). The file stays in this
+			Saving the ROM needs your own copy of <b>A Link to the Past</b> (<em>Zelda no Densetsu (V1.0) (J).sfc</em>). The file stays in this
 			browser; it is never uploaded.
 		</p>
-		{#if rom.ready}
-			<p class="small text-body-secondary mb-3">
-				Current ROM: <strong>{rom.name}</strong>. It stays in use unless you pick a different valid file.
-			</p>
-		{/if}
 
 		<label
 			class="drop"
