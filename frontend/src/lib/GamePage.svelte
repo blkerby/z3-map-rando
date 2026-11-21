@@ -356,14 +356,16 @@
 
 	// ---- Lock toast ---------------------------------------------------------
 	// Pressing a control that the lock disables (marked `data-lockable`, directly or on a wrapper) shows
-	// the lock reason in a toast for a few seconds. Only the Generate section's controls lock; the
+	// the lock reason in a toast for a few seconds. The nearest marker decides, so `data-lockable="false"`
+	// exempts a part (e.g. a help button) of a larger lockable area. Only the Generate section's controls lock; the
 	// Customization ones carry the same marker but stay editable. Pointerdown rather than click, since browsers don't
 	// fire click on disabled controls.
 	let lockToast = $state(false);
 	let lockToastTimer: ReturnType<typeof setTimeout> | undefined;
 
 	function onWindowPointerDown(e: PointerEvent) {
-		if (!store.locked || !(e.target as Element).closest('#generate [data-lockable]')) return;
+		const marked = (e.target as Element).closest<HTMLElement>('#generate [data-lockable]');
+		if (!store.locked || !marked || marked.dataset.lockable === 'false') return;
 		lockToast = true;
 		clearTimeout(lockToastTimer);
 		lockToastTimer = setTimeout(() => (lockToast = false), 3000);

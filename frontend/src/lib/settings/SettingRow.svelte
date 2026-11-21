@@ -47,21 +47,31 @@
 	const helpTitleId = $derived(`${store.elementId(path)}-help-title`);
 </script>
 
-<div class="setting-row" id={store.elementId(path)} class:changed class:tweaked class:compact hidden={!store.matches(info)}>
+<!-- A switch's row is one big target for it: a click anywhere that isn't on another control (or on
+     the label or switch, which handle themselves) toggles it. Keyboard users have the switch itself. -->
+<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+<div
+	class="setting-row"
+	id={store.elementId(path)}
+	class:changed
+	class:tweaked
+	class:compact
+	class:clickable={labelFor && !store.locked}
+	class:locked={labelFor && store.locked}
+	hidden={!store.matches(info)}
+	data-lockable={labelFor ? '' : undefined}
+	onclick={(e) => {
+		if (labelFor && (e.target as Element).closest('[data-lockable]') === e.currentTarget) document.getElementById(labelFor)?.click();
+	}}
+>
 	<div class="left">
 		<div class="label-col">
 			{#if help}
-				<button type="button" class="btn btn-link btn-sm p-0 help" aria-label="Help: {label}" onclick={() => helpDialog?.showModal()}>
+				<button type="button" class="btn btn-link btn-sm p-0 help" data-lockable="false" aria-label="Help: {label}" onclick={() => helpDialog?.showModal()}>
 					<i class="bi bi-info-circle"></i>
 				</button>
 			{/if}
-			<label
-				class="label"
-				class:clickable={labelFor && !store.locked}
-				class:locked={labelFor && store.locked}
-				for={labelFor}
-				data-lockable={labelFor ? '' : undefined}
-			>{label}</label>
+			<label class="label" for={labelFor} data-lockable={labelFor ? '' : undefined}>{label}</label>
 			{#if badge && !compact}<span class="badge-tag">{badge}</span>{/if}
 			{#if changed && !store.locked}
 				<button
@@ -83,7 +93,7 @@
 	<div class="control-col">
 		<div data-lockable>{@render control()}</div>
 		{#if nested}
-			<div class="nested">{@render nested()}</div>
+			<div class="nested" data-lockable="false">{@render nested()}</div>
 		{/if}
 	</div>
 
@@ -92,6 +102,7 @@
 		<dialog
 			bind:this={helpDialog}
 			class="help-dialog"
+			data-lockable="false"
 			aria-labelledby={helpTitleId}
 			onclick={(e) => {
 				if (e.target === helpDialog) helpDialog.close();
@@ -119,6 +130,15 @@
 		margin-inline: -0.5rem;
 		border-radius: var(--bs-border-radius);
 		position: relative;
+		cursor: default;
+	}
+
+	.setting-row.clickable {
+		cursor: pointer;
+	}
+
+	.setting-row.locked {
+		cursor: not-allowed;
 	}
 
 	.setting-row[hidden] {
@@ -172,15 +192,6 @@
 
 	.label {
 		font-weight: 500;
-		cursor: default;
-	}
-
-	.label.clickable {
-		cursor: pointer;
-	}
-
-	.label.locked {
-		cursor: not-allowed;
 	}
 
 	.left {
@@ -221,6 +232,7 @@
 	}
 
 	.help-dialog {
+		cursor: auto;
 		width: min(32rem, calc(100vw - 2rem));
 		padding: 0;
 		border: 1px solid var(--bs-border-color);
@@ -244,6 +256,10 @@
 
 	.control-col {
 		min-width: 0;
+	}
+
+	.nested {
+		cursor: default;
 	}
 
 	.nested:not(:empty) {
