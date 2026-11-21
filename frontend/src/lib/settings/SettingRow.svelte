@@ -154,8 +154,9 @@
 		background-color: rgba(var(--bs-info-rgb), 0.15);
 	}
 
-	/* Hover highlight, as an image layer so it stacks on top of any change/tweak shading. */
-	.setting-row:hover {
+	/* Hover highlight for rows that are one big click target (switch rows), as an image layer so it
+	   stacks on top of any change/tweak shading. */
+	.setting-row[data-lockable]:hover {
 		background-image: linear-gradient(rgba(var(--bs-emphasis-color-rgb), 0.05), rgba(var(--bs-emphasis-color-rgb), 0.05));
 	}
 
