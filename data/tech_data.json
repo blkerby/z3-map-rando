@@ -24,6 +24,12 @@
         "difficulty": "Very Hard"
     },
     {
+        "tech_id": 1,
+        "name": "combatProficiency",
+        "level": 5,
+        "difficulty": "Expert"
+    },
+    {
         "tech_id": 2,
         "name": "bossProficiency",
         "level": 1,
@@ -46,6 +52,12 @@
         "name": "bossProficiency",
         "level": 4,
         "difficulty": "Very Hard"
+    },
+    {
+        "tech_id": 2,
+        "name": "bossProficiency",
+        "level": 5,
+        "difficulty": "Expert"
     },
     {
         "tech_id": 3,
