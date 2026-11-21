@@ -38,6 +38,24 @@
 	);
 </script>
 
+<div class="mb-3">
+	<Group layout="compact">
+		<ChoiceSetting
+			path={['map_layout']}
+			label="Map layout"
+			options={[
+				{ value: 'vanilla', label: 'Vanilla' },
+				{ value: 'random', label: 'Randomized' }
+			]}
+		>
+			{#snippet help()}
+				<p><strong>Vanilla:</strong> The original overworld map is used, unchanged.</p>
+				<p><strong>Randomized:</strong> The overworld areas are shuffled into a new map arrangement.</p>
+			{/snippet}
+		</ChoiceSetting>
+	</Group>
+</div>
+
 <SectionCard
 	id="skill"
 	title="Skill assumptions"
@@ -85,24 +103,6 @@
 			{/each}
 		</Group>
 	{/each}
-</SectionCard>
-
-<SectionCard id="general" title="General">
-	<Group layout="compact">
-		<ChoiceSetting
-			path={['map_layout']}
-			label="Map layout"
-			options={[
-				{ value: 'vanilla', label: 'Vanilla' },
-				{ value: 'random', label: 'Randomized' }
-			]}
-		>
-			{#snippet help()}
-				<p><strong>Vanilla:</strong> The original overworld map is used, unchanged.</p>
-				<p><strong>Randomized:</strong> The overworld areas are shuffled into a new map arrangement.</p>
-			{/snippet}
-		</ChoiceSetting>
-	</Group>
 </SectionCard>
 
 <!-- Starting equipment settings of one item category. -->
