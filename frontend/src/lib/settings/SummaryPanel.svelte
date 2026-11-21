@@ -118,7 +118,7 @@
 		{#if tweakCount}
 			<button type="button" class="tweaks-toggle" aria-expanded={tweaksOpen} onclick={() => (tweaksOpenByHand = !tweaksOpen)}>
 				<i class="bi" class:bi-chevron-down={tweaksOpen} class:bi-chevron-right={!tweaksOpen}></i>
-				{tweakCount} tweak{tweakCount === 1 ? '' : 's'}{#if !generated}{' '}in <strong>{presetName}</strong>{/if}
+				{tweakCount} tweak{tweakCount === 1 ? '' : 's'}{#if !generated}{' '}from <strong>{store.basePreset.label}</strong>{/if}
 			</button>
 			{#if tweaksOpen}
 				{#each tweakGroups as g (g.title)}
