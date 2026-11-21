@@ -411,7 +411,7 @@
 					</button>
 					<hr class="menu-sep" />
 					<button type="button" role="menuitem" class="menu-item" onclick={copyCode}>
-						<i class="bi bi-clipboard"></i> Copy {noun} as code
+						<i class="bi bi-clipboard"></i> Copy {noun}
 					</button>
 					<button type="button" role="menuitem" class="menu-item" disabled={!store.userPresets.length} onclick={exportAll}>
 						<i class="bi bi-box-arrow-up"></i> Export my presets…

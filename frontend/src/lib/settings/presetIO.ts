@@ -37,7 +37,7 @@ export function uniqueName(name: string, taken: string[]): string {
 }
 
 /**
- * An export file, which is also what "Copy as code" puts on the clipboard (with one preset). `version`, the
+ * An export file, which is also what "Copy" puts on the clipboard (with one preset). `version`, the
  * randomizer version that wrote it, is provenance only; importing never depends on it.
  */
 export function buildExportFile(kind: PresetKind, presets: { name: string; document: Tree }[]): string {
