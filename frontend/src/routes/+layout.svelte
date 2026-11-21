@@ -33,8 +33,8 @@
 	<link rel="icon" href={favicon} />
 </svelte:head>
 
-<nav class="navbar navbar-world navbar-expand-lg px-3 py-1" data-bs-theme="dark">
-	<div class="container-fluid">
+<nav class="navbar navbar-world navbar-expand-lg py-1" data-bs-theme="dark">
+	<div class="container">
 		<a class="navbar-brand d-flex align-items-center gap-2" href={resolve('/')}>
 			<img src={DiscordIcon} alt="" class="brand-icon" />
 		</a>
@@ -125,6 +125,11 @@
 
 	.navbar-icon-link {
 		color: #ffffff !important;
+	}
+
+	/* Match the width of the Generate page content (see GamePage). */
+	.navbar-world > .container {
+		max-width: 1200px;
 	}
 
 	:global(main.container) {
