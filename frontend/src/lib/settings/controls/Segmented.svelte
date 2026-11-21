@@ -45,6 +45,13 @@
 		box-shadow: 0 0 0 1px rgb(255 255 255 / 0.4);
 	}
 
+	/* Hovering an unchosen option only tints it, so it doesn't look already chosen. */
+	.btn-outline-primary {
+		--bs-btn-hover-bg: rgba(var(--bs-primary-rgb), 0.15);
+		--bs-btn-hover-color: var(--bs-btn-color);
+		--bs-btn-hover-border-color: var(--bs-btn-border-color);
+	}
+
 	/* Locked: the chosen option stays clearly highlighted, the rest fade back. */
 	.locked .btn {
 		cursor: not-allowed;
