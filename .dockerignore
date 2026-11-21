@@ -1,0 +1,16 @@
+**/.git
+**/.env*
+**/*.sfc
+!asar/dummy_rom.sfc
+.agents
+.aws
+.codex
+target
+build
+catalog-build.toml
+frontend/.svelte-kit
+frontend/build
+frontend/node_modules
+jpdasm
+maps
+seeds
