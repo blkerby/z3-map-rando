@@ -5,26 +5,17 @@
 
 	let {
 		store,
-		problems = [],
 		generated = false,
-		generating = false,
-		error = null,
 		seed = null,
-		ongenerate,
 		onreuse,
 		onjump,
 		onjumpcard,
 		onsave
 	}: {
 		store: SettingsStore;
-		/** Reasons the current settings can't be generated. */
-		problems?: string[];
 		/** True once a game exists for these settings (the settings are locked). */
 		generated?: boolean;
-		generating?: boolean;
-		error?: string | null;
 		seed?: string | null;
-		ongenerate: () => void;
 		/** Start a new game from these settings. */
 		onreuse: () => void;
 		/** Scroll to a setting (the page also clears the search and opens its card). */
@@ -130,15 +121,8 @@
 			{/if}
 		{/if}
 
-		{#if error}
-			<div class="alert alert-danger small py-2 px-3" role="alert">{error}</div>
-		{/if}
-		{#each problems as problem (problem)}
-			<div class="alert alert-warning small py-2 px-3" role="alert">{problem}</div>
-		{/each}
-
-		<div class="d-grid gap-2 mt-3">
-			{#if generated}
+		{#if generated}
+			<div class="d-grid gap-2 mt-3">
 				<button type="button" class="btn btn-primary" onclick={copyLink}>
 					<i class="bi bi-link-45deg"></i>
 					{copied ? 'Copied!' : 'Copy game link'}
@@ -147,22 +131,8 @@
 					<i class="bi bi-arrow-repeat"></i>
 					Use these settings again
 				</button>
-			{:else}
-				<button
-					type="button"
-					class="btn btn-primary"
-					disabled={generating || problems.length > 0}
-					onclick={ongenerate}
-				>
-					{#if generating}
-						<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
-						Generating…
-					{:else}
-						Generate game
-					{/if}
-				</button>
-			{/if}
-		</div>
+			</div>
+		{/if}
 	</div>
 </aside>
 

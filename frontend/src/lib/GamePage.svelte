@@ -17,7 +17,8 @@
 	import { REVISION, StaleError, processDocument, type SettingsIssue } from '$lib/settings/processing';
 	import { SettingsStore, type Draft } from '$lib/settings/store.svelte';
 	import { pathKey, type Path } from '$lib/settings/tree';
-	import { generateGame } from '$lib/game';
+	import { downloadRom, generateGame } from '$lib/game';
+	import { useRomStore } from '$lib/rom/store.svelte';
 
 	let {
 		seed = null
@@ -275,6 +276,24 @@
 		}
 	}
 
+	const rom = useRomStore();
+	let downloading = $state(false);
+	let romError = $state<string | null>(null);
+
+	async function download() {
+		if (!seed || downloading) return;
+		if (!(await rom.require())) return;
+		downloading = true;
+		romError = null;
+		try {
+			await downloadRom({ seed, rom: rom.bytes!, customization: $state.snapshot(custom.values) });
+		} catch (e) {
+			romError = e instanceof Error ? e.message : 'Could not download the ROM.';
+		} finally {
+			downloading = false;
+		}
+	}
+
 	/**
 	 * Make this game's settings the /generate draft, so the player can tweak them and generate again. They
 	 * were saved under the revision that generated the game, so the draft is processed when loaded.
@@ -500,6 +519,22 @@
 				{#if !generateMatches}
 					<p class="text-body-secondary">No settings match “{search.query}”.</p>
 				{/if}
+				{#if error}
+					<div class="alert alert-danger small py-2 px-3" role="alert">{error}</div>
+				{/if}
+				{#each problems as problem (problem)}
+					<div class="alert alert-warning small py-2 px-3" role="alert">{problem}</div>
+				{/each}
+				{#if !generated}
+					<button type="button" class="btn btn-primary" disabled={generating || problems.length > 0} onclick={generate}>
+						{#if generating}
+							<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+							Generating…
+						{:else}
+							Generate game
+						{/if}
+					</button>
+				{/if}
 			</CollapsibleSection>
 
 			<CollapsibleSection id="customization" title="Customization" bind:open={customizationOpen}>
@@ -510,6 +545,19 @@
 				{#if !customMatches}
 					<p class="text-body-secondary">No customization options match “{search.query}”.</p>
 				{/if}
+				{#if romError}
+					<div class="alert alert-danger small py-2 px-3" role="alert">{romError}</div>
+				{/if}
+				<span title={generated ? undefined : 'Generate a game first, before a ROM can be saved.'}>
+					<button type="button" class="btn btn-primary" disabled={!generated || downloading} onclick={download}>
+						{#if downloading}
+							<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+							Preparing…
+						{:else}
+							<i class="bi bi-download"></i> Save ROM
+						{/if}
+					</button>
+				</span>
 			</CollapsibleSection>
 		</div>
 
@@ -517,12 +565,8 @@
 		<div class="side">
 			<SummaryPanel
 				{store}
-				{problems}
 				{generated}
-				{generating}
-				{error}
 				{seed}
-				ongenerate={generate}
 				onreuse={useSettingsForNewGame}
 				onjump={(path) => jumpToSetting(store, 'generate', path)}
 				onsave={() => settingsPresets?.save()}
@@ -530,8 +574,6 @@
 			/>
 			<CustomizationPanel
 				store={custom}
-				{generated}
-				{seed}
 				onjump={(path) => jumpToSetting(custom, 'customization', path)}
 				onsave={() => customPresets?.save()}
 			/>
