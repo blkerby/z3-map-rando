@@ -171,7 +171,12 @@
 
 	/** Load the seed's settings into the (locked) store. Returns false if there is no such seed. */
 	async function loadSeed(name: string): Promise<boolean> {
-		const response = await fetch(`/api/seed/${encodeURIComponent(name)}`);
+		let response: Response;
+		try {
+			response = await fetch(`/api/seed/${encodeURIComponent(name)}`);
+		} catch {
+			throw new Error("Couldn't reach the server.");
+		}
 		if (response.status === 404) return false;
 		if (!response.ok) throw new Error(`Couldn't load the seed (server error ${response.status}).`);
 		const data = await response.json();
@@ -396,6 +401,7 @@
 				<h2 class="h5 fw-bold mb-2">Some saved settings can’t be read</h2>
 				<p class="small mb-2">
 					This is a bug. These will be discarded; copying them first lets you include them in a report.
+					Please let us know in the <a href="https://discord.gg/Mxb5zYZeVj" target="_blank" rel="noopener">Discord</a>.
 				</p>
 				<ul class="small">
 					{#each unreadable as item (item.name)}

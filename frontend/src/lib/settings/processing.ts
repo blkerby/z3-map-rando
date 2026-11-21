@@ -43,11 +43,16 @@ export async function processDocument(
 	kind: SettingsKind,
 	document: unknown
 ): Promise<ProcessResult> {
-	const response = await fetch('/api/settings/process', {
-		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ kind, document })
-	});
+	let response: Response;
+	try {
+		response = await fetch('/api/settings/process', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ kind, document })
+		});
+	} catch {
+		throw new Error("Couldn't reach the server.");
+	}
 	if (!response.ok)
 		throw new Error(`Couldn't load your settings (server error ${response.status}).`);
 	const data = await response.json();

@@ -73,7 +73,7 @@
 				<a class="navbar-icon-link d-flex align-items-center gap-1" href="https://github.com/blkerby/z3-map-rando" target="_blank" rel="noreferrer">
 					<i class="bi bi-github"></i> GitHub
 				</a>
-				<a class="navbar-icon-link d-flex align-items-center gap-1" href="https://discord.gg/Mxb5zYZeVj" target="_blank" rel="noreferrer">
+				<a class="navbar-icon-link d-flex align-items-center gap-1" href="https://discord.gg/Mxb5zYZeVj" target="_blank" rel="noopener">
 					<i class="bi bi-discord"></i> Discord
 				</a>
 				<RomMenu {rom} />

@@ -544,7 +544,8 @@
 			{:else if mode === 'unreadable' && unreadable}
 				<p class="small mb-0">
 					Preset “{unreadable.name}” couldn't be read, so it can't be used. This is a bug; copying its settings
-					lets you include them in a report before deleting it.
+					lets you include them in a report before deleting it. Please let us know in the 
+					<a href="https://discord.gg/Mxb5zYZeVj" target="_blank" rel="noopener">Discord</a>
 				</p>
 				{#if formError}<div class="form-text text-danger">{formError}</div>{/if}
 				<div class="d-flex gap-2 mt-3">

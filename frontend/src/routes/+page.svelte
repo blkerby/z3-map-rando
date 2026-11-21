@@ -24,7 +24,7 @@
 	<section class="info-section mt-5">
 		<h2 class="h3 fw-bold mb-3">Project status</h2>
 		<p>
-		This randomizer is still in development. If you encounter bugs, please let us know in the <a href="https://discord.gg/Mxb5zYZeVj">Discord</a>!
+		This randomizer is still in development. If you encounter bugs, please let us know in the <a href="https://discord.gg/Mxb5zYZeVj" target="_blank" rel="noopener">Discord</a>!
 		</p>
 	</section>
 </main>
