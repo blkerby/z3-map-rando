@@ -40,7 +40,7 @@
 			</button>
 		{:else}
 			<div class="small text-body-secondary">
-				Matches <strong>{store.presetName}</strong>.
+				Matches <strong>{store.presetName}</strong>
 			</div>
 		{/if}
 

@@ -622,7 +622,7 @@
 
 	.layout {
 		display: grid;
-		grid-template-columns: 10.5rem minmax(0, 1fr) 17rem;
+		grid-template-columns: 10.5rem minmax(0, 1fr) 20rem;
 		gap: 1.25rem;
 		align-items: start;
 	}
