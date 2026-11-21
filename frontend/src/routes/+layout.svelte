@@ -14,8 +14,6 @@
 
 	const rom = provideRomStore();
 
-	const version = 'v1'; // bump this yourself as you release updates
-
 	const navLinks: { href: '/' | '/generate' | '/releases' | '/logic' | '/about'; label: string }[] = [
 		{ href: '/', label: 'Home' },
 		{ href: '/generate', label: 'Generate' },
@@ -75,7 +73,6 @@
 					<i class="bi bi-discord"></i> Discord
 				</a>
 				<ThemeToggle />
-				<span class="version-badge">{version}</span>
 			</div>
 		</div>
 	</div>
@@ -102,11 +99,6 @@
 
 	.navbar-icon-link:hover {
 		text-decoration: underline;
-	}
-
-	.version-badge {
-		font-size: 0.85rem;
-		opacity: 0.75;
 	}
 
 	.nav-link.active {
