@@ -126,12 +126,17 @@
 	}
 
 	.setting-row.changed {
-		background: rgba(var(--bs-success-rgb), 0.25);
+		background-color: rgba(var(--bs-success-rgb), 0.25);
 	}
 
 	/* Cyan rather than green, so it reads as distinct from a change rather than a fainter one. */
 	.setting-row.tweaked {
-		background: rgba(var(--bs-info-rgb), 0.15);
+		background-color: rgba(var(--bs-info-rgb), 0.15);
+	}
+
+	/* Hover highlight, as an image layer so it stacks on top of any change/tweak shading. */
+	.setting-row:hover {
+		background-image: linear-gradient(rgba(var(--bs-emphasis-color-rgb), 0.05), rgba(var(--bs-emphasis-color-rgb), 0.05));
 	}
 
 	/* Hairline between full rows. Drawn separately, since a border would curve with the row's rounded corners. */
