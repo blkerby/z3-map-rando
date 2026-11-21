@@ -145,7 +145,7 @@
 	/* Compact: label on the left, control on the right, for the grid and compact layouts. */
 	.setting-row.compact {
 		grid-template-columns: minmax(0, 1fr) auto;
-		align-items: center;
+		align-items: start;
 		gap: 0.5rem;
 		padding-block: 0.3rem;
 	}
