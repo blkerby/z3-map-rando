@@ -644,10 +644,12 @@
 
 	@media (max-width: 992px) {
 		/* Capped so setting controls stay near their labels. */
+		main.container {
+			max-width: 44rem;
+		}
+
 		.layout {
 			grid-template-columns: minmax(0, 1fr);
-			max-width: 44rem;
-			margin-inline: auto;
 		}
 
 		.page-nav {
