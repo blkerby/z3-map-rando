@@ -45,8 +45,10 @@
 		box-shadow: 0 0 0 1px rgb(255 255 255 / 0.4);
 	}
 
-	/* Hovering an unchosen option only tints it, so it doesn't look already chosen. */
+	/* Unchosen options use the body text color (the gold is too faint on the light theme's background).
+	   Hovering one only tints it, so it doesn't look already chosen. */
 	.btn-outline-primary {
+		--bs-btn-color: var(--bs-body-color);
 		--bs-btn-hover-bg: rgba(var(--bs-body-color-rgb), 0.1);
 		--bs-btn-hover-color: var(--bs-btn-color);
 		--bs-btn-hover-border-color: var(--bs-btn-border-color);

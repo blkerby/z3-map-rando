@@ -625,7 +625,7 @@
 
 	/* Same tint as a changed setting row. */
 	.changed {
-		background-color: rgba(var(--bs-success-rgb), 0.3);
+		background-color: rgba(var(--bs-success-rgb), 0.15);
 	}
 
 	.menu-wrap {

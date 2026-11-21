@@ -146,7 +146,7 @@
 	}
 
 	.setting-row.changed {
-		background-color: rgba(var(--bs-success-rgb), 0.25);
+		background-color: rgba(var(--bs-success-rgb), 0.15);
 	}
 
 	/* Cyan rather than green, so it reads as distinct from a change rather than a fainter one. */

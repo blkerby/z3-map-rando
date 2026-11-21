@@ -45,7 +45,7 @@
 
 <style>
 	select.changed {
-		background-color: rgba(var(--bs-success-rgb), 0.25);
+		background-color: rgba(var(--bs-success-rgb), 0.15);
 	}
 
 	select.tweaked {
