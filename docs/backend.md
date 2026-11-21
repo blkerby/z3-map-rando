@@ -49,7 +49,7 @@ The response always has HTTP 200 and the server's settings `revision`. A `status
 
 ## Seed retrieval
 
-`GET /api/seed/<seed name>` returns the saved seed JSON, or HTTP 404 if no such seed exists. The frontend's game link is `/seed/<seed name>/`; seeds are not known at build time, so the server answers that path with the frontend's SPA fallback page (`spa.html`), which loads the seed through the API.
+`GET /api/seed/<seed name>` returns the saved seed JSON, or HTTP 404 if no such seed exists. The frontend's seed link is `/seed/<seed name>/`; seeds are not known at build time, so the server answers that path with the frontend's SPA fallback page (`spa.html`), which loads the seed through the API.
 
 `GET /api/seed/<seed name>/retiling` returns the binary retiling catalog for that seed. The server resolves static layers and dynamic tile dependencies from the current catalogs on request. Save ROM uses the result with the matching browser patcher and patch catalog. The CLI can use it when patching the same seed with `--seed` and `--retiling-catalog`.
 

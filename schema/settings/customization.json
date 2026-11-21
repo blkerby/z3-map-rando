@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:z3-map-rando:schema:settings:customization",
   "title": "Customization settings",
-  "description": "Cosmetic choices applied while patching a ROM. They do not affect generation or the game link.",
+  "description": "Cosmetic choices applied while patching a ROM. They do not affect generation or the seed link.",
   "type": "object",
   "additionalProperties": false,
   "required": [

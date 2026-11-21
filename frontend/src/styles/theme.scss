@@ -43,7 +43,7 @@ $form-range-track-bg: rgba(var(--bs-body-color-rgb), 0.2);
 	color: var(--bs-body-color);
 }
 
-// Controls disabled by a settings lock (see `data-lockable` in GamePage). Bootstrap's disabled inputs
+// Controls disabled by a settings lock (see `data-lockable` in SeedPage). Bootstrap's disabled inputs
 // and buttons ignore the pointer, so the cursor also goes on the marked wrapper around them.
 [data-lockable]:disabled,
 [data-lockable]:has(:disabled) {

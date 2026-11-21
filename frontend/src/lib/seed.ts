@@ -31,7 +31,7 @@ export interface RomRequest {
 	seed: string;
 	/** The player's vanilla ROM. */
 	rom: Uint8Array;
-	/** The player's cosmetic choices (never part of the game link). */
+	/** The player's cosmetic choices (never part of the seed link). */
 	customization: Tree;
 }
 

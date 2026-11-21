@@ -1,7 +1,7 @@
 import { settingsData } from '$lib/generation/data';
 import type { RootPreset, SettingsModel } from '$lib/settings/store.svelte';
 
-// Cosmetic options. None of these affect the generated map or the game link.
+// Cosmetic options. None of these affect the generated map or the seed link.
 const rootPresets: RootPreset[] = [];
 for (const p of settingsData.presets.customization) rootPresets.push({ ...p, scopes: {} });
 

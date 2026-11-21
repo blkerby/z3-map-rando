@@ -1,8 +1,8 @@
 <script lang="ts">
-	import GamePage from '$lib/GamePage.svelte';
+	import SeedPage from '$lib/SeedPage.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 </script>
 
-<GamePage seed={data.seed} />
+<SeedPage seed={data.seed} />

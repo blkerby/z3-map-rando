@@ -17,7 +17,7 @@
 	import { REVISION, StaleError, processDocument, type SettingsIssue } from '$lib/settings/processing';
 	import { SettingsStore, type Draft } from '$lib/settings/store.svelte';
 	import { pathKey, type Path } from '$lib/settings/tree';
-	import { downloadRom, generateGame } from '$lib/game';
+	import { downloadRom, generateGame } from '$lib/seed';
 	import { useRomStore } from '$lib/rom/store.svelte';
 
 	let {
@@ -76,7 +76,7 @@
 	// /generate continues from the settings last used there.
 	const DRAFT_KEY = 'alttp-maprando:draft';
 	const PRESETS_KEY = 'alttp-maprando:presets:settings';
-	// Customization is personal: saved in this browser only, never part of the game link, never locked.
+	// Customization is personal: saved in this browser only, never part of the seed link, never locked.
 	const CUSTOM_KEY = 'alttp-maprando:customization';
 	const CUSTOM_PRESETS_KEY = 'alttp-maprando:presets:customization';
 
@@ -295,7 +295,7 @@
 	}
 
 	/**
-	 * Make this game's settings the /generate draft, so the player can tweak them and generate again. They
+	 * Make this seed's settings the /generate draft, so the player can tweak them and generate again. They
 	 * were saved under the revision that generated the game, so the draft is processed when loaded.
 	 */
 	function useSettingsForNewGame() {
@@ -325,7 +325,7 @@
 		else customizationOpen = true;
 	}
 
-	// Buttons instead of #anchors, so the URL stays a clean game link.
+	// Buttons instead of #anchors, so the URL stays a clean seed link.
 	async function goTo(section: Section, elementId: string) {
 		openSection(section);
 		activeId = elementId;
@@ -412,7 +412,7 @@
 				<button type="button" class="btn btn-outline-secondary btn-sm" onclick={() => location.reload()}>Reload</button>
 			</div>
 		{:else if load.status === 'missing'}
-			<div class="alert alert-warning" role="alert">There is no game called “{seed}”.</div>
+			<div class="alert alert-warning" role="alert">There is no seed called “{seed}”.</div>
 		{:else}
 			<div class="card p-4 unreadable" role="alert">
 				<h2 class="h5 fw-bold mb-2">Some saved settings can’t be read</h2>

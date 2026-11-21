@@ -1,5 +1,5 @@
 <script lang="ts">
-	import GamePage from '$lib/GamePage.svelte';
+	import SeedPage from '$lib/SeedPage.svelte';
 </script>
 
-<GamePage />
+<SeedPage />

@@ -138,7 +138,7 @@
 			<div class="d-grid gap-2 mt-3">
 				<button type="button" class="btn btn-primary" onclick={copyLink}>
 					<i class="bi bi-link-45deg"></i>
-					{copied ? 'Copied!' : 'Copy game link'}
+					{copied ? 'Copied!' : 'Copy seed link'}
 				</button>
 				<button type="button" class="btn btn-outline-secondary btn-sm" onclick={onreuse}>
 					<i class="bi bi-arrow-repeat"></i>
