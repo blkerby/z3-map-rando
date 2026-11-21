@@ -88,15 +88,21 @@
 </SectionCard>
 
 <SectionCard id="general" title="General">
-	<ChoiceSetting
-		path={['map_layout']}
-		label="Map layout"
-		display="cards"
-		options={[
-			{ value: 'random', label: 'Randomized', desc: 'The map is shuffled.' },
-			{ value: 'vanilla', label: 'Vanilla', desc: 'The original map, unchanged.' }
-		]}
-	/>
+	<Group layout="compact">
+		<ChoiceSetting
+			path={['map_layout']}
+			label="Map layout"
+			options={[
+				{ value: 'vanilla', label: 'Vanilla' },
+				{ value: 'random', label: 'Randomized' }
+			]}
+		>
+			{#snippet help()}
+				<p><strong>Vanilla:</strong> The original overworld map is used, unchanged.</p>
+				<p><strong>Randomized:</strong> The overworld areas are shuffled into a new map arrangement.</p>
+			{/snippet}
+		</ChoiceSetting>
+	</Group>
 </SectionCard>
 
 <!-- Starting equipment settings of one item category. -->
