@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { SettingsStore } from './store.svelte';
+	import type { Scope, SettingsStore } from './store.svelte';
 	import type { Path } from './tree';
 
 	let {
@@ -33,22 +33,28 @@
 	const mine = $derived(store.userPreset(store.selectedId));
 	const changeCount = $derived(store.changeCount);
 
-	/** The selected preset's tweaks, grouped by scope: the root's own settings (untitled), then each child scope. */
-	const tweakGroups = $derived.by(() => {
-		const groups: { title: string; paths: Path[] }[] = [{ title: '', paths: [] }];
-		for (const path of store.tweakedPaths) {
-			const scope = store.scopeOf(path);
-			const title = scope ? `${scope.label}: ${store.scopeLabel(scope)}` : '';
-			let group = groups.find((g) => g.title === title);
-			if (!group) {
-				group = { title, paths: [] };
-				groups.push(group);
-			}
-			group.paths.push(path);
+	type Group = { scope?: Scope; title: string; paths: Path[]; picked: boolean };
+
+	/**
+	 * Settings grouped by scope: the root's own settings (untitled), then each child scope that has settings
+	 * here or is in `picked` (its preset chosen by hand).
+	 */
+	function groupByScope(paths: Path[], picked: Scope[]): Group[] {
+		const groups: Group[] = [{ title: '', paths: [], picked: false }];
+		for (const scope of store.model.scopes) {
+			groups.push({ scope, title: `${scope.label}: ${store.scopeLabel(scope)}`, paths: [], picked: picked.includes(scope) });
 		}
-		if (!groups[0].paths.length) groups.shift();
-		return groups;
-	});
+		for (const path of paths) {
+			const scope = store.scopeOf(path);
+			groups[scope ? store.model.scopes.indexOf(scope) + 1 : 0].paths.push(path);
+		}
+		const out: Group[] = [];
+		for (const g of groups) if (g.paths.length || g.picked) out.push(g);
+		return out;
+	}
+
+	const changeGroups = $derived(groupByScope(store.changedPaths, store.pickedScopes));
+	const tweakGroups = $derived(groupByScope(store.tweakedPaths, []));
 	const tweakCount = $derived(store.tweakedPaths.length);
 	/** Folded or unfolded by hand; otherwise open only while there are no unsaved changes, so those stand out. */
 	let tweaksOpenByHand = $state<boolean | null>(null);
@@ -85,18 +91,22 @@
 		</div>
 
 		{#if changeCount}
-			<div class="chips mb-2">
-				{#each store.pickedScopes as scope (scope.id)}
-					<button type="button" class="chip" onclick={() => onjumpcard(cardOfScope(scope.id))}>
-						{scope.label} preset: <strong>{store.selectedScopePreset(scope).label}</strong>
-					</button>
-				{/each}
-				{#each store.changedPaths as path (path.join('/'))}
-					<button type="button" class="chip" onclick={() => onjump(path)}>
-						{store.label(path)}: <strong>{store.display(path)}</strong>
-					</button>
-				{/each}
-			</div>
+			{#each changeGroups as g (g.title)}
+				{#if g.title}<div class="tweak-group">{g.title}</div>{/if}
+				<div class="chips mb-2">
+					{#if g.picked && g.scope}
+						{@const scope = g.scope}
+						<button type="button" class="chip" onclick={() => onjumpcard(cardOfScope(scope.id))}>
+							Preset: <strong>{store.selectedScopePreset(scope).label}</strong>
+						</button>
+					{/if}
+					{#each g.paths as path (path.join('/'))}
+						<button type="button" class="chip" onclick={() => onjump(path)}>
+							{store.label(path)}: <strong>{store.display(path)}</strong>
+						</button>
+					{/each}
+				</div>
+			{/each}
 			<button type="button" class="btn btn-link btn-sm p-0 mb-3" onclick={onsave}>
 				<!-- No space after the icon, so the underline starts at the text. -->
 				<i class="bi bi-floppy me-2"></i>{mine ? `Save to “${mine.name}”` : 'Save as preset…'}
