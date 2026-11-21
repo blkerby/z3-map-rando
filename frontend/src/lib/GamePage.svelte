@@ -564,11 +564,6 @@
 		pointer-events: none;
 	}
 
-	/* Wider than the other pages (see the layout), to give the central column more room. */
-	main.container {
-		max-width: 1200px;
-	}
-
 	.searchbar {
 		display: flex;
 		flex-wrap: wrap;
@@ -648,8 +643,11 @@
 	}
 
 	@media (max-width: 992px) {
+		/* Capped so setting controls stay near their labels. */
 		.layout {
 			grid-template-columns: minmax(0, 1fr);
+			max-width: 44rem;
+			margin-inline: auto;
 		}
 
 		.page-nav {

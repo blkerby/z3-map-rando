@@ -29,7 +29,7 @@
 			<h4 class="subhead">{heading}</h4>
 		{/if}
 	{/if}
-	<div class="rows" class:grid={layout === 'grid'} class:compact={layout === 'compact'}>
+	<div class="rows" class:grid={layout === 'grid'}>
 		{@render children()}
 	</div>
 </div>
@@ -60,11 +60,6 @@
 		font-size: 0.75rem;
 		font-weight: 600;
 		opacity: 0.6;
-	}
-
-	/* One column of label-left rows; capped so the control stays near its label. */
-	.rows.compact {
-		max-width: 32rem;
 	}
 
 	.rows.grid {

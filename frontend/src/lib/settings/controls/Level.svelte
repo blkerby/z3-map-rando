@@ -47,8 +47,9 @@
 </div>
 
 <style>
+	/* Fixed width, since it sits beside its label in a column sized to its content. */
 	.level {
-		max-width: 28rem;
+		width: 12rem;
 	}
 
 	.ticks {

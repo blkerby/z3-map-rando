@@ -28,6 +28,15 @@
 </div>
 
 <style>
+	/* Without Bootstrap's label gutter, so the switch's box is just the switch and lines up with other controls. */
+	.form-switch {
+		padding-left: 0;
+	}
+
+	.form-switch .form-check-input {
+		margin-left: 0;
+	}
+
 	/* Locked: keep the on/off state readable instead of Bootstrap's heavy fade. */
 	.form-check-input:disabled {
 		opacity: 0.75;

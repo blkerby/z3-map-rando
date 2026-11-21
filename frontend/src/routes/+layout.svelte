@@ -127,9 +127,9 @@
 		color: #ffffff !important;
 	}
 
-	/* Match the width of the Generate page content (see GamePage). */
+	/* Match the width of the page content. */
 	.navbar-world > .container {
-		max-width: 1200px;
+		max-width: 1120px;
 	}
 
 	:global(main.container) {

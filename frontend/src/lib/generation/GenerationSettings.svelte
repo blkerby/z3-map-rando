@@ -45,7 +45,7 @@
 	collapsed
 	scope={skillScope}
 >
-	<Group heading="Proficiencies">
+	<Group heading="Proficiencies" layout="compact">
 		{#each proficiencies as p (p.id)}
 			<LevelSetting
 				path={['skill', 'proficiencies', p.id]}
