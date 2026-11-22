@@ -16,6 +16,8 @@ if (!process.env.Z3_FRONTEND_INPUTS_PREPARED) {
 
 export default defineConfig({
 	server: {
+		// E.g. `DEV_HOST=0.0.0.0 npm run dev` to reach the dev server from other devices on the network.
+		host: process.env.DEV_HOST,
 		fs: { allow: [buildDirectory] },
 		proxy: { '/api/': 'http://127.0.0.1:8080' }
 	},
