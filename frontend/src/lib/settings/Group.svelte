@@ -40,7 +40,7 @@
 	}
 
 	.subhead {
-		margin: 1rem 0 0;
+		margin: 1rem 0 0.35rem;
 		padding-top: 0.6rem;
 		border-top: 1px solid var(--bs-border-color-translucent);
 		font-size: 0.8rem;
