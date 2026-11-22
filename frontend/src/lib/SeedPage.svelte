@@ -98,8 +98,6 @@
 		| { status: 'ready' }
 		/** The request failed, possibly temporarily. */
 		| { status: 'failed'; message: string }
-		/** The server runs other settings data than this page. */
-		| { status: 'stale' }
 		/** No seed of this name. */
 		| { status: 'missing' };
 
@@ -197,19 +195,41 @@
 			unreadable = [...generationUnreadable, ...customUnreadable];
 			load = found ? { status: 'ready' } : { status: 'missing' };
 		} catch (e) {
-			if (e instanceof StaleError) showStale();
+			if (e instanceof StaleError) reloadStale();
 			else load = { status: 'failed', message: e instanceof Error ? e.message : "Couldn't load your settings." };
 		} finally {
 			clearTimeout(timer);
 		}
 	}
 
-	/**
-	 * The server runs other settings data than this page: replace the content with the prompt to reload. This
-	 * also stops autosave, so the stale page writes nothing further.
-	 */
+	/** The server runs other settings data than this page, which must be reloaded. Autosave stops meanwhile. */
+	let stale = $state(false);
+	let staleDialog = $state<HTMLDialogElement>();
+	const autosave = $derived(ready && !stale);
+	/** Holds the revision of the last page reloaded for being stale. */
+	const STALE_RELOAD_KEY = 'alttp-maprando:stale-reload';
+
+	/** Ask the player to reload the stale page, with nothing else they can do. */
 	function showStale() {
-		load = { status: 'stale' };
+		stale = true;
+		staleDialog?.showModal();
+	}
+
+	/**
+	 * Reload a page found stale while loading, which shows nothing to lose yet. Reloads once per revision, so a
+	 * server that keeps returning the same stale page gets the dialog rather than a reload loop.
+	 */
+	function reloadStale() {
+		try {
+			if (sessionStorage.getItem(STALE_RELOAD_KEY) !== REVISION) {
+				sessionStorage.setItem(STALE_RELOAD_KEY, REVISION);
+				location.reload();
+				return;
+			}
+		} catch {
+			/* without storage, fall back to the dialog */
+		}
+		showStale();
 	}
 
 	async function copyUnreadable() {
@@ -228,12 +248,12 @@
 
 	$effect(() => {
 		store.serializeDraft(); // tracked: re-runs on any change
-		if (ready && !generated) saveDraft();
+		if (autosave && !generated) saveDraft();
 	});
 
 	$effect(() => {
 		const draft = custom.serializeDraft(); // tracked: re-runs on any change
-		if (!ready) return;
+		if (!autosave) return;
 		try {
 			localStorage.setItem(CUSTOM_KEY, draft);
 		} catch {
@@ -243,12 +263,12 @@
 
 	$effect(() => {
 		JSON.stringify(store.userPresets); // tracked: re-runs when any preset changes
-		if (ready) store.saveUserPresets(PRESETS_KEY);
+		if (autosave) store.saveUserPresets(PRESETS_KEY);
 	});
 
 	$effect(() => {
 		JSON.stringify(custom.userPresets); // tracked: re-runs when any preset changes
-		if (ready) custom.saveUserPresets(CUSTOM_PRESETS_KEY);
+		if (autosave) custom.saveUserPresets(CUSTOM_PRESETS_KEY);
 	});
 
 	onMount(() => {
@@ -405,11 +425,6 @@
 			<div class="alert alert-danger d-flex align-items-center gap-3" role="alert">
 				<span class="me-auto">{load.message}</span>
 				<button type="button" class="btn btn-outline-danger btn-sm" onclick={loadPage}>Retry</button>
-			</div>
-		{:else if load.status === 'stale'}
-			<div class="alert alert-warning d-flex align-items-center gap-3" role="alert">
-				<span class="me-auto">The randomizer has been updated. Reload the page to continue.</span>
-				<button type="button" class="btn btn-outline-secondary btn-sm" onclick={() => location.reload()}>Reload</button>
 			</div>
 		{:else if load.status === 'missing'}
 			<div class="alert alert-warning" role="alert">There is no seed called “{seed}”.</div>
@@ -585,6 +600,17 @@
 </main>
 {/if}
 
+<!-- Closing it any way (e.g. Escape) reloads too, so reloading is the only way on. -->
+<dialog bind:this={staleDialog} class="stale-dialog" aria-labelledby="stale-title" onclose={() => location.reload()}>
+	<div class="p-4">
+		<h2 id="stale-title" class="h5 fw-bold mb-2">New version available</h2>
+		<p class="mb-3">The randomizer has been updated. Reload the page to continue.</p>
+		<div class="d-flex justify-content-end">
+			<button type="button" class="btn btn-primary" onclick={() => location.reload()}>Reload</button>
+		</div>
+	</div>
+</dialog>
+
 {#if lockToast}
 	<div class="toast show lock-toast" role="status">
 		<div class="toast-body d-flex align-items-center gap-2">
@@ -595,6 +621,20 @@
 {/if}
 
 <style>
+	/* Same look as the ROM dialog. */
+	.stale-dialog {
+		width: min(28rem, calc(100vw - 2rem));
+		padding: 0;
+		border: 1px solid var(--bs-border-color);
+		border-radius: 0.6rem;
+		background: var(--bs-body-bg);
+		color: var(--bs-body-color);
+	}
+
+	.stale-dialog::backdrop {
+		background: rgb(0 0 0 / 0.55);
+	}
+
 	.unreadable {
 		max-width: 36rem;
 	}

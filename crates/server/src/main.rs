@@ -1,4 +1,6 @@
 use actix_files::{Files, NamedFile};
+use actix_web::dev::Service;
+use actix_web::http::header;
 use actix_web::middleware::Logger;
 use actix_web::{App, HttpServer, web};
 use anyhow::{Context, Result};
@@ -94,6 +96,25 @@ async fn main() -> Result<()> {
     let server = HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
+            // Pages are revalidated on every load so a deploy reaches browsers at once: a page cached from
+            // before it would run other settings data than the server.
+            .wrap_fn(|req, srv| {
+                let response = srv.call(req);
+                async move {
+                    let mut response = response.await?;
+                    let headers = response.headers_mut();
+                    let is_html = headers
+                        .get(header::CONTENT_TYPE)
+                        .is_some_and(|value| value.as_bytes().starts_with(b"text/html"));
+                    if is_html {
+                        headers.insert(
+                            header::CACHE_CONTROL,
+                            header::HeaderValue::from_static("no-cache"),
+                        );
+                    }
+                    Ok(response)
+                }
+            })
             .app_data(state.clone())
             .route("/api/generate", web::post().to(generate::generate_seed))
             .route(
