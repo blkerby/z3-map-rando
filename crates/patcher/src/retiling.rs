@@ -320,7 +320,7 @@ pub fn compile(
         }
     }
     Ok(CompiledTheme {
-        world_map: world_map::build_world_map(&areas, &palettes, layout, catalog)?,
+        world_map: world_map::build_world_map(&areas, &palettes, layout, catalog, true)?,
         screen_maps,
         bg1_variants: compiled_bg1_variants,
         map16_definitions,

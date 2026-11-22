@@ -22,6 +22,9 @@ struct Args {
     /// Number of random layouts, in addition to the vanilla layout; 0 renders only vanilla.
     #[arg(long, default_value_t = 10)]
     count: usize,
+    /// Render both Light and Dark World maps. By default, render only Light World maps.
+    #[arg(long)]
+    both_worlds: bool,
     /// Numeric RNG seed; chooses randomly when omitted.
     #[arg(long)]
     rng: Option<u64>,
@@ -66,7 +69,14 @@ fn main() -> Result<()> {
         borders: Vec::new(),
     };
     fs::create_dir_all(&args.output_dir)?;
-    write_maps(&catalog, &importer, &layout, &args.output_dir, "vanilla")?;
+    write_maps(
+        &catalog,
+        &importer,
+        &layout,
+        &args.output_dir,
+        "vanilla",
+        args.both_worlds,
+    )?;
     if args.count == 0 {
         return Ok(());
     }
@@ -90,6 +100,7 @@ fn main() -> Result<()> {
             &layout,
             &args.output_dir,
             &format!("random-{index:04}"),
+            args.both_worlds,
         )?;
     }
     Ok(())
@@ -101,11 +112,12 @@ fn write_maps(
     layout: &WorldLayout,
     output_dir: &Path,
     name: &str,
+    both_worlds: bool,
 ) -> Result<()> {
-    let map = compile_world_map(catalog, importer, layout)?;
-    for (world, suffix) in ["light", "dark"].into_iter().enumerate() {
+    let map = compile_world_map(catalog, importer, layout, both_worlds)?;
+    for (world, palette_bytes) in map.palettes.chunks_exact(256).enumerate() {
         let mut palette = Vec::new();
-        for bytes in map.palettes[world * 256..(world + 1) * 256].chunks_exact(2) {
+        for bytes in palette_bytes.chunks_exact(2) {
             let color = u16::from_le_bytes([bytes[0], bytes[1]]);
             for shift in [0, 5, 10] {
                 let component = ((color >> shift) & 31) as u8;
@@ -124,6 +136,7 @@ fn write_maps(
                     map.graphics[world * 0x4000 + usize::from(tile) * 64 + y % 8 * 8 + x % 8];
             }
         }
+        let suffix = ["light", "dark"][world];
         let path = output_dir.join(format!("{name}-{suffix}.png"));
         let mut encoder = png::Encoder::new(BufWriter::new(File::create(&path)?), 512, 512);
         encoder.set_color(png::ColorType::Indexed);

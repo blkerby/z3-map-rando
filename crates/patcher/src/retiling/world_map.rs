@@ -27,6 +27,7 @@ pub fn compile_world_map(
     catalog: &RetilingCatalog,
     importer: &Importer,
     layout: &WorldLayout,
+    both_worlds: bool,
 ) -> Result<CompiledWorldMap> {
     let mut graphics = TileGraphicResolver::create(importer);
     let palettes = resolve_palettes(catalog, &mut graphics)?;
@@ -37,7 +38,7 @@ pub fn compile_world_map(
         selected = select_areas(catalog, layout)?;
         &selected.areas
     };
-    build_world_map(areas, &palettes, layout, catalog)
+    build_world_map(areas, &palettes, layout, catalog, both_worlds)
 }
 
 pub(super) fn build_world_map(
@@ -45,16 +46,18 @@ pub(super) fn build_world_map(
     palettes: &BTreeMap<PaletteId, Palette>,
     layout: &WorldLayout,
     catalog: &RetilingCatalog,
+    both_worlds: bool,
 ) -> Result<CompiledWorldMap> {
-    let mut worlds = [vec![None; 4096], vec![None; 4096]];
-    for (world, name) in WORLD_MAP_CLOUDS.into_iter().enumerate() {
+    let world_count = if both_worlds { 2 } else { 1 };
+    let mut worlds = vec![vec![None; 4096]; world_count];
+    for (placements, name) in worlds.iter_mut().zip(WORLD_MAP_CLOUDS) {
         let clouds = &catalog.areas[name].themes["base"];
         for layer in &clouds.layers {
             if layer.background != Background::Bg2 || layer.name != "Main" {
                 continue;
             }
             for placement in &layer.grid.tiles {
-                worlds[world][usize::from(placement.y) * 64 + usize::from(placement.x)] =
+                placements[usize::from(placement.y) * 64 + usize::from(placement.x)] =
                     Some(Placement {
                         palette: placement.palette,
                         tile: usize::from(placement.tile),
@@ -64,7 +67,7 @@ pub(super) fn build_world_map(
         }
     }
     for area in areas {
-        if area.id >= 0x80 {
+        if area.id >= world_count * 0x40 {
             continue;
         }
         let logical = area.id as u8 & 0x3f;
