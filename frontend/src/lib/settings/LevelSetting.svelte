@@ -25,7 +25,7 @@
 	const format = (v: Value) => levels.find((l) => l.value === v)?.label ?? String(v);
 </script>
 
-<SettingRow {path} {label} {help} {notes} {format}>
+<SettingRow {path} {label} {help} {notes} {format} wrap>
 	{#snippet control()}
 		<Level {levels} value={store.get(path) as number} {label} disabled={store.locked} onchange={(v) => store.set(path, v)} />
 	{/snippet}
