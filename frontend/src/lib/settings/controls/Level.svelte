@@ -43,11 +43,22 @@
 		return `calc(var(--thumb-half) + (100% - 2 * var(--thumb-half)) * ${i / Math.max(1, levels.length - 1)})`;
 	}
 
-	// Pressing anywhere in the box outside the native slider selects the nearest stop, and dragging
-	// continues to follow the pointer. Presses on the slider itself keep the browser's own handling.
+	// The box handles every press (the native slider ignores the pointer, and serves the keyboard). A mouse
+	// or pen press selects the nearest stop, and dragging continues to follow the pointer. A touch only
+	// counts once it is a tap or a sideways drag, so a page scroll that starts on the box changes nothing:
+	// the browser cancels the touch when it takes the gesture as a scroll.
+	const DRAG_PX = 8;
+
+	/** A touch that is not yet a tap or a drag. */
+	let touchStart: { id: number; x: number; y: number } | null = null;
+
 	function onpointerdown(e: PointerEvent) {
 		const box = e.currentTarget as HTMLElement;
-		if (disabled || e.button !== 0 || e.target instanceof HTMLInputElement) return;
+		if (disabled || e.button !== 0) return;
+		if (e.pointerType === 'touch') {
+			touchStart = { id: e.pointerId, x: e.clientX, y: e.clientY };
+			return;
+		}
 		e.preventDefault();
 		box.setPointerCapture(e.pointerId);
 		selectNearest(e);
@@ -56,7 +67,24 @@
 	function onpointermove(e: PointerEvent) {
 		const box = e.currentTarget as HTMLElement;
 		hoverIndex = findNearest(e);
+		if (touchStart?.id === e.pointerId) {
+			const dx = Math.abs(e.clientX - touchStart.x);
+			if (dx > DRAG_PX && dx > Math.abs(e.clientY - touchStart.y)) {
+				touchStart = null;
+				box.setPointerCapture(e.pointerId);
+			}
+		}
 		if (box.hasPointerCapture(e.pointerId)) selectNearest(e);
+	}
+
+	function onpointerup(e: PointerEvent) {
+		if (touchStart?.id !== e.pointerId) return;
+		touchStart = null;
+		selectNearest(e);
+	}
+
+	function onpointercancel(e: PointerEvent) {
+		if (touchStart?.id === e.pointerId) touchStart = null;
 	}
 </script>
 
@@ -66,6 +94,8 @@
 	style:--thumb-half="{THUMB_HALF_REM}rem"
 	{onpointerdown}
 	{onpointermove}
+	{onpointerup}
+	{onpointercancel}
 	onpointerleave={() => (hoverIndex = null)}
 >
 	<div class="track">
@@ -104,8 +134,8 @@
 		box-sizing: content-box;
 		padding: 0.3rem 0.5rem;
 		margin: -0.3rem -0.5rem;
-		/* Let horizontal drags reach the pointer handlers on touch screens, while still allowing
-		   vertical page scrolling. */
+		/* Let sideways drags reach the pointer handlers on touch screens, while still allowing vertical
+		   page scrolling. */
 		touch-action: pan-y;
 		user-select: none;
 	}
@@ -115,9 +145,9 @@
 		cursor: pointer;
 	}
 
-	/* The browser's own stylesheet gives range inputs `cursor: default`. */
+	/* Presses go to the box's handlers instead (see the script). */
 	.level input {
-		cursor: inherit;
+		pointer-events: none;
 	}
 
 	.track {
