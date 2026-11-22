@@ -38,9 +38,33 @@
 			}
 		}
 	}
+
+	// Each art pixel covers a whole number of device pixels (about 3 CSS px worth), so crispEdges
+	// can't round some pixels larger than others at fractional scales (browser zoom, desktop
+	// scaling). The scale is re-read whenever it changes.
+	let dpr = $state(1);
+	$effect(() => {
+		let mq: MediaQueryList;
+		const update = () => {
+			const r = window.devicePixelRatio;
+			dpr = r;
+			mq = matchMedia(`(resolution: ${r}dppx)`);
+			mq.addEventListener('change', update, { once: true });
+		};
+		update();
+		return () => mq.removeEventListener('change', update);
+	});
+	const heartSize = $derived(((SIZE + PAD * 2) * Math.max(1, Math.round(3 * dpr))) / dpr);
 </script>
 
-<div class="swatches" class:locked={disabled} role="radiogroup" aria-label={label} style:--cols={columns}>
+<div
+	class="swatches"
+	class:locked={disabled}
+	role="radiogroup"
+	aria-label={label}
+	style:--cols={columns}
+	style:--heart="{heartSize}px"
+>
 	{#each options as o (o.value)}
 		<button
 			type="button"
@@ -53,7 +77,11 @@
 			class:selected={value === o.value}
 			onclick={() => onchange(o.value)}
 		>
-			<svg viewBox="{-PAD} {-PAD} {SIZE + PAD * 2} {SIZE + PAD * 2}" aria-hidden="true" shape-rendering="crispEdges">
+			<svg
+				viewBox="{-PAD} {-PAD} {SIZE + PAD * 2} {SIZE + PAD * 2}"
+				aria-hidden="true"
+				shape-rendering="crispEdges"
+			>
 				{#each halo as h (`${h.x},${h.y}`)}
 					<rect x={h.x} y={h.y} width="1" height="1" class="halo" />
 				{/each}
@@ -69,18 +97,18 @@
 	/* Wraps instead of scrolling (a scroll container would clip the outline and hover growth). */
 	.swatches {
 		display: grid;
-		grid-template-columns: repeat(var(--cols), 1.75rem);
+		grid-template-columns: repeat(var(--cols), var(--heart));
 		gap: 0.25rem;
 		max-width: 100%;
-		/* Pulled up to center the first row of 1.75rem hearts on the 1.5rem label line beside it. */
-		margin-top: -0.125rem;
+		/* Centers the first row of hearts on the 1.5rem label line beside it. */
+		margin-top: calc((1.5rem - var(--heart)) / 2);
 		padding-bottom: 0.35rem;
 	}
 
 	.heart {
 		display: block;
-		width: 1.75rem;
-		height: 1.75rem;
+		width: var(--heart);
+		height: var(--heart);
 		padding: 0;
 		border: 0;
 		background: none;
