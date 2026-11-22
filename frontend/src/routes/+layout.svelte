@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
-	import favicon from '$lib/assets/MapScrollFavicon.svg';
+	import favicon from '$lib/assets/MapScrollFavicon.png';
 	import DiscordIcon from '$lib/assets/DiscordIcon.png';
 	import ThemeToggle from '$lib/ThemeToggle.svelte';
 	import RomDialog from '$lib/rom/RomDialog.svelte';
