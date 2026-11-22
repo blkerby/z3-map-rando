@@ -24,10 +24,13 @@
 		actions?: Snippet;
 		children: Snippet;
 	} = $props();
+
+	let headerHeight = $state(0);
 </script>
 
-<section {id} class="section">
-	<div class="section-top">
+<!-- The header height is exposed so the cards' headers can stick just beneath this one. -->
+<section {id} class="section" style:--section-header-height="{headerHeight}px">
+	<div class="section-top" bind:offsetHeight={headerHeight}>
 		<h2 class="section-title">
 			<button
 				type="button"
@@ -62,7 +65,12 @@
 		margin-bottom: 1.25rem;
 	}
 
+	/* Stays in view while scrolling through the section's body. */
 	.section-top {
+		position: sticky;
+		top: 0;
+		z-index: 2;
+		background: var(--bs-body-bg);
 		display: flex;
 		align-items: center;
 		border-bottom: 1px solid var(--bs-border-color);

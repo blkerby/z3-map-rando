@@ -89,8 +89,18 @@
 </section>
 
 <style>
+	/* Lands beneath the stuck section header. */
 	section {
-		scroll-margin-top: 1rem;
+		scroll-margin-top: calc(var(--section-header-height, 0px) + 0.5rem);
+	}
+
+	/* Stays in view while scrolling through the card, beneath the stuck section header. The cap color is
+	   translucent, so it is layered over the card's own background. */
+	.card-header {
+		position: sticky;
+		top: var(--section-header-height, 0px);
+		z-index: 1;
+		background: linear-gradient(var(--bs-card-cap-bg), var(--bs-card-cap-bg)) var(--bs-card-bg);
 	}
 
 	.card-toggle {
