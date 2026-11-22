@@ -7,6 +7,7 @@
 		heading,
 		subheading = false,
 		layout = 'list',
+		columns,
 		children
 	}: {
 		heading?: string;
@@ -14,6 +15,8 @@
 		subheading?: boolean;
 		/** One full row per line, compact rows in one column, or compact rows in columns. */
 		layout?: 'list' | 'compact' | 'grid';
+		/** A fixed column count for a grid, filled row by row; otherwise as many columns as fit. */
+		columns?: number;
 		children: Snippet;
 	} = $props();
 
@@ -29,7 +32,11 @@
 			<h4 class="subhead">{heading}</h4>
 		{/if}
 	{/if}
-	<div class="rows" class:grid={layout === 'grid'}>
+	<div
+		class="rows"
+		class:grid={layout === 'grid'}
+		style:grid-template-columns={columns ? `repeat(${columns}, minmax(0, 1fr))` : undefined}
+	>
 		{@render children()}
 	</div>
 </div>

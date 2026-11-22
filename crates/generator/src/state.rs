@@ -7,7 +7,7 @@ use logic_catalog::{
     DoorIndex, DungeonIndex, FlagIndex, FollowerMask, ItemLocationIndex, LogicCatalog,
     OcarinaState, UniqueItem,
 };
-use seed_data::StartingOcarina;
+use seed_data::{StartingBottle, StartingOcarina};
 
 /// Mutable global reads that can change an edge's results or discoveries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -119,8 +119,11 @@ impl GlobalState {
                 state.grant_non_key_item(item);
             }
         }
-        for _ in 0..starting.resources.bottles {
-            state.grant_non_key_item(Item::Bottle);
+        let r = &starting.resources;
+        for bottle in [r.bottle_1, r.bottle_2, r.bottle_3, r.bottle_4] {
+            if bottle != StartingBottle::None {
+                state.grant_non_key_item(Item::Bottle);
+            }
         }
         if starting.equipment.ocarina == StartingOcarina::Active {
             state.ocarina = OcarinaState::Active;

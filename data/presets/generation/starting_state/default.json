@@ -33,13 +33,16 @@
       "ocarina": "none"
     },
     "resources": {
-      "bottles": 0,
       "heart_capacity": 3,
       "bomb_capacity": 10,
       "arrow_capacity": 30,
       "bombs": 0,
       "arrows": 0,
-      "rupees": 0
+      "rupees": 0,
+      "bottle_1": "none",
+      "bottle_2": "none",
+      "bottle_3": "none",
+      "bottle_4": "none"
     }
   }
 }

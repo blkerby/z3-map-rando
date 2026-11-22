@@ -31,6 +31,17 @@
 		{ id: 'consumables', title: 'Consumables' }
 	];
 
+	const BOTTLE_CONTENTS = [
+		{ value: 'none', label: 'None' },
+		{ value: 'empty', label: 'Empty' },
+		{ value: 'red_potion', label: 'Red Potion' },
+		{ value: 'green_potion', label: 'Green Potion' },
+		{ value: 'blue_potion', label: 'Blue Potion' },
+		{ value: 'fairy', label: 'Fairy' },
+		{ value: 'bee', label: 'Bee' },
+		{ value: 'gold_bee', label: 'Golden Bee' }
+	];
+
 	const poolUsed = $derived(countPoolItems(store));
 	/** Pool items deducted for the starting state, by item name. */
 	const deducted = $derived(
@@ -138,19 +149,7 @@
 	<Group heading="Progressive equipment" layout="grid">
 		{@render equipmentSettings('progressive')}
 	</Group>
-	<Group heading="Resource Capacity" layout="grid">
-    	<CountSetting
-    		path={['starting_state', 'resources', 'heart_capacity']}
-    		label="Heart capacity"
-    		min={1}
-    		max={20}
-    	/>
-		<CountSetting
-			path={['starting_state', 'resources', 'bottles']}
-			label="Bottles"
-			min={0}
-			max={4}
-		/>
+	<Group heading="Resources" layout="grid" columns={2}>
 		<CountSetting
 			path={['starting_state', 'resources', 'bomb_capacity']}
 			label="Bomb capacity"
@@ -158,18 +157,16 @@
 			max={99}
 		/>
 		<CountSetting
-			path={['starting_state', 'resources', 'arrow_capacity']}
-			label="Arrow capacity"
-			min={0}
-			max={99}
-		/>
-	</Group>
-	<Group heading="Consumables" layout="grid">
-		<CountSetting
 			path={['starting_state', 'resources', 'bombs']}
 			label="Bombs"
 			min={0}
 			max={store.get(['starting_state', 'resources', 'bomb_capacity']) as number}
+		/>
+		<CountSetting
+			path={['starting_state', 'resources', 'arrow_capacity']}
+			label="Arrow capacity"
+			min={0}
+			max={99}
 		/>
 		<CountSetting
 			path={['starting_state', 'resources', 'arrows']}
@@ -178,11 +175,25 @@
 			max={store.get(['starting_state', 'resources', 'arrow_capacity']) as number}
 		/>
 		<CountSetting
+			path={['starting_state', 'resources', 'heart_capacity']}
+			label="Heart capacity"
+			min={1}
+			max={20}
+		/>
+		<CountSetting
 			path={['starting_state', 'resources', 'rupees']}
 			label="Rupees"
 			min={0}
 			max={999}
 		/>
+		{#each [1, 2, 3, 4] as n (n)}
+			<ChoiceSetting
+				path={['starting_state', 'resources', `bottle_${n}`]}
+				label="Bottle {n}"
+				options={BOTTLE_CONTENTS}
+				display="dropdown"
+			/>
+		{/each}
 	</Group>
 </SectionCard>
 

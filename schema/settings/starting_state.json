@@ -171,20 +171,18 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "bottles",
         "heart_capacity",
         "bomb_capacity",
         "arrow_capacity",
         "bombs",
         "arrows",
-        "rupees"
+        "rupees",
+        "bottle_1",
+        "bottle_2",
+        "bottle_3",
+        "bottle_4"
       ],
       "properties": {
-        "bottles": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 4
-        },
         "heart_capacity": {
           "type": "integer",
           "minimum": 1,
@@ -214,8 +212,35 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 999
+        },
+        "bottle_1": {
+          "$ref": "#/$defs/bottle"
+        },
+        "bottle_2": {
+          "$ref": "#/$defs/bottle"
+        },
+        "bottle_3": {
+          "$ref": "#/$defs/bottle"
+        },
+        "bottle_4": {
+          "$ref": "#/$defs/bottle"
         }
       }
+    }
+  },
+  "$defs": {
+    "bottle": {
+      "type": "string",
+      "enum": [
+        "none",
+        "empty",
+        "red_potion",
+        "green_potion",
+        "blue_potion",
+        "fairy",
+        "bee",
+        "gold_bee"
+      ]
     }
   }
 }

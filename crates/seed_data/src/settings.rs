@@ -213,8 +213,6 @@ pub enum StartingOcarina {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StartingResources {
-    /// Empty bottles.
-    pub bottles: u8,
     /// Capacity in whole hearts; the new game begins at full health.
     pub heart_capacity: u8,
     pub bomb_capacity: u8,
@@ -222,6 +220,23 @@ pub struct StartingResources {
     pub bombs: u8,
     pub arrows: u8,
     pub rupees: u16,
+    pub bottle_1: StartingBottle,
+    pub bottle_2: StartingBottle,
+    pub bottle_3: StartingBottle,
+    pub bottle_4: StartingBottle,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StartingBottle {
+    None,
+    Empty,
+    RedPotion,
+    GreenPotion,
+    BluePotion,
+    Fairy,
+    Bee,
+    GoldBee,
 }
 
 #[derive(Debug)]

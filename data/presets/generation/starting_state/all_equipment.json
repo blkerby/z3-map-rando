@@ -33,13 +33,16 @@
       "ocarina": "active"
     },
     "resources": {
-      "bottles": 4,
       "heart_capacity": 3,
       "bomb_capacity": 50,
       "arrow_capacity": 70,
       "bombs": 50,
       "arrows": 70,
-      "rupees": 999
+      "rupees": 999,
+      "bottle_1": "empty",
+      "bottle_2": "empty",
+      "bottle_3": "empty",
+      "bottle_4": "empty"
     }
   }
 }

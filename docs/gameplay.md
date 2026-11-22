@@ -4,7 +4,7 @@ The prototype randomizes items and overworld layouts, with broader gameplay veri
 
 ## Starting state
 
-Starting state has independent equipment and resource settings. Unique equipment uses toggles and progressive equipment uses named tiers. Resources include a count of empty bottles. Heart capacity is 1 to 20 whole hearts; a new game begins at full health. Bomb and arrow capacities are direct values from 0 to 99, with separate starting ammunition counts bounded by their capacities. Starting rupees range from 0 to 999. New games begin with Zelda already rescued; completing her rescue does not reset later progress.
+Starting state has independent equipment and resource settings. Unique equipment uses toggles and progressive equipment uses named tiers. Each of the four bottle slots can start missing, empty, or filled with a potion, fairy, bee, or golden bee; logic counts every starting bottle as owned but does not credit its contents. Heart capacity is 1 to 20 whole hearts; a new game begins at full health. Bomb and arrow capacities are direct values from 0 to 99, with separate starting ammunition counts bounded by their capacities. Starting rupees range from 0 to 999. New games begin with Zelda already rescued; completing her rescue does not reset later progress.
 
 The Default preset starts with no equipment, three hearts, bomb/arrow capacities of 10/30, and no ammunition or rupees. All equipment supplies the highest equipment tiers, an active Ocarina, and four empty bottles, while keeping Default's resources. The Testing root preset overrides the capacities to 5/5.
 

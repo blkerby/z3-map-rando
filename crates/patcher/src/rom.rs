@@ -10,8 +10,8 @@ use common_types::{Item, SourceRoomId};
 use patch_catalog::PatchCatalog;
 use retiling_catalog::RetilingCatalog;
 use seed_data::{
-    AreaLayout, CustomizationSettings, OverworldRoomPlacement, StartingBoomerang, StartingBow,
-    StartingOcarina, WorldLayout,
+    AreaLayout, CustomizationSettings, OverworldRoomPlacement, StartingBoomerang, StartingBottle,
+    StartingBow, StartingOcarina, WorldLayout,
 };
 use std::collections::BTreeMap;
 
@@ -152,10 +152,26 @@ pub fn patch_rom(
             inventory[0x4c] |= 0x01;
         }
     }
-    if resources.bottles > 0 {
-        inventory[0x0f] = 1;
-        for i in 0..usize::from(resources.bottles) {
-            inventory[0x1c + i] = 2;
+    let bottles = [
+        resources.bottle_1,
+        resources.bottle_2,
+        resources.bottle_3,
+        resources.bottle_4,
+    ];
+    for (i, bottle) in bottles.into_iter().enumerate() {
+        inventory[0x1c + i] = match bottle {
+            StartingBottle::None => 0,
+            StartingBottle::Empty => 2,
+            StartingBottle::RedPotion => 3,
+            StartingBottle::GreenPotion => 4,
+            StartingBottle::BluePotion => 5,
+            StartingBottle::Fairy => 6,
+            StartingBottle::Bee => 7,
+            StartingBottle::GoldBee => 8,
+        };
+        // Select the first owned bottle.
+        if inventory[0x0f] == 0 && bottle != StartingBottle::None {
+            inventory[0x0f] = i as u8 + 1;
         }
     }
     if equipment.pegasus_boots {
