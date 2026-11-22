@@ -19,9 +19,11 @@ The server loads `logic_catalog.bin`, `retiling_catalog.bin`, `patch_catalog.bin
 | `file:path/to/store` | Filesystem directory, created if needed; relative to the working directory |
 | `s3://bucket/prefix` | S3-compatible bucket, with all objects under the optional prefix |
 
-For S3, use the `object_store` library's AWS environment configuration: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, optional `AWS_SESSION_TOKEN`, `AWS_DEFAULT_REGION`, and a custom `AWS_ENDPOINT_URL_S3` for compatible services. HTTP endpoints require `AWS_ALLOW_HTTP=true`. The bucket must already exist, and the provider must support conditional create-only PUTs. Storage errors never fall back to another backend.
+For S3, use the `object_store` library's AWS environment configuration: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, optional `AWS_SESSION_TOKEN`, `AWS_DEFAULT_REGION`, and a custom `AWS_ENDPOINT_URL_S3` for compatible services. HTTP endpoints require `AWS_ALLOW_HTTP=true`. The bucket must already exist. Storage errors never fall back to another backend.
 
-Applications save and load whole objects using logical keys. The store compresses every saved object with Zstd level 3, appends `.zst` to its physical key, and decompresses when loading through the logical key. For example, `seeds/ABC123.json` is stored as `seeds/ABC123.json.zst`, or `prefix/seeds/ABC123.json.zst` inside the configured S3 bucket. Saved objects use atomic, create-only writes and cannot overwrite an existing key. Keep filesystem storage outside `frontend/build/`.
+Applications save and load whole objects using logical keys. The store compresses every saved object with Zstd level 3, appends `.zst` to its physical key, and decompresses when loading through the logical key. For example, `seeds/ABC123.json` is stored as `seeds/ABC123.json.zst`, or `prefix/seeds/ABC123.json.zst` inside the configured S3 bucket. Writes are atomic and create-only by default. Keep filesystem storage outside `frontend/build/`.
+
+Pass `--store-check-before-put` for stores that lack conditional create-only PUTs, such as Backblaze B2. The server writes only when `HEAD` reports that the key is missing. This check and the write are separate operations, so concurrent writers targeting the same key can overwrite each other.
 
 ## Generation
 

@@ -24,6 +24,9 @@ struct Args {
     /// Object store: mem, file:<directory>, or s3://<bucket>/<prefix>.
     #[arg(long, default_value = "mem")]
     store: String,
+    /// Check whether a seed key exists before uploading instead of using an atomic create-only write.
+    #[arg(long)]
+    store_check_before_put: bool,
     /// Serve only the API, not the built frontend (for the Vite dev server, which serves the pages).
     #[arg(long)]
     api_only: bool,
@@ -82,7 +85,7 @@ async fn main() -> Result<()> {
         retiling: retiling_catalog::decode_catalog(retiling_bytes.as_slice())?,
         patches,
         retiling_hash: compute_catalog_hash(&retiling_bytes),
-        store: Store::open_store(&args.store)?,
+        store: Store::open_store(&args.store, args.store_check_before_put)?,
         slot: Arc::new(Semaphore::new(1)),
     });
 

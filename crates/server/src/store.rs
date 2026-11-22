@@ -8,10 +8,11 @@ use std::{io::Cursor, sync::Arc};
 /// Whole-object storage with logical keys and transparently Zstd-compressed physical objects.
 pub struct Store {
     inner: Arc<dyn ObjectStore>,
+    check_before_put: bool,
 }
 
 impl Store {
-    pub fn open_store(spec: &str) -> Result<Self> {
+    pub fn open_store(spec: &str, check_before_put: bool) -> Result<Self> {
         let inner: Arc<dyn ObjectStore> = if spec == "mem" {
             Arc::new(InMemory::new())
         } else if let Some(directory) = spec.strip_prefix("file:") {
@@ -25,19 +26,33 @@ impl Store {
         } else {
             bail!("store must be mem, file:<directory>, or s3://<bucket>/<prefix>");
         };
-        Ok(Self { inner })
+        Ok(Self {
+            inner,
+            check_before_put,
+        })
     }
 
     pub async fn save_object(&self, key: &str, bytes: Vec<u8>) -> Result<()> {
+        let path = Path::parse(format!("{key}.zst"))?;
         let compressed =
             actix_web::web::block(move || zstd::stream::encode_all(Cursor::new(bytes), 3))
                 .await??;
+        let mode = if self.check_before_put {
+            // shortcut: a concurrent writer can claim the key after HEAD; use atomic create if supported.
+            match self.inner.head(&path).await {
+                Ok(_) => bail!("Object {path} already exists"),
+                Err(object_store::Error::NotFound { .. }) => PutMode::Overwrite,
+                Err(error) => return Err(error.into()),
+            }
+        } else {
+            PutMode::Create
+        };
         self.inner
             .put_opts(
-                &Path::parse(format!("{key}.zst"))?,
+                &path,
                 compressed.into(),
                 PutOptions {
-                    mode: PutMode::Create,
+                    mode,
                     ..Default::default()
                 },
             )
