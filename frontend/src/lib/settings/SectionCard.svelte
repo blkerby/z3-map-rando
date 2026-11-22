@@ -101,6 +101,12 @@
 		top: var(--section-header-height, 0px);
 		z-index: 1;
 		background: linear-gradient(var(--bs-card-cap-bg), var(--bs-card-cap-bg)) var(--bs-card-bg);
+		flex-wrap: wrap;
+	}
+
+	/* The title keeps its line; when the header is out of room, the controls wrap beneath it instead. */
+	h3 {
+		flex: 1 0 auto;
 	}
 
 	.card-toggle {
@@ -128,9 +134,12 @@
 		text-decoration: none;
 	}
 
-	/* Shrinkable rather than capped, so the controls only wrap when the header is actually out of room. */
+	/* Right-aligned, also when wrapped beneath the title. Shrinkable, so a long label is cut off rather than
+	   overflowing the card. */
 	.card-presets {
 		flex: 0 1 auto;
+		min-width: 0;
+		margin-left: auto;
 		padding: 0.3rem 0.75rem 0.3rem 0;
 		font-size: 0.9rem;
 	}

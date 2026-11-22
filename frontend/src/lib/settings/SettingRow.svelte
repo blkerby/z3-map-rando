@@ -14,7 +14,8 @@
 		format,
 		labelFor,
 		control,
-		nested
+		nested,
+		wrap = false
 	}: {
 		path: Path;
 		label: string;
@@ -30,6 +31,8 @@
 		control: Snippet;
 		/** Rows shown indented underneath (e.g. options of a toggle). */
 		nested?: Snippet;
+		/** In a compact row, put the control beneath the label when they don't fit side by side. */
+		wrap?: boolean;
 	} = $props();
 
 	const store = getStore();
@@ -56,6 +59,7 @@
 	class:changed
 	class:tweaked
 	class:compact
+	class:wrap
 	class:clickable={labelFor && !store.locked}
 	class:locked={labelFor && store.locked}
 	hidden={!store.matches(info)}
@@ -175,6 +179,16 @@
 		align-items: start;
 		gap: 0.5rem;
 		--pad-y: 0.45rem;
+	}
+
+	/* The control sits beside the label if both fit at full width, else beneath it, shrinking to fit. */
+	.setting-row.compact.wrap {
+		display: flex;
+		flex-wrap: wrap;
+	}
+
+	.wrap .left {
+		flex: 1 0 auto;
 	}
 
 	/* Center Bootstrap's small controls (1.5em at 0.875rem, plus 0.5rem padding and borders) on the 1.5rem

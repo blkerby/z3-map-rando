@@ -44,6 +44,11 @@
 </select>
 
 <style>
+	select {
+		max-width: 100%;
+		text-overflow: ellipsis;
+	}
+
 	select.changed {
 		background-color: rgba(var(--bs-success-rgb), 0.15);
 	}

@@ -32,7 +32,7 @@
 	const set = (v: string) => store.set(path, v);
 </script>
 
-<SettingRow {path} {label} {help} {notes} {format}>
+<SettingRow {path} {label} {help} {notes} {format} wrap={mode === 'swatches'}>
 	{#snippet control()}
 		{#if mode === 'swatches'}
 			<Swatches {options} {value} {label} disabled={store.locked} columns={Math.min(10, options.length)} onchange={set} />

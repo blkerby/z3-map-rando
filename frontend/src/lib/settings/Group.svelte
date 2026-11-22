@@ -35,7 +35,8 @@
 	<div
 		class="rows"
 		class:grid={layout === 'grid'}
-		style:grid-template-columns={columns ? `repeat(${columns}, minmax(0, 1fr))` : undefined}
+		class:fixed-columns={columns !== undefined}
+		style:--columns={columns}
 	>
 		{@render children()}
 	</div>
@@ -74,5 +75,13 @@
 		grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
 		column-gap: 1.5rem;
 		align-content: start;
+	}
+
+	/* On narrow screens, a fixed column count would squeeze the rows, so the grid falls back to as many
+	   columns as fit. */
+	@media (min-width: 576px) {
+		.rows.grid.fixed-columns {
+			grid-template-columns: repeat(var(--columns), minmax(0, 1fr));
+		}
 	}
 </style>

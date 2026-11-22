@@ -702,7 +702,6 @@
 		}
 
 		.side {
-			order: -1;
 			position: static;
 			max-height: none;
 			overflow: visible;

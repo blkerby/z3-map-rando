@@ -69,24 +69,18 @@
 	/* Wraps instead of scrolling (a scroll container would clip the outline and hover growth). */
 	.swatches {
 		display: grid;
-		grid-template-columns: repeat(var(--cols), 2rem);
-		gap: 0.3rem;
+		grid-template-columns: repeat(var(--cols), 1.75rem);
+		gap: 0.25rem;
 		max-width: 100%;
-		/* Pulled up to center the first row of 2rem hearts on the 1.5rem label line beside it. */
-		margin-top: -0.25rem;
+		/* Pulled up to center the first row of 1.75rem hearts on the 1.5rem label line beside it. */
+		margin-top: -0.125rem;
 		padding-bottom: 0.35rem;
-	}
-
-	@media (max-width: 36rem) {
-		.swatches {
-			grid-template-columns: repeat(5, 2rem);
-		}
 	}
 
 	.heart {
 		display: block;
-		width: 2rem;
-		height: 2rem;
+		width: 1.75rem;
+		height: 1.75rem;
 		padding: 0;
 		border: 0;
 		background: none;

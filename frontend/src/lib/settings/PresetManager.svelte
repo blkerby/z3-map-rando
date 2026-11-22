@@ -619,7 +619,7 @@
 	/* Capped so a long label (e.g. "+ 3 unsaved changes") is cut off rather than wrapping the header. */
 	.preset-select {
 		field-sizing: content; /* as wide as the option shown, not the widest one (where supported) */
-		max-width: 26rem;
+		max-width: min(26rem, 100%);
 		text-overflow: ellipsis;
 	}
 
@@ -635,9 +635,9 @@
 	.menu {
 		position: absolute;
 		top: calc(100% + 0.25rem);
-		left: 0;
+		right: 0;
 		z-index: 30;
-		min-width: 17rem;
+		min-width: min(17rem, calc(100vw - 2rem));
 		padding: 0.3rem;
 		border: 1px solid var(--bs-border-color);
 		border-radius: 0.5rem;
