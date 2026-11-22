@@ -14,11 +14,10 @@
 
 	const rom = provideRomStore();
 
-	const navLinks: { href: '/' | '/generate' | '/releases' | '/logic' | '/about'; label: string }[] = [
+	const navLinks: { href: '/' | '/generate' | '/releases' | '/about'; label: string }[] = [
 		{ href: '/', label: 'Home' },
 		{ href: '/generate', label: 'Generate' },
 		{ href: '/releases', label: 'Releases' },
-		{ href: '/logic', label: 'Logic' },
 		{ href: '/about', label: 'About' }
 	];
 
