@@ -38,8 +38,8 @@
 	<div class="p-4">
 		<h2 id="rom-title" class="h5 fw-bold mb-2">Select your ROM</h2>
 		<p class="small mb-3">
-			Saving the ROM needs your own copy of <b>A Link to the Past</b> (<em>Zelda no Densetsu (V1.0) (J).sfc</em>). The file stays in this
-			browser; it is never uploaded.
+			Saving the ROM needs your own copy of the original Japanese version of <b>The Legend of Zelda: A Link to the Past</b>. The file stays in this
+			browser; it is not uploaded.
 		</p>
 
 		<label
