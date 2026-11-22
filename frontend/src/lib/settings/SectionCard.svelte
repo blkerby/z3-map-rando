@@ -13,7 +13,6 @@
 		collapsible = false,
 		collapsed = false,
 		scope,
-		header,
 		children
 	}: {
 		id: string;
@@ -25,8 +24,6 @@
 		collapsed?: boolean;
 		/** The child scope whose preset is picked in this card's header. */
 		scope?: Scope;
-		/** Shown at the top of the body, e.g. a status line. */
-		header?: Snippet;
 		children: Snippet;
 	} = $props();
 
@@ -87,7 +84,6 @@
 	</header>
 	<!-- Kept mounted while folded, so its settings stay known to the summary and search. -->
 	<div class="card-body py-1" id="{store.idPrefix}body-{id}" hidden={!open}>
-		{@render header?.()}
 		{@render children()}
 	</div>
 </section>

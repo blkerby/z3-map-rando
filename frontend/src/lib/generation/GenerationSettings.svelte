@@ -193,14 +193,7 @@
 	collapsed
 	scope={itemPoolScope}
 >
-	{#snippet header()}
-		<div class="pool-bar" class:text-danger={poolUsed > ITEM_LOCATIONS}>
-			{poolUsed} of {ITEM_LOCATIONS} item locations filled{poolUsed < ITEM_LOCATIONS
-				? ' (the rest are left empty)'
-				: ''}.
-		</div>
-	{/snippet}
-	<Group heading="Pool behavior" layout="compact">
+	<Group layout="compact">
 		<ToggleSetting
 			path={['item_pool', 'deduct_starting_items']}
 			label="Deduct starting equipment"
@@ -209,26 +202,10 @@
 				<p>Remove starting equipment from the counts below. Bottles, health, capacities, ammunition, rupees, and flags do not reduce the pool.</p>
 			{/snippet}
 		</ToggleSetting>
-		<CountSetting
-			path={['item_pool', 'bomb_upgrade_size']}
-			label="Bomb upgrade size"
-			min={1}
-			max={99}
-		>
-			{#snippet help()}
-				<p>Capacity and ammunition granted by each bomb capacity upgrade.</p>
-			{/snippet}
-		</CountSetting>
-		<CountSetting
-			path={['item_pool', 'arrow_upgrade_size']}
-			label="Arrow upgrade size"
-			min={1}
-			max={99}
-		>
-			{#snippet help()}
-				<p>Capacity and ammunition granted by each arrow capacity upgrade.</p>
-			{/snippet}
-		</CountSetting>
+	</Group>
+	<Group layout="grid">
+		<CountSetting path={['item_pool', 'bomb_upgrade_size']} label="Bomb upgrade size" min={1} max={99} />
+		<CountSetting path={['item_pool', 'arrow_upgrade_size']} label="Arrow upgrade size" min={1} max={99} />
 	</Group>
 	{#each ITEM_CATEGORIES as category (category.id)}
 		<Group heading={category.title} layout="grid">
@@ -243,6 +220,11 @@
 			{/each}
 		</Group>
 	{/each}
+	<div class="pool-bar" class:text-danger={poolUsed > ITEM_LOCATIONS}>
+		{poolUsed} of {ITEM_LOCATIONS} item locations filled{poolUsed < ITEM_LOCATIONS
+			? ' (the rest are left empty)'
+			: ''}.
+	</div>
 </SectionCard>
 
 <style>

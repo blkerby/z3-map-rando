@@ -173,7 +173,7 @@
 		grid-template-columns: minmax(0, 1fr) auto;
 		align-items: start;
 		gap: 0.5rem;
-		padding-block: 0.3rem;
+		padding-block: 0.45rem;
 	}
 
 	/* Center Bootstrap's small controls (1.5em at 0.875rem, plus 0.5rem padding and borders) on the 1.5rem
