@@ -104,9 +104,12 @@
 	</div>
 
 	{#if help}
-		<!-- Escape, Close or a click on the backdrop closes it. -->
+		<!-- Escape, Close or a click on the backdrop closes it. `autofocus` makes `showModal()` focus the dialog
+		     itself rather than its first button. -->
+		<!-- svelte-ignore a11y_autofocus -->
 		<dialog
 			bind:this={helpDialog}
+			autofocus
 			class="help-dialog"
 			data-lockable="false"
 			aria-labelledby={helpTitleId}
@@ -114,8 +117,11 @@
 				if (e.target === helpDialog) helpDialog.close();
 			}}
 		>
+			<div class="d-flex align-items-center px-4 py-3 border-bottom">
+				<h2 id={helpTitleId} class="h5 fw-bold mb-0 me-auto">{label}</h2>
+				<button type="button" class="btn-close" aria-label="Close" onclick={() => helpDialog?.close()}></button>
+			</div>
 			<div class="p-4">
-				<h2 id={helpTitleId} class="h5 fw-bold mb-3">{label}</h2>
 				<div class="help-body">{@render help()}</div>
 				<div class="d-flex justify-content-end mt-3">
 					<button type="button" class="btn btn-outline-secondary btn-sm" onclick={() => helpDialog?.close()}>Close</button>
