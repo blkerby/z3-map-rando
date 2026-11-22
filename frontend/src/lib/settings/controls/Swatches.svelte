@@ -3,7 +3,7 @@
 
 	// Color picker drawn as pixel hearts (the life-meter heart). The white border keeps every color,
 	// yellow included, readable against the theme. Every heart has a dark blue outline; the selected
-	// one's outline turns gold (--bs-primary); its name shows underneath.
+	// one's outline turns gold (--bs-primary).
 	let {
 		options,
 		value,
@@ -126,9 +126,5 @@
 
 	.locked .heart:not(.selected) {
 		opacity: 0.35;
-	}
-
-	.name {
-		margin-top: 0.1rem;
 	}
 </style>
