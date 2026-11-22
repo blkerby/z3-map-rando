@@ -91,7 +91,7 @@
 	</div>
 
 	<div class="control-col">
-		<div data-lockable>{@render control()}</div>
+		<div data-lockable class:switch-wrap={labelFor}>{@render control()}</div>
 		{#if nested}
 			<div class="nested" data-lockable="false">{@render nested()}</div>
 		{/if}
@@ -257,6 +257,11 @@
 
 	.control-col {
 		min-width: 0;
+	}
+
+	/* Only as wide as the switch, so the space beside it is part of the row's click target. */
+	.switch-wrap {
+		width: fit-content;
 	}
 
 	.nested {
