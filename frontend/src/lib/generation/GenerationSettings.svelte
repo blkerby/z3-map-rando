@@ -138,7 +138,7 @@
 	<Group heading="Progressive equipment" layout="grid">
 		{@render equipmentSettings('progressive')}
 	</Group>
-	<Group heading="Resources" layout="grid">
+	<Group heading="Resource Capacity" layout="grid">
     	<CountSetting
     		path={['starting_state', 'resources', 'heart_capacity']}
     		label="Heart capacity"
@@ -199,7 +199,8 @@
 			label="Deduct starting equipment"
 		>
 			{#snippet help()}
-				<p>Remove starting equipment from the counts below. Bottles, health, capacities, ammunition, rupees, and flags do not reduce the pool.</p>
+				<p>Remove starting equipment from the counts below. For instance, if Pegasus Boots is a starting item, then this setting causes it to be removed from the item pool, so it won't be placed anywhere.</p>
+				<p>Bottles, hearts, rupees, bombs, and arrows are not considered equipment: their quantities in the pool are not affected by this setting.</p>
 			{/snippet}
 		</ToggleSetting>
 	</Group>
