@@ -200,7 +200,7 @@
 				: ''}.
 		</div>
 	{/snippet}
-	<Group heading="Pool behavior">
+	<Group heading="Pool behavior" layout="compact">
 		<ToggleSetting
 			path={['item_pool', 'deduct_starting_items']}
 			label="Deduct starting equipment"

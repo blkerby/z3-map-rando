@@ -72,7 +72,9 @@
 		grid-template-columns: repeat(var(--cols), 2rem);
 		gap: 0.3rem;
 		max-width: 100%;
-		padding: 0.35rem 0;
+		/* Pulled up to center the first row of 2rem hearts on the 1.5rem label line beside it. */
+		margin-top: -0.25rem;
+		padding-bottom: 0.35rem;
 	}
 
 	@media (max-width: 36rem) {

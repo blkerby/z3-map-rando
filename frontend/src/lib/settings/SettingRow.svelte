@@ -176,6 +176,14 @@
 		padding-block: 0.3rem;
 	}
 
+	/* Center Bootstrap's small controls (1.5em at 0.875rem, plus 0.5rem padding and borders) on the 1.5rem
+	   label line. They stay within the row's padding, so rows keep their spacing. The button group is
+	   inline, so it is also taken off the text baseline. */
+	.compact .control-col :global(:is(.form-control-sm, .form-select-sm, .btn-group)) {
+		margin-block: calc(-0.15625rem - var(--bs-border-width));
+		vertical-align: top;
+	}
+
 	.compact .label-col {
 		min-width: 0;
 	}
