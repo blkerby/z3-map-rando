@@ -1,5 +1,5 @@
 <script lang="ts">
-	import LinkIcon from '$lib/assets/LinkIcon.png';
+	import OverworldSnippet from '$lib/assets/overworld_snippet.png';
 	import { resolve } from '$app/paths';
 </script>
 
@@ -9,15 +9,15 @@
 			<div class="col-lg-8 card-body">
 				<h1 class="display-6 fw-bold mb-3">A Link to the Past Map Rando</h1>
 				<p class="mb-4 fs-5">
-					The overworld and items are rearranged into a new layout every time.
+					Hyrule has been rearranged, and Link must find a new way to save the kingdom.
 				</p>
 				<p class="mb-4 fs-5">
 					Can you find the items needed to defeat Ganon and obtain the Triforce?
 				</p>
 				<a href={resolve('/generate')} class="btn btn-primary btn-lg d-block mx-auto mb-3 generate-btn">Generate Game</a>
 			</div>
-			<div class="col-lg-4 d-flex justify-content-center align-items-center">
-				<img src={LinkIcon} alt="Sample randomized map" class="map-preview" />
+			<div class="col-lg-4">
+				<img src={OverworldSnippet} alt="Sample randomized overworld" class="map-preview" />
 			</div>
 		</div>
 	</div>
@@ -30,18 +30,32 @@
 </main>
 
 <style>
+	.content-width {
+		max-width: 1000px;
+	}
+
 	.hero-card {
 		border: 2px solid var(--bs-border-color);
 		--bs-card-border-radius: 1rem;
 		border-radius: var(--bs-card-border-radius);
+		overflow: hidden;
 	}
 
 	.map-preview {
-		width: 50%;
-		height: 80%;
-		object-fit: contain;
+		display: block;
+		width: 100%;
+		height: 100%;
+		max-height: 300px;
+		object-fit: cover;
+		object-position: 75% center;
 		image-rendering: crisp-edges;
 		image-rendering: pixelated;
+	}
+
+	@media (min-width: 992px) {
+		.map-preview {
+			max-height: none;
+		}
 	}
 
 	.generate-btn {
