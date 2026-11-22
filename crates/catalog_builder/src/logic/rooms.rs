@@ -149,7 +149,7 @@ pub(super) fn compile_rooms(
                 from_vertex_idx: vertex_idx,
                 to_vertex_idx: vertex_idx,
                 requirement: Requirement::make_and(vec![
-                    Requirement::CanInteract,
+                    Requirement::CanUseABItems,
                     Requirement::ExchangeBottleForFairy,
                 ]),
                 effects: Box::new([]),
@@ -399,14 +399,20 @@ fn compile_room_strats(
                     }
                 }
             }
-            let bunny_requirement = match strat.is_bunny {
-                Some(z3_json_data::Bunny::No) => Requirement::IsNotBunny,
-                _ => Requirement::Free,
+            let needs_link = source_room.room_type == RoomKind::Dungeon
+                && !matches!(
+                    strat.is_bunny,
+                    Some(z3_json_data::Bunny::Yes | z3_json_data::Bunny::Any)
+                );
+            let requirement = if needs_link {
+                Requirement::make_and(vec![Requirement::IsLink, requirement.clone()])
+            } else {
+                requirement.clone()
             };
             catalog.edges.push(Edge {
                 from_vertex_idx,
                 to_vertex_idx,
-                requirement: Requirement::make_and(vec![bunny_requirement, requirement.clone()]),
+                requirement,
                 effects: effects.clone().into_boxed_slice(),
             });
             catalog.edge_metadata.push(EdgeMetadata {

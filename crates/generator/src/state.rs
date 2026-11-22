@@ -4,7 +4,7 @@ use crate::inputs::GenerationInputs;
 use anyhow::{Result, bail};
 use common_types::Item;
 use logic_catalog::{
-    DoorIndex, DungeonIndex, FlagIndex, FollowerMask, ItemLocationIndex, LogicCatalog,
+    DoorIndex, DungeonIndex, FlagIndex, FollowerMask, Form, ItemLocationIndex, LogicCatalog,
     OcarinaState, UniqueItem,
 };
 use seed_data::{StartingBottle, StartingOcarina};
@@ -389,6 +389,7 @@ impl RefillFlags {
 /// Route-local resource usage and temporary state, including alternative followers.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LocalState {
+    pub form: Form,
     pub health: HealthState,
     pub magic_used: u8,
     pub bombs_used: u8,
@@ -408,6 +409,7 @@ impl LocalState {
     /// Begin a route with full health, no consumption, followers, or cleared obstacles.
     pub(crate) fn initialize() -> Self {
         Self {
+            form: Form::Link,
             health: HealthState::Consumed(0),
             magic_used: 0,
             bombs_used: 0,

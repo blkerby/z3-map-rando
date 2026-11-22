@@ -4,39 +4,40 @@ use crate::state::{HealthState, LocalState};
 use logic_catalog::Follower;
 
 // Each row defines a different way to score a LocalState. Keeping the best state
-// for each row limits the retained set to 18 states while preserving alternatives
+// for each row limits the retained set to the number of rows while preserving alternatives
 // that conserve different resources, keep different obstacles cleared, or retain
-// different followers.
+// different followers or item capabilities.
 //
 // Columns: health, magic, bombs, arrows, bottles; obstacle bits 0..3;
-// Zelda, Old Man, Blind, Dwarf, Purple Chest, Super Bomb.
+// Zelda, Old Man, Blind, Dwarf, Purple Chest, Super Bomb; Y items, A/B items.
 // Resource values 0..3 give decreasing priority to conserving that resource.
 // Obstacle values prefer uncleared (0) or cleared (1).
-// Follower values give a stronger (0) or weaker (1) preference for having that follower.
+// Follower and item capability values favor presence more strongly (0) or weakly (1).
 //
 // The rows include every combination of settings for any two columns. For any
 // three columns, they include every low/high combination, grouping resource
 // values 0/1 as low and 2/3 as high. This spreads the metrics across tradeoffs
 // between state components without needing a metric for every full combination.
-const COVERING_ARRAY: [[u8; 15]; 18] = [
-    [1, 3, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [2, 0, 3, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 1],
-    [3, 1, 2, 2, 2, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0],
-    [1, 2, 2, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0],
-    [3, 2, 3, 3, 0, 1, 0, 0, 1, 1, 0, 0, 0, 1, 1],
-    [0, 3, 3, 1, 2, 0, 0, 0, 1, 0, 0, 1, 1, 0, 1],
-    [1, 0, 0, 3, 2, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0],
-    [2, 3, 2, 3, 3, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0],
-    [0, 0, 2, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1],
-    [3, 0, 1, 1, 3, 1, 0, 1, 0, 1, 1, 0, 0, 0, 1],
-    [2, 1, 0, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0],
-    [3, 3, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0],
-    [1, 1, 3, 2, 3, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1],
-    [0, 2, 0, 0, 3, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1],
-    [0, 3, 0, 2, 0, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1],
-    [0, 1, 1, 3, 1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0],
-    [2, 1, 3, 0, 2, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0],
-    [2, 2, 1, 2, 2, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1],
+const COVERING_ARRAY: [[u8; 17]; 19] = [
+    [1, 3, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
+    [2, 0, 3, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1],
+    [3, 1, 2, 2, 2, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
+    [1, 2, 2, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0, 0],
+    [3, 2, 3, 3, 0, 1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1],
+    [0, 3, 3, 1, 2, 0, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0],
+    [1, 0, 0, 3, 2, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 1, 1],
+    [2, 3, 2, 3, 3, 1, 0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 0],
+    [0, 0, 2, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0],
+    [3, 0, 1, 1, 3, 1, 0, 1, 0, 1, 1, 0, 0, 0, 1, 0, 0],
+    [2, 1, 0, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1],
+    [3, 3, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0],
+    [1, 1, 3, 2, 3, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1],
+    [0, 2, 0, 0, 3, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0],
+    [0, 3, 0, 2, 0, 0, 1, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1],
+    [0, 1, 1, 3, 1, 0, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0],
+    [2, 1, 3, 0, 2, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1],
+    [2, 2, 1, 2, 2, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0],
+    [3, 2, 2, 1, 3, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 1, 1],
 ];
 
 pub const METRIC_COUNT: usize = COVERING_ARRAY.len();
@@ -137,9 +138,9 @@ static RESOURCE_COSTS: [[[i32; 256]; NUM_RESOURCE_LEVELS]; 5] = {
 };
 
 // An obstacle/complement pair is equivalent, up to a constant, to +/- (B + 1/B - 2)
-// times the obstacle bit. A present follower receives a bonus of (B - 1) * B^-target.
-static BINARY_COSTS: [[i32; 10]; METRIC_COUNT] = {
-    let mut costs = [[0; 10]; METRIC_COUNT];
+// times the obstacle bit. A present follower or item capability receives a bonus of (B - 1) * B^-target.
+static BINARY_COSTS: [[i32; 12]; METRIC_COUNT] = {
+    let mut costs = [[0; 12]; METRIC_COUNT];
     let mut metric = 0;
     while metric < METRIC_COUNT {
         let mut obstacle = 0;
@@ -151,14 +152,14 @@ static BINARY_COSTS: [[i32; 10]; METRIC_COUNT] = {
             };
             obstacle += 1;
         }
-        let mut follower = 0;
-        while follower < FOLLOWERS.len() {
-            costs[metric][4 + follower] = if COVERING_ARRAY[metric][9 + follower] == 0 {
+        let mut column = 0;
+        while column < FOLLOWERS.len() + 2 {
+            costs[metric][4 + column] = if COVERING_ARRAY[metric][9 + column] == 0 {
                 -FOLLOWER_COST
             } else {
                 -((WEIGHT_RANGE_RATIO - 1.0) / WEIGHT_RANGE_RATIO * SCORE_SCALE as f64 + 0.5) as i32
             };
-            follower += 1;
+            column += 1;
         }
         metric += 1;
     }
@@ -167,7 +168,7 @@ static BINARY_COSTS: [[i32; 10]; METRIC_COUNT] = {
 
 /// Compute all metric scores; lower is better, with each score scaled by 2^24.
 /// Compare states at the same vertex or requirement position, including across waves.
-/// With the current weight range, scores omit constants and stay within [-66.5, 59.5] * 2^24.
+/// With the current weight range, scores omit constants and stay within [-80.5, 59.5] * 2^24.
 pub fn compute_costs(state: &LocalState) -> [i32; METRIC_COUNT] {
     let usages = [
         match state.health {
@@ -195,6 +196,12 @@ pub fn compute_costs(state: &LocalState) -> [i32; METRIC_COUNT] {
             if state.possible_followers.0 & (1 << FOLLOWERS[follower] as u8) != 0 {
                 costs[metric] += BINARY_COSTS[metric][4 + follower];
             }
+        }
+        if state.form.can_use_y_items() {
+            costs[metric] += BINARY_COSTS[metric][10];
+        }
+        if state.form.can_use_ab_items() {
+            costs[metric] += BINARY_COSTS[metric][11];
         }
     }
     costs

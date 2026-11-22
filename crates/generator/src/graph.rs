@@ -5,7 +5,7 @@ use common_types::allows_frog_dwarf;
 use hashbrown::{HashMap, HashSet};
 use logic_catalog::{
     Connection, Edge, EdgeIndex, Effect, EntranceIndex, EntranceKind, EventEndpoint, Follower,
-    FollowerMask, LogicCatalog, MapBoundaryKind, NodeType, OverheadClass, Requirement,
+    FollowerMask, Form, LogicCatalog, MapBoundaryKind, NodeType, OverheadClass, Requirement,
     TransitionState, UniqueItem, VertexIndex, VertexOrigin, World,
 };
 
@@ -29,7 +29,6 @@ pub struct TraversalEdgeIndex {
 pub struct TraversalEdge {
     pub edge: Edge,
     pub origin: TraversalEdgeOrigin,
-    pub world: World,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -65,29 +64,26 @@ impl ConnectionEndpoint {
 }
 
 impl TraversalGraph {
-    fn add_edge(
-        &mut self,
-        catalog: &LogicCatalog,
-        interior_worlds: &[Option<World>],
-        mut edge: Edge,
-        origin: TraversalEdgeOrigin,
-    ) {
+    fn add_edge(&mut self, catalog: &LogicCatalog, mut edge: Edge, origin: TraversalEdgeOrigin) {
         let source_room_idx = catalog.vertex(edge.from_vertex_idx).room_idx;
-        let world = catalog
-            .vertex_metadata(edge.from_vertex_idx)
-            .world
-            .or(interior_worlds[source_room_idx.0 as usize])
-            .unwrap_or(World::Light);
         let destination_room_idx = catalog.vertex(edge.to_vertex_idx).room_idx;
         if origin == TraversalEdgeOrigin::SaveAndQuit || source_room_idx != destination_room_idx {
             let reset = Requirement::ResetObstacles(destination_room_idx);
             edge.requirement = Requirement::make_and(vec![edge.requirement, reset]);
         }
-        self.outgoing[edge.from_vertex_idx.0 as usize].push(TraversalEdge {
-            edge,
-            origin,
-            world,
-        });
+        let source_world = catalog.vertex_metadata(edge.from_vertex_idx).world;
+        let destination_world = catalog.vertex_metadata(edge.to_vertex_idx).world;
+        if origin == TraversalEdgeOrigin::SaveAndQuit {
+            edge.requirement =
+                Requirement::make_and(vec![edge.requirement, Requirement::ResetForm(World::Light)]);
+        } else if let Some(world) = destination_world
+            && source_world != Some(world)
+        {
+            // A world crossing or a reload from an interior sets the destination form.
+            edge.requirement =
+                Requirement::make_and(vec![edge.requirement, Requirement::ResetForm(world)]);
+        }
+        self.outgoing[edge.from_vertex_idx.0 as usize].push(TraversalEdge { edge, origin });
     }
 }
 
@@ -103,26 +99,10 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
         graph.outgoing.push(Vec::new());
     }
 
-    let mut interior_worlds = vec![None; catalog.rooms.len()];
-    for connection in connections {
-        if let Connection::Entrance {
-            entrance_idx,
-            interior_vertex_idx,
-            ..
-        } = connection
-        {
-            let room_idx = catalog.vertex(*interior_vertex_idx).room_idx;
-            let outside_vertex_idx = catalog.entrance(*entrance_idx).vertex_idx;
-            interior_worlds[room_idx.0 as usize] =
-                catalog.vertex_metadata(outside_vertex_idx).world;
-        }
-    }
-
     // Start with the edges in the catalog (room-local edges and flute travel).
     for (index, edge) in catalog.edges.iter().enumerate() {
         graph.add_edge(
             catalog,
-            &interior_worlds,
             edge.clone(),
             TraversalEdgeOrigin::Catalog(EdgeIndex(index as u32)),
         );
@@ -172,12 +152,18 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                         }
                         Requirement::LoseFollowers(lost)
                     }
-                    EntranceKind::Drop => {
-                        Requirement::LoseFollowers(FollowerMask::make([Follower::SuperBomb]))
-                    }
+                    EntranceKind::Drop => Requirement::make_and(vec![
+                        Requirement::ChangeForm {
+                            from: Form::Lonk,
+                            to: Form::Link,
+                        },
+                        Requirement::ChangeForm {
+                            from: Form::Bunny,
+                            to: Form::Superbunny,
+                        },
+                        Requirement::LoseFollowers(FollowerMask::make([Follower::SuperBomb])),
+                    ]),
                 };
-                // Indoor traversal assumes Link is not in bunny form.
-                let requirement = Requirement::make_and(vec![Requirement::IsNotBunny, requirement]);
                 (
                     ConnectionEndpoint {
                         vertex_idx: catalog.entrance(*entrance_idx).vertex_idx,
@@ -262,7 +248,6 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
             }
             graph.add_edge(
                 catalog,
-                &interior_worlds,
                 Edge {
                     from_vertex_idx: from.vertex_idx,
                     to_vertex_idx: to.vertex_idx,
@@ -296,7 +281,6 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                     ) => {
                         graph.add_edge(
                             catalog,
-                            &interior_worlds,
                             Edge {
                                 from_vertex_idx: exit.vertex_idx,
                                 to_vertex_idx: to.vertex_idx,
@@ -321,7 +305,6 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                     if compatible && to.match_event(catalog, entry) {
                         graph.add_edge(
                             catalog,
-                            &interior_worlds,
                             Edge {
                                 from_vertex_idx: exit.vertex_idx,
                                 to_vertex_idx: entry.vertex_idx,
@@ -348,7 +331,6 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
         }
         graph.add_edge(
             catalog,
-            &interior_worlds,
             Edge {
                 from_vertex_idx: VertexIndex(index as u32),
                 to_vertex_idx: catalog.start_vertex_idx,
@@ -372,10 +354,6 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
         for (outgoing_idx, edge) in outgoing.iter().enumerate() {
             let mut dependencies = HashSet::new();
             collect_requirement_dependencies(catalog, &edge.edge.requirement, &mut dependencies);
-            // Capability checks read Moon Pearl implicitly in the Dark World.
-            if edge.world == World::Dark {
-                dependencies.insert(GlobalDependency::Item(UniqueItem::MoonPearl as usize));
-            }
             for effect in &edge.edge.effects {
                 let dependency = match *effect {
                     Effect::CollectItem(idx) => GlobalDependency::ItemLocation(idx),

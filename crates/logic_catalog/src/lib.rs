@@ -523,13 +523,36 @@ pub enum EdgeOrigin {
     LakeHyliaBottleExchange,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Form {
+    Link,
+    Bunny,
+    Superbunny,
+    Lonk,
+}
+
+impl Form {
+    pub fn can_use_y_items(self) -> bool {
+        matches!(self, Self::Link | Self::Lonk)
+    }
+
+    pub fn can_use_ab_items(self) -> bool {
+        matches!(self, Self::Link | Self::Superbunny)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Requirement {
     Free,
     Never,
-    IsNotBunny,
-    CanInteract,
+    IsLink,
+    CanUseABItems,
     CanUseYItems,
+    ChangeForm {
+        from: Form,
+        to: Form,
+    },
+    ResetForm(World),
     /// Execute children in order, passing successful local states to the next.
     And(Box<[Requirement]>),
     /// Each branch starts with the same input; retain its successful local states.
@@ -556,7 +579,7 @@ pub enum Requirement {
         kind: PrizeKind,
         minimum: u8,
     },
-    /// Includes the weapon/capability needed to use this ammunition.
+    /// Item and capability requirements are compiled separately.
     UseAmmo {
         kind: Ammo,
         count: u32,

@@ -83,11 +83,11 @@ pub fn build_catalog(
     let compiler = load_definitions(source_directory, item_records, &mut catalog)?;
     let room_indices = rooms::compile_rooms(source_directory, &mut catalog, &compiler)?;
     connections::build_connections(source_directory, &room_indices, &mut catalog)?;
-    build_flute_travel(&mut catalog);
+    build_flute_travel(&mut catalog, &compiler);
     write_catalog(&catalog, output_catalog, compression_level)
 }
 
-fn build_flute_travel(catalog: &mut LogicCatalog) {
+fn build_flute_travel(catalog: &mut LogicCatalog, compiler: &Compiler) {
     let room_idx = RoomIndex(catalog.rooms.len() as u32);
     catalog.rooms.push(Room {
         room_id: None,
@@ -113,6 +113,7 @@ fn build_flute_travel(catalog: &mut LogicCatalog) {
         origin: VertexOrigin::Node,
     });
 
+    let departure = compiler.compile_named_requirement("OcarinaActive", &RoomIndices::default());
     for (index, vertex) in catalog.vertices.iter().enumerate() {
         let vertex_idx = VertexIndex(index as u32);
         let metadata = catalog.vertex_metadata(vertex_idx);
@@ -125,7 +126,7 @@ fn build_flute_travel(catalog: &mut LogicCatalog) {
         catalog.edges.push(Edge {
             from_vertex_idx: vertex_idx,
             to_vertex_idx: catalog.flute_hub_vertex_idx,
-            requirement: Requirement::Ocarina(OcarinaState::Active),
+            requirement: departure.clone(),
             effects: Box::new([]),
         });
         catalog.edge_metadata.push(EdgeMetadata {
@@ -160,6 +161,7 @@ fn load_definitions(
     }
     let mut compiler = Compiler {
         items: BTreeMap::new(),
+        item_use: BTreeMap::new(),
         flags: BTreeMap::new(),
         helpers: BTreeMap::new(),
         techs: BTreeMap::new(),
@@ -179,6 +181,9 @@ fn load_definitions(
         for item in category.items {
             let item_idx = ItemIndex(catalog.items.len() as u32);
             compiler.items.insert(item.name.clone(), item_idx);
+            if !item.requires.is_empty() {
+                compiler.item_use.insert(item.name.clone(), item.requires);
+            }
             let resolved = randomizer_items.get(&item.name).copied().flatten();
             catalog.items.push(ItemDefinition {
                 name: item.name,

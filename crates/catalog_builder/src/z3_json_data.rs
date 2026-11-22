@@ -411,6 +411,8 @@ pub struct ItemCategory<T> {
 pub struct Item {
     pub name: String,
     pub item_receipt_id: String,
+    #[serde(default)]
+    pub requires: Vec<Requirement>,
 }
 
 #[derive(Deserialize)]
@@ -490,7 +492,8 @@ pub enum Operation {
     SwordExact(u8),
     Shield(u8),
     ShieldExact(u8),
-    Glove(u8),
+    Lift(u8),
+    Carry(u8),
     Arrows(u32),
     SilverArrows(u32),
     Bombs(u32),
