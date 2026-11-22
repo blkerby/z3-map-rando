@@ -9,7 +9,7 @@
 			<div class="col-lg-8 card-body">
 				<h1 class="display-6 fw-bold mb-3">A Link to the Past Map Rando</h1>
 				<p class="mb-4 fs-5">
-					Hyrule has been rearranged, and Link must find a new way to save the kingdom.
+					Hyrule has been rearranged, and Link must discover a new way to save the kingdom.
 				</p>
 				<p class="mb-4 fs-5">
 					Can you find the items needed to defeat Ganon and obtain the Triforce?
