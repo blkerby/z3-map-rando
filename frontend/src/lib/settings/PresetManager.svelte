@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { narrow } from './narrow';
 	import { StaleError, processDocument, type ProcessResult } from './processing';
 	import type { SettingsStore } from './store.svelte';
 	import {
@@ -61,8 +62,10 @@
 	/** The selected preset, if it is one of the player's own. */
 	const selected = $derived(store.userPreset(store.selectedId));
 	const changeCount = $derived(store.changeCount);
-	/** What the dropdown shows while there are unsaved changes: "Mine + 2 unsaved changes". */
-	const label = $derived(`${store.presetName} + ${changeCount} unsaved change${changeCount === 1 ? '' : 's'}`);
+	/** What the dropdown shows while there are unsaved changes: "Mine + 2 unsaved changes", or on narrow screens "Mine + 2". */
+	const label = $derived(
+		narrow.current ? `${store.presetName} + ${changeCount}` : `${store.presetName} + ${changeCount} unsaved change${changeCount === 1 ? '' : 's'}`
+	);
 	/** Value of the hidden entry that shows `label` (not a preset id). */
 	const CURRENT = '*current';
 	/** What these presets hold, for messages. */
@@ -423,7 +426,8 @@
 			{/if}
 		</div>
 
-		{#if changeCount}
+		<!-- Left out on narrow screens for room: choosing the preset again in the dropdown does the same. -->
+		{#if changeCount && !narrow.current}
 			<!-- Bootstrap's disabled buttons ignore the pointer, so the marker goes on a wrapper. -->
 			<span data-lockable>
 				<button
@@ -607,19 +611,19 @@
 
 	.controls {
 		display: flex;
-		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.75rem 0.75rem;
+		gap: 0.75rem;
 	}
 
 	.icon-btn {
 		text-decoration: none;
 	}
 
-	/* Capped so a long label (e.g. "+ 3 unsaved changes") is cut off rather than wrapping the header. */
+	/* Capped, and shrinkable to cut a long label off rather than overflowing the header. */
 	.preset-select {
 		field-sizing: content; /* as wide as the option shown, not the widest one (where supported) */
-		max-width: min(26rem, 100%);
+		min-width: 0;
+		max-width: 26rem;
 		text-overflow: ellipsis;
 	}
 

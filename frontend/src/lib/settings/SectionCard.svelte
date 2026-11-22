@@ -2,6 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import ScopePicker from './ScopePicker.svelte';
 	import { getStore, setCardId } from './context';
+	import { narrow } from './narrow';
 	import type { Scope } from './store.svelte';
 
 	// A card of settings. Registers itself with the store for page navigation, and its settings register
@@ -66,7 +67,8 @@
 				<ScopePicker {store} {scope} selectId="{store.idPrefix}preset-{id}" />
 			</div>
 		{/if}
-		{#if changes}
+		<!-- Left out on narrow screens for room: choosing the inherited preset in the dropdown does the same. -->
+		{#if changes && !narrow.current}
 			<!-- Bootstrap's disabled buttons ignore the pointer, so the marker goes on a wrapper. -->
 			<span data-lockable>
 				<button
@@ -101,10 +103,9 @@
 		top: var(--section-header-height, 0px);
 		z-index: 1;
 		background: linear-gradient(var(--bs-card-cap-bg), var(--bs-card-cap-bg)) var(--bs-card-bg);
-		flex-wrap: wrap;
 	}
 
-	/* The title keeps its line; when the header is out of room, the controls wrap beneath it instead. */
+	/* Never squeezed: when the header is out of room, the preset label is cut off instead. */
 	h3 {
 		flex: 1 0 auto;
 	}
@@ -114,7 +115,7 @@
 		align-items: center;
 		gap: 0.5rem;
 		width: 100%;
-		padding: 0.5rem 1rem;
+		padding: 0.5rem 1rem 0.5rem 0.5rem;
 		border: 0;
 		background: none;
 		color: inherit;
@@ -134,12 +135,10 @@
 		text-decoration: none;
 	}
 
-	/* Right-aligned, also when wrapped beneath the title. Shrinkable, so a long label is cut off rather than
-	   overflowing the card. */
+	/* Shrinkable, so a long label is cut off rather than overflowing the card. */
 	.card-presets {
 		flex: 0 1 auto;
 		min-width: 0;
-		margin-left: auto;
 		padding: 0.3rem 0.75rem 0.3rem 0;
 		font-size: 0.9rem;
 	}

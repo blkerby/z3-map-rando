@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { narrow } from './narrow';
 	import type { Scope, SettingsStore } from './store.svelte';
 
 	// The preset dropdown of a child scope (e.g. Skill assumptions). It takes what the root preset chooses
@@ -9,8 +10,15 @@
 	const tweaks = $derived(store.scopeTweakCount(scope));
 	/** Unsaved changes inside the scope, besides its own pick (which the dropdown already names). */
 	const changeCount = $derived(store.countScopeChanges(scope));
-	/** What the dropdown shows while there are unsaved changes: "Hard + 2 tweaks + 1 unsaved change". */
-	const label = $derived(`${store.scopeLabel(scope)} + ${changeCount} unsaved change${changeCount === 1 ? '' : 's'}`);
+	/**
+	 * What the dropdown shows while there are unsaved changes: "Hard + 2 tweaks + 1 unsaved change", or on
+	 * narrow screens "Hard + 2 + 1".
+	 */
+	const label = $derived(
+		narrow.current
+			? `${store.scopeLabel(scope, true)} + ${changeCount}`
+			: `${store.scopeLabel(scope)} + ${changeCount} unsaved change${changeCount === 1 ? '' : 's'}`
+	);
 	/** Value of the hidden entry that shows `label` (not a preset id). */
 	const CURRENT = '*current';
 	/**
@@ -36,7 +44,7 @@
 		<option value={CURRENT} hidden disabled>{label}</option>
 	{/if}
 	{#if store.inheritedTweakCount(scope)}
-		<option value="">{store.inheritedScopeLabel(scope)}</option>
+		<option value="">{store.inheritedScopeLabel(scope, narrow.current)}</option>
 	{/if}
 	{#each scope.presets as p (p.id)}
 		<option value={p.id}>{p.label}</option>
@@ -44,6 +52,7 @@
 </select>
 
 <style>
+	/* Cut off rather than overflowing the header, if even a short label doesn't fit. */
 	select {
 		max-width: 100%;
 		text-overflow: ellipsis;

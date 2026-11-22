@@ -73,11 +73,10 @@
 		background: var(--bs-body-bg);
 		display: flex;
 		align-items: center;
-		flex-wrap: wrap;
 		border-bottom: 1px solid var(--bs-border-color);
 	}
 
-	/* The title keeps its line; when the header is out of room, the actions wrap beneath it instead. */
+	/* Never squeezed: when the header is out of room, the preset label is cut off instead. */
 	.section-title {
 		flex: 1 0 auto;
 		margin: 0;
@@ -85,12 +84,11 @@
 		font-weight: 700;
 	}
 
-	/* Right-aligned, also when wrapped beneath the title, and inset like the cards' controls, so they line up
-	   with the cards' below. */
+	/* Shrinkable, so a long label is cut off rather than overflowing the header. Inset like the cards'
+	   controls, so they line up with the cards' below. */
 	.section-actions {
 		flex: 0 1 auto;
 		min-width: 0;
-		margin-left: auto;
 		padding: 0.3rem 0.75rem;
 	}
 

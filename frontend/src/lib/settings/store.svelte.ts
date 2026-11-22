@@ -316,16 +316,17 @@ export class SettingsStore {
 		return false;
 	}
 
-	/** What a scope takes when it isn't picked by hand, e.g. "Hard + 2 tweaks". */
-	inheritedScopeLabel(scope: Scope): string {
+	/** What a scope takes when it isn't picked by hand, e.g. "Hard + 2 tweaks" (short: "Hard + 2"). */
+	inheritedScopeLabel(scope: Scope, short = false): string {
 		const n = this.inheritedTweakCount(scope);
 		const name = this.impliedScopePreset(scope).label;
-		return n ? `${name} + ${n} tweak${n === 1 ? '' : 's'}` : name;
+		if (!n) return name;
+		return short ? `${name} + ${n}` : `${name} + ${n} tweak${n === 1 ? '' : 's'}`;
 	}
 
-	/** What a scope takes: "Expert" when picked by hand, else e.g. "Hard + 2 tweaks". */
-	scopeLabel(scope: Scope): string {
-		return this.isScopePicked(scope) ? this.selectedScopePreset(scope).label : this.inheritedScopeLabel(scope);
+	/** What a scope takes: "Expert" when picked by hand, else e.g. "Hard + 2 tweaks" (short: "Hard + 2"). */
+	scopeLabel(scope: Scope, short = false): string {
+		return this.isScopePicked(scope) ? this.selectedScopePreset(scope).label : this.inheritedScopeLabel(scope, short);
 	}
 
 	/** How many settings in a scope differ from what the selected presets give (not counting its pick). */

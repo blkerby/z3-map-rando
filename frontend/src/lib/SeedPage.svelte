@@ -687,7 +687,8 @@
 		scroll-margin-top: 1rem;
 	}
 
-	@media (max-width: 992px) {
+	/* Below this, the middle column would be too narrow for the card headers' full preset labels. */
+	@media (max-width: 1120px) {
 		/* Capped so setting controls stay near their labels. */
 		main.container {
 			max-width: 44rem;

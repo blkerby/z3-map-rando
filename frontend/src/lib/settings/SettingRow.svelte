@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { getCardId, getCompact, getStore } from './context';
+	import { narrow } from './narrow';
 	import { getAt, type Path, type Value } from './tree';
 
 	// The frame shared by every setting component: label, help, reset, shading, and registration with the
@@ -77,7 +78,8 @@
 			{/if}
 			<label class="label" for={labelFor} data-lockable={labelFor ? '' : undefined}>{label}</label>
 			{#if badge && !compact}<span class="badge-tag">{badge}</span>{/if}
-			{#if changed && !store.locked}
+			<!-- Left out on narrow screens for room: the setting's own control can put it back. -->
+			{#if changed && !store.locked && !narrow.current}
 				<button
 					type="button"
 					class="btn btn-link btn-sm p-0 reset"
