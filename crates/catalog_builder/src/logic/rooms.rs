@@ -274,7 +274,10 @@ fn compile_room_items(
             indices.items.insert(item.id, Effect::ActivateOcarina);
             continue;
         }
-        if crate::items::RETIRED_ITEM_LOCATIONS.contains(&ItemLocationId { room_id, item_id: item.id }) {
+        if crate::items::RETIRED_ITEM_LOCATIONS.contains(&ItemLocationId {
+            room_id,
+            item_id: item.id,
+        }) {
             continue;
         }
         let item_location_idx = ItemLocationIndex(catalog.item_locations.len() as u32);
