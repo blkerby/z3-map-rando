@@ -125,7 +125,8 @@
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
 		gap: 0.4rem;
-		padding: 0.85rem 0.5rem;
+		--pad-y: 0.85rem;
+		padding: var(--pad-y) 0.5rem;
 		/* Bleed out by the padding so the tint doesn't hug the text and the layout doesn't shift. */
 		margin-inline: -0.5rem;
 		border-radius: var(--bs-border-radius);
@@ -173,7 +174,7 @@
 		grid-template-columns: minmax(0, 1fr) auto;
 		align-items: start;
 		gap: 0.5rem;
-		padding-block: 0.45rem;
+		--pad-y: 0.45rem;
 	}
 
 	/* Center Bootstrap's small controls (1.5em at 0.875rem, plus 0.5rem padding and borders) on the 1.5rem
@@ -203,8 +204,15 @@
 		font-weight: 500;
 	}
 
+	/* The containing block for the help button's click area. */
 	.left {
+		position: relative;
 		min-width: 0;
+	}
+
+	/* Full height, so the help button's click area can span the row. */
+	.compact .left {
+		align-self: stretch;
 	}
 
 	.notes {
@@ -228,11 +236,28 @@
 		opacity: 0.7;
 	}
 
+	/* Borderless, so the button is just its 1em icon (which the click area's width relies on). */
 	.help {
+		border: 0;
 		opacity: 0.5;
 		font-size: 0.85rem;
 		line-height: 1;
 		color: inherit;
+	}
+
+	/* The help button's click area: the whole strip left of the label, from the row's left edge to the label,
+	   and from the row's top to its bottom (in full rows, to halfway into the gap above the control). */
+	.help::before {
+		content: '';
+		position: absolute;
+		top: calc(-1 * var(--pad-y));
+		bottom: -0.2rem;
+		left: -0.5rem;
+		width: calc(0.5rem + 1em + 0.4rem);
+	}
+
+	.compact .help::before {
+		bottom: calc(-1 * var(--pad-y));
 	}
 
 	.help:hover,
