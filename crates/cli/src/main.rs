@@ -58,7 +58,7 @@ struct Args {
     /// Recover invalid submitted settings using the selected preset baseline.
     #[arg(long, requires = "settings")]
     recover_settings: bool,
-    /// Root preset ID from the preset catalog (e.g. testing).
+    /// Root preset ID from the preset catalog.
     #[arg(long, conflicts_with_all = ["settings", "seed"])]
     preset: Option<String>,
     /// Existing seed JSON to patch; reuses its saved seed name.

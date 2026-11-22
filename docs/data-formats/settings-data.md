@@ -31,7 +31,6 @@ data/
     generation/
       root/
         default.json
-        testing.json
       item_pool/
         default.json
       starting_state/
