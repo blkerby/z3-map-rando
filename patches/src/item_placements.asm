@@ -26,7 +26,6 @@ incsrc "symbols.inc"
 !EtherItem = $B08016
 !BombosItem = $B08017
 !SmithItem = $B0802A
-!DungeonPrizeTypes = $B08050
 !OverworldItems = $B08140
 !GroveItem = $B0814A
 !BossItems = $B08150

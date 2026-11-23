@@ -953,17 +953,7 @@ assert UpdateRainSpritePalettes == !UpdateRainSpritePalettes
     BCC .store
 
 .darken
-    EOR.b $01,S               ; Average with the active rain palette's ground.
-    AND.w #$7BDE              ; Clear component low bits before dividing by two.
-    LSR A
-    PHA
-
-    LDA.l $7EC300,X
-    AND.b $03,S
-    CLC
-    ADC.b $01,S
-    STA.l $7EC500,X
-    PLA
+    %tint_rain_sprite_color()
     BRA .advance
 
 .store
@@ -988,8 +978,7 @@ assert UpdateRainSpritePalettes == !UpdateRainSpritePalettes
     RTL
 
 RainRepresentativeColors:
-    dw $14A5                  ; Light World 1, color 1.
-    dw $0C63                  ; Dark World 1, color 1.
+    dw !LightRainGroundColor,!DarkRainGroundColor
 
 SetRainColorMath:
     STA.b $9A                 ; Run hi-jacked instruction

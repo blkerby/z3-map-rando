@@ -36,6 +36,9 @@ endmacro
 ; Receipts of the Waterfall and Pyramid fairies' upgrades (fairy_ponds.asm).
 %export_symbol(FairyItems, fairy_items, $B0815A)
 
+; Seed-specific prize types indexed by dungeon ID divided by two.
+!DungeonPrizeTypes = $B08050
+
 ; Generated flat Map16 maps and their screen, alternate-background, and rain
 ; pointers. The patcher allocates map payloads in banks C0-C9.
 %export_symbol(ThemeFlatMap16Data, theme_flat_map16_data, $C08000)
@@ -136,6 +139,23 @@ endmacro
 ; Defined in overworld_bg_tilemaps.asm.
 !RebuildRainSpritePalettes = $A08900
 !UpdateRainSpritePalettes = $A0890A
+
+!LightRainGroundColor = $14A5
+!DarkRainGroundColor = $0C63
+
+; A16 holds the source color at palette offset X. The ground color is on the stack.
+macro tint_rain_sprite_color()
+    EOR.b $01,S
+    AND.w #$7BDE              ; Clear each component's low bit before halving.
+    LSR A
+    PHA
+    LDA.l $7EC300,X
+    AND.b $03,S
+    CLC
+    ADC.b $01,S
+    STA.l $7EC500,X
+    PLA
+endmacro
 
 ; Cached rain treatment for displayed OBJ palettes 0-3: 0 is bright; 1 and 2
 ; use light and dark rain; 3 and 4 also keep palette 1's lower half bright.

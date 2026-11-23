@@ -96,7 +96,7 @@ The former six-address prize lists in `z3-json-data` used this order: inventory 
 | Prize type | `0x180050 + i` | `$00` for pendant, `$40` for crystal |
 | Map-number tile | `0x18007C - 2 * s + w` | Assigned crystal's numeral tile; `w = 0` for an original Light World dungeon and `w = 1` for an original Dark World dungeon |
 
-That number table contains unused `$69` placeholders for pendants. Our existing `!DungeonPrizeTypes = $B08050` uses the historical category table; the map-number lookup has not yet been migrated from vanilla. These are patch implementation details, not required shared-data conventions. Newer ALTTPR ASM reorganizes the marker and number tables, so its layouts must not be mixed with these formulas.
+The Mode 7 map uses the category and inventory mask for the assigned prize to hide collected prizes, and reads the interleaved number table for crystal markers. Pendant entries in that table contain unused `$69` placeholders. These are patch implementation details, not required shared-data conventions. Newer ALTTPR ASM reorganizes the marker and number tables, so its layouts must not be mixed with these formulas.
 
 The vanilla encoding lookup above uses green pendant tile `$60` and crystal properties `$34`. ALTTPR/SMZ3's green pendant tile `$62` requires replacement map artwork with an asterisk; vanilla `$62` is the Master Sword image. Their red Crystals 5 and 6 use properties `$32`. Adopting either visual change belongs in this project's patching code and assets.
 

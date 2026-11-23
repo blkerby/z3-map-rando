@@ -18,7 +18,8 @@ $A08900-$A098FF overworld_bg_tilemaps.asm (saved rain state, boss-defeat bookkee
 $A09900-$A099FF item_inventory.asm (reserved for shared-slot and bow ownership tracking)
 $A09A00-$A09AFF overworld_music.asm (reserved for foreground weather music and house-spawn music)
 $A09B00-$A09B7F reduced_flashing.asm (reserved for invisible-floor revelation without background flashes)
-$A09B80-$A09DFF [FREE]
+$A09B80-$A09CCF overworld_world_map.asm (map loading, dungeon prize markers, and rain palettes)
+$A09CD0-$A09DFF [FREE]
 $A09E00-$A09F3F Patcher-generated overworld backdrop colors
 $A09F40-$A0A0C0 overworld_animations.asm (generated animation runtime)
 $A0A0C1-$A0A1C6 overworld_entrances.asm (area-local entrance runtime)
@@ -38,7 +39,7 @@ $A0F040-$A0F05F mothula_sword.asm (reserved for sword damage selection)
 $A0F060-$A0F0FF [FREE]
 $A0F100-$A0F1FF item_menu_toggle.asm (reserved for Y-button item switching)
 $A0F200-$A0F3FF overworld_topology.asm (reserved for physical area origins)
-$A0F400-$A0F4FF overworld_world_map.asm (reserved for world map loading and rain color selection)
+$A0F400-$A0F4FF [FREE]
 $A0F500-$A0F57F world_state.asm (reserved for loaded world context, Tower of Hera overworld area visits, and recovery follower loss)
 $A0F580-$A0F8FF overworld_camera_alignment.asm (reserved for transition camera alignment and weather-dependent mosaic selection)
 $A0F900-$A0FAFF new_game.asm (reserved for initial state, monotonic progress, Zelda's rain-ending event, Sanctuary Zelda follower check, Agahnim-dependent restart menus, dungeon Mirror returns, and priest initialization)
@@ -78,7 +79,7 @@ $AA8000-$AA8FFF messages.asm (custom message resolution and text, including clos
 $AA9000-$AFFFFF [FREE]
 
 Bank $B0
-$B08000-$B08159 item_placements.asm (seed-specific assigned items and prize types)
+$B08000-$B08159 item_placements.asm and overworld_world_map.asm (seed-specific assigned items, prize types, and crystal number tiles)
 $B0815A-$B0815B fairy_ponds.asm (seed-specific Waterfall and Pyramid fairy upgrade receipts)
 $B0815C-$B081AC new_game.asm (seed-specific initial inventory and game-state byte)
 $B081AD-$B0FFFF [FREE]

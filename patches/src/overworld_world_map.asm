@@ -1,9 +1,9 @@
-; Load the two generated Mode 7 maps, including their authored cloud backgrounds.
+; Load the generated Mode 7 maps and display their uncollected dungeon prizes.
 lorom
 incsrc "symbols.inc"
 
-!free_space_bank_a0_start = $A0F400
-!free_space_bank_a0_end = $A0F500
+!free_space_bank_a0_start = $A09B80
+!free_space_bank_a0_end = $A09CD0
 !free_space_bank_ca_start = $CA8000
 !free_space_bank_ca_end = $CB8000
 !free_space_bank_cb_start = $CB8000
@@ -43,6 +43,38 @@ org $8ABA99
 hook_load_dark_world_map:
     INC.w $0200
     RTL
+
+; Link and the portal are already drawn. The native exit restores their saved coordinates.
+org $8AC012
+hook_draw_world_map_prizes:
+    JSL DrawWorldMapPrizes
+    JMP.w return_restore_world_map_coordinates
+
+; Call the native map projection and sprite routines from bank $8A.
+ProjectWorldMapPrize:
+    JSR $C59B
+    JSR $C3B1
+    RTL
+
+DrawWorldMapPrize:
+    LDA.b $0D
+    CMP.b #$64
+    BEQ .draw
+    ; Pendants share the crystal icon phase.
+    LDA.b $1A
+    AND.b #$10
+    BEQ .done
+.draw
+    JSR $C52E
+.done
+    RTL
+
+org $8AC39C
+return_restore_world_map_coordinates:
+
+org $8AC53E
+hook_read_world_map_crystal_number:
+    JSL ReadWorldMapCrystalNumber
 
 org !free_space_bank_a0_start
 LoadWorldMapCharacters:
@@ -96,9 +128,121 @@ GetWorldMapRainContext:
     PHX
     LDX.w $040A
     JSL !GetRainContext
+    SEP #$20
+    CMP.b #$00
+    BEQ .done
+
+    PHA
+    LDA.b $11
+    CMP.b #$07                ; The shared map setup also runs for the flute menu.
+    BNE .restore_context
+    PLA
+    PHA
+    CMP.b #$02
+    REP #$20
+    LDA.w #!LightRainGroundColor
+    BCC .tint
+    LDA.w #!DarkRainGroundColor
+.tint
+    PHA
+    LDX.w #$0182              ; Green pendant uses OBJ palette 4.
+.next_color
+    LDA.l $7EC300,X
+    %tint_rain_sprite_color()
+    INX
+    INX
+    CPX.w #$01A0
+    BNE .next_color
+    PLA
+    SEP #$20
+.restore_context
+    PLA
+.done
     PLX
     SEP #$30
     CMP.b #$00
+    RTL
+
+; Entry and exit are A8/X8/Y8. The native projection uses scratch $00/$0E/$0F
+; and clobbers X. Y holds the OAM slot, and the native exit restores $7EC108-$7EC10B.
+DrawWorldMapPrizes:
+    LDY.b #$0E
+    LDX.b #$00
+    LDA.b $8A
+    AND.b #$40
+    BEQ .next
+    LDX.b #$04
+.next
+    LDA.l .dungeons,X
+    BMI .done
+    PHX
+    TAX
+    LDA.l !DungeonPrizeTypes,X
+    BEQ .pendant
+    LDA.l $7EF37A
+    BRA .check
+.pendant
+    LDA.l $7EF374
+.check
+    AND.l $82A09B,X
+    PLX
+    CMP.b #$00
+    BNE .advance
+
+    PHX
+    LDA.l .position_offsets,X
+    TAX
+    REP #$20
+    LDA.l $8ABDF6,X
+    STA.l $7EC10A
+    LDA.l $8ABE08,X
+    STA.l $7EC108
+    SEP #$20
+    JSL ProjectWorldMapPrize
+    PLX
+    BCC .advance
+
+    PHX
+    LDA.l .icon_offsets,X
+    TAX
+    LDA.l $8ABEF2,X
+    STA.b $0C
+    LDA.l $8ABEF3,X
+    STA.b $0D
+    LDA.b #$02
+    STA.b $0B
+    TYX
+    JSL DrawWorldMapPrize
+    PLX
+.advance
+    DEY
+    INX
+    BRA .next
+.done
+    RTL
+
+.dungeons
+    db $02,$0A,$03,$FF                 ; Eastern, Hera, Desert
+    db $06,$08,$0C,$0B,$07,$09,$05,$FF ; PoD, Skull, TR, Thieves, Mire, Ice, Swamp
+.position_offsets
+    ; Light and Dark prizes use entries 3 and 7 in each slot's coordinate tables.
+    db 0*$24+6,1*$24+6,2*$24+6,0
+    db 0*$24+14,1*$24+14,2*$24+14,3*$24+14,4*$24+14,5*$24+14,6*$24+14
+.icon_offsets
+    db 0*$12+6,1*$12+6,2*$12+6,0
+    db 0*$12+14,1*$12+14,2*$12+14,3*$12+14,4*$12+14,5*$12+14,6*$12+14
+
+ReadWorldMapCrystalNumber:
+    ; OAM slots $08-$0E map to the interleaved Light/Dark number pairs at $B08070.
+    PHX
+    LDA.b $8A
+    ASL
+    ASL                      ; Carry selects the Dark World entry.
+    TXA
+    ROL
+    TAX
+    LDA.l $B08060,X
+    PLX
     RTL
 assert pc() <= !free_space_bank_a0_end
 
