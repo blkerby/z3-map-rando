@@ -7,8 +7,9 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { createServer } from 'vite';
-import { browserPackage, buildDirectory, prepareBrowserPackage, repoRoot, run, settingsData } from './prepare.js';
+import { apiTarget, browserPackage, buildDirectory, prepareBrowserPackage, repoRoot, run, settingsData } from './prepare.js';
 
 const serverArgs = ['--api-only', ...process.argv.slice(2)];
 const serverBinary = path.join(repoRoot, 'target', 'release', 'z3-map-rando-server');
@@ -28,8 +29,10 @@ function stampServerInputs() {
 
 /** @type {import('node:child_process').ChildProcess | null} */
 let server = null;
+let serverInputs = '';
 
 function startServer() {
+	serverInputs = stampServerInputs();
 	server = spawn(serverBinary, serverArgs, { cwd: repoRoot, stdio: ['ignore', 'inherit', 'inherit'] });
 }
 
@@ -43,6 +46,32 @@ async function restartServer() {
 	startServer();
 }
 
+/** Settings data shared by the frontend and the catalog the API loads at startup. */
+function readSettingsData() {
+	return JSON.parse(fs.readFileSync(settingsData, 'utf8'));
+}
+
+/** @param {string} revision @param {number} formatVersion */
+async function waitForSettingsRevision(revision, formatVersion) {
+	const signal = AbortSignal.timeout(5000);
+	while (!signal.aborted) {
+		try {
+			const response = await fetch(`${apiTarget}/api/settings/process`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ kind: 'generation', document: { format_version: formatVersion } }),
+				signal
+			});
+			if (response.ok && (await response.json()).revision === revision) return;
+		} catch {
+			// The API may still be starting.
+		}
+		await delay(100);
+	}
+	throw new Error('The randomizer API did not load the new settings revision. Skipping the settings reload.');
+}
+
+let publishedRevision = '';
 let rebuilding = false;
 let rebuildAgain = false;
 /** @type {NodeJS.Timeout | undefined} */
@@ -54,21 +83,28 @@ async function rebuild() {
 		return;
 	}
 	rebuilding = true;
-	// Each failing command has printed its error; the last good server and browser package stay in use.
 	try {
-		const before = stampServerInputs();
 		await run('cargo', ['build', '--release', '--package', 'server']);
-		if (stampServerInputs() !== before) {
+		if (stampServerInputs() !== serverInputs) {
 			console.log('Restarting the randomizer server.');
 			await restartServer();
 		}
-	} catch {
-		/* see above */
+		const data = readSettingsData();
+		const revision = data.presets.revision;
+		if (revision !== publishedRevision) {
+			await waitForSettingsRevision(revision, data.format_version);
+			for (const environment of Object.values(vite.environments)) environment.moduleGraph.onFileChange(settingsData);
+			vite.ws.send({ type: 'full-reload', path: '*' });
+			publishedRevision = revision;
+		}
+	} catch (error) {
+		// Cargo prints its own errors.
+		if (error instanceof Error) console.error(error.message);
 	}
 	try {
 		await prepareBrowserPackage();
 	} catch {
-		/* see above */
+		// The browser package build prints its own errors.
 	}
 	rebuilding = false;
 	if (rebuildAgain) {
@@ -83,9 +119,9 @@ function scheduleRebuild() {
 }
 
 // Loading the config prepares the catalogs and browser package (see vite.config.ts).
-const vite = await createServer();
-// Outside Vite's root, so not watched by default. A change reloads the page.
-vite.watcher.add([settingsData, browserPackage]);
+// The generated settings module is invalidated only when the API serves the matching catalog.
+const vite = await createServer({ server: { watch: { ignored: [settingsData] } } });
+vite.watcher.add(browserPackage);
 
 try {
 	await run('cargo', ['build', '--release', '--package', 'server']);
@@ -94,6 +130,7 @@ try {
 	process.exit(1);
 }
 startServer();
+publishedRevision = readSettingsData().presets.revision;
 process.on('exit', () => server?.kill());
 // Exit (running the handler above) on signals too; by default they end Node without it, leaving the server running.
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, () => process.exit());

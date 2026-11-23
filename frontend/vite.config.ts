@@ -1,6 +1,6 @@
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
-import { browserPackage, buildDirectory, prepareBrowserPackage, prepareCatalogs, settingsData } from './scripts/prepare.js';
+import { apiTarget, browserPackage, buildDirectory, prepareBrowserPackage, prepareCatalogs, settingsData } from './scripts/prepare.js';
 import { defineConfig } from 'vite';
 
 // The frontend reads the settings data, browser package and catalogs that scripts/prepare.js builds, so prepare
@@ -19,7 +19,7 @@ export default defineConfig({
 		// E.g. `DEV_HOST=0.0.0.0 npm run dev` to reach the dev server from other devices on the network.
 		host: process.env.DEV_HOST,
 		fs: { allow: [buildDirectory] },
-		proxy: { '/api/': 'http://127.0.0.1:8080' }
+		proxy: { '/api/': apiTarget }
 	},
 	css: {
 		preprocessorOptions: {

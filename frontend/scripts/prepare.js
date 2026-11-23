@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+export const apiTarget = 'http://127.0.0.1:8080';
 export const repoRoot = path.resolve(import.meta.dirname, '..', '..');
 // The catalog builder's output directory (`output_directory` in catalog-build.toml).
 export const buildDirectory = path.join(repoRoot, 'build');
