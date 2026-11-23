@@ -120,13 +120,16 @@ PreserveGeneratedBackdropDuringSpotlight:
 .black
     JML $80F2DB
 
-; Generated overworld backgrounds already selected their fixed color. Skip
+; Generated backgrounds and rain already selected their fixed color. Skip
 ; vanilla's area table and restore normal color math for backdrop mode $02.
 FinishGeneratedSpotlight:
     LDA.b $1B
     BNE .vanilla
     LDA.l !GeneratedBG1Enabled
     BEQ .vanilla
+    LDA.b $8C
+    CMP.b #$9F
+    BEQ .generated
     LDA.l !BackgroundSettings
     CMP.b #$FF
     BEQ .vanilla
