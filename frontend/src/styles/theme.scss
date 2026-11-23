@@ -44,8 +44,9 @@ $form-range-track-bg: rgba(var(--bs-body-color-rgb), 0.2);
 }
 
 // Controls disabled by a settings lock (see `data-lockable` in SeedPage). Bootstrap's disabled inputs
-// and buttons ignore the pointer, so the cursor also goes on the marked wrapper around them.
+// and buttons ignore the pointer, so the cursor also goes on the marked wrapper around them. Disabled
+// options don't count, since an editable dropdown can hold one (the preset dropdown's hidden entry).
 [data-lockable]:disabled,
-[data-lockable]:has(:disabled) {
+[data-lockable]:has(:disabled:not(option)) {
 	cursor: not-allowed;
 }
