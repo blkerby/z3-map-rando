@@ -306,10 +306,15 @@ export class SettingsStore {
 		return this.isScopePicked(scope) ? 0 : this.inheritedTweakCount(scope);
 	}
 
+	/** Does the selected document choose a different scope preset from its built-in base? */
+	isScopePresetTweaked(scope: Scope): boolean {
+		return this.impliedScopePreset(scope).id !== this.chosenFor({ preset: this.basePreset.id }, scope);
+	}
+
 	/** Does a scope that isn't picked by hand take something other than the built-in base would give it? */
 	isScopeTweaked(scope: Scope): boolean {
 		if (this.isScopePicked(scope)) return false;
-		if (this.scopeTweakCount(scope) > 0 || this.impliedScopePreset(scope).id !== this.chosenFor({ preset: this.basePreset.id }, scope)) return true;
+		if (this.scopeTweakCount(scope) > 0 || this.isScopePresetTweaked(scope)) return true;
 		for (const path of this.leaves) {
 			if (path[0] === scope.id && getAt(this.layers.inherited, path) !== getAt(this.basePreset.settings, path)) return true;
 		}
