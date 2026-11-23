@@ -1,15 +1,16 @@
 //! Strat evaluation over a fixed global state and evolving local states.
 
 use crate::{
-    graph::TraversalEdge,
+    graph::{BUNNY_WORLD, TraversalEdge},
     inputs::GenerationInputs,
     local_state_reducer::LocalStateReducer,
     state::{GlobalDependency, GlobalState, HealthState, LocalState, RefillFlags},
 };
 use hashbrown::HashSet;
 use logic_catalog::{
-    Ammo, BottleContent, DoorIndex, Effect, Equipment, FlagIndex, Form, ItemLocationIndex,
-    LockKind, LogicCatalog, OcarinaState, PrizeKind, Requirement, Resource, UniqueItem, World,
+    Ammo, BottleContent, DamageRecovery, DoorIndex, Effect, Equipment, FlagIndex, Form,
+    ItemLocationIndex, LockKind, LogicCatalog, OcarinaState, PrizeKind, Requirement, Resource,
+    UniqueItem,
 };
 
 /// Include implicit reads in consumables, ammunition, and source discovery.
@@ -82,7 +83,10 @@ pub(crate) fn collect_requirement_dependencies(
                 Ammo::Arrow | Ammo::SilverArrow => D::Arrows,
             });
         }
-        Requirement::ResetForm(World::Dark) => {
+        Requirement::ResetForm {
+            world,
+            only_with_pearl,
+        } if *world == BUNNY_WORLD || *only_with_pearl => {
             dependencies.insert(D::Item(UniqueItem::MoonPearl as usize));
         }
         Requirement::UseMagic { .. } => {
@@ -102,6 +106,7 @@ pub(crate) fn collect_requirement_dependencies(
                 D::BluePotion,
                 D::RedPotion,
                 D::Fairy,
+                D::Item(UniqueItem::MoonPearl as usize),
             ]);
         }
         Requirement::Refill { resource, limit } => {
@@ -143,7 +148,8 @@ pub(crate) fn collect_requirement_dependencies(
         | Requirement::IsLink
         | Requirement::CanUseABItems
         | Requirement::ChangeForm { .. }
-        | Requirement::ResetForm(World::Light)
+        | Requirement::ResetForm { .. }
+        | Requirement::SetLink
         | Requirement::CanUseYItems
         | Requirement::Pay(_)
         | Requirement::Tech(_)
@@ -334,7 +340,8 @@ impl Interpreter<'_> {
             | Requirement::CanUseABItems
             | Requirement::CanUseYItems
             | Requirement::ChangeForm { .. }
-            | Requirement::ResetForm(_)
+            | Requirement::ResetForm { .. }
+            | Requirement::SetLink
             | Requirement::UseAmmo { .. }
             | Requirement::UseMagic { .. }
             | Requirement::Damage { .. }
@@ -372,20 +379,30 @@ impl Interpreter<'_> {
             Requirement::IsLink => state.form == Form::Link,
             Requirement::CanUseABItems => state.form.can_use_ab_items(),
             Requirement::CanUseYItems => state.form.can_use_y_items(),
-            Requirement::ChangeForm { from, to } => {
-                if state.form == *from {
+            Requirement::ChangeForm { from, to, tech } => {
+                if state.form == *from
+                    && tech.is_none_or(|idx| self.inputs.tech_enabled[idx.0 as usize])
+                {
                     state.form = *to;
                 }
                 true
             }
-            Requirement::ResetForm(world) => {
-                state.form = if *world == World::Dark
-                    && !self.global.unique_items[UniqueItem::MoonPearl as usize]
-                {
-                    Form::Bunny
-                } else {
-                    Form::Link
-                };
+            Requirement::ResetForm {
+                world,
+                only_with_pearl,
+            } => {
+                let pearl = self.global.unique_items[UniqueItem::MoonPearl as usize];
+                if !only_with_pearl || pearl {
+                    state.form = if *world == BUNNY_WORLD && !pearl {
+                        Form::Bunny
+                    } else {
+                        Form::Link
+                    };
+                }
+                true
+            }
+            Requirement::SetLink => {
+                state.form = Form::Link;
                 true
             }
             Requirement::UseAmmo { kind, count } => {
@@ -454,13 +471,30 @@ impl Interpreter<'_> {
                 }
                 return;
             }
-            Requirement::Damage { per_mail, hits } => {
+            Requirement::Damage {
+                per_mail,
+                hits,
+                recovery,
+            } => {
                 let damage = per_mail[self.global.mail_level as usize];
+                let pearl = self.global.unique_items[UniqueItem::MoonPearl as usize];
                 let mut states = LocalStateReducer::default();
                 states.insert(state);
                 for _ in 0..*hits {
                     let mut next = LocalStateReducer::default();
                     for mut state in states.into_states() {
+                        // shortcut: Omit ambiguous pit and Fairy recoveries until route logic tracks backup Bunny identity.
+                        let restored_form = match state.form {
+                            _ if pearl => Some(Form::Link),
+                            Form::Bunny => Some(Form::Bunny),
+                            Form::Link if !self.inputs.can_convert_to_pearlless_link => {
+                                Some(Form::Link)
+                            }
+                            _ => None,
+                        };
+                        if matches!(recovery, DamageRecovery::Pit) && restored_form.is_none() {
+                            continue;
+                        }
                         let remaining = match state.health {
                             HealthState::Consumed(used) => self.global.health_capacity - used,
                             HealthState::Remaining(remaining) => remaining,
@@ -470,6 +504,7 @@ impl Interpreter<'_> {
                                 HealthState::Consumed(used) => *used += damage as u8,
                                 HealthState::Remaining(remaining) => *remaining -= damage as u8,
                             }
+                            state.recover_from_damage(*recovery, pearl);
                             next.insert(state);
                         } else {
                             if damage < u32::from(self.global.health_capacity) {
@@ -477,6 +512,7 @@ impl Interpreter<'_> {
                                 {
                                     if let Some(mut healed) = self.use_potion(&state, content) {
                                         healed.health = HealthState::Consumed(damage as u8);
+                                        healed.recover_from_damage(*recovery, pearl);
                                         next.insert(healed);
                                         break;
                                     }
@@ -484,10 +520,12 @@ impl Interpreter<'_> {
                             }
                             if self.global.refills.fairy
                                 && state.bottles_used < self.global.bottles_owned
+                                && let Some(form) = restored_form
                             {
                                 state.bottles_used += 1;
                                 state.health =
                                     HealthState::Remaining(self.global.health_capacity.min(56));
+                                state.form = form;
                                 next.insert(state);
                             }
                         }

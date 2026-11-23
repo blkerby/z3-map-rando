@@ -1,4 +1,7 @@
-use super::{RoomIndices, requirements::Compiler};
+use super::{
+    RoomIndices,
+    requirements::{Compiler, RequirementContext},
+};
 use crate::z3_json_data::{self, collect_source_files, read_source};
 use anyhow::{Context, Result};
 use logic_catalog::*;
@@ -133,7 +136,13 @@ pub(super) fn compile_rooms(
                 catalog.edges.push(Edge {
                     from_vertex_idx: indices.vertices[&(node.id, Some(World::Dark))],
                     to_vertex_idx: indices.vertices[&(node.id, Some(World::Light))],
-                    requirement: Requirement::Item(UniqueItem::MagicMirror),
+                    requirement: Requirement::make_and(vec![
+                        Requirement::Item(UniqueItem::MagicMirror),
+                        Requirement::ResetForm {
+                            world: World::Light,
+                            only_with_pearl: false,
+                        },
+                    ]),
                     effects: Box::new([]),
                 });
                 catalog.edge_metadata.push(EdgeMetadata {
@@ -352,8 +361,14 @@ fn compile_room_strats(
         });
         let world_pairs = get_strat_world_pairs(strat, overworld, indices);
         let effects = collect_strat_effects(strat, indices, compiler);
-        let requirement = compiler.compile_requirements(&strat.requires, indices);
         for (from_world, to_world) in world_pairs {
+            let requirement = compiler.compile_requirements(
+                &strat.requires,
+                RequirementContext {
+                    room: indices,
+                    strat_destination_world: to_world,
+                },
+            );
             let ordinary_from = indices.vertices[&(strat.link[0], from_world)];
             let ordinary_to = indices.vertices[&(strat.link[1], to_world)];
             let mut from_vertex_idx = ordinary_from;
@@ -405,9 +420,9 @@ fn compile_room_strats(
                     Some(z3_json_data::Bunny::Yes | z3_json_data::Bunny::Any)
                 );
             let requirement = if needs_link {
-                Requirement::make_and(vec![Requirement::IsLink, requirement.clone()])
+                Requirement::make_and(vec![Requirement::IsLink, requirement])
             } else {
-                requirement.clone()
+                requirement
             };
             catalog.edges.push(Edge {
                 from_vertex_idx,
@@ -468,7 +483,10 @@ fn compile_room_strats(
                     &[z3_json_data::Requirement::Named(
                         "canCrossRoomOverheadPickups".to_owned(),
                     )],
-                    indices,
+                    RequirementContext {
+                        room: indices,
+                        strat_destination_world: catalog.vertex_metadata(ordinary_idx).world,
+                    },
                 ),
                 effects: Box::new([]),
             });

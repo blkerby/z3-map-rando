@@ -118,5 +118,20 @@
         "tech_id": 9,
         "name": "canRiskPermanentLossOfAccess",
         "difficulty": "Ignored"
+    },
+    {
+        "tech_id": 11,
+        "name": "canCarryLonk",
+        "difficulty": "Ignored"
+    },
+    {
+        "tech_id": 12,
+        "name": "canSuperbunny",
+        "difficulty": "Ignored"
+    },
+    {
+        "tech_id": 13,
+        "name": "canPearllessLink",
+        "difficulty": "Ignored"
     }
 ]

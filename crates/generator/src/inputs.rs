@@ -41,6 +41,7 @@ pub struct GenerationInputs {
     pub prize_pool: Vec<Item>,
     /// Settings resolved by stable tech ID, stored in catalog tech order.
     pub tech_enabled: Vec<bool>,
+    pub can_convert_to_pearlless_link: bool,
     /// Settings resolved by room identity and notable ID, in catalog notable order.
     pub notable_enabled: Vec<bool>,
     pub proficiency_levels: Vec<u32>,
@@ -74,6 +75,7 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         prize_locations: Vec::new(),
         prize_pool: Vec::new(),
         tech_enabled: vec![false; catalog.techs.len()],
+        can_convert_to_pearlless_link: false,
         notable_enabled: vec![false; catalog.notables.len()],
         proficiency_levels: vec![0; catalog.techs.len()],
         starting_state: settings.starting_state.clone(),
@@ -214,6 +216,14 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
             .get(tech_id)
             .ok_or_else(|| anyhow!("unknown tech ID: {tech_id}"))?;
         inputs.tech_enabled[*index] = enabled;
+        if enabled
+            && matches!(
+                catalog.techs[*index].name.as_str(),
+                "canCarryLonk" | "canPearllessLink"
+            )
+        {
+            inputs.can_convert_to_pearlless_link = true;
+        }
     }
     let mut notable_indices = HashMap::new();
     for (index, notable) in catalog.notables.iter().enumerate() {

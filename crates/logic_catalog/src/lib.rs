@@ -183,6 +183,7 @@ pub struct LogicCatalog {
     pub flute_spots: Vec<FluteSpot>,
     /// Shared travel hub in the synthetic FluteHub room, connected by ImplicitFlute edges.
     pub flute_hub_vertex_idx: VertexIndex,
+    pub fall_to_lower_floor: Requirement,
     pub vanilla_connections: Vec<Connection>,
     /// Extra vertices reached only by incoming connections carrying the event.
     pub event_entries: Vec<EventEndpoint>,
@@ -541,6 +542,14 @@ impl Form {
     }
 }
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub enum DamageRecovery {
+    Knockback,
+    GroundSpikes,
+    Pit,
+    Zap,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Requirement {
     Free,
@@ -551,8 +560,13 @@ pub enum Requirement {
     ChangeForm {
         from: Form,
         to: Form,
+        tech: Option<TechIndex>,
     },
-    ResetForm(World),
+    ResetForm {
+        world: World,
+        only_with_pearl: bool,
+    },
+    SetLink,
     /// Execute children in order, passing successful local states to the next.
     And(Box<[Requirement]>),
     /// Each branch starts with the same input; retain its successful local states.
@@ -597,6 +611,7 @@ pub enum Requirement {
         /// Damage per hit in eighths of a heart: green, blue, and red mail.
         per_mail: [u32; 3],
         hits: u32,
+        recovery: DamageRecovery,
     },
     Pay(u32),
     /// Discover an environmental preparation source for subsequent traversal waves.

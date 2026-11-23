@@ -5,7 +5,7 @@ mod rooms;
 use crate::z3_json_data::{self, collect_source_files, read_source};
 use anyhow::Result;
 use logic_catalog::*;
-use requirements::Compiler;
+use requirements::{Compiler, RequirementContext};
 use std::{
     collections::BTreeMap,
     fs,
@@ -76,11 +76,19 @@ pub fn build_catalog(
         whirlpools: Vec::new(),
         flute_spots: Vec::new(),
         flute_hub_vertex_idx: VertexIndex(0),
+        fall_to_lower_floor: Requirement::Free,
         vanilla_connections: Vec::new(),
         event_entries: Vec::new(),
         event_exits: Vec::new(),
     };
     let compiler = load_definitions(source_directory, item_records, &mut catalog)?;
+    catalog.fall_to_lower_floor = compiler.compile_named_requirement(
+        "h_fallToLowerFloor",
+        RequirementContext {
+            room: &RoomIndices::default(),
+            strat_destination_world: None,
+        },
+    );
     let room_indices = rooms::compile_rooms(source_directory, &mut catalog, &compiler)?;
     connections::build_connections(source_directory, &room_indices, &mut catalog)?;
     build_flute_travel(&mut catalog, &compiler);
@@ -113,7 +121,13 @@ fn build_flute_travel(catalog: &mut LogicCatalog, compiler: &Compiler) {
         origin: VertexOrigin::Node,
     });
 
-    let departure = compiler.compile_named_requirement("OcarinaActive", &RoomIndices::default());
+    let departure = compiler.compile_named_requirement(
+        "OcarinaActive",
+        RequirementContext {
+            room: &RoomIndices::default(),
+            strat_destination_world: None,
+        },
+    );
     for (index, vertex) in catalog.vertices.iter().enumerate() {
         let vertex_idx = VertexIndex(index as u32);
         let metadata = catalog.vertex_metadata(vertex_idx);
@@ -137,7 +151,10 @@ fn build_flute_travel(catalog: &mut LogicCatalog, compiler: &Compiler) {
         catalog.edges.push(Edge {
             from_vertex_idx: catalog.flute_hub_vertex_idx,
             to_vertex_idx: spot.vertex_idx,
-            requirement: Requirement::Free,
+            requirement: Requirement::ResetForm {
+                world: catalog.vertex_metadata(spot.vertex_idx).world.unwrap(),
+                only_with_pearl: false,
+            },
             effects: Box::new([]),
         });
         catalog.edge_metadata.push(EdgeMetadata {

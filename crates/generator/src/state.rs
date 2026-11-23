@@ -4,8 +4,8 @@ use crate::inputs::GenerationInputs;
 use anyhow::{Result, bail};
 use common_types::Item;
 use logic_catalog::{
-    DoorIndex, DungeonIndex, FlagIndex, FollowerMask, Form, ItemLocationIndex, LogicCatalog,
-    OcarinaState, UniqueItem,
+    DamageRecovery, DoorIndex, DungeonIndex, FlagIndex, FollowerMask, Form, ItemLocationIndex,
+    LogicCatalog, OcarinaState, UniqueItem,
 };
 use seed_data::{StartingBottle, StartingOcarina};
 
@@ -418,6 +418,23 @@ impl LocalState {
             possible_followers: FollowerMask(0),
             cleared_obstacles: 0,
         }
+    }
+
+    pub(crate) fn recover_from_damage(&mut self, recovery: DamageRecovery, pearl: bool) {
+        if matches!(recovery, DamageRecovery::Zap) && self.form.can_use_ab_items() {
+            return;
+        }
+        if pearl {
+            if !matches!(recovery, DamageRecovery::GroundSpikes) || self.form == Form::Superbunny {
+                self.form = Form::Link;
+            }
+            return;
+        }
+        self.form = match (recovery, self.form) {
+            (DamageRecovery::Knockback, Form::Superbunny) => Form::Bunny,
+            (DamageRecovery::Knockback | DamageRecovery::Zap, Form::Lonk) => Form::Link,
+            _ => self.form,
+        };
     }
 }
 

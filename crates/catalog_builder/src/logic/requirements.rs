@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use logic_catalog::{
-    Ammo, Equipment, FlagIndex, Follower, FollowerMask, Form, ItemIndex, OcarinaState, PrizeKind,
-    Requirement, Resource, TechIndex, UniqueItem,
+    Ammo, DamageRecovery, Equipment, FlagIndex, Follower, FollowerMask, Form, ItemIndex,
+    OcarinaState, PrizeKind, Requirement, Resource, TechIndex, UniqueItem, World,
 };
 
 use super::{RoomIndices, z3_json_data};
@@ -16,15 +16,21 @@ pub struct Compiler {
     pub damage: BTreeMap<String, [u32; 3]>,
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct RequirementContext<'a> {
+    pub room: &'a RoomIndices,
+    pub strat_destination_world: Option<World>,
+}
+
 impl Compiler {
     pub fn compile_requirements(
         &self,
         source: &[z3_json_data::Requirement],
-        room: &RoomIndices,
+        context: RequirementContext<'_>,
     ) -> Requirement {
         let mut requirements = Vec::new();
         for requirement in source {
-            requirements.push(self.compile_requirement(requirement, room));
+            requirements.push(self.compile_requirement(requirement, context));
         }
         Requirement::make_and(requirements)
     }
@@ -34,10 +40,10 @@ impl Compiler {
         item: &str,
         cost_per_use: u32,
         num_uses: u32,
-        room: &RoomIndices,
+        context: RequirementContext<'_>,
     ) -> Requirement {
         Requirement::make_and(vec![
-            self.compile_named_requirement(item, room),
+            self.compile_named_requirement(item, context),
             Requirement::UseMagic {
                 cost_per_use,
                 num_uses,
@@ -49,17 +55,22 @@ impl Compiler {
         &self,
         name: &str,
         ownership: Requirement,
-        room: &RoomIndices,
+        context: RequirementContext<'_>,
     ) -> Requirement {
         match self.item_use.get(name) {
-            Some(requires) => {
-                Requirement::make_and(vec![ownership, self.compile_requirements(requires, room)])
-            }
+            Some(requires) => Requirement::make_and(vec![
+                ownership,
+                self.compile_requirements(requires, context),
+            ]),
             None => ownership,
         }
     }
 
-    pub(super) fn compile_named_requirement(&self, name: &str, room: &RoomIndices) -> Requirement {
+    pub(super) fn compile_named_requirement(
+        &self,
+        name: &str,
+        context: RequirementContext<'_>,
+    ) -> Requirement {
         match name {
             // Great Fairy upgrades need no specific thrown item; the generator
             // places only upgrades whose prerequisite was already collected.
@@ -67,58 +78,30 @@ impl Compiler {
                 return Requirement::Free;
             }
             "never" => return Requirement::Never,
-            "BigKey" => return Requirement::BigKey(room.dungeon_idx.unwrap()),
+            "BigKey" => return Requirement::BigKey(context.room.dungeon_idx.unwrap()),
             "Bottle" => return Requirement::Bottles(1),
             "useABItems" => return Requirement::CanUseABItems,
             "useYItems" => return Requirement::CanUseYItems,
-            "bunnyToSuperbunny" => {
-                return Requirement::ChangeForm {
-                    from: Form::Bunny,
-                    to: Form::Superbunny,
-                };
-            }
-            "bunnyToLonk" => {
-                return Requirement::ChangeForm {
-                    from: Form::Bunny,
-                    to: Form::Lonk,
-                };
-            }
-            "superbunnyToBunny" => {
-                return Requirement::ChangeForm {
-                    from: Form::Superbunny,
-                    to: Form::Bunny,
-                };
-            }
-            "superbunnyToLink" => {
-                return Requirement::ChangeForm {
-                    from: Form::Superbunny,
-                    to: Form::Link,
-                };
-            }
-            "lonkToLink" => {
-                return Requirement::ChangeForm {
-                    from: Form::Lonk,
-                    to: Form::Link,
-                };
-            }
-            "lonkToBunny" => {
-                return Requirement::ChangeForm {
-                    from: Form::Lonk,
-                    to: Form::Bunny,
+            "recheckLinkState" => {
+                return Requirement::ResetForm {
+                    world: context
+                        .strat_destination_world
+                        .expect("recheckLinkState needs an overworld destination"),
+                    only_with_pearl: false,
                 };
             }
             "Ocarina" | "OcarinaInactive" => {
                 return self.compile_item_use(
                     "OcarinaInactive",
                     Requirement::Ocarina(OcarinaState::Inactive),
-                    room,
+                    context,
                 );
             }
             "OcarinaActive" => {
                 return self.compile_item_use(
                     name,
                     Requirement::Ocarina(OcarinaState::Active),
-                    room,
+                    context,
                 );
             }
             "BlueBoomerang" | "RedBoomerang" => {
@@ -128,19 +111,36 @@ impl Compiler {
                         equipment: Equipment::Boomerang,
                         minimum_level: if name == "BlueBoomerang" { 1 } else { 2 },
                     },
-                    room,
+                    context,
                 );
             }
             _ => {}
         }
+        let conversion = match name {
+            "bunnyToSuperbunny" => Some((Form::Bunny, Form::Superbunny, Some("canSuperbunny"))),
+            "bunnyToLonk" => Some((Form::Bunny, Form::Lonk, Some("canCarryLonk"))),
+            "bunnyToLink" => Some((Form::Bunny, Form::Link, Some("canPearllessLink"))),
+            "superbunnyToLink" => Some((Form::Superbunny, Form::Link, Some("canPearllessLink"))),
+            "superbunnyToBunny" => Some((Form::Superbunny, Form::Bunny, None)),
+            "lonkToLink" => Some((Form::Lonk, Form::Link, None)),
+            "lonkToBunny" => Some((Form::Lonk, Form::Bunny, None)),
+            _ => None,
+        };
+        if let Some((from, to, tech)) = conversion {
+            return Requirement::ChangeForm {
+                from,
+                to,
+                tech: tech.map(|name| self.techs[name].0),
+            };
+        }
         if let Some(helper) = self.helpers.get(name) {
-            return self.compile_requirements(&helper.requires, room);
+            return self.compile_requirements(&helper.requires, context);
         }
         if let Some((tech_idx, tech)) = self.techs.get(name) {
             return Requirement::make_and(vec![
                 Requirement::Tech(*tech_idx),
-                self.compile_requirements(&tech.tech_requires, room),
-                self.compile_requirements(&tech.other_requires, room),
+                self.compile_requirements(&tech.tech_requires, context),
+                self.compile_requirements(&tech.other_requires, context),
             ]);
         }
         let item = match name {
@@ -185,30 +185,30 @@ impl Compiler {
         } else {
             name
         };
-        self.compile_item_use(name, Requirement::Item(item), room)
+        self.compile_item_use(name, Requirement::Item(item), context)
     }
 
     fn compile_requirement(
         &self,
         source: &z3_json_data::Requirement,
-        room: &RoomIndices,
+        context: RequirementContext<'_>,
     ) -> Requirement {
         use z3_json_data::Operation as Op;
         let operation = match source {
             z3_json_data::Requirement::Named(name) => {
-                return self.compile_named_requirement(name, room);
+                return self.compile_named_requirement(name, context);
             }
             z3_json_data::Requirement::Operation(operation) => operation,
         };
         match operation {
-            Op::Notable(name) => Requirement::Notable(room.notables[name]),
+            Op::Notable(name) => Requirement::Notable(context.room.notables[name]),
             // Vanilla capacity purchases will be replaced by randomizer-specific behavior.
             Op::UpgradeCapacity(_) => Requirement::Never,
-            Op::And(children) => self.compile_requirements(children, room),
+            Op::And(children) => self.compile_requirements(children, context),
             Op::Or(children) => {
                 let mut branches = Vec::new();
                 for child in children {
-                    branches.push(self.compile_requirement(child, room));
+                    branches.push(self.compile_requirement(child, context));
                 }
                 Requirement::make_or(branches)
             }
@@ -218,7 +218,7 @@ impl Compiler {
                     equipment: Equipment::Sword,
                     minimum_level: *level,
                 },
-                room,
+                context,
             ),
             // The fairy upgrade accepts any shield at or above the given level.
             Op::Shield(level) | Op::ShieldExact(level) => self.compile_item_use(
@@ -227,7 +227,7 @@ impl Compiler {
                     equipment: Equipment::Shield,
                     minimum_level: *level,
                 },
-                room,
+                context,
             ),
             Op::Lift(level) | Op::Carry(level) => Requirement::make_and(vec![
                 if matches!(operation, Op::Lift(_)) {
@@ -243,9 +243,9 @@ impl Compiler {
             // We cannot rule out that the player was able to obtain a higher sword level.
             Op::SwordExact(_level) => Requirement::Never,
             Op::Arrows(count) | Op::SilverArrows(count) => {
-                let mut requirements = vec![self.compile_named_requirement("Bow", room)];
+                let mut requirements = vec![self.compile_named_requirement("Bow", context)];
                 let kind = if matches!(operation, Op::SilverArrows(_)) {
-                    requirements.push(self.compile_named_requirement("SilverArrows", room));
+                    requirements.push(self.compile_named_requirement("SilverArrows", context));
                     Ammo::SilverArrow
                 } else {
                     Ammo::Arrow
@@ -265,34 +265,40 @@ impl Compiler {
                 },
             ]),
             Op::MagicPowder(num_uses) => {
-                self.compile_magic_requirement("MagicPowder", 8, *num_uses, room)
+                self.compile_magic_requirement("MagicPowder", 8, *num_uses, context)
             }
-            Op::FireRod(num_uses) => self.compile_magic_requirement("FireRod", 16, *num_uses, room),
-            Op::IceRod(num_uses) => self.compile_magic_requirement("IceRod", 16, *num_uses, room),
+            Op::FireRod(num_uses) => {
+                self.compile_magic_requirement("FireRod", 16, *num_uses, context)
+            }
+            Op::IceRod(num_uses) => {
+                self.compile_magic_requirement("IceRod", 16, *num_uses, context)
+            }
             Op::Lamp(num_uses) => Requirement::make_and(vec![
                 Requirement::CanUseYItems,
-                self.compile_magic_requirement("Lamp", 4, *num_uses, room),
+                self.compile_magic_requirement("Lamp", 4, *num_uses, context),
             ]),
             Op::RedCane(num_uses) => {
-                self.compile_magic_requirement("CaneOfSomaria", 8, *num_uses, room)
+                self.compile_magic_requirement("CaneOfSomaria", 8, *num_uses, context)
             }
-            Op::Cape(num_uses) => self.compile_magic_requirement("Cape", 1, *num_uses, room),
+            Op::Cape(num_uses) => self.compile_magic_requirement("Cape", 1, *num_uses, context),
             Op::Rod(num_uses) => Requirement::make_and(vec![
                 Requirement::make_or(vec![
-                    self.compile_named_requirement("FireRod", room),
-                    self.compile_named_requirement("IceRod", room),
+                    self.compile_named_requirement("FireRod", context),
+                    self.compile_named_requirement("IceRod", context),
                 ]),
                 Requirement::UseMagic {
                     cost_per_use: 16,
                     num_uses: *num_uses,
                 },
             ]),
-            Op::Bombos(num_uses) => self.compile_magic_requirement("Bombos", 32, *num_uses, room),
-            Op::Ether(num_uses) => self.compile_magic_requirement("Ether", 32, *num_uses, room),
-            Op::Quake(num_uses) => self.compile_magic_requirement("Quake", 32, *num_uses, room),
+            Op::Bombos(num_uses) => {
+                self.compile_magic_requirement("Bombos", 32, *num_uses, context)
+            }
+            Op::Ether(num_uses) => self.compile_magic_requirement("Ether", 32, *num_uses, context),
+            Op::Quake(num_uses) => self.compile_magic_requirement("Quake", 32, *num_uses, context),
             Op::BlueCane(amount) => {
                 let mut requirements = vec![
-                    self.compile_named_requirement("CaneOfByrna", room),
+                    self.compile_named_requirement("CaneOfByrna", context),
                     Requirement::UseMagic {
                         cost_per_use: 20,
                         num_uses: 1,
@@ -312,6 +318,12 @@ impl Compiler {
                 Requirement::Damage {
                     per_mail: self.damage[name],
                     hits: damage.count,
+                    recovery: match name.as_str() {
+                        "Ground Spikes" => DamageRecovery::GroundSpikes,
+                        "Fall" => DamageRecovery::Pit,
+                        "Lightning Lock" => DamageRecovery::Zap,
+                        _ => DamageRecovery::Knockback,
+                    },
                 }
             }
             Op::Refill(refill) => {
@@ -343,7 +355,7 @@ impl Compiler {
                 kind: PrizeKind::Crystal,
                 minimum: *minimum,
             },
-            Op::UnlockDoor(id) => Requirement::Door(room.doors[id]),
+            Op::UnlockDoor(id) => Requirement::Door(context.room.doors[id]),
             Op::Pay(amount) => Requirement::Pay(*amount),
             Op::Flag(name) => Requirement::Flag(self.flags[name]),
             Op::NotFlag(_name) => Requirement::Never,
@@ -368,7 +380,7 @@ impl Compiler {
             Op::ObstaclesCleared(names) | Op::ObstaclesNotCleared(names) => {
                 let mut requirements = Vec::new();
                 for name in names {
-                    let obstacle_idx = room.obstacles[name];
+                    let obstacle_idx = context.room.obstacles[name];
                     requirements.push(match operation {
                         Op::ObstaclesCleared(_) => Requirement::ObstacleCleared(obstacle_idx),
                         _ => Requirement::ObstacleNotCleared(obstacle_idx),

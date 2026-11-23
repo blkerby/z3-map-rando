@@ -5,9 +5,11 @@ use common_types::allows_frog_dwarf;
 use hashbrown::{HashMap, HashSet};
 use logic_catalog::{
     Connection, Edge, EdgeIndex, Effect, EntranceIndex, EntranceKind, EventEndpoint, Follower,
-    FollowerMask, Form, LogicCatalog, MapBoundaryKind, NodeType, OverheadClass, Requirement,
+    FollowerMask, LogicCatalog, MapBoundaryKind, OverheadClass, Requirement, SourceRoomId,
     TransitionState, UniqueItem, VertexIndex, VertexOrigin, World,
 };
+
+pub(crate) const BUNNY_WORLD: World = World::Dark;
 
 #[derive(Debug)]
 pub struct TraversalGraph {
@@ -71,18 +73,6 @@ impl TraversalGraph {
             let reset = Requirement::ResetObstacles(destination_room_idx);
             edge.requirement = Requirement::make_and(vec![edge.requirement, reset]);
         }
-        let source_world = catalog.vertex_metadata(edge.from_vertex_idx).world;
-        let destination_world = catalog.vertex_metadata(edge.to_vertex_idx).world;
-        if origin == TraversalEdgeOrigin::SaveAndQuit {
-            edge.requirement =
-                Requirement::make_and(vec![edge.requirement, Requirement::ResetForm(World::Light)]);
-        } else if let Some(world) = destination_world
-            && source_world != Some(world)
-        {
-            // A world crossing or a reload from an interior sets the destination form.
-            edge.requirement =
-                Requirement::make_and(vec![edge.requirement, Requirement::ResetForm(world)]);
-        }
         self.outgoing[edge.from_vertex_idx.0 as usize].push(TraversalEdge { edge, origin });
     }
 }
@@ -123,7 +113,13 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                 matches!(kind, MapBoundaryKind::Ordinary),
                 match kind {
                     MapBoundaryKind::Ordinary => Requirement::Free,
-                    MapBoundaryKind::Mirror => Requirement::Item(UniqueItem::MagicMirror),
+                    MapBoundaryKind::Mirror => Requirement::make_and(vec![
+                        Requirement::Item(UniqueItem::MagicMirror),
+                        Requirement::ResetForm {
+                            world: catalog.vertex_metadata(endpoints[1]).world.unwrap(),
+                            only_with_pearl: false,
+                        },
+                    ]),
                     MapBoundaryKind::Return => {
                         Requirement::ResetObstacles(catalog.vertex(endpoints[0]).room_idx)
                     }
@@ -153,14 +149,7 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                         Requirement::LoseFollowers(lost)
                     }
                     EntranceKind::Drop => Requirement::make_and(vec![
-                        Requirement::ChangeForm {
-                            from: Form::Lonk,
-                            to: Form::Link,
-                        },
-                        Requirement::ChangeForm {
-                            from: Form::Bunny,
-                            to: Form::Superbunny,
-                        },
+                        catalog.fall_to_lower_floor.clone(),
                         Requirement::LoseFollowers(FollowerMask::make([Follower::SuperBomb])),
                     ]),
                 };
@@ -180,28 +169,39 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
             Connection::Teleport {
                 from_vertex_idx,
                 teleport_idx,
-            } => (
-                ConnectionEndpoint {
-                    vertex_idx: *from_vertex_idx,
-                    entrance_idx: None,
-                },
-                ConnectionEndpoint {
-                    vertex_idx: catalog.teleports[teleport_idx.0 as usize].vertex_idx,
-                    entrance_idx: None,
-                },
-                false,
-                // Houlihan's door uses ordinary exit loading; the Agahnim event warps do not.
-                if catalog
-                    .room(catalog.vertex(*from_vertex_idx).room_idx)
-                    .node(catalog.vertex_metadata(*from_vertex_idx).node_idx)
-                    .node_type
-                    == Some(NodeType::Door)
-                {
-                    Requirement::LoseFollowers(FollowerMask::make([Follower::Blind]))
-                } else {
-                    Requirement::Free
-                },
-            ),
+            } => {
+                let destination = catalog.teleports[teleport_idx.0 as usize].vertex_idx;
+                let world = catalog.vertex_metadata(destination).world.unwrap();
+                let room = catalog.room(catalog.vertex(*from_vertex_idx).room_idx);
+                let requirement = match room.room_id {
+                    // Chris Houlihan Room
+                    Some(SourceRoomId::Underworld(20)) => Requirement::make_and(vec![
+                        Requirement::LoseFollowers(FollowerMask::make([Follower::Blind])),
+                        Requirement::ResetForm {
+                            world,
+                            only_with_pearl: true,
+                        },
+                    ]),
+                    // Agahnim 2 in Ganon's Tower
+                    Some(SourceRoomId::Underworld(100)) => Requirement::SetLink,
+                    _ => Requirement::ResetForm {
+                        world,
+                        only_with_pearl: false,
+                    },
+                };
+                (
+                    ConnectionEndpoint {
+                        vertex_idx: *from_vertex_idx,
+                        entrance_idx: None,
+                    },
+                    ConnectionEndpoint {
+                        vertex_idx: destination,
+                        entrance_idx: None,
+                    },
+                    false,
+                    requirement,
+                )
+            }
             Connection::Whirlpool { endpoints } => (
                 ConnectionEndpoint {
                     vertex_idx: catalog.whirlpools[endpoints[0].0 as usize].vertex_idx,
@@ -227,16 +227,21 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                 Requirement::Free,
             ),
         };
-        let reverse_requirement = if matches!(
-            connection,
+        let reverse_requirement = match connection {
             Connection::Entrance {
                 kind: EntranceKind::Door,
                 ..
+            } => {
+                let world = catalog.vertex_metadata(first.vertex_idx).world.unwrap();
+                Requirement::make_and(vec![
+                    Requirement::LoseFollowers(FollowerMask::make([Follower::Blind])),
+                    Requirement::ResetForm {
+                        world,
+                        only_with_pearl: world != BUNNY_WORLD,
+                    },
+                ])
             }
-        ) {
-            Requirement::LoseFollowers(FollowerMask::make([Follower::Blind]))
-        } else {
-            Requirement::Free
+            _ => Requirement::Free,
         };
         let directions = [
             (first, second, requirement),
@@ -344,6 +349,10 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                         Follower::SuperBomb,
                     ])),
                     Requirement::ResetHealthToFull,
+                    Requirement::ResetForm {
+                        world: World::Light,
+                        only_with_pearl: false,
+                    },
                 ]),
                 effects: Box::new([]),
             },
