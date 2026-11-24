@@ -727,8 +727,9 @@
 		scroll-margin-top: 1rem;
 	}
 
-	/* Below this, the middle column would be too narrow for the card headers' full preset labels. */
-	@media (max-width: 1120px) {
+	/* Below this, the middle column would be too narrow for two columns in its setting grids (see
+	   Group.svelte). */
+	@media (max-width: 1200px) {
 		/* Capped so setting controls stay near their labels. */
 		main.container {
 			max-width: 44rem;
