@@ -55,8 +55,8 @@
 
 	// ---- Modes --------------------------------------------------------------
 	// /generate: no game yet, settings are editable, Generate section is open.
-	// /seed/<name>: a game exists, its settings are locked, Customization is open.
-	type Section = 'generate' | 'customization';
+	// /seed/<name>: a game exists, its settings are locked, Customize section is open.
+	type Section = 'generate' | 'customize';
 
 	const generated = $derived(seed !== null);
 	const GENERATED_LOCK = 'This game has already been generated, so its settings can no longer be changed.';
@@ -69,7 +69,7 @@
 	// svelte-ignore state_referenced_locally
 	let generateOpen = $state(!generated);
 	// svelte-ignore state_referenced_locally
-	let customizationOpen = $state(generated);
+	let customizeOpen = $state(generated);
 
 	// ---- Storage ------------------------------------------------------------
 	// The draft holds the /generate settings. It is kept after generating, so returning to
@@ -334,7 +334,7 @@
 	$effect(() => {
 		if (!searching) return;
 		if (generateMatches > 0) generateOpen = true;
-		if (customMatches > 0) customizationOpen = true;
+		if (customMatches > 0) customizeOpen = true;
 	});
 
 	// ---- Navigation ---------------------------------------------------------
@@ -342,7 +342,7 @@
 
 	function openSection(section: Section) {
 		if (section === 'generate') generateOpen = true;
-		else customizationOpen = true;
+		else customizeOpen = true;
 	}
 
 	// Buttons instead of #anchors, so the URL stays a clean seed link.
@@ -379,7 +379,7 @@
 	// Pressing a control that the lock disables (marked `data-lockable`, directly or on a wrapper) shows
 	// the lock reason in a toast for a few seconds. The nearest marker decides, so `data-lockable="false"`
 	// exempts a part (e.g. a help button) of a larger lockable area. Only the Generate section's controls lock; the
-	// Customization ones carry the same marker but stay editable. Pointerdown rather than click, since browsers don't
+	// Customize ones carry the same marker but stay editable. Pointerdown rather than click, since browsers don't
 	// fire click on disabled controls.
 	let lockToast = $state(false);
 	let lockToastTimer: ReturnType<typeof setTimeout> | undefined;
@@ -488,7 +488,7 @@
 		/>
 		{#if searching}
 			<span class="small text-body-secondary" role="status">
-				{generateMatches} in Generate · {customMatches} in Customization
+				{generateMatches} in Generate · {customMatches} in Customize
 			</span>
 		{/if}
 	</div>
@@ -513,12 +513,12 @@
 			<button
 				type="button"
 				class="nav-link-btn section-link"
-				class:active={activeId === 'customization'}
-				onclick={() => goTo('customization', 'customization')}
+				class:active={activeId === 'customize'}
+				onclick={() => goTo('customize', 'customize')}
 			>
-				Customization
+				Customize
 			</button>
-			{@render navLinks(custom, 'customization')}
+			{@render navLinks(custom, 'customize')}
 		</nav>
 
 		<div class="content">
@@ -555,7 +555,7 @@
 				{/if}
 			</CollapsibleSection>
 
-			<CollapsibleSection id="customization" title="Customization" bind:open={customizationOpen}>
+			<CollapsibleSection id="customize" title="Customize" bind:open={customizeOpen}>
 				{#snippet actions()}
 					<PresetManager bind:this={customPresets} store={custom} kind="customization" selectId="custom-preset" onstale={showStale} />
 				{/snippet}
@@ -592,7 +592,7 @@
 			/>
 			<CustomizationPanel
 				store={custom}
-				onjump={(path) => jumpToSetting(custom, 'customization', path)}
+				onjump={(path) => jumpToSetting(custom, 'customize', path)}
 				onsave={() => customPresets?.save()}
 			/>
 		</div>
@@ -723,7 +723,7 @@
 	}
 
 	:global(#generate),
-	:global(#customization) {
+	:global(#customize) {
 		scroll-margin-top: 1rem;
 	}
 
