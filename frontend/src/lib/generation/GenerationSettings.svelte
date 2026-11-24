@@ -8,7 +8,6 @@
 	import { getStore } from '$lib/settings/context';
 	import {
 		DIFFICULTIES,
-		ITEM_LABELS,
 		ITEM_LOCATIONS,
 		countPoolItems,
 		countStartingItems,
@@ -122,12 +121,12 @@
 		{#if tiers === null}
 			<ToggleSetting
 				path={['starting_state', 'equipment', item.name]}
-				label={ITEM_LABELS[item.name]}
+				label={item.label}
 			/>
 		{:else}
 			<ChoiceSetting
 				path={['starting_state', 'equipment', item.name]}
-				label={ITEM_LABELS[item.name]}
+				label={item.label}
 				options={tiers}
 				display="dropdown"
 			/>
@@ -224,7 +223,7 @@
 			{#each poolItems.filter((i) => i.category === category.id) as item (item.name)}
 				<CountSetting
 					path={['item_pool', 'items', item.name]}
-					label={ITEM_LABELS[item.name] ?? item.name}
+					label={item.label}
 					notes={deducted[item.name] ? `−${deducted[item.name]} starting` : undefined}
 					min={item.min}
 					max={ITEM_LOCATIONS}

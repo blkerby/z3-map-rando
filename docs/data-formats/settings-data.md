@@ -21,7 +21,7 @@ The frontend lives at `z3-map-rando/frontend`, alongside the backend and its sha
 | `schema/settings/` | Separately maintained JSON schemas for resolved generation values, skill assumptions, and starting state |
 | `data/presets/` | Built-in preset files (see [Preset files](#preset-files)) |
 | `data/tech_data.json`, `data/notable_data.json` | Difficulty classifications of techniques, proficiency levels, and notables; skill presets are derived from them |
-| `data/items.json` | The item token vocabulary, with upstream item names, count limits, category, and placement tier; items in the `dungeon` and `prize` categories have their own placement and are not part of the item pool |
+| `data/items.json` | The item token vocabulary, with display labels, upstream item names, count limits, category, and placement tier; items in the `dungeon` and `prize` categories have their own placement and are not part of the item pool |
 
 The preset directory is:
 

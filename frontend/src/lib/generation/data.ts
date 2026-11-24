@@ -50,6 +50,7 @@ interface SettingsData {
 
 export interface ItemRecord {
 	name: string;
+	label: string;
 	min: number;
 	/** The most the player can make use of; null for no limit. */
 	max: number | null;
@@ -73,51 +74,9 @@ export const poolItems: ItemRecord[] = [];
 for (const item of items)
 	if (item.category !== 'dungeon' && item.category !== 'prize') poolItems.push(item);
 
-/** Display names of pool items. */
-export const ITEM_LABELS: Record<string, string> = {
-	fire_rod: 'Fire Rod',
-	ice_rod: 'Ice Rod',
-	hammer: 'Hammer',
-	hookshot: 'Hookshot',
-	bow: 'Bow',
-	boomerang: 'Boomerang',
-	magic_powder: 'Magic Powder',
-	bombos: 'Bombos',
-	ether: 'Ether',
-	quake: 'Quake',
-	lamp: 'Lamp',
-	shovel: 'Shovel',
-	cane_of_somaria: 'Cane of Somaria',
-	cane_of_byrna: 'Cane of Byrna',
-	cape: 'Magic Cape',
-	magic_mirror: 'Magic Mirror',
-	book_of_mudora: 'Book of Mudora',
-	flippers: 'Flippers',
-	moon_pearl: 'Moon Pearl',
-	bug_catching_net: 'Bug-Catching Net',
-	mushroom: 'Mushroom',
-	bottle: 'Bottle',
-	pegasus_boots: 'Pegasus Boots',
-	ocarina: 'Ocarina',
-	sword: 'Sword',
-	shield: 'Shield',
-	glove: 'Glove',
-	mail: 'Mail',
-	half_magic: 'Half Magic',
-	bomb_capacity_upgrade: 'Bomb Capacity Upgrade',
-	arrow_capacity_upgrade: 'Arrow Capacity Upgrade',
-	arrow: 'Arrow (1)',
-	three_bombs: 'Bombs (3)',
-	ten_arrows: 'Arrows (10)',
-	one_rupee: '1 Rupee',
-	five_rupees: '5 Rupees',
-	twenty_rupees: '20 Rupees',
-	fifty_rupees: '50 Rupees',
-	one_hundred_rupees: '100 Rupees',
-	three_hundred_rupees: '300 Rupees',
-	heart_container: 'Heart Container',
-	piece_of_heart: 'Piece of Heart'
-};
+/** Display names of items, by item token. */
+export const ITEM_LABELS: Record<string, string> = {};
+for (const item of items) ITEM_LABELS[item.name] = item.label;
 
 // Member IDs as they appear in setting paths.
 
