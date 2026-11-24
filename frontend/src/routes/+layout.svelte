@@ -30,9 +30,9 @@
 	<link rel="icon" href={favicon} />
 </svelte:head>
 
-<nav class="navbar navbar-world navbar-expand-md py-1" data-bs-theme="dark">
+<nav class="navbar navbar-world navbar-expand-sm py-1" data-bs-theme="dark">
 	<div class="container">
-		<a class="navbar-brand d-flex align-items-center gap-2" href={resolve('/')}>
+		<a class="navbar-brand d-flex align-items-center gap-2 me-2" href={resolve('/')}>
 			<img src={DiscordIcon} alt="" class="brand-icon" />
 		</a>
 
@@ -49,7 +49,7 @@
 		</button>
 
 		<div class="collapse navbar-collapse" id="mainNav">
-			<ul class="navbar-nav me-auto mb-2 mb-md-0">
+			<ul class="navbar-nav me-auto mb-2 mb-sm-0">
 				{#each navLinks as link (link.href)}
 					<li class="nav-item">
 						<a
