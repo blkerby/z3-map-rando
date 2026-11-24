@@ -225,8 +225,20 @@
 		</ToggleSetting>
 	</Group>
 	<Group layout="grid">
-		<CountSetting path={['item_pool', 'bomb_upgrade_size']} label="Bomb upgrade size" min={1} max={99} />
-		<CountSetting path={['item_pool', 'arrow_upgrade_size']} label="Arrow upgrade size" min={1} max={99} />
+		<CountSetting
+			path={['item_pool', 'bomb_upgrade_size']}
+			label="Bomb upgrade size"
+			icon={getItemIcon('bomb_capacity_upgrade')}
+			min={1}
+			max={99}
+		/>
+		<CountSetting
+			path={['item_pool', 'arrow_upgrade_size']}
+			label="Arrow upgrade size"
+			icon={getItemIcon('arrow_capacity_upgrade')}
+			min={1}
+			max={99}
+		/>
 	</Group>
 	{#each ITEM_CATEGORIES as category (category.id)}
 		<Group heading={category.title} layout="grid">
