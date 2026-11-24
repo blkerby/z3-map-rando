@@ -21,7 +21,7 @@ The current implementation is `POST /api/generate` with request `{"settings": <s
 
 The backend and CLI use `seed_data::SettingsContext::process_settings` for live documents. The endpoint and CLI default to strict mode; the CLI supports opt-in recovery with `--recover-settings`. The shared report retains structured paths, messages, and replacement values; the HTTP response and CLI currently render notices as strings. A blocking settings-processing error returns HTTP 422 with an `error` string and an `errors` array containing all collected structured findings. The shared report checks the item-pool total after optional starting-equipment deduction, and the generator independently rejects a total exceeding its ordinary locations; that check also returns HTTP 422.
 
-A generation request consists mainly of a scoped settings document, including its format version, preset selections, and tweaks. It preserves inheritance rather than turning every resolved value into an explicit tweak.
+A generation request consists mainly of a scoped settings document, including its preset selections and tweaks. It preserves inheritance rather than turning every resolved value into an explicit tweak.
 
 The backend uses the ordinary live-settings path: migrate while preserving meaning, adopt current built-in presets/defaults for inherited values, validate strictly without recovery, then generate. This also handles requests from an outdated frontend.
 

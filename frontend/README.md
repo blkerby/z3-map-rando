@@ -14,7 +14,7 @@ npm run dev -- --store file:seeds   # arguments after -- go to the randomizer se
 
 `npm run dev` runs Vite with hot reload together with the randomizer server, which serves only the API; Vite forwards `/api/` requests to it. When other files in the repository change, it rebuilds and restarts the server and rebuilds the browser package as needed (see `scripts/dev.js`). Inside `frontend/`, `npm run check` type-checks. Node is needed to develop and build the frontend, but not to serve the built site.
 
-The frontend also requires `wasm-pack` and the Rust `wasm32-unknown-unknown` target. Vite builds `crates/browser` into the ignored `build/browser/` directory when loading its configuration, including for `dev`, `check`, and `build`. Generate initializes that package once and reads its settings-format version for generation requests. Save ROM uses it to patch the player's ROM in the browser with the seed from `/api/seed/<name>`, its filtered catalog from `/api/seed/<name>/retiling`, and the patch catalog bundled by Vite.
+The frontend also requires `wasm-pack` and the Rust `wasm32-unknown-unknown` target. Vite builds `crates/browser` into the ignored `build/browser/` directory when loading its configuration, including for `dev`, `check`, and `build`. Save ROM uses that package to patch the player's ROM in the browser with the seed from `/api/seed/<name>`, its filtered catalog from `/api/seed/<name>/retiling`, and the patch catalog bundled by Vite.
 
 ## Serve the built site
 

@@ -2,7 +2,7 @@ use anyhow::{Context, Result, ensure};
 use clap::Parser;
 use generator::metadata::{compute_catalog_hash, create_metadata};
 use rand::{SeedableRng, rngs::StdRng};
-use seed_data::{MapLayoutSetting, ResolvedSettings, SETTINGS_FORMAT_VERSION, SeedData};
+use seed_data::{MapLayoutSetting, ResolvedSettings, SeedData};
 use std::{
     borrow::Cow,
     fs::{self, File},
@@ -325,7 +325,6 @@ fn load_settings(args: &Args) -> Result<ResolvedSettings> {
             "unknown root preset {id}"
         );
         serde_json::json!({
-            "format_version": SETTINGS_FORMAT_VERSION,
             "preset": id,
         })
     };

@@ -27,7 +27,7 @@ use retiling_catalog::palette::{
     PALETTE_ATTEMPTS, PaletteProfiles, allocate_palettes, select_palette_profiles,
 };
 use seed_data::{
-    ItemPlacement, MapLayoutSetting, ResolvedSettings, RoomData, SEED_FORMAT_VERSION, SeedMetadata,
+    ItemPlacement, MapLayoutSetting, ResolvedSettings, RoomData, SeedMetadata,
     WorldLayout,
 };
 use std::collections::BTreeMap;
@@ -170,7 +170,6 @@ pub fn generate(
             });
         }
         return Ok(SeedData {
-            format_version: SEED_FORMAT_VERSION,
             metadata,
             settings,
             settings_document,

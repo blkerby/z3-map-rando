@@ -19,7 +19,6 @@ A settings document has these fields. Field names are provisional:
 
 | Field | Contents |
 | --- | --- |
-| `format_version` | Version of the persisted settings format |
 | `preset` | The built-in root preset supplying the baseline |
 | setting keys | Root-scope values |
 | scope IDs | Nested objects containing the settings for those scopes |
@@ -28,13 +27,12 @@ The document itself represents root scope. A child scope such as `skill`, `item_
 
 There is one preset selection per scope object. Its ID is local to that scope: root `preset: "default"` selects the root default, while `preset: "hard"` inside `skill` selects the skill preset. The selected preset supplies a baseline, child scope objects customize their respective parts, and explicit values override the applicable baseline. JSON property order has no effect. A selected child preset replaces the values throughout that child scope, so values from a previously inherited preset cannot linger. A child object without a preset selection retains its inherited baseline and applies only its explicit changes.
 
-User-defined presets remain root-only and based directly on a built-in root preset. A nested `skill` object is part of the root settings document, not a separately saved user preset. Built-in preset definitions use the same scoped settings objects. Metadata names such as `format_version` and `preset`, and child scope IDs, cannot also identify a setting at the same object level.
+User-defined presets remain root-only and based directly on a built-in root preset. A nested `skill` object is part of the root settings document, not a separately saved user preset. Built-in preset definitions use the same scoped settings objects. The name `preset` and child scope IDs cannot also identify a setting at the same object level.
 
 ## Example settings
 
 ```json
 {
-  "format_version": 1,
   "preset": "default",
   "skill": {
     "preset": "hard",
@@ -73,7 +71,7 @@ Technique, notable, and room identities come from [z3-json-data](https://github.
 
 ## Versioning and migration
 
-The settings format has its own format version, recorded in every document, including browser drafts, files, and share links. A commit changing the document structure increments it and adds a structural migration step, such as `migrate_v2_to_v3`. Vocabulary changes, such as renamed keys, option tokens, or built-in presets, do not change the format version; they are handled by [vocabulary rules](#vocabulary-rules).
+Settings documents carry no format version (see [common principles](README.md#common-principles)). Vocabulary changes, such as renamed keys, option tokens, or built-in presets, are handled by [vocabulary rules](#vocabulary-rules).
 
 Moving a setting to another semantic scope changes its persisted path and will require an explicit migration. Such moves are expected to be rare. The operation format, conflict handling, and other cross-scope migration details are deferred until a concrete need arises. Moving a control between UI sections without changing its scope does not require a settings migration.
 
@@ -104,13 +102,12 @@ The original pinned settings document, bundled presets, and resolved values rema
 
 A live settings document is processed in this order:
 
-1. Apply the settings format's structural migrations, from the settings document's recorded format version to the current one.
-2. Apply vocabulary rules until no retired identifiers remain.
-3. Apply the separate live-settings update: resolve preset applications against current built-ins, allowing inherited values and newly introduced settings to follow their current defaults.
-4. Validate the complete resolved candidate against the JSON schemas and semantic rules, with optional [recovery](#lenient-loading) for what remains unreadable. Strict consumers reject invalid input.
-5. Resolve and normalize tweaks against the current selected baseline (see below).
+1. Apply vocabulary rules until no retired identifiers remain.
+2. Apply the separate live-settings update: resolve preset applications against current built-ins, allowing inherited values and newly introduced settings to follow their current defaults.
+3. Validate the complete resolved candidate against the JSON schemas and semantic rules, with optional [recovery](#lenient-loading) for what remains unreadable. Strict consumers reject invalid input.
+4. Resolve and normalize tweaks against the current selected baseline (see below).
 
-The update in step 3 preserves explicit tweaks; it does not replace their values with new defaults. Changes of value kind and identifiers have already been handled by migration.
+The update in step 2 preserves explicit tweaks; it does not replace their values with new defaults. Changes of value kind and identifiers have already been handled by migration.
 
 A pinned settings document omits the live-settings update. It resolves against its migrated bundle and compares tweaks against that bundle's baseline. No current built-in contents are substituted.
 
@@ -125,7 +122,6 @@ This does not replay every intermediate release's defaults. Enforcing a rule tha
 Recovery allows a live settings document to be loaded without discarding it when some submitted entries cannot be interpreted. This can happen when a dev-site change omitted a vocabulary rule, when a rule is missing by mistake, or when the settings document comes from a newer deployment, such as a dev-site share link opened on the release site. Loading a live settings document is therefore lenient:
 
 - **Unreadable entries revert to their baseline.** An entry with an unknown key, an invalid option token, an out-of-range value, or a reference to an unknown built-in preset is dropped. The affected setting takes the value given by the settings document's presets, not the raw setting default. An unknown preset reference falls back to its scope's default preset, or to the default root preset.
-- **Newer format versions are loaded leniently too.** A settings document from a newer format version is read with the current code's understanding, and anything that cannot be interpreted is dropped in the same way.
 - **Recovery always yields a loadable document.** If dropping and restoring individual entries does not make a document readable, the changes in each affected child scope are dropped, keeping its preset selection, and then all changes, keeping the root preset; each step is reported. A document that still cannot be processed, or stored text that is not valid JSON, indicates a bug: the editor names it and lets the player copy it, then discards it.
 - **Fallback is never silent.** Loading returns the usable settings document together with a list of what was dropped or replaced, and the editor shows that list. Entries dropped by an explicit "dropped" rule are reported as removed settings rather than as unreadable input.
 - **The cleaned form replaces the original.** A stored draft or preset is overwritten by its cleaned form as soon as it is loaded, so its notices are shown once. Input dropped because of a missing rule is not recovered if the rule is added later.

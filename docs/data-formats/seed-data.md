@@ -4,11 +4,11 @@ Status: draft, partially written. A seed record is everything stored for a gener
 
 ## Contents
 
-The current version-2 JSON record stores resolved values in `settings` and their provenance in `settings_document`, the cleaned settings document. Generation results are stored per room in `rooms`, each identified by its `room_id`, with optional fields: `position` (the top-left map cell `[x, y]` of an overworld room in a randomized layout), `theme` (the retiling theme ID of a room drawn as an overworld area, applying to both worlds), and `items` (the `item_id` and `item` of each of the room's item locations). `borders` lists the open borders of a randomized layout, each by the `[x, y]` cell `position` on its west or north side, its `side` (`east` or `south`), and its edge `variant`; unlisted borders are closed. The CLI writes plain JSON; the backend's object store transparently applies Zstd compression to stored objects.
+The JSON record stores resolved values in `settings` and their provenance in `settings_document`, the cleaned settings document. Generation results are stored per room in `rooms`, each identified by its `room_id`, with optional fields: `position` (the top-left map cell `[x, y]` of an overworld room in a randomized layout), `theme` (the retiling theme ID of a room drawn as an overworld area, applying to both worlds), and `items` (the `item_id` and `item` of each of the room's item locations). `borders` lists the open borders of a randomized layout, each by the `[x, y]` cell `position` on its west or north side, its `side` (`east` or `south`), and its edge `variant`; unlisted borders are closed. The CLI writes plain JSON; the backend's object store transparently applies Zstd compression to stored objects.
 
 A seed record contains at least:
 
-- its format version and the release that generated it;
+- the release that generated it;
 - the **pinned settings document** used for generation (see [settings.md](settings.md#live-and-pinned-settings));
 - the **resolved values** generation actually used;
 - the generation results (to be written).
@@ -31,13 +31,13 @@ The current patcher reads customizable gameplay values by their current keys. Th
 
 ## Reading seed records
 
-Seed records, including their pinned settings documents, are read strictly. Malformed input, identifiers that are neither current nor retired, and records from a newer format version are errors, reported clearly and left unmodified in storage. A seed record that cannot be read is a bug to fix rather than something to approximate.
+Seed records, including their pinned settings documents, are read strictly. Malformed input and identifiers that are neither current nor retired are errors, reported clearly and left unmodified in storage. A seed record that cannot be read is a bug to fix rather than something to approximate.
 
 Recognized historical value conversions may report an unavoidable approximation; unknown input must not be silently replaced by today's preferred defaults.
 
 ## Versioning and migration
 
-The seed record format has its own format version. A commit changing the structure of the seed record or its generation results increments it and adds a structural migration step. Because the increment is made in the commit making the change, seed records from dev-site deployments are upgraded by the same steps as release seeds.
+Seed records carry no format version (see [common principles](README.md#common-principles)). Compatible extensions, such as optional fields whose absence keeps the old meaning, need no migration.
 
 ## To be written
 

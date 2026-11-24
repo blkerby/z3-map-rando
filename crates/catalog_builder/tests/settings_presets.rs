@@ -1,5 +1,5 @@
 use catalog_builder::{config::BuildConfig, logic, presets};
-use seed_data::{SETTINGS_FORMAT_VERSION, SettingsMode};
+use seed_data::SettingsMode;
 use serde_json::json;
 use std::{fs::File, path::Path};
 
@@ -22,7 +22,6 @@ fn validate_builtin_presets() -> anyhow::Result<()> {
     let context = preset_catalog::decode_catalog(File::open(path)?)?;
     for root in &context.root {
         let mut document = json!({
-            "format_version": SETTINGS_FORMAT_VERSION,
             "preset": root.id,
         });
         let report = context.process_settings(&document, SettingsMode::Strict)?;

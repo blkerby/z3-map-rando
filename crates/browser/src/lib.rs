@@ -1,12 +1,6 @@
 use seed_data::SeedData;
 use wasm_bindgen::prelude::*;
 
-/// Format of settings documents authored by this browser build.
-#[wasm_bindgen]
-pub fn get_settings_format_version() -> u32 {
-    seed_data::SETTINGS_FORMAT_VERSION
-}
-
 /// Patch a vanilla ROM with a saved seed (JSON), customization settings (JSON), and the
 /// catalogs matching this build.
 #[wasm_bindgen]

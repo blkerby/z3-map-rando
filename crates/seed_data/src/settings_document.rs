@@ -3,12 +3,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
-pub const SETTINGS_FORMAT_VERSION: u32 = 1;
-
 /// Sparse, public settings: built-in selections and explicit tweaks, without user preset metadata.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SettingsDocument {
-    pub format_version: u32,
     pub preset: String,
     #[serde(flatten)]
     pub tweaks: BTreeMap<String, Value>,

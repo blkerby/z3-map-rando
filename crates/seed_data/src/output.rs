@@ -1,17 +1,13 @@
 use crate::{Settings, SettingsDocument};
-use anyhow::{Result, ensure};
+use anyhow::Result;
 use common_types::{Item, SourceRoomId};
 use serde::{Deserialize, Serialize};
 use std::io::{BufReader, BufWriter, Read, Write};
-
-/// Current saved-seed format; independent of generator and catalog versions.
-pub const SEED_FORMAT_VERSION: u32 = 2;
 
 /// Saved room choices and typed placements allow patching with the current catalogs
 /// without the map pool or generation RNG.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SeedData {
-    pub format_version: u32,
     pub metadata: SeedMetadata,
     /// Authoritative resolved settings.
     pub settings: Settings,
@@ -91,14 +87,8 @@ impl SeedData {
         Ok(())
     }
 
-    /// Read the current saved-seed JSON format.
+    /// Read the saved-seed JSON format.
     pub fn read(reader: impl Read) -> Result<Self> {
-        let seed: Self = serde_json::from_reader(BufReader::new(reader))?;
-        ensure!(
-            seed.format_version == SEED_FORMAT_VERSION,
-            "unsupported seed format version {}",
-            seed.format_version
-        );
-        Ok(seed)
+        Ok(serde_json::from_reader(BufReader::new(reader))?)
     }
 }

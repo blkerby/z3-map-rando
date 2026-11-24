@@ -1,5 +1,4 @@
 import version from '$build/version.txt?raw';
-import { FORMAT_VERSION } from './processing';
 import { isTree, type Tree } from './tree';
 
 /** Which preset list a preset belongs to ('settings' or 'customization'). Presets for one can't be imported into another. */
@@ -42,7 +41,7 @@ export function uniqueName(name: string, taken: string[]): string {
  */
 export function buildExportFile(kind: PresetKind, presets: { name: string; document: Tree }[]): string {
 	const out = [];
-	for (const p of presets) out.push({ name: p.name, document: { format_version: FORMAT_VERSION, ...p.document } });
+	for (const p of presets) out.push({ name: p.name, document: p.document });
 	return JSON.stringify({ format: FORMAT, version, kind, presets: out }, null, 2);
 }
 

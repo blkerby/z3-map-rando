@@ -1,6 +1,6 @@
 use crate::{
     CustomizationPreset, CustomizationSettings, ItemPoolPreset, Preset, ResolvedSettings,
-    RootPreset, SETTINGS_FORMAT_VERSION, Settings, SettingsDocument, SkillPreset,
+    RootPreset, Settings, SettingsDocument, SkillPreset,
     StartingStatePreset,
 };
 use anyhow::{Result, bail};
@@ -281,7 +281,6 @@ impl SettingsContext {
         let mut report = SettingsReport {
             original: original.clone(),
             document: SettingsDocument {
-                format_version: SETTINGS_FORMAT_VERSION,
                 preset: root.id.clone(),
                 tweaks: BTreeMap::new(),
             },
@@ -373,7 +372,6 @@ impl SettingsContext {
         let mut report = SettingsReport {
             original: original.clone(),
             document: SettingsDocument {
-                format_version: SETTINGS_FORMAT_VERSION,
                 preset: root.id.clone(),
                 tweaks: BTreeMap::new(),
             },
@@ -531,8 +529,8 @@ fn collect_schema_findings(validator: &Validator, values: &Value, findings: &mut
     }
 }
 
-/// Normalize a document's numbers and check its shape and format version. A document that is not
-/// an object is read as an empty one.
+/// Normalize a document's numbers and check its shape. A document that is not an object is read as
+/// an empty one.
 fn read_document(original: &Value) -> (Value, Vec<SettingsIssue>) {
     let mut raw = original.clone();
     normalize_numbers(&mut raw);
@@ -544,15 +542,6 @@ fn read_document(original: &Value) -> (Value, Vec<SettingsIssue>) {
             replacement: Some(json!({})),
         });
         raw = json!({});
-    }
-    // Version 1 is the only authored format; there are no structural or vocabulary migrations.
-    if raw.get("format_version").and_then(Value::as_u64) != Some(u64::from(SETTINGS_FORMAT_VERSION))
-    {
-        issues.push(SettingsIssue {
-            path: vec!["format_version".to_owned()],
-            message: "Unsupported settings format version.".to_owned(),
-            replacement: Some(json!(SETTINGS_FORMAT_VERSION)),
-        });
     }
     (raw, issues)
 }
@@ -798,7 +787,7 @@ fn merge_tweaks(
     path: &mut Vec<String>,
 ) {
     for (key, value) in raw.as_object().unwrap() {
-        if (path.is_empty() && matches!(key.as_str(), "format_version" | "preset"))
+        if (path.is_empty() && key == "preset")
             || (path.len() == 1 && CHILD_SCOPES.contains(&path[0].as_str()) && key == "preset")
         {
             continue;

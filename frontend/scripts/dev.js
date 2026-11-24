@@ -51,15 +51,15 @@ function readSettingsData() {
 	return JSON.parse(fs.readFileSync(settingsData, 'utf8'));
 }
 
-/** @param {string} revision @param {number} formatVersion */
-async function waitForSettingsRevision(revision, formatVersion) {
+/** @param {string} revision */
+async function waitForSettingsRevision(revision) {
 	const signal = AbortSignal.timeout(5000);
 	while (!signal.aborted) {
 		try {
 			const response = await fetch(`${apiTarget}/api/settings/process`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ kind: 'generation', document: { format_version: formatVersion } }),
+				body: JSON.stringify({ kind: 'generation', document: {} }),
 				signal
 			});
 			if (response.ok && (await response.json()).revision === revision) return;
@@ -92,7 +92,7 @@ async function rebuild() {
 		const data = readSettingsData();
 		const revision = data.presets.revision;
 		if (revision !== publishedRevision) {
-			await waitForSettingsRevision(revision, data.format_version);
+			await waitForSettingsRevision(revision);
 			for (const environment of Object.values(vite.environments)) environment.moduleGraph.onFileChange(settingsData);
 			vite.ws.send({ type: 'full-reload', path: '*' });
 			publishedRevision = revision;

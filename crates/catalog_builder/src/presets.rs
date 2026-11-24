@@ -5,7 +5,7 @@ use common_types::SourceRoomId;
 use logic_catalog::RoomKind;
 use preset_catalog::{ItemPoolPreset, PresetCatalog, RootPreset, SkillPreset, StartingStatePreset};
 use seed_data::{
-    CustomizationPreset, NotableSettings, SETTINGS_FORMAT_VERSION, SettingsErrors, SettingsMode,
+    CustomizationPreset, NotableSettings, SettingsErrors, SettingsMode,
     SkillSettings,
 };
 use serde::{Deserialize, Serialize};
@@ -46,8 +46,6 @@ struct PresetFile {
 /// `settings_data.json` beside the preset catalog.
 #[derive(Serialize)]
 struct SettingsData {
-    /// Format version of settings documents written by this build.
-    format_version: u32,
     difficulties: [&'static str; 5],
     proficiencies: Vec<ProficiencyData>,
     techs: Vec<TechData>,
@@ -312,7 +310,7 @@ pub fn build_catalog(config: &BuildConfig, output: &Path, revision: String) -> R
     }
     // Processing a customization preset without tweaks validates it against the schema.
     for preset in &catalog.customization {
-        let document = json!({"format_version": SETTINGS_FORMAT_VERSION, "preset": preset.id});
+        let document = json!({"preset": preset.id});
         let report = catalog.process_customization(&document, SettingsMode::Strict)?;
         if !report.errors.is_empty() {
             bail!(
@@ -324,7 +322,6 @@ pub fn build_catalog(config: &BuildConfig, output: &Path, revision: String) -> R
     }
 
     let mut settings_data = SettingsData {
-        format_version: SETTINGS_FORMAT_VERSION,
         difficulties: DIFFICULTIES,
         proficiencies: Vec::new(),
         techs: Vec::new(),

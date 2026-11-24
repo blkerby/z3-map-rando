@@ -1,5 +1,5 @@
 import { untrack } from 'svelte';
-import { FORMAT_VERSION, REVISION, processDocument, type SettingsIssue, type SettingsKind } from './processing';
+import { REVISION, processDocument, type SettingsIssue, type SettingsKind } from './processing';
 import { SearchState } from './search.svelte';
 import { cloneTree, getAt, isTree, leafPaths, pathKey, setAt, startsWith, type Path, type Tree, type Value } from './tree';
 
@@ -56,10 +56,7 @@ export interface SettingsModel {
 export interface UserPreset {
 	id: string;
 	name: string;
-	/**
-	 * A settings document (without `format_version` once processed). Stored, it records its format version;
-	 * until processed, it is kept as stored.
-	 */
+	/** A settings document. Until processed, it is kept as stored. */
 	document: Tree;
 	/** The settings revision the document was processed under; another one needs processing before use. */
 	revision: string | null;
@@ -69,7 +66,6 @@ export interface UserPreset {
 export interface Draft {
 	selected: string;
 	picks: Record<string, string | null>;
-	/** A settings document. As stored, it records its `format_version`, which loading ignores. */
 	document: Tree;
 }
 
@@ -470,18 +466,12 @@ export class SettingsStore {
 		this.loadDocument(doc);
 	}
 
-	/** Capture the public settings document. */
-	captureDocument(): Tree {
-		return { format_version: FORMAT_VERSION, ...this.capture() };
-	}
-
 	/**
 	 * The current settings and selections, for keeping a draft in this browser, with the revision its
-	 * document was processed under (null when it needs processing before use). The stored document records
-	 * its format version, so it can be migrated later.
+	 * document was processed under (null when it needs processing before use).
 	 */
 	serializeDraft(revision: string | null = REVISION): string {
-		const draft: Draft = { selected: this.selectedId, picks: this.scopePicks, document: this.captureDocument() };
+		const draft: Draft = { selected: this.selectedId, picks: this.scopePicks, document: this.capture() };
 		return JSON.stringify({ revision, ...draft });
 	}
 
@@ -556,18 +546,10 @@ export class SettingsStore {
 		this.userPresets = this.readPresets(getAt(data, ['presets']));
 	}
 
-	/**
-	 * Store the player's presets. Processed documents record the current format version, so they can be
-	 * migrated later; presets not yet processed are kept as they were stored.
-	 */
+	/** Store the player's presets. */
 	saveUserPresets(key: string) {
-		const presets: UserPreset[] = [];
-		for (const preset of this.userPresets) {
-			if (preset.revision === REVISION) presets.push({ ...preset, document: { format_version: FORMAT_VERSION, ...preset.document } });
-			else presets.push(preset);
-		}
 		try {
-			localStorage.setItem(key, JSON.stringify({ presets }));
+			localStorage.setItem(key, JSON.stringify({ presets: this.userPresets }));
 			this.storageFailed = false;
 		} catch {
 			this.storageFailed = true;

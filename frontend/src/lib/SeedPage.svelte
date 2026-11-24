@@ -286,7 +286,7 @@
 		error = null;
 		store.lockReason = GENERATING_LOCK; // freeze the settings while the server works
 		try {
-			const result = await generateGame(store.captureDocument());
+			const result = await generateGame(store.capture());
 			await goto(resolve('/seed/[name]', { name: result.seed }), { state: { notices: result.notices } });
 		} catch (e) {
 			store.lockReason = null;

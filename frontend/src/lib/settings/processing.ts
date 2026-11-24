@@ -10,9 +10,6 @@ import type { Tree } from './tree';
 /** Identifies this build's settings processing code and data. */
 export const REVISION = settingsData.presets.revision;
 
-/** Format version of the settings documents this build writes. */
-export const FORMAT_VERSION = settingsData.format_version;
-
 export type SettingsKind = 'generation' | 'customization';
 
 /** One change recovery made, or one cross-setting problem left for the player to fix. */
@@ -36,8 +33,7 @@ export class StaleError extends Error {
 
 /**
  * Process a document on the server. Throws `StaleError` for a server with another revision, or another
- * error when the request fails, which may be temporary. A processed document comes back without its
- * `format_version`, like the documents the store holds.
+ * error when the request fails, which may be temporary.
  */
 export async function processDocument(
 	kind: SettingsKind,
@@ -58,7 +54,5 @@ export async function processDocument(
 	const data = await response.json();
 	if (data.revision !== REVISION) throw new StaleError();
 	if (data.status === 'unrecoverable') return { status: 'unrecoverable' };
-	const { format_version: _, ...rest } = data.document;
-	void _;
-	return { status: 'processed', document: rest, notices: data.notices, errors: data.errors };
+	return { status: 'processed', document: data.document, notices: data.notices, errors: data.errors };
 }
