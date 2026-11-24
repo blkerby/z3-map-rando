@@ -10,14 +10,24 @@
 		label,
 		help,
 		notes,
+		icon,
 		min,
 		max
-	}: { path: Path; label: string; help?: Snippet; notes?: string; min: number; max: number } = $props();
+	}: {
+		path: Path;
+		label: string;
+		help?: Snippet;
+		notes?: string;
+		/** See `SettingRow`. */
+		icon?: string | null;
+		min: number;
+		max: number;
+	} = $props();
 
 	const store = getStore();
 </script>
 
-<SettingRow {path} {label} {help} {notes} format={String}>
+<SettingRow {path} {label} {help} {notes} {icon} format={String}>
 	{#snippet control()}
 		<NumberInput value={store.get(path) as number} {min} {max} {label} disabled={store.locked} onchange={(v) => store.set(path, v)} />
 	{/snippet}

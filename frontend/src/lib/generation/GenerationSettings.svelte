@@ -11,6 +11,7 @@
 		ITEM_LOCATIONS,
 		countPoolItems,
 		countStartingItems,
+		getItemIcon,
 		itemPoolScope,
 		startingEquipment,
 		startingStateScope,
@@ -122,11 +123,13 @@
 			<ToggleSetting
 				path={['starting_state', 'equipment', item.name]}
 				label={item.label}
+				icon={getItemIcon(item.name)}
 			/>
 		{:else}
 			<ChoiceSetting
 				path={['starting_state', 'equipment', item.name]}
 				label={item.label}
+				icon={getItemIcon(item.name)}
 				options={tiers}
 				display="dropdown"
 			/>
@@ -152,36 +155,42 @@
 		<CountSetting
 			path={['starting_state', 'resources', 'bomb_capacity']}
 			label="Bomb capacity"
+			icon={getItemIcon('bomb_capacity_upgrade')}
 			min={0}
 			max={99}
 		/>
 		<CountSetting
 			path={['starting_state', 'resources', 'bombs']}
 			label="Bombs"
+			icon={getItemIcon('bomb')}
 			min={0}
 			max={store.get(['starting_state', 'resources', 'bomb_capacity']) as number}
 		/>
 		<CountSetting
 			path={['starting_state', 'resources', 'arrow_capacity']}
 			label="Arrow capacity"
+			icon={getItemIcon('arrow_capacity_upgrade')}
 			min={0}
 			max={99}
 		/>
 		<CountSetting
 			path={['starting_state', 'resources', 'arrows']}
 			label="Arrows"
+			icon={getItemIcon('arrow')}
 			min={0}
 			max={store.get(['starting_state', 'resources', 'arrow_capacity']) as number}
 		/>
 		<CountSetting
 			path={['starting_state', 'resources', 'heart_capacity']}
 			label="Heart capacity"
+			icon={getItemIcon('heart_container')}
 			min={1}
 			max={20}
 		/>
 		<CountSetting
 			path={['starting_state', 'resources', 'rupees']}
 			label="Rupees"
+			icon={getItemIcon('one_rupee')}
 			min={0}
 			max={999}
 		/>
@@ -189,6 +198,7 @@
 			<ChoiceSetting
 				path={['starting_state', 'resources', `bottle_${n}`]}
 				label="Bottle {n}"
+				icon={getItemIcon('bottle')}
 				options={BOTTLE_CONTENTS}
 				display="dropdown"
 			/>
@@ -224,6 +234,7 @@
 				<CountSetting
 					path={['item_pool', 'items', item.name]}
 					label={item.label}
+					icon={getItemIcon(item.name)}
 					notes={deducted[item.name] ? `−${deducted[item.name]} starting` : undefined}
 					min={item.min}
 					max={ITEM_LOCATIONS}

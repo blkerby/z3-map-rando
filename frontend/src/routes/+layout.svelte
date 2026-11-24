@@ -120,11 +120,11 @@
 
 	/* Match the width of the page content. */
 	.navbar-world > .container {
-		max-width: 1168px;
+		max-width: 1200px;
 	}
 
 	:global(main.container) {
-		max-width: 1168px;
+		max-width: 1200px;
 	}
 
 </style>

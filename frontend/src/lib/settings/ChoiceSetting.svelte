@@ -12,6 +12,7 @@
 		label,
 		help,
 		notes,
+		icon,
 		options,
 		display
 	}: {
@@ -19,6 +20,8 @@
 		label: string;
 		help?: Snippet;
 		notes?: string;
+		/** See `SettingRow`. */
+		icon?: string | null;
 		options: ChoiceOption[];
 		/** Default: segmented buttons, or a dropdown for more than 5 options. */
 		display?: 'segmented' | 'dropdown' | 'swatches';
@@ -32,7 +35,7 @@
 	const set = (v: string) => store.set(path, v);
 </script>
 
-<SettingRow {path} {label} {help} {notes} {format} wrap={mode === 'swatches'}>
+<SettingRow {path} {label} {help} {notes} {icon} {format} wrap={mode === 'swatches'}>
 	{#snippet control()}
 		{#if mode === 'swatches'}
 			<Swatches {options} {value} {label} disabled={store.locked} columns={Math.min(10, options.length)} onchange={set} />
@@ -49,8 +52,12 @@
 </SettingRow>
 
 <style>
-	/* One width for every dropdown in compact rows, so a column of them lines up. */
+	/* One width for every dropdown in compact rows, so a column of them lines up. The arrow sits closer to
+	   the edge than Bootstrap's default, leaving more room for the label beside the dropdown. The width just
+	   fits the longest option, "Green Potion". */
 	.compact {
-		width: 9.5rem;
+		width: 7.75rem;
+		padding-right: 1.5rem;
+		background-position: right 0.375rem center;
 	}
 </style>

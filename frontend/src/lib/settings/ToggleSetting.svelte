@@ -11,6 +11,7 @@
 		help,
 		notes,
 		badge,
+		icon,
 		children
 	}: {
 		path: Path;
@@ -18,6 +19,8 @@
 		help?: Snippet;
 		notes?: string;
 		badge?: string;
+		/** See `SettingRow`. */
+		icon?: string | null;
 		/** Settings shown underneath while the toggle is on. */
 		children?: Snippet;
 	} = $props();
@@ -27,7 +30,7 @@
 	const on = $derived(store.get(path) === true);
 </script>
 
-<SettingRow {path} {label} {help} {notes} {badge} labelFor={switchId} format={(v) => (v ? 'On' : 'Off')}>
+<SettingRow {path} {label} {help} {notes} {badge} {icon} labelFor={switchId} format={(v) => (v ? 'On' : 'Off')}>
 	{#snippet control()}
 		<Switch id={switchId} checked={on} {label} disabled={store.locked} onchange={(v) => store.set(path, v)} />
 	{/snippet}

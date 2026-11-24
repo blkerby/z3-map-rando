@@ -74,6 +74,19 @@ export const poolItems: ItemRecord[] = [];
 for (const item of items)
 	if (item.category !== 'dungeon' && item.category !== 'prize') poolItems.push(item);
 
+const iconFiles = import.meta.glob<string>('../assets/items/*.png', {
+	eager: true,
+	import: 'default'
+});
+/** Item icon URLs, by file name without extension (an item name, or `<name>_<level>` for progressive items). */
+const ICONS: Record<string, string> = {};
+for (const [path, url] of Object.entries(iconFiles)) ICONS[path.slice(path.lastIndexOf('/') + 1, -4)] = url;
+
+/** Icon URL of an icon name (as for `ICONS`), or of a progressive item's first level; null if there is none yet. */
+export function getItemIcon(name: string): string | null {
+	return ICONS[name] ?? ICONS[`${name}_1`] ?? null;
+}
+
 /** Display names of items, by item token. */
 export const ITEM_LABELS: Record<string, string> = {};
 for (const item of items) ITEM_LABELS[item.name] = item.label;

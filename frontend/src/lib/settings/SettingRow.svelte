@@ -12,6 +12,7 @@
 		help,
 		notes,
 		badge,
+		icon,
 		format,
 		labelFor,
 		control,
@@ -26,6 +27,8 @@
 		notes?: string;
 		/** Small tag next to the label, e.g. a difficulty. */
 		badge?: string;
+		/** URL of a 16×16 pixel-art icon shown before the label; null holds its place empty, keeping labels aligned. */
+		icon?: string | null;
 		format: (value: Value) => string;
 		/** Id of a switch the label toggles. */
 		labelFor?: string;
@@ -75,6 +78,9 @@
 				<button type="button" class="btn btn-link btn-sm p-0 help" data-lockable="false" aria-label="Help: {label}" onclick={() => helpDialog?.showModal()}>
 					<i class="bi bi-info-circle"></i>
 				</button>
+			{/if}
+			{#if icon !== undefined}
+				<span class="icon">{#if icon !== null}<img src={icon} alt="" />{/if}</span>
 			{/if}
 			<label class="label" for={labelFor} data-lockable={labelFor ? '' : undefined}>{label}</label>
 			{#if badge && !compact}<span class="badge-tag">{badge}</span>{/if}
@@ -224,6 +230,22 @@
 
 	.label {
 		font-weight: 500;
+	}
+
+	/* 2.25 times the art's size. The negative margin keeps the row's height set by its label, so the icon
+	   extends into the row's padding. */
+	.icon {
+		flex: none;
+		width: 36px;
+		height: 36px;
+		margin-block: -6px;
+	}
+
+	.icon img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		image-rendering: pixelated;
 	}
 
 	/* The containing block for the help button's click area. */
