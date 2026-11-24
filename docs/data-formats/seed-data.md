@@ -39,6 +39,8 @@ Recognized historical value conversions may report an unavoidable approximation;
 
 Seed records carry no format version (see [common principles](README.md#common-principles)). Compatible extensions, such as optional fields whose absence keeps the old meaning, need no migration.
 
+Identifiers saved in generation results, including room and item IDs, Small Key door IDs, and border variant names, are permanent. Seeds are interpreted against current catalogs: the patcher selects border graphics from the current retiling catalog by variant name, and the [spoiler](../../plans/spoiler.md) builds overworld connections from the current logic catalog's edge variants. Such an identifier may therefore be removed or renamed only together with a migration that maps it to a current equivalent preserving connectivity and gameplay meaning. The form of these migrations is not yet designed.
+
 ## To be written
 
 - Generation results needed for viewing and patching.

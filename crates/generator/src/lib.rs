@@ -20,15 +20,14 @@ use graph::{TraversalGraph, build_graph};
 use inputs::{GenerationInputs, prepare_inputs};
 use key_assignment::{KeyAssignmentExhausted, KeyPlacementState, assign_small_keys};
 use logic_catalog::{LogicCatalog, RoomKind};
-use map::{MapPool, select_borders};
+use map::{MapPool, build_connections, select_borders};
 use placement::{PlacementState, PlacementStep};
 use rand::Rng;
 use retiling_catalog::palette::{
     PALETTE_ATTEMPTS, PaletteProfiles, allocate_palettes, select_palette_profiles,
 };
 use seed_data::{
-    ItemPlacement, MapLayoutSetting, ResolvedSettings, RoomData, SeedMetadata,
-    WorldLayout,
+    ItemPlacement, MapLayoutSetting, ResolvedSettings, RoomData, SeedMetadata, WorldLayout,
 };
 use std::collections::BTreeMap;
 
@@ -95,8 +94,11 @@ pub fn generate(
             let mut accepted = None;
             for edge_attempt in 1..=MAX_EDGE_SELECTION_ATTEMPTS {
                 log::info!("Checking edge selection {edge_attempt}/{MAX_EDGE_SELECTION_ATTEMPTS}");
-                let connections = select_borders(logic_catalog, &mut world_layout, rng)?;
-                let graph = build_graph(logic_catalog, &connections);
+                select_borders(logic_catalog, &mut world_layout, rng)?;
+                let graph = build_graph(
+                    logic_catalog,
+                    &build_connections(logic_catalog, &world_layout),
+                );
                 if KeyPlacementState::discover_all_items(logic_catalog, &graph, &inputs)? {
                     accepted = Some(graph);
                     break;

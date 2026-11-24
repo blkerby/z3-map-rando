@@ -1,5 +1,7 @@
 //! Pool selection and variant-resolved overworld connections.
 
+use std::collections::BTreeMap;
+
 use anyhow::{Result, ensure};
 use common_types::SourceRoomId;
 use logic_catalog::{
@@ -93,12 +95,15 @@ impl<'a> MapPool<'a> {
     }
 }
 
-pub fn select_borders(
-    catalog: &LogicCatalog,
-    layout: &mut WorldLayout,
-    rng: &mut impl Rng,
-) -> Result<Vec<Connection>> {
-    layout.borders.clear();
+/// Two different layout rooms touching across the east or south side of the
+/// cell at `position`, with each room's edge variants for that segment.
+struct RoomContact<'a> {
+    position: [u8; 2],
+    side: BorderSide,
+    variants: [&'a BTreeMap<String, Vec<BoundaryEndpoint>>; 2],
+}
+
+fn find_room_contacts<'a>(catalog: &'a LogicCatalog, layout: &WorldLayout) -> Vec<RoomContact<'a>> {
     let mut cells = [0; 64];
     let mut catalog_rooms = Vec::new();
     for (index, room) in layout.rooms.iter().enumerate() {
@@ -115,12 +120,7 @@ pub fn select_borders(
             }
         }
     }
-    let mut connections = Vec::new();
-    for connection in &catalog.vanilla_connections {
-        if !matches!(connection, Connection::ScreenBoundary { .. }) {
-            connections.push(connection.clone());
-        }
-    }
+    let mut contacts = Vec::new();
     for cell in 0..64u8 {
         let first_index = cells[usize::from(cell)];
         let first = &layout.rooms[first_index];
@@ -146,86 +146,122 @@ pub fn select_borders(
             } else {
                 next % 8 - second.position % 8
             };
-            let first_variants = &catalog.rooms[catalog_rooms[first_index]].edge_variants[side]
-                [usize::from(first_segment)];
-            let second_variants = &catalog.rooms[catalog_rooms[second_index]].edge_variants
-                [opposite][usize::from(second_segment)];
-            let mut choices = Vec::new();
-            for name in first_variants.keys() {
-                if name != "closed" && second_variants.contains_key(name) {
-                    choices.push(name);
-                }
+            contacts.push(RoomContact {
+                position: [cell % 8, cell / 8],
+                side: border_side,
+                variants: [
+                    &catalog.rooms[catalog_rooms[first_index]].edge_variants[side]
+                        [usize::from(first_segment)],
+                    &catalog.rooms[catalog_rooms[second_index]].edge_variants[opposite]
+                        [usize::from(second_segment)],
+                ],
+            });
+        }
+    }
+    contacts
+}
+
+/// Choose a random shared edge variant for each room contact of a pool layout.
+pub fn select_borders(
+    catalog: &LogicCatalog,
+    layout: &mut WorldLayout,
+    rng: &mut impl Rng,
+) -> Result<()> {
+    let contacts = find_room_contacts(catalog, layout);
+    layout.borders.clear();
+    for contact in contacts {
+        let [first_variants, second_variants] = contact.variants;
+        let mut choices = Vec::new();
+        for name in first_variants.keys() {
+            if name != "closed" && second_variants.contains_key(name) {
+                choices.push(name);
             }
-            let name = if choices.is_empty() {
-                ensure!(
-                    first_variants.contains_key("closed") && second_variants.contains_key("closed"),
-                    "pool contact has no shared edge variant"
-                );
-                "closed"
-            } else {
-                choices[rng.random_range(0..choices.len())].as_str()
-            };
-            if name != "closed" {
-                layout.borders.push(MapBorder {
-                    position: [cell % 8, cell / 8],
-                    side: border_side,
-                    variant: name.to_owned(),
+        }
+        if choices.is_empty() {
+            ensure!(
+                first_variants.contains_key("closed") && second_variants.contains_key("closed"),
+                "pool contact has no shared edge variant"
+            );
+            continue;
+        }
+        layout.borders.push(MapBorder {
+            position: contact.position,
+            side: contact.side,
+            variant: choices[rng.random_range(0..choices.len())].clone(),
+        });
+    }
+    Ok(())
+}
+
+/// Build the traversal connections of a layout whose borders are already chosen.
+pub fn build_connections(catalog: &LogicCatalog, layout: &WorldLayout) -> Vec<Connection> {
+    if layout.rooms.is_empty() {
+        return catalog.vanilla_connections.clone();
+    }
+    let mut connections = Vec::new();
+    for connection in &catalog.vanilla_connections {
+        if !matches!(connection, Connection::ScreenBoundary { .. }) {
+            connections.push(connection.clone());
+        }
+    }
+    for contact in find_room_contacts(catalog, layout) {
+        let mut name = "closed";
+        for border in &layout.borders {
+            if border.position == contact.position && border.side == contact.side {
+                name = &border.variant;
+            }
+        }
+        let a = &contact.variants[0][name];
+        let b = &contact.variants[1][name];
+        if name == "light-and-mirror" {
+            if let (Some(from), Some(to)) = (
+                get_vertex(&a[0], World::Light),
+                get_vertex(&b[0], World::Light),
+            ) {
+                connections.push(Connection::MapBoundary {
+                    endpoints: [from, to],
+                    kind: MapBoundaryKind::Ordinary,
                 });
             }
-            let a = &first_variants[name];
-            let b = &second_variants[name];
-            if name == "light-and-mirror" {
+            for (source, target) in [(a, b), (b, a)] {
                 if let (Some(from), Some(to)) = (
-                    get_vertex(&a[0], World::Light),
-                    get_vertex(&b[0], World::Light),
+                    get_vertex(&source[1], World::Dark),
+                    get_vertex(&target[2], World::Light),
                 ) {
                     connections.push(Connection::MapBoundary {
                         endpoints: [from, to],
-                        kind: MapBoundaryKind::Ordinary,
+                        kind: MapBoundaryKind::Mirror,
                     });
                 }
-                for (source, target) in [(a, b), (b, a)] {
-                    if let (Some(from), Some(to)) = (
-                        get_vertex(&source[1], World::Dark),
-                        get_vertex(&target[2], World::Light),
-                    ) {
-                        connections.push(Connection::MapBoundary {
-                            endpoints: [from, to],
-                            kind: MapBoundaryKind::Mirror,
-                        });
-                    }
-                }
-                continue;
             }
-            for (a, b) in a.iter().zip(b) {
-                for world in [World::Light, World::Dark] {
-                    if name == "light-only" && world == World::Dark {
-                        continue;
-                    }
-                    match (get_vertex(a, world), get_vertex(b, world)) {
-                        (Some(from), Some(to)) => connections.push(Connection::MapBoundary {
-                            endpoints: [from, to],
-                            kind: MapBoundaryKind::Ordinary,
+            continue;
+        }
+        for (a, b) in a.iter().zip(b) {
+            for world in [World::Light, World::Dark] {
+                if name == "light-only" && world == World::Dark {
+                    continue;
+                }
+                match (get_vertex(a, world), get_vertex(b, world)) {
+                    (Some(from), Some(to)) => connections.push(Connection::MapBoundary {
+                        endpoints: [from, to],
+                        kind: MapBoundaryKind::Ordinary,
+                    }),
+                    (Some(vertex), None) if matches!(b, BoundaryEndpoint::Return) => connections
+                        .push(Connection::MapBoundary {
+                            endpoints: [vertex, vertex],
+                            kind: MapBoundaryKind::Return,
                         }),
-                        (Some(vertex), None) if matches!(b, BoundaryEndpoint::Return) => {
-                            connections.push(Connection::MapBoundary {
-                                endpoints: [vertex, vertex],
-                                kind: MapBoundaryKind::Return,
-                            })
-                        }
-                        (None, Some(vertex)) if matches!(a, BoundaryEndpoint::Return) => {
-                            connections.push(Connection::MapBoundary {
-                                endpoints: [vertex, vertex],
-                                kind: MapBoundaryKind::Return,
-                            })
-                        }
-                        _ => {}
-                    }
+                    (None, Some(vertex)) if matches!(a, BoundaryEndpoint::Return) => connections
+                        .push(Connection::MapBoundary {
+                            endpoints: [vertex, vertex],
+                            kind: MapBoundaryKind::Return,
+                        }),
+                    _ => {}
                 }
             }
         }
     }
-    Ok(connections)
+    connections
 }
 
 fn get_vertex(endpoint: &BoundaryEndpoint, world: World) -> Option<VertexIndex> {
