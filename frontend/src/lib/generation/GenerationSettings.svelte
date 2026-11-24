@@ -235,7 +235,7 @@
 					path={['item_pool', 'items', item.name]}
 					label={item.label}
 					icon={getItemIcon(item.name)}
-					notes={deducted[item.name] ? `−${deducted[item.name]} starting` : undefined}
+					notes={deducted[item.name] ? `${deducted[item.name]} starting` : undefined}
 					min={item.min}
 					max={ITEM_LOCATIONS}
 				/>
