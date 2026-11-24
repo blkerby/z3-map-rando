@@ -51,7 +51,10 @@ pub fn generate(
         values: settings,
         document: settings_document,
     } = resolved;
-    ensure!(theme_name == "desert", "only the desert theme is supported");
+    ensure!(
+        common_types::SUPPORTED_THEMES.contains(&theme_name),
+        "unsupported theme {theme_name}"
+    );
     let inputs = prepare_inputs(logic_catalog, &settings)?;
     let pool = if settings.map_layout == MapLayoutSetting::Random {
         Some(MapPool::decode(

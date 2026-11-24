@@ -22,6 +22,10 @@ pub enum SourceRoomId {
     Underworld(u32),
 }
 
+/// Retiling theme IDs that generation can save for rooms drawn as overworld areas.
+/// Each must exist in the retiling catalog for every area with a vanilla map ID.
+pub const SUPPORTED_THEMES: [&str; 1] = ["desert"];
+
 /// Special overworld areas without a grid position. Sacred Grove and Under the Bridge share $80.
 pub const SPECIAL_ROOM_AREAS: [(u32, u8); 3] = [(102, 0x80), (103, 0x80), (104, 0x81)];
 
