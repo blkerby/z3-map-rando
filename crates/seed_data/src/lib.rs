@@ -7,9 +7,7 @@ pub mod settings_document;
 pub mod settings_processing;
 
 pub use layout::{AreaLayout, OverworldRoomPlacement, WorldLayout};
-pub use output::{
-    BorderSide, ItemPlacement, MapBorder, RoomData, SeedData, SeedMetadata,
-};
+pub use output::{BorderSide, ItemPlacement, MapBorder, RoomData, SeedData, SeedMetadata};
 pub use settings::{
     CustomizationSettings, InsufficientPoolItems, ItemPoolSettings, MapLayoutSetting,
     NotableSettings, Settings, SkillSettings, StartingBoomerang, StartingBottle, StartingBow,
@@ -17,8 +15,8 @@ pub use settings::{
     StartingShield, StartingState, StartingSword,
 };
 pub use settings_document::{
-    CustomizationPreset, ItemPoolPreset, Preset, ResolvedSettings, RootPreset,
-    SettingsDocument, SkillPreset, StartingStatePreset,
+    CustomizationPreset, ItemPoolPreset, Preset, ResolvedSettings, RootPreset, SettingsDocument,
+    SkillPreset, StartingStatePreset,
 };
 pub use settings_processing::{
     SettingsContext, SettingsErrors, SettingsIssue, SettingsMode, SettingsReport,

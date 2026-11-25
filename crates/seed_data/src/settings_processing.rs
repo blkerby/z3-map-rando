@@ -1,7 +1,6 @@
 use crate::{
     CustomizationPreset, CustomizationSettings, ItemPoolPreset, Preset, ResolvedSettings,
-    RootPreset, Settings, SettingsDocument, SkillPreset,
-    StartingStatePreset,
+    RootPreset, Settings, SettingsDocument, SkillPreset, StartingStatePreset,
 };
 use anyhow::{Result, bail};
 use common_types::Item;

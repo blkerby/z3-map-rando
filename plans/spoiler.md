@@ -1,6 +1,6 @@
 # Spoiler
 
-Status: planned.
+Status: in progress. Work item 1 is implemented.
 
 The seed page gets a "Spoiler" section, below Generate and Customize, collapsed by default. Expanded, it lists one collapsible per sphere, each listing the items collectible in that sphere with their locations.
 

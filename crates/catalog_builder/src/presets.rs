@@ -5,8 +5,7 @@ use common_types::SourceRoomId;
 use logic_catalog::RoomKind;
 use preset_catalog::{ItemPoolPreset, PresetCatalog, RootPreset, SkillPreset, StartingStatePreset};
 use seed_data::{
-    CustomizationPreset, NotableSettings, SettingsErrors, SettingsMode,
-    SkillSettings,
+    CustomizationPreset, NotableSettings, SettingsErrors, SettingsMode, SkillSettings,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
