@@ -18,6 +18,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 mod allocation;
 mod areas;
+pub use areas::get_edge_openings;
 mod condition;
 mod events;
 mod filter;

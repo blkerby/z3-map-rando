@@ -6,11 +6,14 @@ use generator::{
 };
 use logic_catalog::{
     BoundaryEndpoint, Connection, Direction, DoorIndex, EdgeOrigin, EntranceKind, FlagIndex,
-    Follower, ItemLocationIndex, LogicCatalog, MapBoundaryKind, OcarinaState, Requirement,
+    Follower, ItemLocationIndex, LogicCatalog, MapBoundaryKind, OcarinaState, Requirement, Room,
     RoomIndex, TransitionState, VertexIndex, VertexOrigin, World,
 };
-use patcher::import::{OverworldEntrance, SPECIAL_TRANSITIONS};
-use seed_data::SeedData;
+use patcher::{
+    import::{OverworldEntrance, SPECIAL_TRANSITIONS},
+    retiling::get_edge_openings,
+};
+use seed_data::{BorderSide, SeedData};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -66,17 +69,17 @@ struct RouteRow {
     /// alternatives the route may not have used.
     dependencies: Vec<Dependency>,
     state: RouteState,
-    /// Where the edge crosses a map boundary or overworld entrance, or for the route's last
-    /// edge, where its target item sits on the overworld; None for other edges, or for an
-    /// entrance before the world maps are loaded.
-    point: Option<MapPoint>,
+    /// Where the edge crosses an overworld entrance, or for a map boundary, points just before
+    /// and after it; then for the route's last edge, where its target item sits on the
+    /// overworld. Empty for other edges, or for a door before the world maps are loaded.
+    points: Vec<MapPoint>,
     /// Whether the edge is a warp or starts in an interior, so travel since the previous point
     /// is not drawn as overworld travel.
     indirect: bool,
 }
 
 /// A position on the cropped world maps, in their pixels.
-#[derive(Serialize)]
+#[derive(Clone, Copy, Serialize)]
 struct MapPoint {
     world: &'static str,
     x: f32,
@@ -86,6 +89,10 @@ struct MapPoint {
 /// Pixels cropped from each edge of the 512x512 world maps: half of the clouds around the
 /// room grid, which starts 128 pixels in. Each 16x16 overworld tile is one map pixel.
 const MAP_MARGIN: usize = 64;
+
+/// Distance in map pixels of a map boundary crossing's points from the boundary, so the line
+/// between them shows the direction of the crossing.
+const CROSSING_OFFSET: f32 = 4.0;
 
 /// Overworld item locations as (room ID, item ID, x, y), with the item's position in 16x16
 /// tiles from its room's top-left, from vanilla sprite lists and tile checks. Other locations
@@ -297,7 +304,7 @@ impl SpoilerSession {
                     location: describe_vertex(catalog, index.from_vertex_idx),
                     strat: describe_edge(catalog, &self.replay.connections, edge),
                     dependencies,
-                    point: self.locate_edge(edge),
+                    points: self.locate_edge(edge).unwrap_or_default(),
                     indirect: check_indirect(catalog, edge),
                     state: RouteState {
                         form: format!("{:?}", state.form),
@@ -315,7 +322,7 @@ impl SpoilerSession {
                 && let Some(point) = self.locate_item(location_idx)
                 && let Some(last) = route_rows.last_mut()
             {
-                last.point = Some(point);
+                last.points.push(point);
             }
             rows = Some(route_rows);
         }
@@ -332,13 +339,7 @@ impl SpoilerSession {
             World::Light => "light",
             World::Dark => "dark",
         };
-        let mut position = None;
-        for seed_room in &self.seed.rooms {
-            if Some(seed_room.room_id) == room.room_id {
-                position = seed_room.position;
-            }
-        }
-        let [x, y] = position?;
+        let [x, y] = self.find_room_cell(room)?;
         // A map cell is one 32x32-tile area.
         let origin = 128 - MAP_MARGIN;
         Some(MapPoint {
@@ -348,18 +349,27 @@ impl SpoilerSession {
         })
     }
 
+    /// Find an overworld room's top-left cell in the seed's layout.
+    fn find_room_cell(&self, room: &Room) -> Option<[u8; 2]> {
+        for seed_room in &self.seed.rooms {
+            if Some(seed_room.room_id) == room.room_id {
+                return seed_room.position;
+            }
+        }
+        None
+    }
+
     /// Locate where an edge crosses a map boundary or overworld entrance.
-    fn locate_edge(&self, edge: &TraversalEdge) -> Option<MapPoint> {
+    fn locate_edge(&self, edge: &TraversalEdge) -> Option<Vec<MapPoint>> {
         let TraversalEdgeOrigin::Connection(connection_idx) = edge.origin else {
             return None;
         };
         match &self.replay.connections[connection_idx] {
             Connection::MapBoundary {
                 endpoints,
+                kind,
                 direction,
-                ..
             } => {
-                // The middle of the segments, on the side crossed, that hold the source vertex.
                 let vertex_idx = edge.edge.from_vertex_idx;
                 let room_idx = self.catalog.vertex(vertex_idx).room_idx;
                 let room = self.catalog.room(room_idx);
@@ -370,39 +380,95 @@ impl SpoilerSession {
                         Direction::East => 2,
                         Direction::West => 3,
                     };
-                let segments = &room.edge_variants[side];
+                // Positions along the side, in 16x16 tiles: the center of the source vertex's
+                // opening in each segment's selected variant, or the segment's middle where the
+                // variant's geometry is unknown. A segment spans one map cell.
+                let [cell_x, cell_y] = self.find_room_cell(room)?;
+                let [width, height] = room.size?;
+                // Sizes count 16x16-tile screens, two per cell.
+                let cells_wide = u8::try_from(width / 2).ok()?;
+                let cells_high = u8::try_from(height / 2).ok()?;
                 let mut along_sum = 0.0;
                 let mut count = 0;
-                for (segment, variants) in segments.iter().enumerate() {
-                    let mut holds_vertex = false;
-                    for endpoints in variants.values() {
-                        for endpoint in endpoints {
-                            if let BoundaryEndpoint::Node { light, dark } = endpoint
-                                && (*light == Some(vertex_idx) || *dark == Some(vertex_idx))
-                            {
-                                holds_vertex = true;
-                            }
+                for (segment, variants) in room.edge_variants[side].iter().enumerate() {
+                    let segment_cells = u8::try_from(segment).ok()?;
+                    // The cell west or north of the border, as the seed records it.
+                    let border = match side {
+                        0 => cell_y
+                            .checked_sub(1)
+                            .map(|y| ([cell_x + segment_cells, y], BorderSide::South)),
+                        1 => Some((
+                            [cell_x + segment_cells, cell_y + cells_high - 1],
+                            BorderSide::South,
+                        )),
+                        2 => Some((
+                            [cell_x + cells_wide - 1, cell_y + segment_cells],
+                            BorderSide::East,
+                        )),
+                        _ => cell_x
+                            .checked_sub(1)
+                            .map(|x| ([x, cell_y + segment_cells], BorderSide::East)),
+                    };
+                    let mut selected = None;
+                    for map_border in &self.seed.borders {
+                        if Some((map_border.position, map_border.side)) == border {
+                            selected = Some(map_border.variant.as_str());
                         }
                     }
-                    if holds_vertex {
-                        along_sum += (segment as f32 + 0.5) / segments.len() as f32;
-                        count += 1;
+                    let holds_vertex = |endpoint: &BoundaryEndpoint| {
+                        matches!(endpoint, BoundaryEndpoint::Node { light, dark }
+                            if *light == Some(vertex_idx) || *dark == Some(vertex_idx))
+                    };
+                    let segment_start = segment as f32 * 32.0;
+                    if let Some(selected) = selected {
+                        let openings = get_edge_openings(side < 2, selected);
+                        for (index, endpoint) in variants[selected].iter().enumerate() {
+                            if !holds_vertex(endpoint) {
+                                continue;
+                            }
+                            // Openings are measured in 8x8 tiles.
+                            along_sum += match openings.get(index) {
+                                Some(&(start, end)) => segment_start + (start + end) as f32 / 4.0,
+                                None => segment_start + 16.0,
+                            };
+                            count += 1;
+                        }
+                    } else {
+                        // A vanilla layout has no borders, so use the segment's middle.
+                        let mut holds = false;
+                        for endpoints in variants.values() {
+                            holds |= endpoints.iter().any(holds_vertex);
+                        }
+                        if holds {
+                            along_sum += segment_start + 16.0;
+                            count += 1;
+                        }
                     }
                 }
                 if count == 0 {
                     return None;
                 }
                 let along = along_sum / count as f32;
-                // Sizes count 16x16-tile screens.
-                let [width, height] = room.size?;
                 let (width, height) = (f32::from(width) * 16.0, f32::from(height) * 16.0);
-                let (x, y) = match side {
-                    0 => (along * width, 0.0),
-                    1 => (along * width, height),
-                    2 => (width, along * height),
-                    _ => (0.0, along * height),
+                // The boundary's position and the direction of travel across it.
+                let (x, y, dx, dy) = match side {
+                    0 => (along, 0.0, 0.0, -1.0),
+                    1 => (along, height, 0.0, 1.0),
+                    2 => (width, along, 1.0, 0.0),
+                    _ => (0.0, along, -1.0, 0.0),
                 };
-                self.locate_tile(vertex_idx, x, y)
+                let boundary = self.locate_tile(vertex_idx, x, y)?;
+                let mut before = boundary;
+                before.x -= dx * CROSSING_OFFSET;
+                before.y -= dy * CROSSING_OFFSET;
+                // A route leaving and returning comes straight back, so it has no point beyond.
+                if let MapBoundaryKind::Return = kind {
+                    return Some(vec![before]);
+                }
+                let mut after = boundary;
+                after.x += dx * CROSSING_OFFSET;
+                after.y += dy * CROSSING_OFFSET;
+                Some(vec![before, after])
             }
             Connection::Entrance {
                 kind, entrance_idx, ..
@@ -412,7 +478,9 @@ impl SpoilerSession {
                     let entrance_id = entrance.rom_entrance_id?;
                     for (pit_entrance_id, x, y) in PIT_TILES {
                         if pit_entrance_id == entrance_id {
-                            return self.locate_tile(entrance.vertex_idx, x, y);
+                            return self
+                                .locate_tile(entrance.vertex_idx, x, y)
+                                .map(|point| vec![point]);
                         }
                     }
                     return None;
@@ -452,6 +520,7 @@ impl SpoilerSession {
                 }
                 let count = offsets.len() as f32;
                 self.locate_tile(entrance.vertex_idx, x_sum / count, y_sum / count)
+                    .map(|point| vec![point])
             }
             _ => None,
         }

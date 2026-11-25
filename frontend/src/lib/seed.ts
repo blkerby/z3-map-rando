@@ -118,10 +118,11 @@ export interface RouteRow {
 	dependencies: RouteDependency[];
 	state: RouteState;
 	/**
-	 * Where the step crosses a map boundary or overworld entrance, or on the last step, where its target item sits on
-	 * the overworld; null for other steps, or for an entrance before the world maps are loaded.
+	 * Where the step crosses an overworld entrance, or for a map boundary, points just before and after it; then on the
+	 * last step, where its target item sits on the overworld. Empty for other steps, or for a door before the world maps
+	 * are loaded.
 	 */
-	point: MapPoint | null;
+	points: MapPoint[];
 	/** Whether the step is a warp or starts in an interior, so travel since the previous point isn't overworld travel. */
 	indirect: boolean;
 }

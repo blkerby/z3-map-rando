@@ -221,17 +221,7 @@ fn check_overworld_edge_geometry() -> Result<()> {
                 let (width, height) = (area.width, area.height);
                 for (slot, (_, variant)) in slots.iter().zip(&edges) {
                     // shortcut: specialized variants use uniqueness only, add aperture profiles when their strip geometry is specified.
-                    let openings: &[(usize, usize)] = match (slot.side < 2, variant.as_str()) {
-                        (true, "small-1") => &[(14, 20)],
-                        (true, "small-2") => &[(46, 52)],
-                        (true, "dual-small") => &[(14, 20), (46, 52)],
-                        (true, "wide") => &[(14, 52)],
-                        (false, "small-1") => &[(16, 21)],
-                        (false, "small-2") => &[(48, 53)],
-                        (false, "dual-small") => &[(16, 21), (48, 53)],
-                        (false, "wide") => &[(16, 53)],
-                        _ => &[],
-                    };
+                    let openings = super::get_edge_openings(slot.side < 2, variant);
                     if openings.is_empty() {
                         continue;
                     }

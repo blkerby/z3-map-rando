@@ -288,5 +288,22 @@ pub(super) fn select_areas(
     })
 }
 
+/// The openings of a standard edge variant on one segment, as half-open ranges of 8x8 tiles
+/// along the segment, in map order; empty for closed and specialized variants, whose geometry
+/// is not specified.
+pub fn get_edge_openings(north_south: bool, variant: &str) -> &'static [(usize, usize)] {
+    match (north_south, variant) {
+        (true, "small-1") => &[(14, 20)],
+        (true, "small-2") => &[(46, 52)],
+        (true, "dual-small") => &[(14, 20), (46, 52)],
+        (true, "wide") => &[(14, 52)],
+        (false, "small-1") => &[(16, 21)],
+        (false, "small-2") => &[(48, 53)],
+        (false, "dual-small") => &[(16, 21), (48, 53)],
+        (false, "wide") => &[(16, 53)],
+        _ => &[],
+    }
+}
+
 #[cfg(test)]
 mod tests;

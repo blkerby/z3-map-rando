@@ -211,26 +211,26 @@
 		let indirect = false;
 		for (const step of route?.steps ?? []) {
 			if (step.indirect) indirect = true;
-			const point = step.point;
-			if (!point) continue;
-			// A repeated point, such as leaving through the door just entered, only changes the current world.
-			if (end && (end.x !== point.x || end.y !== point.y)) {
-				// A line takes the world of its starting point.
-				const last = lines.at(-1);
-				if (last && last.world === end.world && last.dotted === indirect) {
-					last.points += ` ${point.x},${point.y}`;
-				} else {
-					lines.push({
-						world: end.world,
-						dotted: indirect,
-						points: `${end.x},${end.y} ${point.x},${point.y}`
-					});
+			for (const point of step.points) {
+				// A repeated point, such as leaving through the door just entered, only changes the current world.
+				if (end && (end.x !== point.x || end.y !== point.y)) {
+					// A line takes the world of its starting point.
+					const last = lines.at(-1);
+					if (last && last.world === end.world && last.dotted === indirect) {
+						last.points += ` ${point.x},${point.y}`;
+					} else {
+						lines.push({
+							world: end.world,
+							dotted: indirect,
+							points: `${end.x},${end.y} ${point.x},${point.y}`
+						});
+					}
+				} else if (!end) {
+					start = point;
 				}
-			} else if (!end) {
-				start = point;
+				end = point;
+				indirect = false;
 			}
-			end = point;
-			indirect = false;
 		}
 		// A five-pointed star marking the end, as SVG polygon points.
 		let star = '';
