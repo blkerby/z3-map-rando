@@ -22,7 +22,7 @@ The relevant variables are:
 
 These are conventions, not a type system. The meaning of `$11`, `$B0`, and `$0200` depends on the active module. A routine may advance a sequence by incrementing one of them, jump elsewhere by assigning a new value, or return to ordinary play by clearing it.
 
-The authoritative top-level dispatcher is [`RunModule`](../jpdasm/bank_00.asm#L61). Individual modules usually have their own local dispatch table.
+The authoritative top-level dispatcher is [`RunModule`](../../jpdasm/bank_00.asm#L61). Individual modules usually have their own local dispatch table.
 
 ## Top-level modules
 
@@ -112,7 +112,7 @@ Module `$08` loads an area reached from an interior. Module `$0A` uses the same 
 
 ### Modules `$09` and `$0B`: gameplay sequence
 
-`$11 = $00` is ordinary player control. Other values temporarily replace player control with a transition or scripted action. The dispatcher is [`Module09_Overworld`](../jpdasm/bank_02.asm#L7017).
+`$11 = $00` is ordinary player control. Other values temporarily replace player control with a transition or scripted action. The dispatcher is [`Module09_Overworld`](../../jpdasm/bank_02.asm#L7017).
 
 | `$11` | Purpose |
 | --- | --- |
@@ -169,5 +169,5 @@ For milestone 1, replacing `Module09_21` removes only one vanilla BG2 rebuild pa
 ## Related references
 
 - [`overworld_banks.md`](overworld_banks.md) describes where overworld code and data live.
-- [`overworld_bg_tilemaps.asm`](../patches/src/overworld_bg_tilemaps.asm) implements the replacement BG renderer.
-- [`vram.md`](vram.md) describes tilemap and upload ownership.
+- [`overworld_bg_tilemaps.asm`](../../patches/src/overworld_bg_tilemaps.asm) implements the replacement BG renderer.
+- [`vram.md`](../../plans/vram.md) describes tilemap and upload ownership.
