@@ -366,9 +366,9 @@
 									<td>{step.destination}</td>
 									<td>
 										{step.strat}
-										{#if step.dependencies.length}
-											<div class="text-body-secondary">Requires {step.dependencies.join(', ')}</div>
-										{/if}
+										{#each step.dependencies as dependency (dependency)}
+											<div class="text-body-secondary">{dependency}</div>
+										{/each}
 									</td>
 									<td>
 										{#each describeState(step.state, route.steps[stepIndex - 1]?.state) as part, partIndex (partIndex)}
