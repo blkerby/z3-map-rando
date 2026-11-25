@@ -177,28 +177,32 @@
 	</p>
 	<div class="rows">
 		{#each rows as row (row.index)}
-			<div class="row-label">{row.title}</div>
 			<button
 				type="button"
-				class="tiles row-button"
+				class="row-button"
 				aria-label="Reveal rows through {row.title} and hide the rest"
 				onclick={() => (revealed = row.index + 1)}
 			>
-				{#if row.index < revealed}
-					{#each row.tiles as tile, tileIndex (tileIndex)}
-						<span class="tile" title={tile.description}>
-							{#if tile.icon}
-								<img src={tile.icon} alt="" />
-							{:else}
-								<span class="badge-text" style:color={tile.badge.color}>{tile.badge.text}</span>
-							{/if}
-						</span>
-					{/each}
-				{:else}
-					{#each row.tiles as tile (tile)}
-						<span class="tile hidden-tile"><i class="bi bi-question-lg" aria-hidden="true"></i></span>
-					{/each}
-				{/if}
+				<span class="row-label">{row.title}</span>
+				<span class="tiles">
+					{#if row.index < revealed}
+						{#each row.tiles as tile, tileIndex (tileIndex)}
+							<span class="tile" title={tile.description}>
+								{#if tile.icon}
+									<img src={tile.icon} alt="" />
+								{:else}
+									<span class="badge-text" style:color={tile.badge.color}>{tile.badge.text}</span>
+								{/if}
+							</span>
+						{/each}
+					{:else}
+						{#each row.tiles as tile (tile)}
+							<span class="tile hidden-tile"
+								><i class="bi bi-question-lg" aria-hidden="true"></i></span
+							>
+						{/each}
+					{/if}
+				</span>
 			</button>
 		{/each}
 	</div>
@@ -214,7 +218,7 @@
 
 	.row-label {
 		min-width: 1.5rem;
-		padding-top: 0.5625rem;
+		padding-top: 0.375rem;
 		text-align: right;
 		font-weight: 600;
 	}
@@ -225,7 +229,12 @@
 		gap: 2px;
 	}
 
+	/* Spans both columns of .rows, so the number and the gap beside it are part of the button. */
 	.row-button {
+		grid-column: 1 / -1;
+		display: grid;
+		grid-template-columns: subgrid;
+		align-items: start;
 		padding: 0.1875rem 0;
 		border: none;
 		background: none;
