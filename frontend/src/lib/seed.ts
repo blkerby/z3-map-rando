@@ -84,7 +84,7 @@ export interface Spoiler {
 	unreachable: SpoilerEntry[];
 }
 
-/** Local state on arriving at a route row; usage is counted from the start of the route. */
+/** Local state after a route row's step; usage is counted from the start of the route. */
 export interface RouteState {
 	form: string;
 	/** Eighths of a heart consumed, or remaining after a Fairy revival; exactly one is set. */
@@ -110,8 +110,9 @@ export interface RouteDependency {
 }
 
 export interface RouteRow {
-	destination: string;
-	/** The strat or connection taken, or "Start" for the first row. */
+	/** Where the step starts. */
+	location: string;
+	/** The strat or connection taken. */
 	strat: string;
 	/** Flags, opened doors, and Ocarina activation that the step's requirement reads. */
 	dependencies: RouteDependency[];

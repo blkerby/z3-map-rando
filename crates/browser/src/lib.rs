@@ -57,9 +57,9 @@ struct SpoilerEntry {
 
 #[derive(Serialize)]
 struct RouteRow {
-    /// The vertex reached, as room and node names.
-    destination: String,
-    /// The strat or connection taken, or "Start" for the first row.
+    /// The vertex the edge leaves from, as room and node names.
+    location: String,
+    /// The strat or connection taken.
     strat: String,
     /// Flags, opened doors, and Ocarina activation read by the edge's requirement, including
     /// alternatives the route may not have used.
@@ -84,7 +84,7 @@ enum TargetJson {
     Ocarina,
 }
 
-/// Local state on arrival. Health, magic, and ammunition are counted from the start.
+/// Local state after the edge. Health, magic, and ammunition are counted from the start.
 #[derive(Serialize)]
 struct RouteState {
     form: String,
@@ -168,20 +168,20 @@ impl SpoilerSession {
         let mut rows = None;
         if let Some(route) = self.replay.trace_route(catalog, target) {
             let mut route_rows = Vec::new();
+            // One row per edge; the route's start step has none.
             for step in route {
-                let mut strat = "Start".to_owned();
+                let Some(index) = step.edge else {
+                    continue;
+                };
+                let edge = &self.replay.graph.outgoing[index.from_vertex_idx.0 as usize]
+                    [index.outgoing_idx];
                 let mut dependencies = Vec::new();
-                if let Some(index) = step.edge {
-                    let edge = &self.replay.graph.outgoing[index.from_vertex_idx.0 as usize]
-                        [index.outgoing_idx];
-                    strat = describe_edge(catalog, &self.replay.connections, edge);
-                    collect_dependencies(
-                        catalog,
-                        &self.replay,
-                        &edge.edge.requirement,
-                        &mut dependencies,
-                    );
-                }
+                collect_dependencies(
+                    catalog,
+                    &self.replay,
+                    &edge.edge.requirement,
+                    &mut dependencies,
+                );
                 let state = step.state;
                 let mut followers = Vec::new();
                 for (follower, name) in FOLLOWER_NAMES {
@@ -194,8 +194,8 @@ impl SpoilerSession {
                     HealthState::Remaining(remaining) => (None, Some(remaining)),
                 };
                 route_rows.push(RouteRow {
-                    destination: describe_vertex(catalog, step.vertex_idx),
-                    strat,
+                    location: describe_vertex(catalog, index.from_vertex_idx),
+                    strat: describe_edge(catalog, &self.replay.connections, edge),
                     dependencies,
                     state: RouteState {
                         form: format!("{:?}", state.form),

@@ -380,7 +380,7 @@
 					<table class="table table-sm small route mb-0">
 						<thead>
 							<tr>
-								<th scope="col">Destination</th>
+								<th scope="col">Location</th>
 								<th scope="col">Strat</th>
 								<th scope="col">State</th>
 							</tr>
@@ -388,7 +388,7 @@
 						<tbody>
 							{#each route.steps as step, stepIndex (stepIndex)}
 								<tr>
-									<td>{step.destination}</td>
+									<td>{step.location}</td>
 									<td>
 										{step.strat}
 										{#each step.dependencies as dependency (dependency.name)}
