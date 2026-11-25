@@ -20,6 +20,8 @@ pub struct Spheres {
     pub spheres: Vec<Vec<ItemLocationIndex>>,
     /// Item locations that the current logic never reaches.
     pub unreachable: Vec<ItemLocationIndex>,
+    /// The seed's item at each location, indexed by `ItemLocationIndex`.
+    pub items: Vec<Option<Item>>,
 }
 
 /// Replay the seed against the current logic catalog. Sphere 1 holds the locations
@@ -125,5 +127,6 @@ pub fn replay_spheres(catalog: &LogicCatalog, seed: &SeedData) -> Result<Spheres
     Ok(Spheres {
         spheres,
         unreachable,
+        items: seed_placements,
     })
 }

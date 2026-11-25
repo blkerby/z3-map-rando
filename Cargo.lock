@@ -436,10 +436,14 @@ name = "browser"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "common_types",
+ "generator",
+ "logic_catalog",
  "patch_catalog",
  "patcher",
  "retiling_catalog",
  "seed_data",
+ "serde",
  "serde_json",
  "wasm-bindgen",
 ]

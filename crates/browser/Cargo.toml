@@ -8,9 +8,13 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 anyhow = "1"
+common_types = { path = "../common_types" }
+generator = { path = "../generator" }
+logic_catalog = { path = "../logic_catalog" }
 patch_catalog = { path = "../patch_catalog" }
 patcher = { path = "../patcher" }
 retiling_catalog = { path = "../retiling_catalog" }
 seed_data = { path = "../seed_data" }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 wasm-bindgen = "0.2"
