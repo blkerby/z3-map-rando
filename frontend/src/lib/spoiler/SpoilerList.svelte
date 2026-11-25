@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { ITEM_LABELS, getItemLevelIcon, items } from '$lib/generation/data';
 	import { computeSpoiler, type Spoiler, type SpoilerEntry } from '$lib/seed';
 
@@ -23,6 +24,8 @@
 	}
 
 	interface Row {
+		/** Position among all rows, so revealing is unaffected by which rows are shown. */
+		index: number;
 		title: string;
 		tiles: Tile[];
 	}
@@ -72,6 +75,13 @@
 	let started = false;
 	/** Number of rows shown, from the top; the rest show question marks until revealed. */
 	let revealed = $state(0);
+	/** Whether to show only major- and high-tier items, hiding rows left empty. Remembered across sessions. */
+	let importantOnly = $state(true);
+	const IMPORTANT_ONLY_KEY = 'spoilerImportantOnly';
+
+	onMount(() => {
+		importantOnly = localStorage.getItem(IMPORTANT_ONLY_KEY) !== 'false';
+	});
 
 	$effect(() => {
 		if (!active || started) return;
@@ -94,6 +104,8 @@
 				if (entry.item === null || entry.item === 'nothing') continue;
 				const level = (levels[entry.item] ?? 0) + 1;
 				levels[entry.item] = level;
+				const tier = items.find((item) => item.name === entry.item)?.tier;
+				if (importantOnly && tier !== 'major' && tier !== 'high') continue;
 				ranked.push({
 					rank: getRank(entry.item),
 					tile: {
@@ -106,7 +118,9 @@
 			ranked.sort((a, b) => a.rank - b.rank);
 			const tiles: Tile[] = [];
 			for (const { tile } of ranked) tiles.push(tile);
+			if (importantOnly && tiles.length === 0) continue;
 			result.push({
+				index,
 				title: index < spoiler.spheres.length ? `${index + 1}` : 'Unreachable',
 				tiles
 			});
@@ -136,21 +150,34 @@
 		<button
 			type="button"
 			class="btn btn-sm btn-outline-secondary"
-			onclick={() => (revealed = rows.length)}
+			onclick={() => (revealed = Infinity)}
 		>
 			Reveal all
 		</button>
 		<button type="button" class="btn btn-sm btn-outline-secondary" onclick={() => (revealed = 0)}>
 			Hide all
 		</button>
+		<div class="form-check form-switch ms-auto mb-0 align-self-center">
+			<input
+				class="form-check-input"
+				type="checkbox"
+				role="switch"
+				id="spoiler-important-only"
+				bind:checked={importantOnly}
+				onchange={() => localStorage.setItem(IMPORTANT_ONLY_KEY, String(importantOnly))}
+			/>
+			<label class="form-check-label" for="spoiler-important-only">
+				Show only important items
+			</label>
+		</div>
 	</div>
 	<p class="small text-body-secondary">
 		Each row is a sphere: the items collectible once all items in earlier rows are collected. Click
 		a hidden row to reveal it and the rows above it.
 	</p>
 	<div class="rows">
-		{#each rows as row, index (index)}
-			{#if index < revealed}
+		{#each rows as row (row.index)}
+			{#if row.index < revealed}
 				<div class="row-label">{row.title}</div>
 				<div class="tiles">
 					{#each row.tiles as tile, tileIndex (tileIndex)}
@@ -168,8 +195,8 @@
 				<button
 					type="button"
 					class="tiles hidden-row"
-					aria-label="Reveal rows 1 to {index + 1}"
-					onclick={() => (revealed = index + 1)}
+					aria-label="Reveal rows through {row.title}"
+					onclick={() => (revealed = row.index + 1)}
 				>
 					{#each row.tiles as tile (tile)}
 						<span class="tile"><i class="bi bi-question-lg" aria-hidden="true"></i></span>
