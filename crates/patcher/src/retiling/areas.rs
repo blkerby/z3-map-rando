@@ -288,9 +288,11 @@ pub(super) fn select_areas(
     })
 }
 
-/// The openings of a standard edge variant on one segment, as half-open ranges of 8x8 tiles
-/// along the segment, in map order; empty for closed and specialized variants, whose geometry
-/// is not specified.
+/// The openings of an edge variant on one segment, as half-open ranges of 8x8 tiles along the
+/// segment, in the order of the variant's node references; empty for closed variants and
+/// split-house, whose geometry is not specified. Specialized variants' ranges were measured
+/// from the composed collision of the rooms supporting them and include water; the guessed
+/// ones are noted.
 pub fn get_edge_openings(north_south: bool, variant: &str) -> &'static [(usize, usize)] {
     match (north_south, variant) {
         (true, "small-1") => &[(14, 20)],
@@ -301,6 +303,21 @@ pub fn get_edge_openings(north_south: bool, variant: &str) -> &'static [(usize, 
         (false, "small-2") => &[(48, 53)],
         (false, "dual-small") => &[(16, 21), (48, 53)],
         (false, "wide") => &[(16, 53)],
+        // Only east/west dual-upper edges exist to measure; north/south assumes dual-small's.
+        (true, "dual-upper") => &[(14, 20), (46, 52)],
+        (false, "dual-upper") => &[(16, 21), (48, 53)],
+        (false, "light-only") => &[(48, 53)],
+        // By role: the ordinary Light World path, then the Dark World Mirror spot and the
+        // isolated Light World ledge, which both cross at the ledge's opening.
+        (false, "light-and-mirror") => &[(48, 53), (30, 43), (30, 43)],
+        (false, "horizonal-water-land") => &[(17, 22), (25, 50)],
+        // The land side also has a ledge-bounded run at (24, 31).
+        (false, "horizontal-land-water") => &[(16, 21), (41, 50)],
+        (true, "vertical-water-land") => &[(21, 27), (32, 58)],
+        (true, "land-water-land") => &[(12, 32), (37, 41), (46, 54)],
+        // Land, then water: the role order, not map order. Land lies on both sides of the
+        // water; the larger northern run is a guess.
+        (false, "lake") => &[(16, 25), (31, 41)],
         _ => &[],
     }
 }

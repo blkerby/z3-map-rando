@@ -131,16 +131,21 @@ fn compose_collision(
 // Collision writes are prepared once per area; each combination still evaluates
 // every layer condition and applies selected layers in their authored order.
 //
-// Checks four tiles of inward clearance for small-1, small-2, dual-small, and
-// wide, with a solid tile or correctly oriented slope at either end of the edge strip.
-// Inner and outer slopes must have their solid corner outside the aperture.
-// Shallow water counts as ground in the three strips inward from the edge strip.
+// Checks four tiles of inward clearance for each opening from get_edge_openings, with
+// a solid tile or correctly oriented slope at either end of the edge strip. Water
+// variants' water openings must be deep water rather than ground, and specialized
+// variants' openings may also end at a ledge or shallow water, where land meets water.
+// Openings of light-only and light-and-mirror are checked only in the Light World.
+// Inner and outer slopes must have their solid corner outside the aperture; inward from
+// the edge strip, a specialized variant's opening may narrow diagonally at slopes or
+// ledges. The end of a lake's land opening toward the water is unchecked.
+// Shallow water counts as ground or deep water in the three strips inward from the edge strip.
 // Collision classes combine ordinary/diggable ground and full-tile blockers,
 // preserving slopes and direction.
 //
 // Distinct combinations must produce distinct paired-world collision layers;
-// light-only and light-and-mirror count as one geometry choice. Specialized
-// variants participate in uniqueness checks but do not yet have aperture profiles.
+// light-only and light-and-mirror count as one geometry choice. Split-house has no
+// specified openings, so it participates in uniqueness checks only.
 // Uniqueness failures report one pair per room with the fewest differing slots.
 // Aperture failures report the failing strip closest to the transition across
 // all combinations, with an example combination.
@@ -220,11 +225,24 @@ fn check_overworld_edge_geometry() -> Result<()> {
                 let collision = compose_collision(area, &catalog.conditions, &edges)?;
                 let (width, height) = (area.width, area.height);
                 for (slot, (_, variant)) in slots.iter().zip(&edges) {
-                    // shortcut: specialized variants use uniqueness only, add aperture profiles when their strip geometry is specified.
-                    let openings = super::get_edge_openings(slot.side < 2, variant);
-                    if openings.is_empty() {
+                    // These openings exist only in the Light World.
+                    if world == 0x40
+                        && matches!(variant.as_str(), "light-only" | "light-and-mirror")
+                    {
                         continue;
                     }
+                    let openings = super::get_edge_openings(slot.side < 2, variant);
+                    // Which openings are deep water, in get_edge_openings order; the rest are ground.
+                    let water_openings: &[bool] = match variant.as_str() {
+                        "horizonal-water-land" | "vertical-water-land" => &[true, false],
+                        "horizontal-land-water" | "lake" => &[false, true],
+                        "land-water-land" => &[false, true, false],
+                        _ => &[],
+                    };
+                    let specialized = !matches!(
+                        variant.as_str(),
+                        "small-1" | "small-2" | "dual-small" | "dual-upper" | "wide"
+                    );
                     let boundary_slopes = match slot.side {
                         0 => [0x10, 0x11], // Northwest, northeast.
                         1 => [0x12, 0x13], // Southwest, southeast.
@@ -244,9 +262,14 @@ fn check_overworld_edge_geometry() -> Result<()> {
                             *property = collision[y * width + x];
                         }
                     }
-                    for &(start, end) in openings {
+                    for (opening, &(start, end)) in openings.iter().enumerate() {
                         apertures += 1;
-                        let mut expected = vec![0x00; end - start + 2];
+                        let fill = if water_openings.get(opening) == Some(&true) {
+                            0x08
+                        } else {
+                            0x00
+                        };
+                        let mut expected = vec![fill; end - start + 2];
                         expected[0] = 0x01;
                         expected[end - start + 1] = 0x01;
                         let actual = &strips[0][start - 1..=end];
@@ -254,9 +277,21 @@ fn check_overworld_edge_geometry() -> Result<()> {
                             (0, boundary_slopes[0]),
                             (expected.len() - 1, boundary_slopes[1]),
                         ] {
-                            if actual[index] == slope || actual[index] == slope + 8 {
-                                expected[index] = actual[index];
+                            let tile = actual[index];
+                            // Where land meets water, a ledge or shallow water also bounds a
+                            // specialized variant's opening.
+                            if tile == slope
+                                || tile == slope + 8
+                                || (specialized && ((0x28..=0x2f).contains(&tile) || tile == 0x09))
+                            {
+                                expected[index] = tile;
                             }
+                        }
+                        // Where a lake's land meets its shallow water depends on neighboring
+                        // layers, so that end of the land opening is unchecked.
+                        if variant == "lake" && opening == 0 {
+                            let last = expected.len() - 1;
+                            expected[last] = actual[last];
                         }
                         for (depth, strip) in strips.iter().enumerate() {
                             let (first, last, expected) = if depth == 0 {
@@ -265,10 +300,19 @@ fn check_overworld_edge_geometry() -> Result<()> {
                                 (start, end - 1, &expected[1..expected.len() - 1])
                             };
                             let actual = &strip[first..=last];
-                            if actual.iter().zip(expected).all(|(&actual, &expected)| {
-                                actual == expected
-                                    || (depth > 0 && actual == 0x09 && expected == 0x00)
-                            }) {
+                            let length = actual.len();
+                            if actual.iter().zip(expected).enumerate().all(
+                                |(index, (&actual, &expected))| {
+                                    actual == expected
+                                        || (depth > 0 && actual == 0x09 && expected != 0x01)
+                                        // Banks and ledges may narrow a specialized opening
+                                        // diagonally inward, by a tile per strip after the first.
+                                        || (specialized
+                                            && (index + 1 < depth || index + depth > length)
+                                            && ((0x10..=0x1f).contains(&actual)
+                                                || (0x28..=0x2f).contains(&actual)))
+                                },
+                            ) {
                                 continue;
                             }
                             let key = (area_id + world, slot.name.clone(), variant.clone(), start);

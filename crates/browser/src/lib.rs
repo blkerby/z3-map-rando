@@ -382,16 +382,40 @@ impl SpoilerSession {
                     };
                 // The position along the side, in 16x16 tiles: the center of the source vertex's
                 // opening in its segment's selected variant, or the segment's middle where the
-                // variant's geometry is unknown. A segment spans one map cell. Where the vertex
-                // has several openings, such as both of a dual-small variant's, the first is used.
+                // variant's geometry is unknown. A segment spans one map cell, and only segments
+                // facing the other endpoint's room count. Where the vertex still has several
+                // openings, such as both of a dual-small variant's, the first is used.
                 let [cell_x, cell_y] = self.find_room_cell(room)?;
                 let [width, height] = room.size?;
                 // Sizes count 16x16-tile screens, two per cell.
                 let cells_wide = u8::try_from(width / 2).ok()?;
                 let cells_high = u8::try_from(height / 2).ok()?;
+                let other_idx = if endpoints[0] == vertex_idx {
+                    endpoints[1]
+                } else {
+                    endpoints[0]
+                };
+                let other_room = self.catalog.room(self.catalog.vertex(other_idx).room_idx);
+                let [other_x, other_y] = self.find_room_cell(other_room)?;
+                let [other_width, other_height] = other_room.size?;
                 let mut along = None;
                 'segments: for (segment, variants) in room.edge_variants[side].iter().enumerate() {
                     let segment_cells = u8::try_from(segment).ok()?;
+                    // The cell across the border; a return leads back into the same room.
+                    let [across_x, across_y] = match side {
+                        0 => [cell_x + segment_cells, cell_y.wrapping_sub(1)],
+                        1 => [cell_x + segment_cells, cell_y + cells_high],
+                        2 => [cell_x + cells_wide, cell_y + segment_cells],
+                        _ => [cell_x.wrapping_sub(1), cell_y + segment_cells],
+                    };
+                    if !matches!(kind, MapBoundaryKind::Return)
+                        && !((other_x..other_x + u8::try_from(other_width / 2).ok()?)
+                            .contains(&across_x)
+                            && (other_y..other_y + u8::try_from(other_height / 2).ok()?)
+                                .contains(&across_y))
+                    {
+                        continue;
+                    }
                     // The cell west or north of the border, as the seed records it.
                     let border = match side {
                         0 => cell_y
@@ -423,7 +447,15 @@ impl SpoilerSession {
                     if let Some(selected) = selected {
                         let openings = get_edge_openings(side < 2, selected);
                         for (index, endpoint) in variants[selected].iter().enumerate() {
-                            if !holds_vertex(endpoint) {
+                            // A light-and-mirror crossing starts from the ordinary Light World
+                            // role, or for a Mirror crossing, the Dark World Mirror spot.
+                            let role = match kind {
+                                MapBoundaryKind::Mirror => 1,
+                                _ => 0,
+                            };
+                            if !holds_vertex(endpoint)
+                                || (selected == "light-and-mirror" && index != role)
+                            {
                                 continue;
                             }
                             // Openings are measured in 8x8 tiles.
