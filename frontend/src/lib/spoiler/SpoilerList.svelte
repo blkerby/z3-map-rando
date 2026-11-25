@@ -210,12 +210,11 @@
 		grid-template-columns: auto 1fr;
 		align-items: start;
 		column-gap: 0.75rem;
-		row-gap: 0.375rem;
 	}
 
 	.row-label {
 		min-width: 1.5rem;
-		padding-top: 0.375rem;
+		padding-top: 0.5625rem;
 		text-align: right;
 		font-weight: 600;
 	}
@@ -227,7 +226,7 @@
 	}
 
 	.row-button {
-		padding: 0;
+		padding: 0.1875rem 0;
 		border: none;
 		background: none;
 		color: inherit;
