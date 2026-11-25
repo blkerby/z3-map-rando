@@ -15,7 +15,7 @@ For each corpus seed:
 1. Deserialize it strictly with current `seed_data` (see [reading seed records](../docs/data-formats/seed-data.md#reading-seed-records)).
 2. Migrate and resolve its settings, once [settings migration](../docs/data-formats/settings.md#versioning-and-migration) exists.
 3. Map its rooms, placements, and Small Key doors to current catalog entries, rebuild its `WorldLayout`, and build its connections, as the [spoiler](../docs/generation/spoiler.md) replay does.
-4. Replay its spheres with `generator::spoiler::replay_spheres` and require every placement to be reachable.
+4. Replay its spheres with `generator::spoiler::replay_spoiler` and require every placement to be reachable.
 5. Prepare its patch. This needs the patch catalog, which CI does not build yet because it requires Asar.
 
 Steps 1, 3, and 4 can be implemented now; step 2 waits for settings migration.
