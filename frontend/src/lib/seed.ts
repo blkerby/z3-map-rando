@@ -99,20 +99,30 @@ export interface RouteState {
 	followers: string[];
 }
 
+/** What a route leads to: collecting an item location, or a permanent discovery. */
+export type RouteTarget =
+	{ kind: 'location' | 'flag' | 'door'; index: number } | { kind: 'ocarina' };
+
+export interface RouteDependency {
+	name: string;
+	/** The route to follow for it, or null for progress held from the start. */
+	target: RouteTarget | null;
+}
+
 export interface RouteRow {
 	destination: string;
 	/** The strat or connection taken, or "Start" for the first row. */
 	strat: string;
 	/** Flags, opened doors, and Ocarina activation that the step's requirement reads. */
-	dependencies: string[];
+	dependencies: RouteDependency[];
 	state: RouteState;
 }
 
 /** A replayed seed held in WebAssembly memory; call `free` when done with it. */
 export interface SpoilerSession {
 	spoiler: Spoiler;
-	/** A route to an item location from the start, or null if none is found. */
-	traceRoute(locationIdx: number): RouteRow[] | null;
+	/** A route from the start to a target, or null if none is found. */
+	traceRoute(target: RouteTarget): RouteRow[] | null;
 	free(): void;
 }
 
@@ -126,7 +136,7 @@ export async function openSpoiler(seed: string): Promise<SpoilerSession> {
 	const session = new browser.SpoilerSession(seedBytes, logic);
 	return {
 		spoiler: JSON.parse(session.get_spheres()),
-		traceRoute: (locationIdx) => JSON.parse(session.trace_route(locationIdx)),
+		traceRoute: (target) => JSON.parse(session.trace_route(JSON.stringify(target))),
 		free: () => session.free()
 	};
 }

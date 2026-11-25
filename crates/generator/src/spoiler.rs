@@ -1,5 +1,5 @@
 //! Replay a saved seed's logical traversal to group its item locations into spheres, and
-//! trace routes to them.
+//! trace routes to them and to the progress they depend on.
 
 use crate::{
     graph::{TraversalEdgeIndex, TraversalGraph, build_graph},
@@ -13,7 +13,10 @@ use crate::{
 use anyhow::{Context, Result, bail};
 use common_types::{Item, ItemLocationId, SourceRoomId};
 use hashbrown::HashSet;
-use logic_catalog::{Connection, Effect, ItemLocationIndex, LogicCatalog, VertexIndex};
+use logic_catalog::{
+    Connection, DoorIndex, Effect, FlagIndex, ItemLocationIndex, LockKind, LogicCatalog,
+    VertexIndex,
+};
 use seed_data::{SeedData, WorldLayout};
 use std::{
     cmp::Reverse,
@@ -34,6 +37,25 @@ pub struct SpoilerReplay {
     /// Global state at the closure fixpoint that first reaches each sphere, indexed like
     /// `spheres`: the items of all earlier spheres, with every discovery they allow.
     sphere_states: Vec<GlobalState>,
+    /// Global state of each wave that first discovers a flag, door, or Ocarina activation:
+    /// the progress of earlier waves, without the discovery or anything depending on it.
+    discovery_states: Vec<GlobalState>,
+    /// Index into `discovery_states` for each flag, indexed by `FlagIndex`; None for a flag
+    /// never discovered, including one set from the start.
+    flag_discoveries: Vec<Option<usize>>,
+    /// Index into `discovery_states` for each door, indexed by `DoorIndex`; None for a door
+    /// never discovered, including one unlocked by a Small Key.
+    door_discoveries: Vec<Option<usize>>,
+    ocarina_discovery: Option<usize>,
+}
+
+/// What a route leads to: collecting an item location, or a permanent discovery.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RouteTarget {
+    ItemLocation(ItemLocationIndex),
+    Flag(FlagIndex),
+    Door(DoorIndex),
+    Ocarina,
 }
 
 /// A route position: the edge taken to reach a vertex, and the local state on arrival.
@@ -110,6 +132,30 @@ pub fn replay_spoiler(catalog: &LogicCatalog, seed: &SeedData) -> Result<Spoiler
     let mut local_states = vec![LocalStateReducer::default(); graph.outgoing.len()];
     local_states[graph.start_vertex_idx.0 as usize].insert(LocalState::initialize());
     let mut placements = vec![None; catalog.item_locations.len()];
+    let mut discovery_states = Vec::new();
+    let mut flag_discoveries = vec![None; catalog.flags.len()];
+    let mut door_discoveries = vec![None; catalog.doors.len()];
+    let mut ocarina_discovery = None;
+    // Discoveries are filtered against the wave's global state, so each is reported once.
+    let mut record_wave = |global: &GlobalState, discoveries: &GlobalDiscoveries| {
+        if discoveries.flags.is_empty()
+            && discoveries.unlocked_doors.is_empty()
+            && !discoveries.activate_ocarina
+        {
+            return;
+        }
+        let state_idx = discovery_states.len();
+        discovery_states.push(global.clone());
+        for idx in &discoveries.flags {
+            flag_discoveries[idx.0 as usize] = Some(state_idx);
+        }
+        for idx in &discoveries.unlocked_doors {
+            door_discoveries[idx.0 as usize] = Some(state_idx);
+        }
+        if discoveries.activate_ocarina {
+            ocarina_discovery = Some(state_idx);
+        }
+    };
     compute_closure(
         catalog,
         &graph,
@@ -119,6 +165,7 @@ pub fn replay_spoiler(catalog: &LogicCatalog, seed: &SeedData) -> Result<Spoiler
         &placements,
         vec![graph.start_vertex_idx],
         HashSet::new(),
+        &mut record_wave,
     )?;
     let mut assigned = vec![false; catalog.item_locations.len()];
     let mut spheres = Vec::new();
@@ -146,6 +193,7 @@ pub fn replay_spoiler(catalog: &LogicCatalog, seed: &SeedData) -> Result<Spoiler
             &placements,
             Vec::new(),
             HashSet::new(),
+            &mut record_wave,
         )?;
     }
     let mut unreachable = Vec::new();
@@ -162,35 +210,79 @@ pub fn replay_spoiler(catalog: &LogicCatalog, seed: &SeedData) -> Result<Spoiler
         graph,
         inputs,
         sphere_states,
+        discovery_states,
+        flag_discoveries,
+        door_discoveries,
+        ocarina_discovery,
     })
 }
 
 impl SpoilerReplay {
-    /// Trace a minimum-cost route from the start to collecting a location, with the global
-    /// state from which its sphere is first reachable. Each edge costs 1. Return None for an
-    /// unreachable location, or if the search's state pruning loses every route.
+    /// Resolve a door to what unlocks it: the location of a Small Key door's key or a Big Key
+    /// door's dungeon Big Key, or otherwise the door itself. Return None for a key not placed.
+    pub fn resolve_door(&self, catalog: &LogicCatalog, door_idx: DoorIndex) -> Option<RouteTarget> {
+        let door = catalog.door(door_idx);
+        if !matches!(door.lock, LockKind::SmallKey | LockKind::BigKey) {
+            return Some(RouteTarget::Door(door_idx));
+        }
+        for (index, item) in self.items.iter().enumerate() {
+            let unlocks = match (door.lock, item) {
+                (LockKind::SmallKey, Some(Item::SmallKey(door_id))) => {
+                    self.inputs.door_indices[door_id] == door_idx
+                }
+                (LockKind::BigKey, Some(Item::BigKey(room_id))) => {
+                    Some(self.inputs.dungeon_indices[room_id])
+                        == catalog.room(door.room_idx).dungeon_idx
+                }
+                _ => false,
+            };
+            if unlocks {
+                return Some(RouteTarget::ItemLocation(ItemLocationIndex(index as u32)));
+            }
+        }
+        None
+    }
+
+    /// Return the fixed global state for routing to a target: an item location's sphere
+    /// state, or the state of the wave first discovering a flag, door, or Ocarina activation.
+    /// Return None for a target the replay never reaches or discovers.
+    pub fn get_route_state(&self, target: RouteTarget) -> Option<&GlobalState> {
+        let state_idx = match target {
+            RouteTarget::ItemLocation(location_idx) => {
+                for (sphere, state) in self.spheres.iter().zip(&self.sphere_states) {
+                    if sphere.contains(&location_idx) {
+                        return Some(state);
+                    }
+                }
+                return None;
+            }
+            RouteTarget::Flag(idx) => self.flag_discoveries[idx.0 as usize],
+            RouteTarget::Door(idx) => self.door_discoveries[idx.0 as usize],
+            RouteTarget::Ocarina => self.ocarina_discovery,
+        };
+        Some(&self.discovery_states[state_idx?])
+    }
+
+    /// Trace a minimum-cost route from the start to an edge that collects or sets the target,
+    /// with the target's route state held fixed. Each edge costs 1. Return None for a target
+    /// without a route state, or if the search's state pruning loses every route.
     pub fn trace_route(
         &self,
         catalog: &LogicCatalog,
-        location_idx: ItemLocationIndex,
+        target: RouteTarget,
     ) -> Option<Vec<RouteStep>> {
-        let mut global = None;
-        for (sphere, state) in self.spheres.iter().zip(&self.sphere_states) {
-            if sphere.contains(&location_idx) {
-                global = Some(state);
-            }
-        }
         let interpreter = Interpreter {
             catalog,
             inputs: &self.inputs,
-            global: global?,
+            global: self.get_route_state(target)?,
         };
-        // The global state is a closure fixpoint, so discoveries are ignored.
+        // The global state already holds everything the route may use, so discoveries are
+        // ignored.
         let mut discoveries = GlobalDiscoveries::default();
 
         // Per-vertex reducers admit the states worth expanding, as in normal traversal, while
-        // the entries keep each admitted state's predecessor. An entry that collects the
-        // location is queued even when its reducer rejects it; popping it ends the search.
+        // the entries keep each admitted state's predecessor. An entry that reaches the
+        // target is queued even when its reducer rejects it; popping it ends the search.
         let mut reducers = vec![LocalStateReducer::default(); self.graph.outgoing.len()];
         let start = RouteStep {
             edge: None,
@@ -204,8 +296,8 @@ impl SpoilerReplay {
         }];
         let mut queue = BinaryHeap::new();
         queue.push(Reverse((0_u32, 0_usize, false)));
-        while let Some(Reverse((cost, entry_idx, collected))) = queue.pop() {
-            if collected {
+        while let Some(Reverse((cost, entry_idx, reached))) = queue.pop() {
+            if reached {
                 let mut route = Vec::new();
                 let mut next_entry_idx = Some(entry_idx);
                 while let Some(idx) = next_entry_idx {
@@ -224,18 +316,22 @@ impl SpoilerReplay {
                 sources.insert(entries[entry_idx].step.state.clone());
                 let mut outputs = LocalStateReducer::default();
                 interpreter.evaluate_edge(edge, sources, &mut discoveries, &mut outputs);
-                let mut collects = false;
+                let mut reaches = false;
                 for effect in &edge.edge.effects {
-                    if let Effect::CollectItem(idx) = *effect
-                        && idx == location_idx
-                    {
-                        collects = true;
-                    }
+                    reaches |= match (*effect, target) {
+                        (Effect::CollectItem(idx), RouteTarget::ItemLocation(target_idx)) => {
+                            idx == target_idx
+                        }
+                        (Effect::SetFlag(idx), RouteTarget::Flag(target_idx)) => idx == target_idx,
+                        (Effect::OpenDoor(idx), RouteTarget::Door(target_idx)) => idx == target_idx,
+                        (Effect::ActivateOcarina, RouteTarget::Ocarina) => true,
+                        _ => false,
+                    };
                 }
                 let destination = edge.edge.to_vertex_idx;
                 for state in outputs.into_states() {
                     let retained = reducers[destination.0 as usize].insert(state.clone());
-                    if retained || collects {
+                    if retained || reaches {
                         entries.push(RouteEntry {
                             step: RouteStep {
                                 edge: Some(TraversalEdgeIndex {
@@ -247,7 +343,7 @@ impl SpoilerReplay {
                             },
                             parent_entry_idx: Some(entry_idx),
                         });
-                        queue.push(Reverse((cost + 1, entries.len() - 1, collects)));
+                        queue.push(Reverse((cost + 1, entries.len() - 1, reaches)));
                     }
                 }
             }

@@ -72,6 +72,7 @@ impl PlacementState {
             &placements,
             vec![graph.start_vertex_idx],
             HashSet::new(),
+            |_, _| {},
         )?;
         Ok(Self {
             placements,
@@ -109,6 +110,7 @@ impl PlacementState {
             &candidate.placements,
             Vec::new(),
             HashSet::new(),
+            |_, _| {},
         )?;
         if check_candidate_progression(self, &candidate) {
             *self = candidate;

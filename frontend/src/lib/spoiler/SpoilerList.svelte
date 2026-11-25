@@ -5,6 +5,7 @@
 		openSpoiler,
 		type RouteRow,
 		type RouteState,
+		type RouteTarget,
 		type Spoiler,
 		type SpoilerEntry,
 		type SpoilerSession
@@ -26,8 +27,9 @@
 		/** Null for an item without an icon yet, shown with its fallback badge. */
 		icon: string | null;
 		badge: Badge;
-		/** Item and location, for the tooltip and screen readers. */
-		description: string;
+		/** Item label, including a Small Key's door or a dungeon item's dungeon. */
+		item: string;
+		location: string;
 		locationIdx: number;
 	}
 
@@ -85,12 +87,20 @@
 	let started = false;
 
 	interface Route {
-		tile: Tile;
-		item: string;
-		location: string;
+		/** The target item, or null for a route to a discovery. */
+		tile: Tile | null;
+		title: string;
+		subtitle: string;
 		/** Null if no route was found. */
 		steps: RouteRow[] | null;
 	}
+
+	const TARGET_KINDS: Record<RouteTarget['kind'], string> = {
+		location: 'Item',
+		flag: 'Flag',
+		door: 'Door',
+		ocarina: 'Ocarina'
+	};
 
 	let route = $state<Route | null>(null);
 	let routeDialog = $state<HTMLDialogElement>();
@@ -124,17 +134,18 @@
 		session?.free();
 	});
 
-	function showRoute(tile: Tile) {
-		if (!session) return;
-		// A tile's description is the item label, then the location on its own line.
-		const [item, location] = tile.description.split('\n');
+	/** Show a route in the dialog, replacing any route already shown. */
+	function showRoute(target: RouteTarget, name: string) {
+		if (!session || !routeDialog) return;
+		const tile = target.kind === 'location' ? (tiles[target.index] ?? null) : null;
 		route = {
 			tile,
-			item,
-			location,
-			steps: session.traceRoute(tile.locationIdx)
+			title: `Route to ${tile ? tile.item : name}`,
+			subtitle: tile ? tile.location : TARGET_KINDS[target.kind],
+			steps: session.traceRoute(target)
 		};
-		routeDialog?.showModal();
+		if (routeDialog.open) routeDialog.scrollTop = 0;
+		else routeDialog.showModal();
 	}
 
 	interface StatePart {
@@ -190,39 +201,51 @@
 		return parts;
 	}
 
-	const rows = $derived.by(() => {
-		if (!spoiler) return [];
+	/** Tiles for every placed item, by location index, including items hidden from the rows. */
+	const tiles = $derived.by(() => {
+		const result: Record<number, Tile> = {};
+		if (!spoiler) return result;
 		// Progressive levels count copies in sphere order, then catalog order within a sphere.
 		const levels: Record<string, number> = { ...startingCounts };
+		for (const group of [...spoiler.spheres, spoiler.unreachable]) {
+			for (const entry of group) {
+				if (entry.item === null || entry.item === 'nothing') continue;
+				const level = (levels[entry.item] ?? 0) + 1;
+				levels[entry.item] = level;
+				result[entry.location_idx] = {
+					icon: getItemLevelIcon(entry.item, level),
+					badge: getBadge(entry.item),
+					item: describe(entry.item, entry),
+					location: entry.location,
+					locationIdx: entry.location_idx
+				};
+			}
+		}
+		return result;
+	});
+
+	const rows = $derived.by(() => {
+		if (!spoiler) return [];
 		const result: Row[] = [];
 		const groups = [...spoiler.spheres];
 		if (spoiler.unreachable.length) groups.push(spoiler.unreachable);
 		for (const [index, group] of groups.entries()) {
 			const ranked: { rank: number; tile: Tile }[] = [];
 			for (const entry of group) {
-				if (entry.item === null || entry.item === 'nothing') continue;
-				const level = (levels[entry.item] ?? 0) + 1;
-				levels[entry.item] = level;
+				const tile = tiles[entry.location_idx];
+				if (!tile || entry.item === null) continue;
 				const tier = items.find((item) => item.name === entry.item)?.tier;
 				if (importantOnly && tier !== 'major' && tier !== 'high') continue;
-				ranked.push({
-					rank: getRank(entry.item),
-					tile: {
-						icon: getItemLevelIcon(entry.item, level),
-						badge: getBadge(entry.item),
-						description: describe(entry.item, entry),
-						locationIdx: entry.location_idx
-					}
-				});
+				ranked.push({ rank: getRank(entry.item), tile });
 			}
 			ranked.sort((a, b) => a.rank - b.rank);
-			const tiles: Tile[] = [];
-			for (const { tile } of ranked) tiles.push(tile);
-			if (importantOnly && tiles.length === 0) continue;
+			const rowTiles: Tile[] = [];
+			for (const { tile } of ranked) rowTiles.push(tile);
+			if (importantOnly && rowTiles.length === 0) continue;
 			result.push({
 				index,
 				title: index < spoiler.spheres.length ? `${index + 1}` : 'Unreachable',
-				tiles
+				tiles: rowTiles
 			});
 		}
 		return result;
@@ -232,7 +255,7 @@
 		let label = ITEM_LABELS[item] ?? item;
 		if (entry.door) label += ` (${entry.door})`;
 		if (entry.dungeon) label += ` (${entry.dungeon})`;
-		return `${label}\n${entry.location}`;
+		return label;
 	}
 </script>
 
@@ -291,11 +314,11 @@
 							<button
 								type="button"
 								class="tile"
-								title={tile.description}
-								aria-label="Show a route to {tile.description}"
+								title={`${tile.item}\n${tile.location}`}
+								aria-label="Show a route to {tile.item} at {tile.location}"
 								onclick={(event) => {
 									event.stopPropagation();
-									showRoute(tile);
+									showRoute({ kind: 'location', index: tile.locationIdx }, tile.item);
 								}}
 							>
 								{#if tile.icon}
@@ -330,18 +353,20 @@
 	>
 		{#if route}
 			<div class="d-flex align-items-center gap-2 px-4 py-3 border-bottom">
-				<span class="tile">
-					{#if route.tile.icon}
-						<img src={route.tile.icon} alt="" />
-					{:else}
-						<span class="badge-text" style:color={route.tile.badge.color}
-							>{route.tile.badge.text}</span
-						>
-					{/if}
-				</span>
+				{#if route.tile}
+					<span class="tile">
+						{#if route.tile.icon}
+							<img src={route.tile.icon} alt="" />
+						{:else}
+							<span class="badge-text" style:color={route.tile.badge.color}
+								>{route.tile.badge.text}</span
+							>
+						{/if}
+					</span>
+				{/if}
 				<div class="me-auto">
-					<h2 id="spoiler-route-title" class="h5 fw-bold mb-0">Route to {route.item}</h2>
-					<div class="small text-body-secondary">{route.location}</div>
+					<h2 id="spoiler-route-title" class="h5 fw-bold mb-0">{route.title}</h2>
+					<div class="small text-body-secondary">{route.subtitle}</div>
 				</div>
 				<button
 					type="button"
@@ -366,8 +391,20 @@
 									<td>{step.destination}</td>
 									<td>
 										{step.strat}
-										{#each step.dependencies as dependency (dependency)}
-											<div class="text-body-secondary">{dependency}</div>
+										{#each step.dependencies as dependency (dependency.name)}
+											<div>
+												{#if dependency.target}
+													{@const target = dependency.target}
+													<button
+														type="button"
+														class="btn btn-link btn-sm p-0 text-start dependency"
+														onclick={() => showRoute(target, dependency.name)}
+														>{dependency.name}</button
+													>
+												{:else}
+													<span class="text-body-secondary">{dependency.name}</span>
+												{/if}
+											</div>
 										{/each}
 									</td>
 									<td>
@@ -488,6 +525,10 @@
 		width: 16px;
 		height: 16px;
 		image-rendering: pixelated;
+	}
+
+	.dependency {
+		font-size: inherit;
 	}
 
 	.route td {

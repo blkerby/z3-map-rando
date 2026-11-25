@@ -1,15 +1,16 @@
 use common_types::Item;
 use generator::{
     graph::{TraversalEdge, TraversalEdgeOrigin},
-    spoiler::SpoilerReplay,
+    spoiler::{RouteTarget, SpoilerReplay},
     state::HealthState,
 };
 use logic_catalog::{
-    Connection, EdgeOrigin, EntranceKind, Follower, ItemLocationIndex, LogicCatalog,
-    MapBoundaryKind, OcarinaState, Requirement, TransitionState, VertexIndex, VertexOrigin, World,
+    Connection, DoorIndex, EdgeOrigin, EntranceKind, FlagIndex, Follower, ItemLocationIndex,
+    LogicCatalog, MapBoundaryKind, OcarinaState, Requirement, TransitionState, VertexIndex,
+    VertexOrigin, World,
 };
 use seed_data::SeedData;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
 /// Patch a vanilla ROM with a saved seed (JSON), customization settings (JSON), and the
@@ -62,8 +63,25 @@ struct RouteRow {
     strat: String,
     /// Flags, opened doors, and Ocarina activation read by the edge's requirement, including
     /// alternatives the route may not have used.
-    dependencies: Vec<String>,
+    dependencies: Vec<Dependency>,
     state: RouteState,
+}
+
+#[derive(Serialize)]
+struct Dependency {
+    name: String,
+    /// The route to follow for it, or None for progress held from the start.
+    target: Option<TargetJson>,
+}
+
+/// A route target as JSON, such as `{"kind": "location", "index": 3}` or `{"kind": "ocarina"}`.
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(tag = "kind", content = "index", rename_all = "snake_case")]
+enum TargetJson {
+    Location(u32),
+    Flag(u32),
+    Door(u32),
+    Ocarina,
 }
 
 /// Local state on arrival. Health, magic, and ammunition are counted from the start.
@@ -135,14 +153,20 @@ impl SpoilerSession {
         describe().map_err(|error| JsError::new(&format!("{error:#}")))
     }
 
-    /// Trace a route to an item location, returning its rows as JSON, or null if none is found.
-    pub fn trace_route(&self, location_idx: u32) -> Result<String, JsError> {
+    /// Trace a route to a target (JSON, as in a dependency's target), returning its rows as
+    /// JSON, or null if none is found.
+    pub fn trace_route(&self, target_json: &str) -> Result<String, JsError> {
         let catalog = &self.catalog;
-        let mut rows = None;
-        if let Some(route) = self
-            .replay
-            .trace_route(catalog, ItemLocationIndex(location_idx))
+        let target = match serde_json::from_str(target_json)
+            .map_err(|error| JsError::new(&error.to_string()))?
         {
+            TargetJson::Location(idx) => RouteTarget::ItemLocation(ItemLocationIndex(idx)),
+            TargetJson::Flag(idx) => RouteTarget::Flag(FlagIndex(idx)),
+            TargetJson::Door(idx) => RouteTarget::Door(DoorIndex(idx)),
+            TargetJson::Ocarina => RouteTarget::Ocarina,
+        };
+        let mut rows = None;
+        if let Some(route) = self.replay.trace_route(catalog, target) {
             let mut route_rows = Vec::new();
             for step in route {
                 let mut strat = "Start".to_owned();
@@ -151,7 +175,12 @@ impl SpoilerSession {
                     let edge = &self.replay.graph.outgoing[index.from_vertex_idx.0 as usize]
                         [index.outgoing_idx];
                     strat = describe_edge(catalog, &self.replay.connections, edge);
-                    collect_dependencies(catalog, &edge.edge.requirement, &mut dependencies);
+                    collect_dependencies(
+                        catalog,
+                        &self.replay,
+                        &edge.edge.requirement,
+                        &mut dependencies,
+                    );
                 }
                 let state = step.state;
                 let mut followers = Vec::new();
@@ -256,27 +285,50 @@ fn describe_edge(
 /// provides.
 fn collect_dependencies(
     catalog: &LogicCatalog,
+    replay: &SpoilerReplay,
     requirement: &Requirement,
-    dependencies: &mut Vec<String>,
+    dependencies: &mut Vec<Dependency>,
 ) {
-    let dependency = match requirement {
+    let (name, target) = match requirement {
         Requirement::And(children) | Requirement::Or(children) => {
             for child in children {
-                collect_dependencies(catalog, child, dependencies);
+                collect_dependencies(catalog, replay, child, dependencies);
             }
             return;
         }
-        Requirement::Flag(idx) => catalog.flag(*idx).to_owned(),
+        Requirement::Flag(idx) => (catalog.flag(*idx).to_owned(), Some(RouteTarget::Flag(*idx))),
         Requirement::Door(idx) => {
             let door = catalog.door(*idx);
-            format!("{} - {}", catalog.room(door.room_idx).name, door.name)
+            (
+                format!("{} - {}", catalog.room(door.room_idx).name, door.name),
+                replay.resolve_door(catalog, *idx),
+            )
         }
-        Requirement::Ocarina(OcarinaState::Active) => "Ocarina activated".to_owned(),
+        Requirement::Ocarina(OcarinaState::Active) => {
+            ("Ocarina activated".to_owned(), Some(RouteTarget::Ocarina))
+        }
         _ => return,
     };
-    if !dependencies.contains(&dependency) {
-        dependencies.push(dependency);
+    for dependency in dependencies.iter() {
+        if dependency.name == name {
+            return;
+        }
     }
+    let mut target_json = None;
+    if let Some(target) = target
+        && replay.get_route_state(target).is_some()
+    {
+        target_json = Some(match target {
+            RouteTarget::ItemLocation(idx) => TargetJson::Location(idx.0),
+            RouteTarget::Flag(idx) => TargetJson::Flag(idx.0),
+            RouteTarget::Door(idx) => TargetJson::Door(idx.0),
+            RouteTarget::Ocarina => TargetJson::Ocarina,
+        });
+    }
+    dependencies.push(Dependency {
+        name,
+        target: target_json,
+    });
 }
 
 fn create_spoiler_entry(

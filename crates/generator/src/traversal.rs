@@ -66,6 +66,7 @@ pub fn traverse(
 /// Global state retains reachable and collected locations, including earlier waves.
 /// Global changes seed only dependent edges with retained source states.
 /// Initial changes report capabilities granted before this call.
+/// Each wave's global state and discoveries are passed to on_wave before being applied.
 pub fn compute_closure(
     catalog: &LogicCatalog,
     graph: &TraversalGraph,
@@ -75,6 +76,7 @@ pub fn compute_closure(
     placements: &[Option<Item>],
     initial_vertices: Vec<VertexIndex>,
     mut changes: HashSet<GlobalDependency>,
+    mut on_wave: impl FnMut(&GlobalState, &GlobalDiscoveries),
 ) -> Result<()> {
     let mut initial_work = Vec::new();
     for vertex_idx in initial_vertices {
@@ -117,6 +119,7 @@ pub fn compute_closure(
             &initial_work,
         );
         initial_work.clear();
+        on_wave(global, &discoveries);
         for idx in discoveries.item_locations {
             global.reachable_item_locations[idx.0 as usize] = true;
             changes.insert(GlobalDependency::ItemLocation(idx));

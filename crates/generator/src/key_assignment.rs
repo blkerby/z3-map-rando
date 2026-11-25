@@ -64,6 +64,7 @@ impl KeyPlacementState {
             &state.placements,
             Vec::new(),
             changes,
+            |_, _| {},
         )?;
         let mut missing = Vec::new();
         for (index, reachable) in state.global.reachable_item_locations.iter().enumerate() {
@@ -111,6 +112,7 @@ impl KeyPlacementState {
             &initial.placements,
             vec![graph.start_vertex_idx],
             HashSet::new(),
+            |_, _| {},
         )?;
         Ok(initial)
     }
@@ -157,6 +159,7 @@ impl KeyPlacementState {
                 &initial.placements,
                 Vec::new(),
                 changes,
+                |_, _| {},
             )?;
             initial_states.push(initial);
         }
@@ -263,6 +266,7 @@ fn assign_dungeon_keys(
                     &candidate.placements,
                     Vec::new(),
                     HashSet::new(),
+                    |_, _| {},
                 )?;
 
                 let mut found_new_key = false;
