@@ -199,9 +199,7 @@ pub fn assign_small_keys(
             let door_idx = assignments[&location_idx];
             items.insert(
                 location_idx,
-                Item::SmallKey {
-                    door_id: inputs.door_ids[door_idx.0 as usize],
-                },
+                Item::SmallKey(inputs.door_ids[door_idx.0 as usize]),
             );
         }
     }
@@ -253,9 +251,8 @@ fn assign_dungeon_keys(
                 doors.shuffle(rng);
                 let mut candidate = state.clone();
                 for (&location_idx, &door_idx) in keys.iter().zip(&doors) {
-                    candidate.placements[location_idx.0 as usize] = Some(Item::SmallKey {
-                        door_id: inputs.door_ids[door_idx.0 as usize],
-                    });
+                    candidate.placements[location_idx.0 as usize] =
+                        Some(Item::SmallKey(inputs.door_ids[door_idx.0 as usize]));
                 }
                 compute_closure(
                     catalog,

@@ -12,7 +12,7 @@ Completion uses the accepted closure’s collected-location bits after every slo
 
 ## Logic and game representation
 
-The [logic catalog](logic.md) retains stable authored door identities and lock types. `Item::SmallKey { door_id: DoorId }` stores the assigned source room and door ID directly in each saved placement. Collecting a key grants persistent access to that door. Big Keys remain scoped to their pickup’s dungeon. Save and quit retains inventory and permanent door access.
+The [logic catalog](logic.md) retains stable authored door identities and lock types. `Item::SmallKey(DoorId)` stores the assigned source room and door ID directly in each saved placement. Collecting a key grants persistent access to that door. Big Keys remain scoped to their pickup’s dungeon. Save and quit retains inventory and permanent door access.
 
 Normal traversal also tracks route-local resources, followers, and obstacles. Both preliminary key assignment and ordinary item placement share this interpreter and retain their own global state, local-state reducers, and placements.
 

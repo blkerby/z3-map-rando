@@ -149,7 +149,7 @@ impl GlobalState {
         }
         *collected = true;
         Ok(match item {
-            Item::SmallKey { door_id } => {
+            Item::SmallKey(door_id) => {
                 let door_idx = inputs.door_indices[&door_id];
                 let unlocked = &mut self.unlocked_doors[door_idx.0 as usize];
                 if !*unlocked {
@@ -298,7 +298,7 @@ impl GlobalState {
             Item::Crystal6 => Some(D::Item(UniqueItem::Crystal6 as usize)),
             Item::Crystal7 => Some(D::Item(UniqueItem::Crystal7 as usize)),
             Item::Triforce => Some(D::Item(UniqueItem::Triforce as usize)),
-            Item::SmallKey { .. }
+            Item::SmallKey(_)
             | Item::BigKey
             | Item::Sword
             | Item::Shield

@@ -75,9 +75,8 @@ pub enum Item {
     // Dungeon items
     Map,
     Compass,
-    SmallKey {
-        door_id: DoorId,
-    },
+    /// A Small Key opening the assigned door.
+    SmallKey(DoorId),
     BigKey,
 
     // Dungeon prizes

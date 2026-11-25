@@ -180,7 +180,7 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
     }
     for (&item, &count) in &item_pool {
         match item {
-            Item::SmallKey { .. }
+            Item::SmallKey(_)
             | Item::BigKey
             | Item::Map
             | Item::Compass

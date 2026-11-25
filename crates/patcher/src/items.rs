@@ -53,7 +53,7 @@ pub(crate) fn apply_items(
                 continue;
             }
             let item = match placement.item {
-                Item::SmallKey { .. } => &catalog.small_key,
+                Item::SmallKey(_) => &catalog.small_key,
                 item => catalog
                     .items
                     .get(&item)
