@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
+	import linkHead from '$lib/assets/link_head.png';
 	import { ITEM_LABELS, getItemLevelIcon, items } from '$lib/generation/data';
 	import { useRomStore } from '$lib/rom/store.svelte';
 	import Segmented from '$lib/settings/controls/Segmented.svelte';
 	import {
 		openSpoiler,
-		renderWorldMaps,
+		type MapPoint,
 		type RouteRow,
 		type RouteState,
 		type RouteTarget,
@@ -90,6 +91,7 @@
 	let started = false;
 
 	interface Route {
+		target: RouteTarget;
 		/** The target item, or null for a route to a discovery. */
 		tile: Tile | null;
 		title: string;
@@ -152,13 +154,16 @@
 
 	function renderMaps() {
 		mapStarted = true;
-		renderWorldMaps(seed, rom.bytes!)
+		session!
+			.loadWorldMaps(rom.bytes!)
 			.then((urls) => {
 				if (destroyed) {
 					for (const url of urls) URL.revokeObjectURL(url);
 					return;
 				}
 				worldMaps = urls;
+				// Trace the shown route again, now with entrance points.
+				if (route) route.steps = session!.traceRoute(route.target);
 			})
 			.catch((e) => (mapError = e instanceof Error ? e.message : String(e)));
 	}
@@ -179,6 +184,7 @@
 		if (!session || !routeDialog) return;
 		const tile = target.kind === 'location' ? (tiles[target.index] ?? null) : null;
 		route = {
+			target,
 			tile,
 			title: `Route to ${tile ? tile.item : name}`,
 			subtitle: tile ? tile.location : TARGET_KINDS[target.kind],
@@ -188,6 +194,46 @@
 		else routeDialog.showModal();
 		if (!mapStarted) void startMaps();
 	}
+
+	interface MapLine {
+		world: MapPoint['world'];
+		/** Whether the line is a warp or interior travel rather than overworld travel. */
+		dotted: boolean;
+		/** SVG polyline points. */
+		points: string;
+	}
+
+	/** The shown route as lines between its map points, split where the world or kind of travel changes. */
+	const mapRoute = $derived.by(() => {
+		const lines: MapLine[] = [];
+		let start: MapPoint | null = null;
+		let end: MapPoint | null = null;
+		let indirect = false;
+		for (const step of route?.steps ?? []) {
+			if (step.indirect) indirect = true;
+			const point = step.point;
+			if (!point) continue;
+			// A repeated point, such as leaving through the door just entered, only changes the current world.
+			if (end && (end.x !== point.x || end.y !== point.y)) {
+				// A line takes the world of its starting point.
+				const last = lines.at(-1);
+				if (last && last.world === end.world && last.dotted === indirect) {
+					last.points += ` ${point.x},${point.y}`;
+				} else {
+					lines.push({
+						world: end.world,
+						dotted: indirect,
+						points: `${end.x},${end.y} ${point.x},${point.y}`
+					});
+				}
+			} else if (!end) {
+				start = point;
+			}
+			end = point;
+			indirect = false;
+		}
+		return { lines, start, end };
+	});
 
 	interface StatePart {
 		icon?: string | null;
@@ -491,11 +537,49 @@
 							onchange={(value) => (mapWorld = value)}
 						/>
 					</div>
-					<img
-						class="world-map"
-						src={worldMaps[mapWorld === 'light' ? 0 : 1]}
-						alt="{mapWorld === 'light' ? 'Light' : 'Dark'} World map"
-					/>
+					<div class="world-map">
+						<img
+							src={worldMaps[mapWorld === 'light' ? 0 : 1]}
+							alt="{mapWorld === 'light' ? 'Light' : 'Dark'} World map"
+						/>
+						<!-- Travel in the shown world is solid, in the other world dashed and dimmed; warps and interiors
+						     are dotted. Every line animates in the direction of travel. -->
+						<svg viewBox="0 0 384 384" aria-hidden="true">
+							{#each mapRoute.lines as line, lineIndex (lineIndex)}
+								{@const shown = line.world === mapWorld}
+								<polyline
+									points={line.points}
+									class="route-line"
+									class:dotted={line.dotted}
+									class:dashed={!line.dotted && !shown}
+									class:other-world={!shown}
+								/>
+								{#if !line.dotted && shown}
+									<polyline points={line.points} class="route-line flow" />
+								{/if}
+							{/each}
+							{#if mapRoute.start}
+								<image
+									href={linkHead}
+									x={mapRoute.start.x - 6}
+									y={mapRoute.start.y - 6}
+									width="12"
+									height="12"
+									class:other-world={mapRoute.start.world !== mapWorld}
+								/>
+							{/if}
+							{#if mapRoute.end && route.tile?.icon}
+								<image
+									href={route.tile.icon}
+									x={mapRoute.end.x - 6}
+									y={mapRoute.end.y - 6}
+									width="12"
+									height="12"
+									class:other-world={mapRoute.end.world !== mapWorld}
+								/>
+							{/if}
+						</svg>
+					</div>
 				{:else if mapStarted}
 					<p class="text-body-secondary mb-0" role="status">
 						<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
@@ -630,11 +714,84 @@
 
 	/* Twice the PNG's 384px size, so pixels scale evenly. */
 	.world-map {
-		display: block;
+		position: relative;
 		width: 768px;
 		max-width: 100%;
 		margin: 0 auto;
+	}
+
+	.world-map img {
+		display: block;
+		width: 100%;
 		image-rendering: pixelated;
+	}
+
+	.world-map svg {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		filter: drop-shadow(0 0 1px rgb(0 0 0 / 0.9));
+	}
+
+	.world-map image {
+		image-rendering: pixelated;
+	}
+
+	/* Lengths are in map pixels, each two screen pixels at full size. */
+	.route-line {
+		fill: none;
+		stroke: #ff3366;
+		stroke-width: 1.5;
+		stroke-linejoin: round;
+	}
+
+	.route-line.flow {
+		stroke: rgb(255 255 255 / 0.85);
+		stroke-width: 0.75;
+		stroke-dasharray: 2 8;
+		animation: march-flow 1s linear infinite;
+	}
+
+	.route-line.dashed {
+		stroke-width: 1;
+		stroke-dasharray: 4 2.5;
+		animation: march-dashed 0.65s linear infinite;
+	}
+
+	.route-line.dotted {
+		stroke-linecap: round;
+		stroke-dasharray: 0 3;
+		animation: march-dotted 0.3s linear infinite;
+	}
+
+	.other-world {
+		opacity: 0.5;
+	}
+
+	/* A decreasing offset moves the pattern forward along the line. */
+	@keyframes march-flow {
+		to {
+			stroke-dashoffset: -10;
+		}
+	}
+
+	@keyframes march-dashed {
+		to {
+			stroke-dashoffset: -6.5;
+		}
+	}
+
+	@keyframes march-dotted {
+		to {
+			stroke-dashoffset: -3;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.route-line {
+			animation: none !important;
+		}
 	}
 
 	.badge-text {

@@ -65,27 +65,6 @@ export async function downloadRom(request: RomRequest): Promise<void> {
 	setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/**
- * Render the saved seed's Light and Dark World maps from the player's ROM, as PNG object URLs. Revoke them when
- * done.
- */
-export async function renderWorldMaps(seed: string, rom: Uint8Array): Promise<string[]> {
-	const seedUrl = `/api/seed/${encodeURIComponent(seed)}`;
-	const [browser, seedBytes, retiling, patches] = await Promise.all([
-		loadBrowser(),
-		fetchBytes(seedUrl),
-		fetchBytes(`${seedUrl}/retiling`),
-		fetchBytes(patchCatalogUrl)
-	]);
-	const urls: string[] = [];
-	for (const png of browser.render_world_maps(rom, seedBytes, retiling, patches)) {
-		urls.push(
-			URL.createObjectURL(new Blob([png as Uint8Array<ArrayBuffer>], { type: 'image/png' }))
-		);
-	}
-	return urls;
-}
-
 export interface SpoilerEntry {
 	/** Catalog item location index, for route queries. */
 	location_idx: number;
@@ -138,6 +117,20 @@ export interface RouteRow {
 	/** Flags, opened doors, and Ocarina activation that the step's requirement reads. */
 	dependencies: RouteDependency[];
 	state: RouteState;
+	/**
+	 * Where the step crosses a map boundary or overworld entrance, or on the last step, where its target item sits on
+	 * the overworld; null for other steps, or for an entrance before the world maps are loaded.
+	 */
+	point: MapPoint | null;
+	/** Whether the step is a warp or starts in an interior, so travel since the previous point isn't overworld travel. */
+	indirect: boolean;
+}
+
+/** A position on the world maps, in pixels of their 384x384 images. */
+export interface MapPoint {
+	world: 'light' | 'dark';
+	x: number;
+	y: number;
 }
 
 /** A replayed seed held in WebAssembly memory; call `free` when done with it. */
@@ -145,6 +138,11 @@ export interface SpoilerSession {
 	spoiler: Spoiler;
 	/** A route from the start to a target, or null if none is found. */
 	traceRoute(target: RouteTarget): RouteRow[] | null;
+	/**
+	 * Render the Light and Dark World maps from the player's ROM, as PNG object URLs; revoke them when done. Routes
+	 * traced afterward include entrance points.
+	 */
+	loadWorldMaps(rom: Uint8Array): Promise<string[]>;
 	free(): void;
 }
 
@@ -159,6 +157,19 @@ export async function openSpoiler(seed: string): Promise<SpoilerSession> {
 	return {
 		spoiler: JSON.parse(session.get_spheres()),
 		traceRoute: (target) => JSON.parse(session.trace_route(JSON.stringify(target))),
+		loadWorldMaps: async (rom) => {
+			const seedUrl = `/api/seed/${encodeURIComponent(seed)}`;
+			const [retiling, patches] = await Promise.all([
+				fetchBytes(`${seedUrl}/retiling`),
+				fetchBytes(patchCatalogUrl)
+			]);
+			const urls: string[] = [];
+			for (const png of session.load_world_maps(rom, retiling, patches)) {
+				const blob = new Blob([png as Uint8Array<ArrayBuffer>], { type: 'image/png' });
+				urls.push(URL.createObjectURL(blob));
+			}
+			return urls;
+		},
 		free: () => session.free()
 	};
 }

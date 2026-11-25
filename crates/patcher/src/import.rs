@@ -600,7 +600,7 @@ impl Importer {
         Ok(assets)
     }
 
-    fn load_overworld_entrances(
+    pub fn load_overworld_entrances(
         &self,
     ) -> Result<(Vec<Vec<OverworldEntrance>>, Vec<Vec<OverworldPitEntrance>>)> {
         let mut entrances = vec![Vec::new(); 0xa0];

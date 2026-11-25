@@ -1,14 +1,15 @@
-use common_types::Item;
+use common_types::{Item, SourceRoomId};
 use generator::{
     graph::{TraversalEdge, TraversalEdgeOrigin},
     spoiler::{RouteTarget, SpoilerReplay},
     state::HealthState,
 };
 use logic_catalog::{
-    Connection, Direction, DoorIndex, EdgeOrigin, EntranceKind, FlagIndex, Follower,
-    ItemLocationIndex, LogicCatalog, MapBoundaryKind, OcarinaState, Requirement, TransitionState,
-    VertexIndex, VertexOrigin, World,
+    BoundaryEndpoint, Connection, Direction, DoorIndex, EdgeOrigin, EntranceKind, FlagIndex,
+    Follower, ItemLocationIndex, LogicCatalog, MapBoundaryKind, OcarinaState, Requirement,
+    RoomIndex, TransitionState, VertexIndex, VertexOrigin, World,
 };
+use patcher::import::{OverworldEntrance, OverworldPitEntrance};
 use seed_data::SeedData;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -34,33 +35,6 @@ pub fn patch_rom(
         patcher::patch_rom(rom, &seed, &retiling, &patches, &settings)
     };
     patch().map_err(|error| JsError::new(&format!("{error:#}")))
-}
-
-/// Render a saved seed's Light and Dark World maps as 384x384 PNGs, using graphics from a vanilla
-/// ROM and the seed's filtered retiling catalog. Half of the clouds around the room grid are cropped
-/// away.
-#[wasm_bindgen]
-pub fn render_world_maps(
-    rom: &[u8],
-    seed_json: &[u8],
-    retiling_catalog: &[u8],
-    patch_catalog: &[u8],
-) -> Result<Vec<js_sys::Uint8Array>, JsError> {
-    let render = || -> anyhow::Result<Vec<Vec<u8>>> {
-        let seed = SeedData::read(seed_json)?;
-        let retiling = retiling_catalog::decode_catalog(retiling_catalog)?;
-        let patches = patch_catalog::decode_catalog(patch_catalog)?;
-        let layout = patcher::resolve_world_layout(&seed, &patches)?;
-        let importer = patcher::import::Importer::new(rom.to_vec())?;
-        let map = patcher::retiling::compile_world_map(&retiling, &importer, &layout, true)?;
-        map.encode_pngs(64)
-    };
-    let pngs = render().map_err(|error| JsError::new(&format!("{error:#}")))?;
-    let mut output = Vec::new();
-    for png in pngs {
-        output.push(js_sys::Uint8Array::from(png.as_slice()));
-    }
-    Ok(output)
 }
 
 #[derive(Serialize)]
@@ -92,7 +66,50 @@ struct RouteRow {
     /// alternatives the route may not have used.
     dependencies: Vec<Dependency>,
     state: RouteState,
+    /// Where the edge crosses a map boundary or overworld entrance, or for the route's last
+    /// edge, where its target item sits on the overworld; None for other edges, or for an
+    /// entrance before the world maps are loaded.
+    point: Option<MapPoint>,
+    /// Whether the edge is a warp or starts in an interior, so travel since the previous point
+    /// is not drawn as overworld travel.
+    indirect: bool,
 }
+
+/// A position on the cropped world maps, in their pixels.
+#[derive(Serialize)]
+struct MapPoint {
+    world: &'static str,
+    x: f32,
+    y: f32,
+}
+
+/// Pixels cropped from each edge of the 512x512 world maps: half of the clouds around the
+/// room grid, which starts 128 pixels in. Each 16x16 overworld tile is one map pixel.
+const MAP_MARGIN: usize = 64;
+
+/// Overworld item locations as (room ID, item ID, x, y), with the item's position in 16x16
+/// tiles from its room's top-left, from vanilla sprite lists and tile checks. Other locations
+/// are in interiors or special areas, and use the route's last point.
+const OVERWORLD_ITEM_TILES: [(u32, u32, u8, u8); 18] = [
+    (1, 1, 30, 21),  // Mushroom
+    (3, 2, 34, 22),  // Spectacle Rock
+    (3, 3, 11, 4),   // Ether Tablet
+    (4, 1, 47, 3),   // Floating Island
+    (6, 1, 24, 8),   // Bumper Cave Ledge
+    (7, 1, 4, 11),   // Catfish
+    (16, 1, 32, 26), // Weathervane
+    (16, 2, 24, 22), // Bottle Merchant
+    (18, 1, 52, 18), // Pyramid Ledge
+    (23, 1, 7, 19),  // Maze Race
+    (23, 2, 14, 17), // Digging Game
+    (25, 1, 9, 9),   // Flute dig spot
+    (25, 2, 14, 15), // Stumpy
+    (31, 1, 6, 42),  // Desert Ledge
+    (31, 2, 55, 43), // Bombos Tablet
+    (35, 1, 25, 19), // Lake Hylia Island
+    (37, 1, 23, 5),  // Purple Chest
+    (38, 1, 20, 14), // Sunken Item
+];
 
 #[derive(Serialize)]
 struct Dependency {
@@ -132,7 +149,14 @@ struct RouteState {
 pub struct SpoilerSession {
     catalog: LogicCatalog,
     replay: SpoilerReplay,
+    seed: SeedData,
+    /// Vanilla overworld door and pit entrances, by vanilla area, once the world maps are
+    /// loaded from a ROM.
+    entrances: Option<EntranceTables>,
 }
+
+/// Vanilla overworld door and pit entrances, by vanilla area.
+type EntranceTables = (Vec<Vec<OverworldEntrance>>, Vec<Vec<OverworldPitEntrance>>);
 
 #[wasm_bindgen]
 impl SpoilerSession {
@@ -143,9 +167,41 @@ impl SpoilerSession {
             let seed = SeedData::read(seed_json)?;
             let catalog = logic_catalog::decode_catalog(logic_catalog)?;
             let replay = generator::spoiler::replay_spoiler(&catalog, &seed)?;
-            Ok(SpoilerSession { catalog, replay })
+            Ok(SpoilerSession {
+                catalog,
+                replay,
+                seed,
+                entrances: None,
+            })
         };
         replay().map_err(|error| JsError::new(&format!("{error:#}")))
+    }
+
+    /// Render the seed's Light and Dark World maps as 384x384 PNGs from a vanilla ROM, the
+    /// seed's filtered retiling catalog, and the patch catalog, cropping half of the clouds
+    /// around the room grid. Also read the ROM's entrance positions, so later routes include
+    /// entrance points.
+    pub fn load_world_maps(
+        &mut self,
+        rom: &[u8],
+        retiling_catalog: &[u8],
+        patch_catalog: &[u8],
+    ) -> Result<Vec<js_sys::Uint8Array>, JsError> {
+        let mut render = || -> anyhow::Result<Vec<Vec<u8>>> {
+            let retiling = retiling_catalog::decode_catalog(retiling_catalog)?;
+            let patches = patch_catalog::decode_catalog(patch_catalog)?;
+            let layout = patcher::resolve_world_layout(&self.seed, &patches)?;
+            let importer = patcher::import::Importer::new(rom.to_vec())?;
+            let map = patcher::retiling::compile_world_map(&retiling, &importer, &layout, true)?;
+            self.entrances = Some(importer.load_overworld_entrances()?);
+            map.encode_pngs(MAP_MARGIN)
+        };
+        let pngs = render().map_err(|error| JsError::new(&format!("{error:#}")))?;
+        let mut output = Vec::new();
+        for png in pngs {
+            output.push(js_sys::Uint8Array::from(png.as_slice()));
+        }
+        Ok(output)
     }
 
     /// Return the spheres and unreachable locations as JSON, with display names from the
@@ -224,6 +280,8 @@ impl SpoilerSession {
                     location: describe_vertex(catalog, index.from_vertex_idx),
                     strat: describe_edge(catalog, &self.replay.connections, edge),
                     dependencies,
+                    point: self.locate_edge(edge),
+                    indirect: check_indirect(catalog, edge),
                     state: RouteState {
                         form: format!("{:?}", state.form),
                         health_used,
@@ -236,9 +294,188 @@ impl SpoilerSession {
                     },
                 });
             }
+            if let RouteTarget::ItemLocation(location_idx) = target
+                && let Some(point) = self.locate_item(location_idx)
+                && let Some(last) = route_rows.last_mut()
+            {
+                last.point = Some(point);
+            }
             rows = Some(route_rows);
         }
         serde_json::to_string(&rows).map_err(|error| JsError::new(&error.to_string()))
+    }
+}
+
+impl SpoilerSession {
+    /// Place a position in 16x16 tiles from an overworld room's top-left on the maps, at the
+    /// room's position in the seed's layout.
+    fn locate_tile(&self, vertex_idx: VertexIndex, tile_x: f32, tile_y: f32) -> Option<MapPoint> {
+        let room = self.catalog.room(self.catalog.vertex(vertex_idx).room_idx);
+        let world = match self.catalog.vertex_metadata(vertex_idx).world? {
+            World::Light => "light",
+            World::Dark => "dark",
+        };
+        let mut position = None;
+        for seed_room in &self.seed.rooms {
+            if Some(seed_room.room_id) == room.room_id {
+                position = seed_room.position;
+            }
+        }
+        let [x, y] = position?;
+        // A map cell is one 32x32-tile area.
+        let origin = 128 - MAP_MARGIN;
+        Some(MapPoint {
+            world,
+            x: (origin + usize::from(x) * 32) as f32 + tile_x,
+            y: (origin + usize::from(y) * 32) as f32 + tile_y,
+        })
+    }
+
+    /// Locate where an edge crosses a map boundary or overworld entrance.
+    fn locate_edge(&self, edge: &TraversalEdge) -> Option<MapPoint> {
+        let TraversalEdgeOrigin::Connection(connection_idx) = edge.origin else {
+            return None;
+        };
+        match &self.replay.connections[connection_idx] {
+            Connection::MapBoundary {
+                endpoints,
+                direction,
+                ..
+            } => {
+                // The middle of the segments, on the side crossed, that hold the source vertex.
+                let vertex_idx = edge.edge.from_vertex_idx;
+                let room_idx = self.catalog.vertex(vertex_idx).room_idx;
+                let room = self.catalog.room(room_idx);
+                let side =
+                    match get_travel_direction(&self.catalog, endpoints, *direction, room_idx) {
+                        Direction::North => 0,
+                        Direction::South => 1,
+                        Direction::East => 2,
+                        Direction::West => 3,
+                    };
+                let segments = &room.edge_variants[side];
+                let mut along_sum = 0.0;
+                let mut count = 0;
+                for (segment, variants) in segments.iter().enumerate() {
+                    let mut holds_vertex = false;
+                    for endpoints in variants.values() {
+                        for endpoint in endpoints {
+                            if let BoundaryEndpoint::Node { light, dark } = endpoint
+                                && (*light == Some(vertex_idx) || *dark == Some(vertex_idx))
+                            {
+                                holds_vertex = true;
+                            }
+                        }
+                    }
+                    if holds_vertex {
+                        along_sum += (segment as f32 + 0.5) / segments.len() as f32;
+                        count += 1;
+                    }
+                }
+                if count == 0 {
+                    return None;
+                }
+                let along = along_sum / count as f32;
+                // Sizes count 16x16-tile screens.
+                let [width, height] = room.size?;
+                let (width, height) = (f32::from(width) * 16.0, f32::from(height) * 16.0);
+                let (x, y) = match side {
+                    0 => (along * width, 0.0),
+                    1 => (along * width, height),
+                    2 => (width, along * height),
+                    _ => (0.0, along * height),
+                };
+                self.locate_tile(vertex_idx, x, y)
+            }
+            Connection::Entrance { entrance_idx, .. } => {
+                let (entrances, pits) = self.entrances.as_ref()?;
+                let entrance = self.catalog.entrance(*entrance_idx);
+                let entrance_id = entrance.rom_entrance_id?;
+                let room = self
+                    .catalog
+                    .room(self.catalog.vertex(entrance.vertex_idx).room_idx);
+                let [x, y] = room.position?;
+                let mut area = usize::from(y) * 8 + usize::from(x);
+                if self.catalog.vertex_metadata(entrance.vertex_idx).world == Some(World::Dark) {
+                    area += 0x40;
+                }
+                let mut offset = None;
+                for door in &entrances[area] {
+                    if door.entrance_id == entrance_id {
+                        offset = Some(door.map16_offset);
+                    }
+                }
+                for pit in &pits[area] {
+                    if pit.entrance_id == entrance_id {
+                        offset = Some(pit.map16_offset);
+                    }
+                }
+                // Map16 buffer rows are 64 two-byte entries; take the tile's center.
+                let offset = offset?;
+                self.locate_tile(
+                    entrance.vertex_idx,
+                    f32::from(offset % 0x80 / 2) + 0.5,
+                    f32::from(offset / 0x80) + 0.5,
+                )
+            }
+            _ => None,
+        }
+    }
+
+    /// Locate an item that sits on the overworld.
+    fn locate_item(&self, location_idx: ItemLocationIndex) -> Option<MapPoint> {
+        let location = self.catalog.item_location(location_idx);
+        for (room_id, item_id, x, y) in OVERWORLD_ITEM_TILES {
+            if location.id.room_id == SourceRoomId::Overworld(room_id)
+                && location.id.item_id == item_id
+            {
+                return self.locate_tile(
+                    location.vertex_idx,
+                    f32::from(x) + 0.5,
+                    f32::from(y) + 0.5,
+                );
+            }
+        }
+        None
+    }
+}
+
+/// The direction of travel across a map boundary from a room, given the direction from its
+/// first endpoint to its second.
+fn get_travel_direction(
+    catalog: &LogicCatalog,
+    endpoints: &[VertexIndex; 2],
+    direction: Direction,
+    from_room_idx: RoomIndex,
+) -> Direction {
+    // A reverse edge starts in the second endpoint's room.
+    if catalog.vertex(endpoints[0]).room_idx == from_room_idx {
+        return direction;
+    }
+    match direction {
+        Direction::North => Direction::South,
+        Direction::South => Direction::North,
+        Direction::East => Direction::West,
+        Direction::West => Direction::East,
+    }
+}
+
+/// Whether an edge is a warp or starts in an interior.
+fn check_indirect(catalog: &LogicCatalog, edge: &TraversalEdge) -> bool {
+    if catalog
+        .vertex_metadata(edge.edge.from_vertex_idx)
+        .world
+        .is_none()
+    {
+        return true;
+    }
+    match edge.origin {
+        TraversalEdgeOrigin::Catalog(edge_idx) => matches!(
+            catalog.edge_metadata(edge_idx).origin,
+            EdgeOrigin::ImplicitMirror | EdgeOrigin::ImplicitFlute
+        ),
+        TraversalEdgeOrigin::Connection(_) => false,
+        TraversalEdgeOrigin::SaveAndQuit => true,
     }
 }
 
@@ -289,16 +526,7 @@ fn describe_edge(
                 kind,
                 direction,
             } => {
-                // A reverse edge starts in the second endpoint's room.
-                let mut direction = *direction;
-                if catalog.vertex(endpoints[0]).room_idx != from_room_idx {
-                    direction = match direction {
-                        Direction::North => Direction::South,
-                        Direction::South => Direction::North,
-                        Direction::East => Direction::West,
-                        Direction::West => Direction::East,
-                    };
-                }
+                let direction = get_travel_direction(catalog, endpoints, *direction, from_room_idx);
                 match kind {
                     MapBoundaryKind::Ordinary => format!("Cross {direction:?}"),
                     MapBoundaryKind::Mirror => format!("Mirror {direction:?}"),
