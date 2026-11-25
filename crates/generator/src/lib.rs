@@ -9,6 +9,7 @@ pub mod local_state_reducer;
 pub mod map;
 pub mod metadata;
 pub mod placement;
+pub mod spoiler;
 pub mod state;
 pub mod traversal;
 

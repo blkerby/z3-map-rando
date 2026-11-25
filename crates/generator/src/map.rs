@@ -97,7 +97,11 @@ pub fn build_vanilla_rooms(catalog: &LogicCatalog, theme: &str) -> Vec<Overworld
     rooms
 }
 
-fn create_room_placement(room: &Room, position: u8, theme: &str) -> OverworldRoomPlacement {
+pub(crate) fn create_room_placement(
+    room: &Room,
+    position: u8,
+    theme: &str,
+) -> OverworldRoomPlacement {
     let Some(SourceRoomId::Overworld(room_id)) = room.room_id else {
         unreachable!()
     };
