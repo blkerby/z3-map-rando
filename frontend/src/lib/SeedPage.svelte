@@ -594,7 +594,7 @@
 
 			{#if seed}
 				<CollapsibleSection id="spoiler" title="Spoiler" bind:open={spoilerOpen}>
-					<SpoilerList {seed} active={spoilerOpen} />
+					<SpoilerList {seed} active={spoilerOpen} startingCounts={countStartingItems(store)} />
 				</CollapsibleSection>
 			{/if}
 		</div>

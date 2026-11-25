@@ -40,6 +40,8 @@ struct SpoilerEntry {
     item: Option<String>,
     /// For a Small Key, the name of the door it opens.
     door: Option<String>,
+    /// For a Map, Compass, or Big Key, the name of its dungeon.
+    dungeon: Option<String>,
 }
 
 /// Replay a saved seed (JSON) against the logic catalog matching this build, returning its
@@ -78,6 +80,7 @@ fn create_spoiler_entry(
     let item = items[location_idx.0 as usize];
     let mut item_name = None;
     let mut door = None;
+    let mut dungeon = None;
     if let Some(item) = item {
         // An item kind serializes as its token string.
         item_name = Some(
@@ -86,6 +89,13 @@ fn create_spoiler_entry(
                 .unwrap()
                 .to_owned(),
         );
+        if let Item::Map(room_id) | Item::Compass(room_id) | Item::BigKey(room_id) = item {
+            for room in &catalog.rooms {
+                if room.room_id == Some(room_id) {
+                    dungeon = Some(room.name.clone());
+                }
+            }
+        }
         if let Item::SmallKey(door_id) = item {
             for catalog_door in &catalog.doors {
                 let room = &catalog.rooms[catalog_door.room_idx.0 as usize];
@@ -100,5 +110,6 @@ fn create_spoiler_entry(
         location: catalog.item_locations[location_idx.0 as usize].name.clone(),
         item: item_name,
         door,
+        dungeon,
     })
 }

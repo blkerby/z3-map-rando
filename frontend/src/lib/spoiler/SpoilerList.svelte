@@ -1,19 +1,84 @@
 <script lang="ts">
-	import { ITEM_LABELS } from '$lib/generation/data';
+	import { ITEM_LABELS, getItemLevelIcon, items } from '$lib/generation/data';
 	import { computeSpoiler, type Spoiler, type SpoilerEntry } from '$lib/seed';
 
 	let {
 		seed,
-		active
+		active,
+		startingCounts
 	}: {
 		seed: string;
 		/** Whether the list is visible; the replay runs the first time it is. */
 		active: boolean;
+		/** Starting copies of each item, so progressive items show the level each pickup reaches. */
+		startingCounts: Record<string, number>;
 	} = $props();
+
+	interface Tile {
+		/** Null for an item without an icon yet, shown with its fallback badge. */
+		icon: string | null;
+		badge: Badge;
+		/** Item and location, for the tooltip and screen readers. */
+		description: string;
+	}
+
+	interface Row {
+		title: string;
+		tiles: Tile[];
+	}
+
+	interface Badge {
+		text: string;
+		color?: string;
+	}
+
+	/**
+	 * Stand-ins for items whose icons haven't been drawn yet. An icon added to `assets/items` under the item's
+	 * name replaces its badge automatically; any other item without an icon uses its label's initials.
+	 */
+	const FALLBACK_BADGES: Record<string, Badge> = {
+		one_hundred_rupees: { text: '100' },
+		arrow: { text: '1A' },
+		ten_arrows: { text: '10A' },
+		pendant_of_courage: { text: 'P', color: '#3c3' },
+		pendant_of_wisdom: { text: 'P', color: '#e44' },
+		pendant_of_power: { text: 'P', color: '#48f' },
+		crystal1: { text: 'C1' },
+		crystal2: { text: 'C2' },
+		crystal3: { text: 'C3' },
+		crystal4: { text: 'C4' },
+		crystal5: { text: 'C5' },
+		crystal6: { text: 'C6' },
+		crystal7: { text: 'C7' }
+	};
+
+	/** Display order within a row, by placement tier, with prizes and dungeon items (which have no tier) between. */
+	const RANK_ORDER = ['major', 'prize', 'high', 'mid', 'dungeon', 'minor', 'junk'];
+
+	function getRank(name: string): number {
+		const record = items.find((item) => item.name === name);
+		const key =
+			record?.category === 'prize' || record?.category === 'dungeon'
+				? record.category
+				: record?.tier;
+		const rank = RANK_ORDER.indexOf(key ?? '');
+		return rank < 0 ? RANK_ORDER.length : rank;
+	}
+
+	function getBadge(name: string): Badge {
+		const badge = FALLBACK_BADGES[name];
+		if (badge) return badge;
+		const label = ITEM_LABELS[name] ?? name;
+		let text = '';
+		for (const word of label.split(' ')) text += word[0];
+		return { text: text.slice(0, 3) };
+	}
 
 	let spoiler = $state<Spoiler | null>(null);
 	let error = $state('');
 	let started = false;
+	/** Number of rows shown, from the top; the rest show question marks until revealed. */
+	let revealed = $state(0);
 
 	$effect(() => {
 		if (!active || started) return;
@@ -23,24 +88,46 @@
 			.catch((e) => (error = e instanceof Error ? e.message : String(e)));
 	});
 
-	function getItemLabel(entry: SpoilerEntry): string {
-		if (entry.item === null) return '—';
-		if (entry.item === 'nothing') return 'Nothing';
-		const label = ITEM_LABELS[entry.item] ?? entry.item;
-		return entry.door ? `${label} (${entry.door})` : label;
+	const rows = $derived.by(() => {
+		if (!spoiler) return [];
+		// Progressive levels count copies in sphere order, then catalog order within a sphere.
+		const levels: Record<string, number> = { ...startingCounts };
+		const result: Row[] = [];
+		const groups = [...spoiler.spheres];
+		if (spoiler.unreachable.length) groups.push(spoiler.unreachable);
+		for (const [index, group] of groups.entries()) {
+			const ranked: { rank: number; tile: Tile }[] = [];
+			for (const entry of group) {
+				if (entry.item === null || entry.item === 'nothing') continue;
+				const level = (levels[entry.item] ?? 0) + 1;
+				levels[entry.item] = level;
+				ranked.push({
+					rank: getRank(entry.item),
+					tile: {
+						icon: getItemLevelIcon(entry.item, level),
+						badge: getBadge(entry.item),
+						description: describe(entry.item, entry)
+					}
+				});
+			}
+			ranked.sort((a, b) => a.rank - b.rank);
+			const tiles: Tile[] = [];
+			for (const { tile } of ranked) tiles.push(tile);
+			result.push({
+				title: index < spoiler.spheres.length ? `${index + 1}` : 'Unreachable',
+				tiles
+			});
+		}
+		return result;
+	});
+
+	function describe(item: string, entry: SpoilerEntry): string {
+		let label = ITEM_LABELS[item] ?? item;
+		if (entry.door) label += ` (${entry.door})`;
+		if (entry.dungeon) label += ` (${entry.dungeon})`;
+		return `${label}\n${entry.location}`;
 	}
 </script>
-
-{#snippet entries(list: SpoilerEntry[])}
-	<ul class="list-unstyled mb-0 entries">
-		{#each list as entry, index (index)}
-			<li>
-				<span class="item">{getItemLabel(entry)}</span>
-				<span class="location text-body-secondary">{entry.location}</span>
-			</li>
-		{/each}
-	</ul>
-{/snippet}
 
 {#if error}
 	<div class="alert alert-danger small py-2 px-3" role="alert">
@@ -52,53 +139,110 @@
 		Computing spheres…
 	</p>
 {:else}
-	{#each spoiler.spheres as sphere, index (index)}
-		<details class="sphere">
-			<summary>
-				<span class="fw-semibold">Sphere {index + 1}</span>
-				<span class="text-body-secondary"
-					>· {sphere.length} {sphere.length === 1 ? 'item' : 'items'}</span
+	<div class="d-flex gap-2 mb-2">
+		<button
+			type="button"
+			class="btn btn-sm btn-outline-secondary"
+			onclick={() => (revealed = rows.length)}
+		>
+			Reveal all
+		</button>
+		<button type="button" class="btn btn-sm btn-outline-secondary" onclick={() => (revealed = 0)}>
+			Hide all
+		</button>
+	</div>
+	<p class="small text-body-secondary">
+		Each row is a sphere: the items collectible once all items in earlier rows are collected. Click
+		a hidden row to reveal it and the rows above it.
+	</p>
+	<div class="rows">
+		{#each rows as row, index (index)}
+			{#if index < revealed}
+				<div class="row-label">{row.title}</div>
+				<div class="tiles">
+					{#each row.tiles as tile, tileIndex (tileIndex)}
+						<span class="tile" title={tile.description} role="img" aria-label={tile.description}>
+							{#if tile.icon}
+								<img src={tile.icon} alt="" />
+							{:else}
+								<span class="badge-text" style:color={tile.badge.color}>{tile.badge.text}</span>
+							{/if}
+						</span>
+					{/each}
+				</div>
+			{:else}
+				<div class="row-label">{row.title}</div>
+				<button
+					type="button"
+					class="tiles hidden-row"
+					aria-label="Reveal rows 1 to {index + 1}"
+					onclick={() => (revealed = index + 1)}
 				>
-			</summary>
-			{@render entries(sphere)}
-		</details>
-	{/each}
-	{#if spoiler.unreachable.length}
-		<details class="sphere">
-			<summary>
-				<span class="fw-semibold">Unreachable</span>
-				<span class="text-body-secondary"
-					>· {spoiler.unreachable.length}
-					{spoiler.unreachable.length === 1 ? 'item' : 'items'}</span
-				>
-			</summary>
-			{@render entries(spoiler.unreachable)}
-		</details>
-	{/if}
+					{#each row.tiles as tile (tile)}
+						<span class="tile"><i class="bi bi-question-lg" aria-hidden="true"></i></span>
+					{/each}
+				</button>
+			{/if}
+		{/each}
+	</div>
 {/if}
 
 <style>
-	.sphere {
-		border-bottom: 1px solid var(--bs-border-color);
-		padding: 0.5rem 0;
+	.rows {
+		display: grid;
+		grid-template-columns: auto 1fr;
+		align-items: start;
+		column-gap: 0.75rem;
+		row-gap: 0.375rem;
 	}
 
-	summary {
-		cursor: pointer;
+	.row-label {
+		min-width: 1.5rem;
+		padding-top: 0.375rem;
+		text-align: right;
+		font-weight: 600;
 	}
 
-	.entries {
-		padding: 0.25rem 0 0.25rem 1.25rem;
-	}
-
-	.entries li {
+	.tiles {
 		display: flex;
 		flex-wrap: wrap;
-		column-gap: 0.75rem;
-		padding: 0.125rem 0;
+		gap: 2px;
 	}
 
-	.item {
-		min-width: 12rem;
+	.hidden-row {
+		padding: 0;
+		border: none;
+		background: none;
+		cursor: pointer;
+		text-align: start;
+	}
+
+	.tile {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 32px;
+		border-radius: 4px;
+		background: var(--bs-tertiary-bg);
+	}
+
+	.tile img {
+		width: 32px;
+		height: 32px;
+		image-rendering: pixelated;
+	}
+
+	.hidden-row .tile {
+		color: var(--bs-secondary-color);
+	}
+
+	.hidden-row:hover .tile {
+		background: var(--bs-secondary-bg);
+	}
+
+	.badge-text {
+		font-size: 0.7rem;
+		font-weight: 700;
 	}
 </style>

@@ -87,6 +87,16 @@ export function getItemIcon(name: string): string | null {
 	return ICONS[name] ?? ICONS[`${name}_1`] ?? null;
 }
 
+/**
+ * Icon URL of a progressive item at a level (1 for its first upgrade), using its last icon for levels past
+ * it; a non-progressive item's icon for any level. Null if there is none yet.
+ */
+export function getItemLevelIcon(name: string, level: number): string | null {
+	if (!ICONS[`${name}_1`]) return ICONS[name] ?? null;
+	for (let l = level; l >= 1; l--) if (ICONS[`${name}_${l}`]) return ICONS[`${name}_${l}`];
+	return ICONS[`${name}_1`];
+}
+
 /** Display names of items, by item token. */
 export const ITEM_LABELS: Record<string, string> = {};
 for (const item of items) ITEM_LABELS[item.name] = item.label;

@@ -69,6 +69,8 @@ export interface SpoilerEntry {
 	item: string | null;
 	/** For a Small Key, the door it opens. */
 	door: string | null;
+	/** For a Map, Compass, or Big Key, its dungeon. */
+	dungeon: string | null;
 }
 
 export interface Spoiler {

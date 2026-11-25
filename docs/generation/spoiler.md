@@ -1,6 +1,6 @@
 # Spoiler
 
-Seed pages have a collapsed "Spoiler" section listing one collapsible group per sphere, each with the items first collectible in that sphere and their locations.
+Seed pages have a collapsed "Spoiler" section showing one row of item icons per sphere, with each item's location on hover.
 
 ## Approach
 
@@ -16,6 +16,8 @@ Spheres are classic: sphere 1 is everything collectible with the starting invent
 
 ## Browser and page
 
-The browser package exports `replay_spoiler`, which takes the seed JSON and the logic catalog and returns the spheres and unreachable locations as JSON. Each entry has the location name, the item kind token, and for a Small Key the name of the door it opens. It adds about 72 KB gzipped to the package, and a replay takes about 70–80 ms in the browser.
+The browser package exports `replay_spoiler`, which takes the seed JSON and the logic catalog and returns the spheres and unreachable locations as JSON. Each entry has the location name, the item kind token, the name of the door a Small Key opens, and the dungeon name of a Map, Compass, or Big Key. It adds about 72 KB gzipped to the package, and a replay takes about 70–80 ms in the browser.
 
-The seed page fetches the logic catalog (about 55 KB) and runs the replay the first time the section is opened ([`SpoilerList.svelte`](../../frontend/src/lib/spoiler/SpoilerList.svelte)). Sphere groups start collapsed. Rows list items in catalog order, labeled with `ITEM_LABELS`, except that a Small Key is shown with its assigned door, e.g. "Small Key (<door name>)", and an empty slot is shown as "Nothing".
+The seed page fetches the logic catalog (about 55 KB) and runs the replay the first time the section is opened ([`SpoilerList.svelte`](../../frontend/src/lib/spoiler/SpoilerList.svelte)). Each sphere is a row of icons, one per item so that each stays individually hoverable, ordered by placement tier with prizes and dungeon items between the tiers; empty slots are omitted. Progressive items show the level each copy reaches, counting copies from the seed's starting equipment in sphere order and then catalog order. Items without an icon yet show a text badge until an icon named after the item is added to the item assets.
+
+Rows start hidden as rows of question marks, and clicking a hidden row reveals it and every row above it; buttons reveal or hide all rows.
