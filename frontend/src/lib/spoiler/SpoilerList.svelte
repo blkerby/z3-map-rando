@@ -235,8 +235,9 @@
 		display: grid;
 		grid-template-columns: subgrid;
 		align-items: start;
-		padding: 0.1875rem 0;
+		padding: 0.1875rem 0.375rem;
 		border: none;
+		border-radius: 4px;
 		background: none;
 		color: inherit;
 		font: inherit;
@@ -264,8 +265,12 @@
 		color: var(--bs-secondary-color);
 	}
 
-	.row-button:hover .tile {
+	.row-button:hover {
 		background: var(--bs-secondary-bg);
+	}
+
+	.row-button:hover .tile {
+		background: none;
 	}
 
 	.badge-text {
