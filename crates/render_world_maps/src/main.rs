@@ -1,10 +1,10 @@
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result};
 use clap::Parser;
-use generator::map::{MapPool, select_borders};
+use generator::map::{MapPool, build_vanilla_rooms, select_borders};
 use patcher::{import::Importer, retiling::compile_world_map};
 use rand::{SeedableRng, rngs::StdRng};
 use retiling_catalog::RetilingCatalog;
-use seed_data::{AreaLayout, WorldLayout};
+use seed_data::WorldLayout;
 use std::{
     fs::{self, File},
     io::BufWriter,
@@ -47,25 +47,13 @@ fn main() -> Result<()> {
         File::open(&args.retiling_catalog)
             .with_context(|| format!("opening {}", args.retiling_catalog.display()))?,
     )?;
-    let mut areas = Vec::new();
-    for area in catalog.areas.values() {
-        if let Some(vanilla_map_id) = area.vanilla_map_id {
-            if area.themes.contains_key(&args.theme) {
-                areas.push(AreaLayout {
-                    vanilla_map_id,
-                    theme_name: args.theme.clone(),
-                });
-            }
-        }
-    }
-    ensure!(
-        !areas.is_empty(),
-        "theme {:?} has no overworld areas",
-        args.theme
-    );
+    let logic = logic_catalog::decode_catalog(
+        File::open(&args.logic_catalog)
+            .with_context(|| format!("opening {}", args.logic_catalog.display()))?,
+    )?;
     let mut layout = WorldLayout {
-        areas,
-        rooms: Vec::new(),
+        vanilla: true,
+        rooms: build_vanilla_rooms(&logic, &args.theme),
         borders: Vec::new(),
     };
     fs::create_dir_all(&args.output_dir)?;
@@ -81,18 +69,15 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
-    let logic = logic_catalog::decode_catalog(
-        File::open(&args.logic_catalog)
-            .with_context(|| format!("opening {}", args.logic_catalog.display()))?,
-    )?;
     let pool_bytes = fs::read(&args.map_pool)
         .with_context(|| format!("reading map pool {}", args.map_pool.display()))?;
     let pool = MapPool::decode(&pool_bytes, &logic)?;
     let numeric_seed = args.rng.unwrap_or_else(rand::random);
     eprintln!("RNG seed: {numeric_seed}");
     let mut rng = StdRng::seed_from_u64(numeric_seed);
+    layout.vanilla = false;
     for index in 1..=args.count {
-        layout.rooms = pool.select_rooms(&logic, &mut rng)?;
+        layout.rooms = pool.select_rooms(&logic, &args.theme, &mut rng)?;
         select_borders(&logic, &mut layout, &mut rng)?;
         write_maps(
             &catalog,

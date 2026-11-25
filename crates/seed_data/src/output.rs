@@ -13,6 +13,9 @@ pub struct SeedData {
     pub settings: Settings,
     /// Public sparse document that the resolved settings came from.
     pub settings_document: SettingsDocument,
+    /// Whether the overworld uses the vanilla layout, with its own connections and edges.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub vanilla_map: bool,
     /// Rooms with any saved choice, in ascending room ID order.
     pub rooms: Vec<RoomData>,
     /// Open borders between adjacent map cells of different rooms; any other border is closed.
@@ -43,10 +46,11 @@ pub struct SeedMetadata {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RoomData {
     pub room_id: SourceRoomId,
-    /// Top-left map cell as [x, y], for overworld rooms in a randomized layout.
+    /// Top-left map cell as [x, y], for every overworld room.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub position: Option<[u8; 2]>,
-    /// Retiling theme, for rooms drawn as overworld areas. Overworld rooms use it in both worlds.
+    /// Retiling theme, for every overworld room, used in both worlds. Special areas take
+    /// their parent room's theme (`common_types::SPECIAL_ROOM_AREAS`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub theme: Option<String>,
     /// Final placements of all the room's locations, including empty slots, dungeon items,

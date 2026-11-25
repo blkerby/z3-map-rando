@@ -6,7 +6,7 @@ pub mod settings;
 pub mod settings_document;
 pub mod settings_processing;
 
-pub use layout::{AreaLayout, OverworldRoomPlacement, WorldLayout};
+pub use layout::{OverworldRoomPlacement, WorldLayout};
 pub use output::{BorderSide, ItemPlacement, MapBorder, RoomData, SeedData, SeedMetadata};
 pub use settings::{
     CustomizationSettings, InsufficientPoolItems, ItemPoolSettings, MapLayoutSetting,

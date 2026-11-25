@@ -297,7 +297,7 @@ fn read_room_records(
 )> {
     let mut locations = BTreeMap::new();
     let mut room_areas = BTreeMap::new();
-    for (room_id, area_id) in common_types::SPECIAL_ROOM_AREAS {
+    for (room_id, area_id, _) in common_types::SPECIAL_ROOM_AREAS {
         room_areas.insert(
             SourceRoomId::Underworld(room_id),
             RoomArea {

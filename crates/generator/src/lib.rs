@@ -19,8 +19,8 @@ use common_types::{Item, SourceRoomId};
 use graph::{TraversalGraph, build_graph};
 use inputs::{GenerationInputs, prepare_inputs};
 use key_assignment::{KeyAssignmentExhausted, KeyPlacementState, assign_small_keys};
-use logic_catalog::{LogicCatalog, RoomKind};
-use map::{MapPool, build_connections, select_borders};
+use logic_catalog::LogicCatalog;
+use map::{MapPool, build_connections, build_vanilla_rooms, select_borders};
 use placement::{PlacementState, PlacementStep};
 use rand::Rng;
 use retiling_catalog::palette::{
@@ -66,30 +66,26 @@ pub fn generate(
     };
 
     let palette_seed = metadata.rng_seed.parse()?;
+    // Area themes do not depend on room positions, so the vanilla layout supplies them.
+    let vanilla_layout = WorldLayout {
+        vanilla: true,
+        rooms: build_vanilla_rooms(logic_catalog, theme_name),
+        borders: Vec::new(),
+    };
     let mut area_themes = Vec::new();
-    for room in &logic_catalog.rooms {
-        if let Some([x, y]) = room.position {
-            let area = usize::from(y * 8 + x);
-            area_themes.push((area, theme_name));
-            area_themes.push((area | 0x40, theme_name));
-        } else if room.kind == RoomKind::Special {
-            for (room_id, area) in common_types::SPECIAL_ROOM_AREAS {
-                if room.room_id == Some(SourceRoomId::Underworld(room_id)) {
-                    area_themes.push((usize::from(area), theme_name));
-                }
-            }
-        }
+    for (area, theme) in vanilla_layout.build_area_themes() {
+        area_themes.push((usize::from(area), theme));
     }
     let profiles = select_palette_profiles(palette_profiles, area_themes)?;
 
     for attempt in 1..=MAX_GENERATION_ATTEMPTS {
         log::info!("Starting generation attempt {attempt}/{MAX_GENERATION_ATTEMPTS}");
         let mut world_layout = WorldLayout {
-            areas: Vec::new(),
+            vanilla: pool.is_none(),
             rooms: if let Some(pool) = &pool {
-                pool.select_rooms(logic_catalog, rng)?
+                pool.select_rooms(logic_catalog, theme_name, rng)?
             } else {
-                Vec::new()
+                vanilla_layout.rooms.clone()
             },
             borders: Vec::new(),
         };
@@ -141,25 +137,17 @@ pub fn generate(
             Err(error) => return Err(error),
         };
         let mut rooms = BTreeMap::new();
-        for room in &logic_catalog.rooms {
-            if matches!(room.kind, RoomKind::Overworld | RoomKind::Special) {
-                let room_id = room.room_id.unwrap();
-                rooms.insert(
-                    room_id,
-                    RoomData {
-                        room_id,
-                        position: None,
-                        theme: Some(theme_name.to_owned()),
-                        items: Vec::new(),
-                    },
-                );
-            }
-        }
         for placement in &world_layout.rooms {
-            let room = rooms
-                .get_mut(&SourceRoomId::Overworld(placement.room_id))
-                .unwrap();
-            room.position = Some([placement.position % 8, placement.position / 8]);
+            let room_id = SourceRoomId::Overworld(placement.room_id);
+            rooms.insert(
+                room_id,
+                RoomData {
+                    room_id,
+                    position: Some([placement.position % 8, placement.position / 8]),
+                    theme: Some(placement.theme.clone()),
+                    items: Vec::new(),
+                },
+            );
         }
         for (location, item) in logic_catalog.item_locations.iter().zip(items) {
             let room_id = location.id.room_id;
@@ -178,6 +166,7 @@ pub fn generate(
             metadata,
             settings,
             settings_document,
+            vanilla_map: world_layout.vanilla,
             rooms: rooms.into_values().collect(),
             borders: world_layout.borders,
         });

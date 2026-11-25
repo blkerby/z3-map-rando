@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use anyhow::{Result, ensure};
 use common_types::SourceRoomId;
 use logic_catalog::{
-    BoundaryEndpoint, Connection, LogicCatalog, MapBoundaryKind, VertexIndex, World,
+    BoundaryEndpoint, Connection, LogicCatalog, MapBoundaryKind, Room, VertexIndex, World,
 };
 use rand::Rng;
 use seed_data::{BorderSide, MapBorder, OverworldRoomPlacement, WorldLayout};
@@ -52,6 +52,7 @@ impl<'a> MapPool<'a> {
     pub fn select_rooms(
         &self,
         catalog: &LogicCatalog,
+        theme: &str,
         rng: &mut impl Rng,
     ) -> Result<Vec<OverworldRoomPlacement>> {
         let index = rng.random_range(0..self.records.len() / 40);
@@ -60,10 +61,8 @@ impl<'a> MapPool<'a> {
         let mut rooms = Vec::new();
         let mut occupied = [false; 64];
         for (&room_index, &position) in self.room_indices.iter().zip(record) {
-            let room = &catalog.rooms[room_index];
-            let [source_x, source_y] = room.position.unwrap();
-            let [width, height] = room.size.unwrap();
-            let size = [(width / 2) as u8, (height / 2) as u8];
+            let placement = create_room_placement(&catalog.rooms[room_index], position, theme);
+            let size = placement.size;
             let x = position % 8;
             let y = position / 8;
             ensure!(
@@ -77,21 +76,39 @@ impl<'a> MapPool<'a> {
                     occupied[cell] = true;
                 }
             }
-            let Some(SourceRoomId::Overworld(room_id)) = room.room_id else {
-                unreachable!()
-            };
-            rooms.push(OverworldRoomPlacement {
-                room_id,
-                vanilla_map_id: source_y * 8 + source_x,
-                position,
-                size,
-            });
+            rooms.push(placement);
         }
         ensure!(
             occupied.into_iter().all(|cell| cell),
             "map-pool layout has empty cells"
         );
         Ok(rooms)
+    }
+}
+
+/// Place every overworld room at its vanilla position.
+pub fn build_vanilla_rooms(catalog: &LogicCatalog, theme: &str) -> Vec<OverworldRoomPlacement> {
+    let mut rooms = Vec::new();
+    for room in &catalog.rooms {
+        if let (Some(SourceRoomId::Overworld(_)), Some([x, y])) = (room.room_id, room.position) {
+            rooms.push(create_room_placement(room, y * 8 + x, theme));
+        }
+    }
+    rooms
+}
+
+fn create_room_placement(room: &Room, position: u8, theme: &str) -> OverworldRoomPlacement {
+    let Some(SourceRoomId::Overworld(room_id)) = room.room_id else {
+        unreachable!()
+    };
+    let [source_x, source_y] = room.position.unwrap();
+    let [width, height] = room.size.unwrap();
+    OverworldRoomPlacement {
+        room_id,
+        vanilla_map_id: source_y * 8 + source_x,
+        position,
+        size: [(width / 2) as u8, (height / 2) as u8],
+        theme: theme.to_owned(),
     }
 }
 
@@ -195,7 +212,7 @@ pub fn select_borders(
 
 /// Build the traversal connections of a layout whose borders are already chosen.
 pub fn build_connections(catalog: &LogicCatalog, layout: &WorldLayout) -> Vec<Connection> {
-    if layout.rooms.is_empty() {
+    if layout.vanilla {
         return catalog.vanilla_connections.clone();
     }
     let mut connections = Vec::new();

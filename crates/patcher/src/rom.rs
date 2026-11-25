@@ -10,8 +10,8 @@ use common_types::{Item, SourceRoomId};
 use patch_catalog::PatchCatalog;
 use retiling_catalog::RetilingCatalog;
 use seed_data::{
-    AreaLayout, CustomizationSettings, OverworldRoomPlacement, StartingBoomerang, StartingBottle,
-    StartingBow, StartingOcarina, WorldLayout,
+    CustomizationSettings, OverworldRoomPlacement, StartingBoomerang, StartingBottle, StartingBow,
+    StartingOcarina, WorldLayout,
 };
 use std::collections::BTreeMap;
 
@@ -212,47 +212,25 @@ pub fn patch_rom(
     Ok(output)
 }
 
-/// Express the seed's room choices as map areas and cell indexes.
+/// Express the seed's room choices as map cell indexes.
 pub(crate) fn resolve_world_layout(seed: &SeedData, patches: &PatchCatalog) -> Result<WorldLayout> {
-    let mut themes = BTreeMap::new();
     let mut rooms = Vec::new();
     for room in &seed.rooms {
-        let Some(area) = patches.room_areas.get(&room.room_id) else {
-            continue;
-        };
-        if let Some(theme) = &room.theme {
-            let mut area_ids = vec![area.area_id];
-            if let SourceRoomId::Overworld(_) = room.room_id {
-                area_ids.push(area.area_id | 0x40);
-            }
-            for area_id in area_ids {
-                if let Some(existing) = themes.insert(area_id, theme) {
-                    // Sacred Grove and Under the Bridge share an area.
-                    ensure!(
-                        existing == theme,
-                        "rooms sharing area ${area_id:02X} have different themes"
-                    );
-                }
-            }
-        }
-        if let (SourceRoomId::Overworld(room_id), Some([x, y])) = (room.room_id, room.position) {
+        if let (SourceRoomId::Overworld(room_id), Some([x, y]), Some(theme)) =
+            (room.room_id, room.position, &room.theme)
+        {
+            let area = &patches.room_areas[&room.room_id];
             rooms.push(OverworldRoomPlacement {
                 room_id,
                 vanilla_map_id: area.area_id,
                 position: y * 8 + x,
                 size: area.size,
+                theme: theme.clone(),
             });
         }
     }
-    let mut areas = Vec::new();
-    for (vanilla_map_id, theme) in themes {
-        areas.push(AreaLayout {
-            vanilla_map_id,
-            theme_name: theme.clone(),
-        });
-    }
     Ok(WorldLayout {
-        areas,
+        vanilla: seed.vanilla_map,
         rooms,
         borders: seed.borders.clone(),
     })

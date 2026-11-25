@@ -1,6 +1,6 @@
 # Map randomization
 
-The `map_layout` setting selects `"vanilla"` or `"random"`; the bundled default is `"random"`. A random layout rearranges the overworld rooms on the vanilla 8x8 grid, using a layout from a precomputed pool (see [the rearranger](architecture.md#rearranger)), and chooses edge variants for the borders between rooms. Each Light World room and its Dark World counterpart are one placement unit, sharing their position and edge variants; specialized variants describe world-specific behavior. Only the Desert theme is supported, and generation never substitutes another theme or falls back to the vanilla layout. No Python runs during generation or patching.
+The `map_layout` setting selects `"vanilla"` or `"random"`; the bundled default is `"random"`. A random layout rearranges the overworld rooms on the vanilla 8x8 grid, using a layout from a precomputed pool (see [the rearranger](architecture.md#rearranger)), and chooses edge variants for the borders between rooms. Each Light World room and its Dark World counterpart are one placement unit, sharing their position and edge variants; specialized variants describe world-specific behavior. Each overworld room carries its theme in the layout, and special areas take the theme of their parent room. Only the Desert theme is supported, and generation never substitutes another theme or falls back to the vanilla layout. No Python runs during generation or patching.
 
 ## Map pool
 
@@ -14,7 +14,7 @@ For a selected pool record, `generator::map` fills the 8x8 grid with the rooms' 
 
 The vanilla layout keeps vanilla positions and the vanilla connections from the source `transitions`, and uses each area's `Main` layer directly; it does not use edge variants.
 
-Positions and variants come from the caller's seeded RNG in a deterministic order. The seed saves each room's position and the open borders with their variants (see [seed data](data-formats/seed-data.md)), so patching needs neither the pool nor the RNG.
+Positions and variants come from the caller's seeded RNG in a deterministic order. The seed saves each room's position and theme, whether the layout is vanilla, and the open borders with their variants (see [seed data](data-formats/seed-data.md)), so patching needs neither the pool nor the RNG.
 
 ## Traversal graph
 

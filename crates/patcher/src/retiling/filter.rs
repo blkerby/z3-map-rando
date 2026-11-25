@@ -21,25 +21,24 @@ pub fn filter_retiling_catalog(
     patches: &PatchCatalog,
 ) -> Result<RetilingCatalog> {
     let layout = resolve_world_layout(seed, patches)?;
-    let profiles = select_palette_profiles(
-        &catalog.palette_profiles,
-        layout
-            .areas
-            .iter()
-            .map(|area| (usize::from(area.vanilla_map_id), area.theme_name.as_str())),
-    )?;
+    let area_themes = layout.build_area_themes();
+    let mut profile_inputs = Vec::new();
+    for (&area, &theme) in &area_themes {
+        profile_inputs.push((usize::from(area), theme));
+    }
+    let profiles = select_palette_profiles(&catalog.palette_profiles, profile_inputs)?;
     let selected = select_areas(catalog, &layout)?;
 
     // Preserve the full catalog's palette allocations and authored tile indexes.
     let mut needed = BTreeSet::from([LIGHT_WORLD_RAIN_PALETTE, DARK_WORLD_RAIN_PALETTE]);
     let mut palette_profiles = BTreeMap::new();
-    for area in &layout.areas {
-        let id = usize::from(area.vanilla_map_id);
+    for (&area, &theme) in &area_themes {
+        let id = usize::from(area);
         if let Some(&profile) = profiles.get(&id) {
             needed.extend(profile.keys().copied());
             palette_profiles.insert(
                 id,
-                BTreeMap::from([(area.theme_name.clone(), Ok(profile.clone()))]),
+                BTreeMap::from([(theme.to_owned(), Ok(profile.clone()))]),
             );
         }
     }

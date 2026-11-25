@@ -30,10 +30,7 @@ pub(super) fn select_areas(
     let mut background_settings = BTreeMap::new();
     let mut cutscenes = Vec::new();
     let mut found_cutscenes = [false; 5];
-    let mut themes = BTreeMap::new();
-    for placement in &layout.areas {
-        themes.insert(placement.vanilla_map_id, placement.theme_name.as_str());
-    }
+    let themes = layout.build_area_themes();
     for (name, source) in &catalog.areas {
         let Some(area_id) = source.vanilla_map_id else {
             continue;

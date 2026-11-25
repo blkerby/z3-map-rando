@@ -73,13 +73,11 @@ pub fn compile(
     let mut graphics = TileGraphicResolver::create(importer);
     let mut palettes = resolve_palettes(catalog, &mut graphics)?;
     let scrollable_transitions = layout.build_scrollable_transition_pairs();
-    let profiles = select_palette_profiles(
-        &catalog.palette_profiles,
-        layout
-            .areas
-            .iter()
-            .map(|area| (usize::from(area.vanilla_map_id), area.theme_name.as_str())),
-    )?;
+    let mut area_themes = Vec::new();
+    for (area, theme) in layout.build_area_themes() {
+        area_themes.push((usize::from(area), theme));
+    }
+    let profiles = select_palette_profiles(&catalog.palette_profiles, area_themes)?;
     let allocation = allocate_palettes(&profiles, &scrollable_transitions, palette_seed)
         .with_context(|| {
             format!("no overworld palette assignment found in {PALETTE_ATTEMPTS} passes")

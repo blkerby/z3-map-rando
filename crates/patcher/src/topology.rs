@@ -48,7 +48,7 @@ pub(crate) fn apply_topology(
         SnesAddr(patches.symbols.area_to_anchor).into(),
         anchors.to_vec(),
     )?;
-    if layout.rooms.is_empty() {
+    if layout.vanilla {
         context.write(
             SnesAddr(0x82ddbb).into(),
             castle_main_exit_y.to_le_bytes().to_vec(),

@@ -1,17 +1,18 @@
-//! Overworld layout in terms of map areas and cell indexes, as used by generation and
-//! patching. Saved seeds store it in the room-based form of [`crate::SeedData`].
+//! Overworld layout in terms of map cell indexes, as used by generation and patching.
+//! Saved seeds store it in the room-based form of [`crate::SeedData`].
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{BorderSide, MapBorder};
 
-/// Area themes and, for a randomized layout, room placements and borders.
+/// Placements and themes of the overworld rooms, and the borders between them.
 #[derive(Clone, Debug)]
 pub struct WorldLayout {
-    pub areas: Vec<AreaLayout>,
-    /// Empty for the vanilla layout.
+    /// The vanilla layout uses its own connections and edges rather than `borders`.
+    pub vanilla: bool,
+    /// Every overworld room, at its vanilla position in the vanilla layout.
     pub rooms: Vec<OverworldRoomPlacement>,
-    /// Open borders; any other border is closed.
+    /// Open borders of a randomized layout; any other border is closed.
     pub borders: Vec<MapBorder>,
 }
 
@@ -21,11 +22,32 @@ pub struct OverworldRoomPlacement {
     pub vanilla_map_id: u8,
     pub position: u8,
     pub size: [u8; 2],
+    /// Retiling theme, used in both worlds.
+    pub theme: String,
 }
 
 impl WorldLayout {
+    /// Theme of each themed map area, keyed by vanilla map ID. Overworld rooms theme both
+    /// worlds, and special areas take their parent room's theme.
+    pub fn build_area_themes(&self) -> BTreeMap<u8, &str> {
+        let mut themes = BTreeMap::new();
+        for room in &self.rooms {
+            themes.insert(room.vanilla_map_id, room.theme.as_str());
+            themes.insert(room.vanilla_map_id | 0x40, room.theme.as_str());
+        }
+        for (_, area, parent_room_id) in common_types::SPECIAL_ROOM_AREAS {
+            for room in &self.rooms {
+                if room.room_id == parent_room_id {
+                    // The first room listed for a shared area sets its theme.
+                    themes.entry(area).or_insert(room.theme.as_str());
+                }
+            }
+        }
+        themes
+    }
+
     pub fn build_scrollable_transition_pairs(&self) -> BTreeSet<(usize, usize)> {
-        if !self.rooms.is_empty() {
+        if !self.vanilla {
             let mut cells = [0usize; 64];
             for room in &self.rooms {
                 for dy in 0..room.size[1] {
@@ -110,7 +132,7 @@ impl WorldLayout {
     }
 
     pub fn get_area_edges(&self, vanilla_map_id: u8) -> Vec<(String, String)> {
-        if vanilla_map_id >= 0x80 {
+        if self.vanilla || vanilla_map_id >= 0x80 {
             return Vec::new();
         }
         let Some(room) = self
@@ -174,12 +196,4 @@ impl WorldLayout {
         }
         edges
     }
-}
-
-#[derive(Clone, Debug)]
-pub struct AreaLayout {
-    /// Top-left vanilla map ID, including the world, not a source room ID or
-    /// the area's eventual position.
-    pub vanilla_map_id: u8,
-    pub theme_name: String,
 }

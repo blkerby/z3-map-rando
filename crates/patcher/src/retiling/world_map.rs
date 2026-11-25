@@ -71,16 +71,12 @@ pub(super) fn build_world_map(
             continue;
         }
         let logical = area.id as u8 & 0x3f;
-        let anchor = if layout.rooms.is_empty() {
-            logical
-        } else {
-            layout
-                .rooms
-                .iter()
-                .find(|room| room.vanilla_map_id == logical)
-                .unwrap()
-                .position
-        };
+        let anchor = layout
+            .rooms
+            .iter()
+            .find(|room| room.vanilla_map_id == logical)
+            .unwrap()
+            .position;
         let origin_x = 16 + usize::from(anchor % 8) * 4;
         let origin_y = 16 + usize::from(anchor / 8) * 4;
         let world = if area.id < 0x40 { 0 } else { 1 };
