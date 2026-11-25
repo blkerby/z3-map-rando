@@ -392,7 +392,16 @@
 		image-rendering: pixelated;
 	}
 
-	button.tile:hover,
+	button.tile {
+		transition: transform 0.1s;
+	}
+
+	button.tile:hover {
+		position: relative;
+		z-index: 1;
+		transform: scale(1.5);
+	}
+
 	.tile.selected {
 		outline: 2px solid var(--bs-primary);
 	}
