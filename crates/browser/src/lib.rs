@@ -92,7 +92,7 @@ const MAP_MARGIN: usize = 64;
 
 /// Distance in map pixels of a map boundary crossing's points from the boundary, so the line
 /// between them shows the direction of the crossing.
-const CROSSING_OFFSET: f32 = 4.0;
+const CROSSING_OFFSET: f32 = 6.0;
 
 /// Overworld item locations as (room ID, item ID, x, y), with the item's position in 16x16
 /// tiles from its room's top-left, from vanilla sprite lists and tile checks. Other locations

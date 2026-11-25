@@ -653,7 +653,7 @@
 		width: 32px;
 		height: 32px;
 		border-radius: 4px;
-		background: var(--bs-tertiary-bg);
+		background: none;
 	}
 
 	.tile img {
@@ -712,10 +712,6 @@
 
 	.row-button:hover {
 		background: var(--bs-secondary-bg);
-	}
-
-	.row-button:hover .tile {
-		background: none;
 	}
 
 	/* Twice the PNG's 384px size, so pixels scale evenly. */
