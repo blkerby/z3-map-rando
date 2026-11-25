@@ -1,7 +1,5 @@
 # Project architecture
 
-See [the prototype implementation plan](../plan.md) for the sequence of work.
-
 The project has the following main components:
 
 - [**ASM patches**](#asm-patches): modify the game engine and produce IPS patches and a symbol manifest.
@@ -24,7 +22,7 @@ Release binaries bundle the patch catalog, including IPS payloads and symbols, s
 The catalog builders run offline and produce these artifacts under `build/`:
 
 1. **Retiling builder:** This consumes the [ALTTPRetiling](https://github.com/kjbranch/ALTTPRetiling) JSON data which contains tile graphics and area layouts, including rethemed areas and edge variants of areas. It emits a binary file (the "retiling catalog") collecting this data in a compact, internal format.
-2. **Logic builder:** This consumes `z3-json-data` and emits a compact binary file (the "logic catalog"). See [the logic catalog plan](logic.md).
+2. **Logic builder:** This consumes `z3-json-data` and emits a compact binary file (the "logic catalog"). See [the logic catalog plan](../docs/generation/logic.md).
 3. **Patch builder:** This bundles named IPS patches and their matching symbol manifest, plus stable location mappings, ROM addresses, item receipt IDs, and prize encodings extracted directly from `z3-json-data`. It does not read the logic catalog. Individual IPS patches remain separate; patcher code controls their application. See [the patch plan](../docs/engine/patches.md).
 4. **Preset builder:** This prepares the built-in generation presets from the preset files and difficulty classifications under `data/`, deriving the skill presets and resolving each root preset into complete settings (see [shared settings data](../docs/data-formats/settings-data.md)). Types are defined in [`preset_catalog`](../crates/preset_catalog/src/lib.rs).
 
@@ -62,7 +60,7 @@ The catalog stores normalized authored content and vanilla references. Shared as
 
 ### Logic catalog
 
-The [logic catalog](logic.md) compiles room nodes, strats, and item locations from `z3-json-data`, with separate Light/Dark World vertices. Recursive requirements retain ordered resource use and alternative local states. Shared types are defined in [`logic_catalog`](../crates/logic_catalog/src/lib.rs); [`catalog_builder::logic`](../crates/catalog_builder/src/logic/mod.rs) builds the binary catalog from the source definitions. The catalog stores vanilla entrance, teleport, whirlpool, and adjacent overworld pairings separately from room edges. Generation expands these pairings or their randomized replacements into graph connections. This catalog retains stable location and item identities, while ROM addresses and item patch encodings are stored only in the patch catalog. Both builders read `z3-json-data` directly and may share source-reading types. [Door-specific keys](keys.md) are persistent progression items, so key logic does not require alternative spending histories.
+The [logic catalog](../docs/generation/logic.md) compiles room nodes, strats, and item locations from `z3-json-data`, with separate Light/Dark World vertices. Recursive requirements retain ordered resource use and alternative local states. Shared types are defined in [`logic_catalog`](../crates/logic_catalog/src/lib.rs); [`catalog_builder::logic`](../crates/catalog_builder/src/logic/mod.rs) builds the binary catalog from the source definitions. The catalog stores vanilla entrance, teleport, whirlpool, and adjacent overworld pairings separately from room edges. Generation expands these pairings or their randomized replacements into graph connections. This catalog retains stable location and item identities, while ROM addresses and item patch encodings are stored only in the patch catalog. Both builders read `z3-json-data` directly and may share source-reading types. [Door-specific keys](../docs/generation/keys.md) are persistent progression items, so key logic does not require alternative spending histories.
 
 ## Rearranger
 
@@ -86,9 +84,9 @@ The rearranger will likely be written as a Python application with a Rust subcom
 
 The generator is a Rust library for creating a randomized game ("seed"). It invokes the rearranger to obtain a rearranged overworld, then places items in a way that provides logical progression, so that the game is beatable at the selected level of difficulty. If it fails, it can retry with a fresh rearrangement.
 
-[Door-specific keys](keys.md) are assigned in a preliminary pass, one dungeon at a time, before ordinary item placement. Every new complete generation attempt reruns this pass.
+[Door-specific keys](../docs/generation/keys.md) are assigned in a preliminary pass, one dungeon at a time, before ordinary item placement. Every new complete generation attempt reruns this pass.
 
-The current prototype exposes [`generator::generate`](../crates/generator/src/lib.rs), which fills logically collectible slots in waves using player settings and vanilla connections. Maps and Compasses take priority within their source dungeon; ordinary items are sampled from the complete remaining pool. Keys remain at vanilla locations, Big Keys stay fixed, and prizes shuffle among prize locations. The Waterfall and Pyramid fairy locations are filled first in each wave, from items they can upgrade (see [fairies.md](fairies.md)). Each candidate evaluates normal collection closure before committing. The generator allows 100 candidates per wave and 1000 complete attempts, restarting with fresh keys after a failed attempt. Completion requires every slot to be filled and every existing collected-location bit to be set, without another solve. A mismatched ordinary pool quantity returns an error. Callers supply catalogs, settings, the selected theme, metadata, and RNG state; the library returns `SeedData` without ROM or filesystem access.
+The current prototype exposes [`generator::generate`](../crates/generator/src/lib.rs), which fills logically collectible slots in waves using player settings and vanilla connections. Maps and Compasses take priority within their source dungeon; ordinary items are sampled from the complete remaining pool. Keys remain at vanilla locations, Big Keys stay fixed, and prizes shuffle among prize locations. The Waterfall and Pyramid fairy locations are filled first in each wave, from items they can upgrade (see [fairies.md](../docs/generation/fairies.md)). Each candidate evaluates normal collection closure before committing. The generator allows 100 candidates per wave and 1000 complete attempts, restarting with fresh keys after a failed attempt. Completion requires every slot to be filled and every existing collected-location bit to be set, without another solve. A mismatched ordinary pool quantity returns an error. Callers supply catalogs, settings, the selected theme, metadata, and RNG state; the library returns `SeedData` without ROM or filesystem access.
 
 Successful seed generation produces the area placement coordinates, selected themes and edge variants, entrance connections, and item placements. Persist area positions, themes, and edge-variant choices in `WorldLayout` within `SeedData`; prepare graphical content later at patching time. Metadata records the seed name, generation timestamp, shared project version, source commit when available, numeric RNG seed, and catalog hashes for provenance. Catalog hashes do not select patching assets.
 
@@ -138,7 +136,7 @@ The native CLI calls the core function directly. A WebAssembly build exposes the
 
 ### CLI
 
-The CLI is a native Rust binary that invokes the generator, patcher, or both according to its arguments. Distributed binaries bundle default settings and catalogs. See [the CLI plan](cli.md) for arguments, output naming, and build behavior.
+The CLI is a native Rust binary that invokes the generator, patcher, or both according to its arguments. Distributed binaries bundle default settings and catalogs. See [the CLI plan](../docs/cli.md) for arguments, output naming, and build behavior.
 
 ### Web backend
 

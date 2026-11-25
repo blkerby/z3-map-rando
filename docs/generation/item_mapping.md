@@ -1,7 +1,5 @@
 # Item mapping
 
-Status: implemented.
-
 The mapping between randomizer items and z3-json-data item names is resolved at catalog-build time, so runtime code only sees `common_types::Item` values.
 
 ## Item records

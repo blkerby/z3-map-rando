@@ -176,7 +176,7 @@ impl GlobalState {
     }
 
     /// Whether a Great Fairy can grant this item: one of her item classes whose
-    /// prerequisite is owned (see plans/fairies.md).
+    /// prerequisite is owned (see docs/generation/fairies.md).
     pub fn can_upgrade_at_fairy(&self, item: Item) -> bool {
         match item {
             Item::Boomerang => self.boomerang_level >= 1,

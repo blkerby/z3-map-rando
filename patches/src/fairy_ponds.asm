@@ -1,6 +1,6 @@
 ; Great Fairy ponds (sprite $72). The Lake Hylia fairy exchanges an empty bottle
 ; for a bottled fairy or golden bee, any number of times. The Waterfall and
-; Pyramid fairies each upgrade one item class once (see plans/fairies.md).
+; Pyramid fairies each upgrade one item class once (see docs/generation/fairies.md).
 lorom
 incsrc "symbols.inc"
 
@@ -424,7 +424,7 @@ ThrowFairyItem:
     STA.w $0DF0,X
     RTS
 
-; Item classes in the order of plans/fairies.md: boomerang, mail, shield,
+; Item classes in the order of docs/generation/fairies.md: boomerang, mail, shield,
 ; sword, bow, gloves, bombs, arrows. Each has its placed receipt, its level
 ; byte in $7EF300, its maximum level, and the receipts drawn when throwing
 ; owned levels 1-4.

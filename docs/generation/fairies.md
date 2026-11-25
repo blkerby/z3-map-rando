@@ -1,6 +1,6 @@
 # Great Fairy upgrades
 
-Status: implemented. This replaces the vanilla item exchanges at the Waterfall of Wishing and Pyramid fairies, and the capacity shop at the Lake Hylia fairy. All three use sprite `$72` (`Sprite_72_FairyPond`); see [items](../docs/vanilla/items.md) for the vanilla receipt system.
+This replaces the vanilla item exchanges at the Waterfall of Wishing and Pyramid fairies, and the capacity shop at the Lake Hylia fairy. All three use sprite `$72` (`Sprite_72_FairyPond`); see [items](../vanilla/items.md) for the vanilla receipt system.
 
 ## Waterfall and Pyramid fairies
 

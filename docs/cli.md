@@ -2,8 +2,6 @@
 
 The `z3-map-rando` binary calls the generator and patcher libraries. Arguments select generation, patching, or both; there are no subcommands.
 
-Implemented: generation, patching saved seeds, and generation followed by patching, with the arguments below and overrides for all four catalogs. Catalog bundling is implemented through the default-off `bundle-catalogs` feature.
-
 ## Arguments
 
 | Argument | Meaning | Default |
@@ -46,17 +44,17 @@ z3-map-rando --rom vanilla.sfc
 z3-map-rando --rom vanilla.sfc --output-seed seed.json --output-rom seed.sfc
 ```
 
-## Prototype generation
+## Generation
 
 Expand the settings’ item pool and logically place items in collectible slots using the selected world layout, tech, proficiency, and notable settings. Each complete attempt assigns fresh door-specific Small Keys at vanilla key locations and shuffles prizes among prize locations. Maps and Compasses take priority in collectible ordinary dungeon slots. Sample the other slots from the entire remaining ordinary pool, commit candidates that advance collection, and retry failures within bounded wave and complete-attempt budgets. Big Keys and Waterfall/Pyramid fairy exchanges stay fixed. Completion requires every slot filled and every collected-location bit set in the accepted closure. Save all typed item placements, including fixed items and Small Key door payloads. Return an error if pool quantities mismatch or a generation budget is exhausted.
 
-Use one selected theme for the whole game and record each area's theme in `WorldLayout`, along with room positions and shared border choices for random maps; vanilla positions remain implicit. See [map randomization](../docs/map_randomization.md) for layout selection and retry budgets, and [prototype gameplay](../docs/gameplay.md) for item behavior and current ROM limitations.
+Use one selected theme for the whole game and record each area's theme in `WorldLayout`, along with room positions and shared border choices for random maps; vanilla positions remain implicit. See [map randomization](map_randomization.md) for layout selection, [item placement](generation/placement.md) for the placement algorithm, and [prototype gameplay](gameplay.md) for item behavior and current ROM limitations.
 
 The CLI handles files, timestamps, numeric seed selection, seed naming, and bundled assets. Libraries receive their inputs as arguments.
 
 ## Seed name and metadata
 
-The initial serializable output types are defined in [`output.rs`](../crates/seed_data/src/output.rs). The planned format and compatibility changes are described in the [architecture plan](README.md#saved-seed-format). Persist a seed name in metadata when generating a new seed. Loading `--seed` reuses its saved name for default output filenames.
+The initial serializable output types are defined in [`output.rs`](../crates/seed_data/src/output.rs). See [seed data](data-formats/seed-data.md) for the format. Persist a seed name in metadata when generating a new seed. Loading `--seed` reuses its saved name for default output filenames.
 
 Generate a fresh nine-character name using the numeric RNG seed and the current Unix timestamp in nanoseconds:
 
@@ -76,7 +74,7 @@ Store the numeric RNG seed as a string in JSON to preserve precision. Record the
 
 The saved seed includes stable `WorldLayout` choices, not graphical content. At patching time the CLI passes its already-loaded current `RetilingCatalog` unchanged to the patcher, which selects content using the saved layout. The patcher uses the current retiling and patch catalogs. Patch-time customization can therefore expose new options for existing seeds.
 
-The CLI version output and seed metadata use the project version that the catalog builder writes to `build/version.txt` (see the [project version](README.md#project-version) scheme), independent of Cargo package versions. Builds bundling the catalogs also bundle that file; others read it from `build/` like the catalogs. The CLI and web service are released together. `generator_commit` remains `None`; a dev version already includes the short commit hash.
+The CLI version output and seed metadata use the project version that the catalog builder writes to `build/version.txt` (see the [project version](../plans/README.md#project-version) scheme), independent of Cargo package versions. Builds bundling the catalogs also bundle that file; others read it from `build/` like the catalogs. The CLI and web service are released together. `generator_commit` remains `None`; a dev version already includes the short commit hash.
 
 ## Bundled assets and builds
 
@@ -109,6 +107,6 @@ Generated directories and catalog outputs are not watched, because their timesta
 cargo build -p cli --release --features bundle-catalogs
 ```
 
-Gate embedding declarations and the builder dependency with the feature. Bundled builds, including `cargo check --all-features`, need the source data and Asar for any artifacts requiring generation. The existing cache handles source changes and configured paths whenever the bundled build invokes it. See [the implementation sequence](../plan.md).
+Gate embedding declarations and the builder dependency with the feature. Bundled builds, including `cargo check --all-features`, need the source data and Asar for any artifacts requiring generation. The existing cache handles source changes and configured paths whenever the bundled build invokes it.
 
 The CLI owns the embedded assets; the generator and patcher libraries accept data from callers. `patcher::patch_rom` now consumes seed data and the current catalogs to build a retiled ROM with the saved item placements. Patch-time `transition_asset_phase` defaults to `Scroll`. CLI patching integration is implemented;

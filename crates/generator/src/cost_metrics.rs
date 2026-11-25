@@ -18,6 +18,11 @@ use logic_catalog::Follower;
 // three columns, they include every low/high combination, grouping resource
 // values 0/1 as low and 2/3 as high. This spreads the metrics across tradeoffs
 // between state components without needing a metric for every full combination.
+// Collapsing resource levels to low/high makes the rows a strength-three binary
+// covering array of 17 columns, which needs at least 18 rows (Kampel 2024,
+// "Combinatorial design theory and applications for software testing",
+// Corollary 2.5.21). Searches found no 18-row table that also covers every
+// exact four-level pair, so 19 rows are used.
 const COVERING_ARRAY: [[u8; 17]; 19] = [
     [1, 3, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
     [2, 0, 3, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1],

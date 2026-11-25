@@ -16,4 +16,4 @@ The [logic catalog](logic.md) retains stable authored door identities and lock t
 
 Normal traversal also tracks route-local resources, followers, and obstacles. Both preliminary key assignment and ordinary item placement share this interpreter and retain their own global state, local-state reducers, and placements.
 
-The patcher reads typed items using only the current patch catalog. Small Key receipts and doors still behave as in vanilla; applying the saved door assignments to ROM behavior remains deferred.
+The patcher reads typed items using only the current patch catalog. Small Key receipts and doors still behave as in vanilla: the ROM does not yet apply the saved door assignments (see [pending work](../../plans/pending_work.md)).
