@@ -74,7 +74,7 @@ Store the numeric RNG seed as a string in JSON to preserve precision. Record the
 
 The saved seed includes stable `WorldLayout` choices, not graphical content. At patching time the CLI passes its already-loaded current `RetilingCatalog` unchanged to the patcher, which selects content using the saved layout. The patcher uses the current retiling and patch catalogs. Patch-time customization can therefore expose new options for existing seeds.
 
-The CLI version output and seed metadata use the project version that the catalog builder writes to `build/version.txt` (see the [project version](../plans/README.md#project-version) scheme), independent of Cargo package versions. Builds bundling the catalogs also bundle that file; others read it from `build/` like the catalogs. The CLI and web service are released together. `generator_commit` remains `None`; a dev version already includes the short commit hash.
+The CLI version output and seed metadata use the project version that the catalog builder writes to `build/version.txt` (see the [project version](architecture.md#project-version) scheme), independent of Cargo package versions. Builds bundling the catalogs also bundle that file; others read it from `build/` like the catalogs. The CLI and web service are released together. `generator_commit` remains `None`; a dev version already includes the short commit hash.
 
 ## Bundled assets and builds
 

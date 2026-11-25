@@ -8,7 +8,7 @@ The randomizer is available in pre-release form as a CLI and as a web service. I
 
 An [overworld editor](https://github.com/blkerby/Z3OverworldEditor) was developed specifically for this randomizer, allowing artists to define custom palettes, tilesets, conditional edge layers, animations, cutscenes, and Mode 7 map artwork. The editor currently focuses on overworld tiling; it may later support customizing other game elements such as enemies, entrances, secrets, items, and dungeons. The retiling happens in the [ALTTPRetiling](https://github.com/kjbranch/ALTTPRetiling) repository. 
 
-In order to support the flexible palette and tileset system, substantial changes to the game engine were needed. For some technical details about how this works, see the docs in [plans](plans/README.md).
+In order to support the flexible palette and tileset system, substantial changes to the game engine were needed. For some technical details about how this works, see the [architecture](docs/architecture.md) and [engine](docs/engine/) docs.
 
 A [design doc](https://docs.google.com/document/d/1skZsIxZLKbCC8C_-3b3TTZVwblzNkN2ZTXraZ4Zxzkc) describes some plans for tier-based item placement logic along with balance-oriented gameplay changes. Many of these are not yet implemented in the randomizer but may become options in the future. Other options may be added based on player feedback.
 
@@ -57,4 +57,4 @@ From the repository root, run `npm run dev` and use a browser to open the "Local
 
 ## Catalog configuration
 
-The catalog builder writes the catalogs to `build/`, configured by `catalog-build.toml`, which it copies from `catalog-build.default.toml` on first use. Edit it to change source paths, the output directory, or the Zstd `compression_level` (e.g., use `18` for smaller release artifacts). To use an existing patched Asar executable instead of building the `asar` submodule, set `asar_executable`; an upstream Asar will not work, since the build relies on its IPS output support. See [the catalog plan](plans/README.md#retiling-catalog) and [the patches doc](docs/engine/patches.md) for how the catalogs are built and cached.
+The catalog builder writes the catalogs to `build/`, configured by `catalog-build.toml`, which it copies from `catalog-build.default.toml` on first use. Edit it to change source paths, the output directory, or the Zstd `compression_level` (e.g., use `18` for smaller release artifacts). To use an existing patched Asar executable instead of building the `asar` submodule, set `asar_executable`; an upstream Asar will not work, since the build relies on its IPS output support. See [the catalog plan](docs/architecture.md#retiling-catalog) and [the patches doc](docs/engine/patches.md) for how the catalogs are built and cached.

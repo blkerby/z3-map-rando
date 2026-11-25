@@ -151,7 +151,7 @@ An Actix handler check verified aggregate strict-validation findings and item-to
 ## Milestone 4 Settings revision and project version
 
 - [x] Compute a settings revision during preset preparation, covering everything that can change processing results. The preset catalog's cache fingerprint serves as the revision: it covers the dependency lockfile, the catalog builder, settings processing, preset, and common-type sources, the settings schemas, the preset and classification data, and the logic catalog. It is conservative, since unrelated edits to its inputs also advance it. The revision is `SettingsContext::revision`, so it reaches the backend through the preset catalog and the frontend through `settings_data.json` as `presets.revision`.
-- [x] Compute the project version as described in the [architecture overview](README.md#project-version). The catalog builder writes it to `build/version.txt` on every run, outside its catalog cache, so neither the revision nor any Rust compilation depends on it. The server reads the file at startup, the CLI reads or bundles it like the catalogs, and the generator receives the version from its caller. `common_types::VERSION` is removed.
+- [x] Compute the project version as described in the [architecture overview](../docs/architecture.md#project-version). The catalog builder writes it to `build/version.txt` on every run, outside its catalog cache, so neither the revision nor any Rust compilation depends on it. The server reads the file at startup, the CLI reads or bundles it like the catalogs, and the generator receives the version from its caller. `common_types::VERSION` is removed.
 
 ## Milestone 5 Backend processing endpoint
 

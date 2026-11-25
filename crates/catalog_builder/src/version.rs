@@ -2,7 +2,7 @@ use anyhow::Result;
 use std::{fs, path::Path, process::Command};
 
 /// Write the project version to `version.txt` in the output directory, following the scheme in
-/// `plans/README.md`: `<VERSION>` for a commit tagged `v<VERSION>`, otherwise
+/// `docs/architecture.md`: `<VERSION>` for a commit tagged `v<VERSION>`, otherwise
 /// `<VERSION>-dev.<commit UTC date>.<commit UTC time>+<short hash>`, or `<VERSION>-dev` without git.
 /// An unchanged file is not rewritten, so watchers do not see a change.
 pub fn write_version(root: &Path, output_directory: &Path) -> Result<()> {

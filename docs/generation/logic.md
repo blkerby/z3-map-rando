@@ -1,6 +1,6 @@
 # Logic catalog
 
-The builder compiles `z3-json-data` into a compact binary catalog for generation. It does not place items or implement traversal. Use the catalog envelope described in [the architecture plan](../../plans/README.md#catalog-format): eight uncompressed magic bytes, followed by a Zstd-compressed `bincode-next` payload encoded and decoded through its streaming Serde API. Shared types derive `Serialize` and `Deserialize` in [`logic_catalog`](../../crates/logic_catalog/src/lib.rs). Build the catalog with:
+The builder compiles `z3-json-data` into a compact binary catalog for generation. It does not place items or implement traversal. Use the catalog envelope described in [the architecture doc](../architecture.md#catalog-format): eight uncompressed magic bytes, followed by a Zstd-compressed `bincode-next` payload encoded and decoded through its streaming Serde API. Shared types derive `Serialize` and `Deserialize` in [`logic_catalog`](../../crates/logic_catalog/src/lib.rs). Build the catalog with:
 
 ```sh
 mkdir -p build
