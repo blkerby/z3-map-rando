@@ -4,7 +4,7 @@ An index of work that is planned or in progress. The design of implemented syste
 
 ## In progress
 
-- [Spoiler](spoiler.md): seed-page spoiler computed by replaying traversal in the browser. Work items 1 and 2 are done; items 3–5 remain.
+- [Spoiler](spoiler.md): seed-page spoiler computed by replaying traversal in the browser. Work items 1–4 are done; the seed page section (item 5) remains.
 - [Settings processing](settings-processing.md): milestones 1–3 are complete; milestones 4 onward move browser loading onto the backend.
 
 ## Planned

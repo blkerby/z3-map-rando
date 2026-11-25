@@ -1,6 +1,6 @@
 # Spoiler
 
-Status: in progress. Work items 1 and 2 are implemented.
+Status: in progress. Work items 1 through 4 are implemented.
 
 The seed page gets a "Spoiler" section, below Generate and Customize, collapsed by default. Expanded, it lists one collapsible per sphere, each listing the items collectible in that sphere with their locations.
 
@@ -22,9 +22,9 @@ The replay reuses `compute_closure` (`crates/generator/src/traversal.rs`), which
 
 1. **Graph from a saved layout.** `select_borders` (`crates/generator/src/map.rs`) chooses border variants and builds the connections in one pass. Split it so the connections are built from a `WorldLayout` whose borders are already chosen, and use that in both generation and replay.
 2. **Replay.** `generator::spoiler::replay_spheres` rebuilds the `WorldLayout` and graph from the seed, maps each saved `(room_id, item_id)` to an `ItemLocationIndex` through the logic catalog, and returns the spheres and unreachable locations as catalog indices. Small Keys keep their saved `DoorId`, which collection resolves to the catalog door.
-3. **Browser entry point.** `crates/browser` exports a function taking the seed JSON and the logic catalog, calling `replay_spheres`, and returning the spheres, each a list of item locations, plus the unreachable ones. It returns display names from the catalog: the location name, and for Small Keys the name of the door the key is assigned to.
-4. **Item labels.** Add a `label` to each record of `data/items.json`, carry it into `settings_data.json`, and replace the hard-coded `ITEM_LABELS` in `frontend/src/lib/generation/data.ts`. A Small Key is shown with its assigned door, e.g. "Small Key (<door name>)". An empty slot (`nothing`, not an `items.json` record) is shown as "Nothing".
-5. **Seed page.** Add the collapsed Spoiler section and its nav link on seed pages only (not `/generate`). On first expansion, fetch the logic catalog (about 55 KB) and run the replay. Each sphere header shows its number and item count; each row shows the item and its location. All items are listed, in catalog order within a sphere.
+3. **Browser entry point.** Implemented as `replay_spoiler`. `crates/browser` exports a function taking the seed JSON and the logic catalog, calling `replay_spheres`, and returning the spheres, each a list of item locations, plus the unreachable ones. It returns display names from the catalog: the location name, and for Small Keys the name of the door the key is assigned to.
+4. **Item labels.** Each record of `data/items.json` has a `label`, carried into `settings_data.json` and used for `ITEM_LABELS` in `frontend/src/lib/generation/data.ts`.
+5. **Seed page.** Add the collapsed Spoiler section and its nav link on seed pages only (not `/generate`). On first expansion, fetch the logic catalog (about 55 KB) and run the replay. Each sphere header shows its number and item count; each row shows the item and its location. Items use `ITEM_LABELS`, except that a Small Key is shown with its assigned door, e.g. "Small Key (<door name>)", and an empty slot (`nothing`, not an `items.json` record) is shown as "Nothing". All items are listed, in catalog order within a sphere.
 
 ## Later
 
