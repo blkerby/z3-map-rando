@@ -50,3 +50,8 @@ $form-range-track-bg: rgba(var(--bs-body-color-rgb), 0.2);
 [data-lockable]:has(:disabled:not(option)) {
 	cursor: not-allowed;
 }
+
+// Keep the page behind an open modal dialog from scrolling.
+html:has(dialog:modal) {
+	overflow: hidden;
+}
