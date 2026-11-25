@@ -6,7 +6,7 @@ use crate::{
     retiling as theme, verify_vanilla_rom,
 };
 use anyhow::{Context, Result, ensure};
-use common_types::{Item, SourceRoomId};
+use common_types::{ItemKind, SourceRoomId};
 use patch_catalog::PatchCatalog;
 use retiling_catalog::RetilingCatalog;
 use seed_data::{
@@ -69,35 +69,35 @@ pub fn patch_rom(
     let mut inventory = vec![0_u8; 0x51];
     inventory[0x39] = 0xf8; // Native lift, read, talk, and pull ability flags.
     for (item, offset, value) in [
-        (Item::Hookshot, 0x02, 1),
-        (Item::FireRod, 0x05, 1),
-        (Item::IceRod, 0x06, 1),
-        (Item::Bombos, 0x07, 1),
-        (Item::Ether, 0x08, 1),
-        (Item::Quake, 0x09, 1),
-        (Item::Lamp, 0x0a, 1),
-        (Item::Hammer, 0x0b, 1),
-        (Item::BugCatchingNet, 0x0d, 1),
-        (Item::BookOfMudora, 0x0e, 1),
-        (Item::CaneOfSomaria, 0x10, 1),
-        (Item::CaneOfByrna, 0x11, 1),
-        (Item::Cape, 0x12, 1),
-        (Item::MagicMirror, 0x13, 2),
-        (Item::PegasusBoots, 0x15, 1),
-        (Item::Flippers, 0x16, 1),
-        (Item::MoonPearl, 0x17, 1),
-        (Item::HalfMagic, 0x3b, 1),
+        (ItemKind::Hookshot, 0x02, 1),
+        (ItemKind::FireRod, 0x05, 1),
+        (ItemKind::IceRod, 0x06, 1),
+        (ItemKind::Bombos, 0x07, 1),
+        (ItemKind::Ether, 0x08, 1),
+        (ItemKind::Quake, 0x09, 1),
+        (ItemKind::Lamp, 0x0a, 1),
+        (ItemKind::Hammer, 0x0b, 1),
+        (ItemKind::BugCatchingNet, 0x0d, 1),
+        (ItemKind::BookOfMudora, 0x0e, 1),
+        (ItemKind::CaneOfSomaria, 0x10, 1),
+        (ItemKind::CaneOfByrna, 0x11, 1),
+        (ItemKind::Cape, 0x12, 1),
+        (ItemKind::MagicMirror, 0x13, 2),
+        (ItemKind::PegasusBoots, 0x15, 1),
+        (ItemKind::Flippers, 0x16, 1),
+        (ItemKind::MoonPearl, 0x17, 1),
+        (ItemKind::HalfMagic, 0x3b, 1),
     ] {
         if counts[&item] > 0 {
             inventory[offset] = value;
         }
     }
     for (item, offset) in [
-        (Item::Sword, 0x19),
-        (Item::Shield, 0x1a),
-        (Item::Glove, 0x14),
-        (Item::Mail, 0x1b),
-        (Item::Boomerang, 0x01),
+        (ItemKind::Sword, 0x19),
+        (ItemKind::Shield, 0x1a),
+        (ItemKind::Glove, 0x14),
+        (ItemKind::Mail, 0x1b),
+        (ItemKind::Boomerang, 0x01),
     ] {
         inventory[offset] = counts[&item] as u8;
     }

@@ -1,6 +1,6 @@
 use crate::z3_json_data::{self, collect_source_files, read_source};
 use anyhow::{Context, Result, bail};
-use common_types::{FAIRY_UPGRADE_LOCATIONS, Item};
+use common_types::{FAIRY_UPGRADE_LOCATIONS, ItemKind};
 use patch_catalog::{
     Ips, ItemEncoding, ItemLocation, ItemLocationId, PatchCatalog, PatchIps, PatchSymbols,
     RoomArea, SourceRoomId,
@@ -194,21 +194,15 @@ pub(crate) fn package_catalog(
     let (item_locations, room_areas) =
         read_room_records(source_directory, &built.symbols, &encodings)?;
     let mut items = BTreeMap::new();
-    let mut small_key = None;
     for record in crate::items::read_item_records(item_records)? {
         let encoding = encodings
             .get(&record.upstream_name)
             .with_context(|| format!("no z3-json-data item {}", record.upstream_name))?
             .clone();
-        match record.item()? {
-            Some(item) => {
-                items.insert(item, encoding);
-            }
-            None => small_key = Some(encoding),
-        }
+        items.insert(record.name, encoding);
     }
     items.insert(
-        Item::Nothing,
+        ItemKind::Nothing,
         ItemEncoding {
             receipt_id: 0x5a,
             prize_patch_bytes: None,
@@ -219,7 +213,6 @@ pub(crate) fn package_catalog(
         symbols: built.symbols,
         item_locations,
         items,
-        small_key: small_key.context("no small_key item record")?,
         room_areas,
     };
     write_catalog(

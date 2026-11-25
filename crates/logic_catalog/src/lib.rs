@@ -1,6 +1,6 @@
 //! A compact catalog of the z3-json-data data, processed into the
 //! randomizer's graph-oriented format
-pub use common_types::{Item, ItemLocationId, SourceRoomId};
+pub use common_types::{Item, ItemKind, ItemLocationId, SourceRoomId};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -196,29 +196,26 @@ impl LogicCatalog {
     pub fn count_ordinary_item_locations(&self) -> u32 {
         let mut count = 0;
         for location in &self.item_locations {
-            let definition = self.item(location.vanilla_item_idx);
-            if definition.name == "SmallKey" {
-                continue;
-            }
             if common_types::FAIRY_UPGRADE_LOCATIONS.contains(&location.id) {
                 count += 1;
                 continue;
             }
-            match definition.item {
+            match self.item(location.vanilla_item_idx).item {
                 Some(
-                    Item::BigKey
-                    | Item::Map
-                    | Item::Compass
-                    | Item::PendantOfCourage
-                    | Item::PendantOfWisdom
-                    | Item::PendantOfPower
-                    | Item::Crystal1
-                    | Item::Crystal2
-                    | Item::Crystal3
-                    | Item::Crystal4
-                    | Item::Crystal5
-                    | Item::Crystal6
-                    | Item::Crystal7,
+                    ItemKind::SmallKey
+                    | ItemKind::BigKey
+                    | ItemKind::Map
+                    | ItemKind::Compass
+                    | ItemKind::PendantOfCourage
+                    | ItemKind::PendantOfWisdom
+                    | ItemKind::PendantOfPower
+                    | ItemKind::Crystal1
+                    | ItemKind::Crystal2
+                    | ItemKind::Crystal3
+                    | ItemKind::Crystal4
+                    | ItemKind::Crystal5
+                    | ItemKind::Crystal6
+                    | ItemKind::Crystal7,
                 )
                 | None => {}
                 Some(_) => count += 1,
@@ -785,10 +782,10 @@ pub struct ItemLocation {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ItemDefinition {
     pub name: String,
-    /// The randomizer item this z3-json-data item is, resolved from the randomizer's item definitions.
-    /// None for anonymous Small Keys (their door is assigned during generation) and for items the
-    /// randomizer does not place, such as activation events like `OcarinaActive`.
-    pub item: Option<Item>,
+    /// The randomizer item kind this z3-json-data item is, resolved from the randomizer's item
+    /// records. None for items the randomizer does not place, such as activation events like
+    /// `OcarinaActive`.
+    pub item: Option<ItemKind>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

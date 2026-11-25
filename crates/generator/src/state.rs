@@ -2,7 +2,7 @@
 
 use crate::inputs::GenerationInputs;
 use anyhow::{Result, bail};
-use common_types::Item;
+use common_types::{Item, ItemKind};
 use logic_catalog::{
     DamageRecovery, DoorIndex, DungeonIndex, FlagIndex, FollowerMask, Form, ItemLocationIndex,
     LogicCatalog, OcarinaState, UniqueItem,
@@ -122,7 +122,7 @@ impl GlobalState {
         let r = &starting.resources;
         for bottle in [r.bottle_1, r.bottle_2, r.bottle_3, r.bottle_4] {
             if bottle != StartingBottle::None {
-                state.grant_non_key_item(Item::Bottle);
+                state.grant_non_key_item(ItemKind::Bottle);
             }
         }
         if starting.equipment.ocarina == StartingOcarina::Active {
@@ -137,7 +137,6 @@ impl GlobalState {
     /// One-time resource refills and initial bottle contents have no logical effect.
     pub(crate) fn collect_item(
         &mut self,
-        catalog: &LogicCatalog,
         inputs: &GenerationInputs,
         item: Item,
         location_idx: ItemLocationIndex,
@@ -159,10 +158,8 @@ impl GlobalState {
                     None
                 }
             }
-            Item::BigKey => {
-                let location = catalog.item_location(location_idx);
-                let room = catalog.room(catalog.vertex(location.vertex_idx).room_idx);
-                let dungeon_idx = room.dungeon_idx.unwrap();
+            Item::BigKey(room_id) => {
+                let dungeon_idx = inputs.dungeon_indices[&room_id];
                 let owned = &mut self.big_keys[dungeon_idx.0 as usize];
                 if !*owned {
                     *owned = true;
@@ -171,7 +168,7 @@ impl GlobalState {
                     None
                 }
             }
-            _ => self.grant_non_key_item(item),
+            _ => self.grant_non_key_item(item.get_kind()),
         })
     }
 
@@ -192,40 +189,40 @@ impl GlobalState {
     }
 
     /// Grant an assumed non-key inventory item without collecting a location.
-    pub(crate) fn grant_non_key_item(&mut self, item: Item) -> Option<GlobalDependency> {
+    pub(crate) fn grant_non_key_item(&mut self, kind: ItemKind) -> Option<GlobalDependency> {
         use GlobalDependency as D;
         let previous_bomb_usable_capacity = self.bomb_usable_capacity;
         let previous_arrow_usable_capacity = self.arrow_usable_capacity;
-        let dependency = match item {
-            Item::Sword if self.sword_level < 4 => {
+        let dependency = match kind {
+            ItemKind::Sword if self.sword_level < 4 => {
                 self.sword_level += 1;
                 Some(D::Sword)
             }
-            Item::Shield if self.shield_level < 3 => {
+            ItemKind::Shield if self.shield_level < 3 => {
                 self.shield_level += 1;
                 Some(D::Shield)
             }
-            Item::Glove if self.glove_level < 2 => {
+            ItemKind::Glove if self.glove_level < 2 => {
                 self.glove_level += 1;
                 Some(D::Glove)
             }
-            Item::Mail if self.mail_level < 2 => {
+            ItemKind::Mail if self.mail_level < 2 => {
                 self.mail_level += 1;
                 Some(D::Mail)
             }
-            Item::Boomerang if self.boomerang_level < 2 => {
+            ItemKind::Boomerang if self.boomerang_level < 2 => {
                 self.boomerang_level += 1;
                 Some(D::Boomerang)
             }
-            Item::Ocarina if self.ocarina == OcarinaState::Missing => {
+            ItemKind::Ocarina if self.ocarina == OcarinaState::Missing => {
                 self.ocarina = OcarinaState::Inactive;
                 Some(D::Ocarina)
             }
-            Item::HeartContainer if self.health_capacity < 160 => {
+            ItemKind::HeartContainer if self.health_capacity < 160 => {
                 self.health_capacity = (self.health_capacity + 8).min(160);
                 Some(D::Health)
             }
-            Item::PieceOfHeart => {
+            ItemKind::PieceOfHeart => {
                 self.heart_pieces += 1;
                 if self.heart_pieces == 4 {
                     self.heart_pieces = 0;
@@ -239,22 +236,22 @@ impl GlobalState {
                     None
                 }
             }
-            Item::BombCapacityUpgrade => {
+            ItemKind::BombCapacityUpgrade => {
                 self.bomb_capacity = (self.bomb_capacity + self.bomb_upgrade_size).min(99);
                 Some(D::Bombs)
             }
-            Item::ArrowCapacityUpgrade => {
+            ItemKind::ArrowCapacityUpgrade => {
                 self.arrow_capacity = (self.arrow_capacity + self.arrow_upgrade_size).min(99);
                 Some(D::Arrows)
             }
             // These receipts all create a bottle, including the filled-bottle items.
-            Item::Bottle
-            | Item::Bee
-            | Item::Fairy
-            | Item::GoldBee
-            | Item::RedPotion
-            | Item::GreenPotion
-            | Item::BluePotion => {
+            ItemKind::Bottle
+            | ItemKind::Bee
+            | ItemKind::Fairy
+            | ItemKind::GoldBee
+            | ItemKind::RedPotion
+            | ItemKind::GreenPotion
+            | ItemKind::BluePotion => {
                 if self.bottles_owned < 4 {
                     self.bottles_owned += 1;
                     Some(D::Bottles)
@@ -262,67 +259,67 @@ impl GlobalState {
                     None
                 }
             }
-            Item::FireRod => Some(D::Item(UniqueItem::FireRod as usize)),
-            Item::IceRod => Some(D::Item(UniqueItem::IceRod as usize)),
-            Item::Hammer => Some(D::Item(UniqueItem::Hammer as usize)),
-            Item::Hookshot => Some(D::Item(UniqueItem::Hookshot as usize)),
-            Item::Bow if !self.unique_items[UniqueItem::Bow as usize] => {
+            ItemKind::FireRod => Some(D::Item(UniqueItem::FireRod as usize)),
+            ItemKind::IceRod => Some(D::Item(UniqueItem::IceRod as usize)),
+            ItemKind::Hammer => Some(D::Item(UniqueItem::Hammer as usize)),
+            ItemKind::Hookshot => Some(D::Item(UniqueItem::Hookshot as usize)),
+            ItemKind::Bow if !self.unique_items[UniqueItem::Bow as usize] => {
                 Some(D::Item(UniqueItem::Bow as usize))
             }
-            Item::Bow => Some(D::Item(UniqueItem::SilverArrows as usize)),
-            Item::MagicPowder => Some(D::Item(UniqueItem::MagicPowder as usize)),
-            Item::Bombos => Some(D::Item(UniqueItem::Bombos as usize)),
-            Item::Ether => Some(D::Item(UniqueItem::Ether as usize)),
-            Item::Quake => Some(D::Item(UniqueItem::Quake as usize)),
-            Item::Lamp => Some(D::Item(UniqueItem::Lamp as usize)),
-            Item::Shovel => Some(D::Item(UniqueItem::Shovel as usize)),
-            Item::CaneOfSomaria => Some(D::Item(UniqueItem::CaneOfSomaria as usize)),
-            Item::CaneOfByrna => Some(D::Item(UniqueItem::CaneOfByrna as usize)),
-            Item::Cape => Some(D::Item(UniqueItem::Cape as usize)),
-            Item::MagicMirror => Some(D::Item(UniqueItem::MagicMirror as usize)),
-            Item::BookOfMudora => Some(D::Item(UniqueItem::BookOfMudora as usize)),
-            Item::Flippers => Some(D::Item(UniqueItem::Flippers as usize)),
-            Item::MoonPearl => Some(D::Item(UniqueItem::MoonPearl as usize)),
-            Item::BugCatchingNet => Some(D::Item(UniqueItem::BugCatchingNet as usize)),
-            Item::Mushroom => Some(D::Item(UniqueItem::Mushroom as usize)),
-            Item::PegasusBoots => Some(D::Item(UniqueItem::PegasusBoots as usize)),
-            Item::HalfMagic => Some(D::Item(UniqueItem::HalfMagic as usize)),
-            Item::PendantOfCourage => Some(D::Item(UniqueItem::PendantOfCourage as usize)),
-            Item::PendantOfWisdom => Some(D::Item(UniqueItem::PendantOfWisdom as usize)),
-            Item::PendantOfPower => Some(D::Item(UniqueItem::PendantOfPower as usize)),
-            Item::Crystal1 => Some(D::Item(UniqueItem::Crystal1 as usize)),
-            Item::Crystal2 => Some(D::Item(UniqueItem::Crystal2 as usize)),
-            Item::Crystal3 => Some(D::Item(UniqueItem::Crystal3 as usize)),
-            Item::Crystal4 => Some(D::Item(UniqueItem::Crystal4 as usize)),
-            Item::Crystal5 => Some(D::Item(UniqueItem::Crystal5 as usize)),
-            Item::Crystal6 => Some(D::Item(UniqueItem::Crystal6 as usize)),
-            Item::Crystal7 => Some(D::Item(UniqueItem::Crystal7 as usize)),
-            Item::Triforce => Some(D::Item(UniqueItem::Triforce as usize)),
-            Item::SmallKey(_)
-            | Item::BigKey
-            | Item::Sword
-            | Item::Shield
-            | Item::Glove
-            | Item::Mail
-            | Item::Boomerang
-            | Item::Ocarina
-            | Item::HeartContainer
-            | Item::Arrow
-            | Item::TenArrows
-            | Item::Bomb
-            | Item::ThreeBombs
-            | Item::TenBombs
-            | Item::Heart
-            | Item::SmallMagic
-            | Item::OneRupee
-            | Item::FiveRupees
-            | Item::TwentyRupees
-            | Item::FiftyRupees
-            | Item::OneHundredRupees
-            | Item::ThreeHundredRupees
-            | Item::Map
-            | Item::Compass
-            | Item::Nothing => None,
+            ItemKind::Bow => Some(D::Item(UniqueItem::SilverArrows as usize)),
+            ItemKind::MagicPowder => Some(D::Item(UniqueItem::MagicPowder as usize)),
+            ItemKind::Bombos => Some(D::Item(UniqueItem::Bombos as usize)),
+            ItemKind::Ether => Some(D::Item(UniqueItem::Ether as usize)),
+            ItemKind::Quake => Some(D::Item(UniqueItem::Quake as usize)),
+            ItemKind::Lamp => Some(D::Item(UniqueItem::Lamp as usize)),
+            ItemKind::Shovel => Some(D::Item(UniqueItem::Shovel as usize)),
+            ItemKind::CaneOfSomaria => Some(D::Item(UniqueItem::CaneOfSomaria as usize)),
+            ItemKind::CaneOfByrna => Some(D::Item(UniqueItem::CaneOfByrna as usize)),
+            ItemKind::Cape => Some(D::Item(UniqueItem::Cape as usize)),
+            ItemKind::MagicMirror => Some(D::Item(UniqueItem::MagicMirror as usize)),
+            ItemKind::BookOfMudora => Some(D::Item(UniqueItem::BookOfMudora as usize)),
+            ItemKind::Flippers => Some(D::Item(UniqueItem::Flippers as usize)),
+            ItemKind::MoonPearl => Some(D::Item(UniqueItem::MoonPearl as usize)),
+            ItemKind::BugCatchingNet => Some(D::Item(UniqueItem::BugCatchingNet as usize)),
+            ItemKind::Mushroom => Some(D::Item(UniqueItem::Mushroom as usize)),
+            ItemKind::PegasusBoots => Some(D::Item(UniqueItem::PegasusBoots as usize)),
+            ItemKind::HalfMagic => Some(D::Item(UniqueItem::HalfMagic as usize)),
+            ItemKind::PendantOfCourage => Some(D::Item(UniqueItem::PendantOfCourage as usize)),
+            ItemKind::PendantOfWisdom => Some(D::Item(UniqueItem::PendantOfWisdom as usize)),
+            ItemKind::PendantOfPower => Some(D::Item(UniqueItem::PendantOfPower as usize)),
+            ItemKind::Crystal1 => Some(D::Item(UniqueItem::Crystal1 as usize)),
+            ItemKind::Crystal2 => Some(D::Item(UniqueItem::Crystal2 as usize)),
+            ItemKind::Crystal3 => Some(D::Item(UniqueItem::Crystal3 as usize)),
+            ItemKind::Crystal4 => Some(D::Item(UniqueItem::Crystal4 as usize)),
+            ItemKind::Crystal5 => Some(D::Item(UniqueItem::Crystal5 as usize)),
+            ItemKind::Crystal6 => Some(D::Item(UniqueItem::Crystal6 as usize)),
+            ItemKind::Crystal7 => Some(D::Item(UniqueItem::Crystal7 as usize)),
+            ItemKind::Triforce => Some(D::Item(UniqueItem::Triforce as usize)),
+            ItemKind::SmallKey
+            | ItemKind::BigKey
+            | ItemKind::Sword
+            | ItemKind::Shield
+            | ItemKind::Glove
+            | ItemKind::Mail
+            | ItemKind::Boomerang
+            | ItemKind::Ocarina
+            | ItemKind::HeartContainer
+            | ItemKind::Arrow
+            | ItemKind::TenArrows
+            | ItemKind::Bomb
+            | ItemKind::ThreeBombs
+            | ItemKind::TenBombs
+            | ItemKind::Heart
+            | ItemKind::SmallMagic
+            | ItemKind::OneRupee
+            | ItemKind::FiveRupees
+            | ItemKind::TwentyRupees
+            | ItemKind::FiftyRupees
+            | ItemKind::OneHundredRupees
+            | ItemKind::ThreeHundredRupees
+            | ItemKind::Map
+            | ItemKind::Compass
+            | ItemKind::Nothing => None,
         };
         self.update_usable_capacities();
         match dependency {

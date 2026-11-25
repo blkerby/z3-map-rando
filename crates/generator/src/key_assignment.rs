@@ -88,13 +88,13 @@ impl KeyPlacementState {
     ) -> Result<Self> {
         let mut global = GlobalState::initialize(catalog, inputs);
         for &item in &inputs.ordinary_pool {
-            global.grant_non_key_item(item);
+            global.grant_non_key_item(item.get_kind());
         }
         for &item in inputs.fixed_items.values() {
-            global.grant_non_key_item(item);
+            global.grant_non_key_item(item.get_kind());
         }
         for &item in &inputs.prize_pool {
-            global.grant_non_key_item(item);
+            global.grant_non_key_item(item.get_kind());
         }
         let mut initial = Self {
             global,
@@ -146,7 +146,7 @@ impl KeyPlacementState {
                 }
             }
             for &location_idx in &dungeon.big_key_locations {
-                initial.placements[location_idx.0 as usize] = Some(Item::BigKey);
+                initial.placements[location_idx.0 as usize] = Some(Item::BigKey(dungeon.room_id));
             }
             compute_closure(
                 catalog,

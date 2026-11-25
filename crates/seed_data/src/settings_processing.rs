@@ -3,7 +3,7 @@ use crate::{
     RootPreset, Settings, SettingsDocument, SkillPreset, StartingStatePreset,
 };
 use anyhow::{Result, bail};
-use common_types::Item;
+use common_types::ItemKind;
 use jsonschema::{Draft, Registry, Validator, error::ValidationErrorKind};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
@@ -70,7 +70,7 @@ pub struct SettingsContext {
     /// Permitted levels from the technique classifications, including unranked levels.
     pub proficiency_levels: BTreeMap<u32, Vec<u32>>,
     /// Ordinary item identities and minimum counts from the item records.
-    pub item_minimums: BTreeMap<Item, u32>,
+    pub item_minimums: BTreeMap<ItemKind, u32>,
     pub ordinary_item_count: u32,
 }
 

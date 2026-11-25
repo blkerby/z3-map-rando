@@ -170,7 +170,7 @@ fn load_definitions(
 ) -> Result<Compiler> {
     let mut randomizer_items = BTreeMap::new();
     for record in crate::items::read_item_records(item_records)? {
-        let item = record.item()?;
+        let item = record.name;
         randomizer_items.insert(record.upstream_name, item);
         for name in record.other_names {
             randomizer_items.insert(name, item);
@@ -201,7 +201,7 @@ fn load_definitions(
             if !item.requires.is_empty() {
                 compiler.item_use.insert(item.name.clone(), item.requires);
             }
-            let resolved = randomizer_items.get(&item.name).copied().flatten();
+            let resolved = randomizer_items.get(&item.name).copied();
             catalog.items.push(ItemDefinition {
                 name: item.name,
                 item: resolved,

@@ -22,7 +22,7 @@
 
 use anyhow::{Context, Result};
 use catalog_builder::config::BuildConfig;
-use common_types::{Item, SUPPORTED_THEMES, SourceRoomId};
+use common_types::{ItemKind, SUPPORTED_THEMES, SourceRoomId};
 use logic_catalog::LockKind;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -48,7 +48,7 @@ struct SeedVocabulary {
     edge_variants: BTreeMap<String, BTreeSet<String>>,
     /// Retiling theme IDs in `SUPPORTED_THEMES`.
     themes: BTreeSet<String>,
-    /// Serialized `Item` names, as saved in item placements.
+    /// `ItemKind` names, as saved in item placements.
     items: BTreeSet<String>,
 }
 
@@ -168,11 +168,11 @@ fn check_seed_vocabulary() -> Result<()> {
     }
     compare_entries("themes", &committed_themes, &themes, &mut errors);
 
-    // `Item` variants cannot be enumerated, so check committed names against the
+    // `ItemKind` variants cannot be enumerated, so check committed names against the
     // enum, and the names that settings can place against the vocabulary. The
     // vocabulary also lists `nothing`, which an empty slot saves.
     for name in &vocabulary.items {
-        if serde_json::from_value::<Item>(json!(name)).is_err() && name != "small_key" {
+        if serde_json::from_value::<ItemKind>(json!(name)).is_err() {
             errors.push(format!("items: {name} is no longer an item"));
         }
     }

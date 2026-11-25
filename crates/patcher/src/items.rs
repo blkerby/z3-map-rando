@@ -1,6 +1,6 @@
 use crate::{Patcher, PcAddr, SnesAddr, import::Importer};
 use anyhow::{Result, anyhow};
-use common_types::{Item, ItemLocationId};
+use common_types::ItemLocationId;
 use patch_catalog::PatchCatalog;
 use seed_data::RoomData;
 
@@ -52,13 +52,11 @@ pub(crate) fn apply_items(
             if location.rom_addresses.is_empty() {
                 continue;
             }
-            let item = match placement.item {
-                Item::SmallKey(_) => &catalog.small_key,
-                item => catalog
-                    .items
-                    .get(&item)
-                    .ok_or_else(|| anyhow!("no encoding for item {item:?}"))?,
-            };
+            let kind = placement.item.get_kind();
+            let item = catalog
+                .items
+                .get(&kind)
+                .ok_or_else(|| anyhow!("no encoding for item {kind:?}"))?;
             let mut context = patcher.context(&format!("item {id:?}"));
             if let Some(bytes) = &item.prize_patch_bytes {
                 for (&address, &value) in location.rom_addresses.iter().zip(bytes) {

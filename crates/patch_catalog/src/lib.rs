@@ -2,7 +2,7 @@
 //! - IPS patches pre-built from ASM
 //! - item data extracted from z3-json-data.
 
-pub use common_types::{Item, ItemLocationId, SourceRoomId};
+pub use common_types::{ItemKind, ItemLocationId, SourceRoomId};
 
 use serde::{Deserialize, Serialize};
 use std::{
@@ -45,10 +45,9 @@ pub struct PatchCatalog {
     pub patches: PatchIps,
     pub symbols: PatchSymbols,
     pub item_locations: BTreeMap<ItemLocationId, ItemLocation>,
-    /// Encodings of the randomizer's items, except Small Keys.
-    pub items: BTreeMap<Item, ItemEncoding>,
-    /// The encoding shared by all Small Keys.
-    pub small_key: ItemEncoding,
+    /// Encodings of the randomizer's item kinds. Dungeon items of every dungeon share one
+    /// encoding per kind.
+    pub items: BTreeMap<ItemKind, ItemEncoding>,
     /// Map area of each room drawn as an overworld area.
     pub room_areas: BTreeMap<SourceRoomId, RoomArea>,
 }

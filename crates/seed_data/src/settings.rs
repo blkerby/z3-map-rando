@@ -1,4 +1,4 @@
-use common_types::Item;
+use common_types::ItemKind;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -18,7 +18,7 @@ pub struct ItemPoolSettings {
     pub bomb_upgrade_size: u8,
     pub arrow_upgrade_size: u8,
     /// Pickup counts before deducting starting equipment. Dungeon items and prizes are separate.
-    pub items: BTreeMap<Item, u32>,
+    pub items: BTreeMap<ItemKind, u32>,
 }
 
 /// Concrete inventory, resources, and progress when a new game begins.
@@ -62,35 +62,35 @@ pub struct StartingEquipment {
 
 impl StartingEquipment {
     /// Pickup equivalents for pool deduction and logical initialization.
-    pub fn count_items(&self) -> BTreeMap<Item, u32> {
+    pub fn count_items(&self) -> BTreeMap<ItemKind, u32> {
         let mut counts = BTreeMap::new();
         for (item, owned) in [
-            (Item::FireRod, self.fire_rod),
-            (Item::IceRod, self.ice_rod),
-            (Item::Hammer, self.hammer),
-            (Item::Hookshot, self.hookshot),
-            (Item::MagicPowder, self.magic_powder),
-            (Item::Bombos, self.bombos),
-            (Item::Ether, self.ether),
-            (Item::Quake, self.quake),
-            (Item::Lamp, self.lamp),
-            (Item::Shovel, self.shovel),
-            (Item::CaneOfSomaria, self.cane_of_somaria),
-            (Item::CaneOfByrna, self.cane_of_byrna),
-            (Item::Cape, self.cape),
-            (Item::MagicMirror, self.magic_mirror),
-            (Item::BookOfMudora, self.book_of_mudora),
-            (Item::Flippers, self.flippers),
-            (Item::MoonPearl, self.moon_pearl),
-            (Item::BugCatchingNet, self.bug_catching_net),
-            (Item::Mushroom, self.mushroom),
-            (Item::PegasusBoots, self.pegasus_boots),
-            (Item::HalfMagic, self.half_magic),
+            (ItemKind::FireRod, self.fire_rod),
+            (ItemKind::IceRod, self.ice_rod),
+            (ItemKind::Hammer, self.hammer),
+            (ItemKind::Hookshot, self.hookshot),
+            (ItemKind::MagicPowder, self.magic_powder),
+            (ItemKind::Bombos, self.bombos),
+            (ItemKind::Ether, self.ether),
+            (ItemKind::Quake, self.quake),
+            (ItemKind::Lamp, self.lamp),
+            (ItemKind::Shovel, self.shovel),
+            (ItemKind::CaneOfSomaria, self.cane_of_somaria),
+            (ItemKind::CaneOfByrna, self.cane_of_byrna),
+            (ItemKind::Cape, self.cape),
+            (ItemKind::MagicMirror, self.magic_mirror),
+            (ItemKind::BookOfMudora, self.book_of_mudora),
+            (ItemKind::Flippers, self.flippers),
+            (ItemKind::MoonPearl, self.moon_pearl),
+            (ItemKind::BugCatchingNet, self.bug_catching_net),
+            (ItemKind::Mushroom, self.mushroom),
+            (ItemKind::PegasusBoots, self.pegasus_boots),
+            (ItemKind::HalfMagic, self.half_magic),
         ] {
             counts.insert(item, if owned { 1 } else { 0 });
         }
         counts.insert(
-            Item::Sword,
+            ItemKind::Sword,
             match self.sword {
                 StartingSword::None => 0,
                 StartingSword::Fighter => 1,
@@ -100,7 +100,7 @@ impl StartingEquipment {
             },
         );
         counts.insert(
-            Item::Shield,
+            ItemKind::Shield,
             match self.shield {
                 StartingShield::None => 0,
                 StartingShield::Fighter => 1,
@@ -109,7 +109,7 @@ impl StartingEquipment {
             },
         );
         counts.insert(
-            Item::Glove,
+            ItemKind::Glove,
             match self.glove {
                 StartingGlove::None => 0,
                 StartingGlove::Power => 1,
@@ -117,7 +117,7 @@ impl StartingEquipment {
             },
         );
         counts.insert(
-            Item::Mail,
+            ItemKind::Mail,
             match self.mail {
                 StartingMail::Green => 0,
                 StartingMail::Blue => 1,
@@ -125,7 +125,7 @@ impl StartingEquipment {
             },
         );
         counts.insert(
-            Item::Bow,
+            ItemKind::Bow,
             match self.bow {
                 StartingBow::None => 0,
                 StartingBow::Bow => 1,
@@ -133,7 +133,7 @@ impl StartingEquipment {
             },
         );
         counts.insert(
-            Item::Boomerang,
+            ItemKind::Boomerang,
             match self.boomerang {
                 StartingBoomerang::None => 0,
                 StartingBoomerang::Blue => 1,
@@ -141,7 +141,7 @@ impl StartingEquipment {
             },
         );
         counts.insert(
-            Item::Ocarina,
+            ItemKind::Ocarina,
             match self.ocarina {
                 StartingOcarina::None => 0,
                 StartingOcarina::Inactive => 1,
@@ -241,7 +241,7 @@ pub enum StartingBottle {
 
 #[derive(Debug)]
 pub struct InsufficientPoolItems {
-    pub item: Item,
+    pub item: ItemKind,
     pub available: u32,
     pub starting: u32,
 }
@@ -260,7 +260,7 @@ impl std::error::Error for InsufficientPoolItems {}
 
 impl Settings {
     /// Items remaining for placement; starting resources and flags do not deduct pickups.
-    pub fn resolve_item_pool(&self) -> Result<BTreeMap<Item, u32>, InsufficientPoolItems> {
+    pub fn resolve_item_pool(&self) -> Result<BTreeMap<ItemKind, u32>, InsufficientPoolItems> {
         let mut items = self.item_pool.items.clone();
         if self.item_pool.deduct_starting_items {
             for (item, starting) in self.starting_state.equipment.count_items() {

@@ -2,7 +2,7 @@
 
 mod item;
 
-pub use item::Item;
+pub use item::{Item, ItemKind};
 
 use serde::{Deserialize, Serialize};
 

@@ -86,7 +86,7 @@ pub fn compute_closure(
         }
     }
     // A new placement may occupy a slot already found by an earlier closure.
-    collect_reachable_items(catalog, inputs, global, placements, &mut changes)?;
+    collect_reachable_items(inputs, global, placements, &mut changes)?;
     loop {
         for dependency in changes.drain() {
             if let Some(edges) = graph.dependencies.get(&dependency) {
@@ -154,12 +154,11 @@ pub fn compute_closure(
         }
         global.refills.merge(discoveries.refills);
         global.update_usable_capacities();
-        collect_reachable_items(catalog, inputs, global, placements, &mut changes)?;
+        collect_reachable_items(inputs, global, placements, &mut changes)?;
     }
 }
 
 fn collect_reachable_items(
-    catalog: &LogicCatalog,
     inputs: &GenerationInputs,
     global: &mut GlobalState,
     placements: &[Option<Item>],
@@ -169,7 +168,7 @@ fn collect_reachable_items(
         if global.reachable_item_locations[index] && !global.collected_item_locations[index] {
             if let Some(item) = item {
                 if let Some(dependency) =
-                    global.collect_item(catalog, inputs, item, ItemLocationIndex(index as u32))?
+                    global.collect_item(inputs, item, ItemLocationIndex(index as u32))?
                 {
                     changes.insert(dependency);
                 }

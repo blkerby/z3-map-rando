@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow, bail};
-use common_types::{DoorId, FAIRY_UPGRADE_LOCATIONS, Item, SourceRoomId};
+use common_types::{DoorId, FAIRY_UPGRADE_LOCATIONS, Item, ItemKind, SourceRoomId};
 use hashbrown::HashMap;
-use logic_catalog::{DoorIndex, ItemLocationIndex, LockKind, LogicCatalog};
+use logic_catalog::{DoorIndex, DungeonIndex, ItemLocationIndex, LockKind, LogicCatalog};
 use seed_data::{Settings, StartingState};
 use std::collections::BTreeMap;
 
@@ -19,16 +19,17 @@ impl std::error::Error for InvalidSettings {}
 /// Indexed inputs for traversal and placement, prepared without changing the catalog.
 #[derive(Debug)]
 pub struct GenerationInputs {
-    /// Item interpretations of catalog definitions; anonymous Small Keys, activation
-    /// events such as OcarinaActive, and unsupported receipts are `None`.
-    /// Only names used by catalog placements need item identities here.
-    pub items: Vec<Option<Item>>,
+    /// Item kinds of catalog definitions; activation events such as OcarinaActive and
+    /// unsupported receipts are `None`.
+    pub items: Vec<Option<ItemKind>>,
     /// Stable authored identities in catalog door order.
     pub door_ids: Vec<DoorId>,
     /// Reverse lookup for catalog doors, independent of Small Key assignments.
     pub door_indices: HashMap<DoorId, DoorIndex>,
     /// Indexed by catalog DungeonIndex, matching `LogicCatalog::dungeons`.
     pub dungeons: Vec<DungeonInputs>,
+    /// Reverse lookup of dungeons by the room ID that dungeon items carry.
+    pub dungeon_indices: HashMap<SourceRoomId, DungeonIndex>,
     /// Eligible ordinary slots, including the slots originally holding Maps and Compasses.
     pub ordinary_locations: Vec<ItemLocationIndex>,
     /// Great Fairy upgrade locations, filled from the ordinary pool before other locations.
@@ -50,8 +51,10 @@ pub struct GenerationInputs {
     pub arrow_upgrade_size: u8,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct DungeonInputs {
+    /// The dungeon's identity in its Map, Compass, and Big Key items.
+    pub room_id: SourceRoomId,
     pub small_key_locations: Vec<ItemLocationIndex>,
     pub big_key_locations: Vec<ItemLocationIndex>,
     pub small_key_doors: Vec<DoorIndex>,
@@ -68,6 +71,7 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         door_ids: Vec::new(),
         door_indices: HashMap::new(),
         dungeons: Vec::new(),
+        dungeon_indices: HashMap::new(),
         ordinary_locations: Vec::new(),
         fairy_locations: Vec::new(),
         ordinary_pool: Vec::new(),
@@ -85,8 +89,20 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
     for item in &catalog.items {
         inputs.items.push(item.item);
     }
-    for _ in &catalog.dungeons {
-        inputs.dungeons.push(DungeonInputs::default());
+    for (index, &room_idx) in catalog.dungeons.iter().enumerate() {
+        let room_id = catalog.room(room_idx).room_id.unwrap();
+        inputs.dungeons.push(DungeonInputs {
+            room_id,
+            small_key_locations: Vec::new(),
+            big_key_locations: Vec::new(),
+            small_key_doors: Vec::new(),
+            map_compass_pool: Vec::new(),
+            prize_locations: Vec::new(),
+            ordinary_locations: Vec::new(),
+        });
+        inputs
+            .dungeon_indices
+            .insert(room_id, DungeonIndex(index as u32));
     }
     for (index, door) in catalog.doors.iter().enumerate() {
         let door_idx = DoorIndex(index as u32);
@@ -115,52 +131,57 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
             None => None,
         };
         let item_name = &catalog.item(location.vanilla_item_idx).name;
-        if item_name == "SmallKey" {
+        let kind = inputs.items[location.vanilla_item_idx.0 as usize]
+            .ok_or_else(|| anyhow!("unknown item identity: {item_name}"))?;
+        if kind == ItemKind::SmallKey {
             if let Some(dungeon) = dungeon {
                 dungeon.small_key_locations.push(location_idx);
             }
             continue;
         }
-        let item = inputs.items[location.vanilla_item_idx.0 as usize]
-            .ok_or_else(|| anyhow!("unknown item identity: {item_name}"))?;
         if FAIRY_UPGRADE_LOCATIONS.contains(&location.id) {
             inputs.fairy_locations.push(location_idx);
             continue;
         }
-        match item {
-            Item::BigKey => {
-                inputs.fixed_items.insert(location_idx, item);
-                if let Some(dungeon) = dungeon {
-                    dungeon.big_key_locations.push(location_idx);
-                }
+        match kind {
+            ItemKind::BigKey => {
+                // Vanilla dungeon items are always inside their dungeon.
+                let dungeon = dungeon.unwrap();
+                inputs
+                    .fixed_items
+                    .insert(location_idx, Item::BigKey(dungeon.room_id));
+                dungeon.big_key_locations.push(location_idx);
             }
-            Item::PendantOfCourage
-            | Item::PendantOfWisdom
-            | Item::PendantOfPower
-            | Item::Crystal1
-            | Item::Crystal2
-            | Item::Crystal3
-            | Item::Crystal4
-            | Item::Crystal5
-            | Item::Crystal6
-            | Item::Crystal7 => {
+            ItemKind::PendantOfCourage
+            | ItemKind::PendantOfWisdom
+            | ItemKind::PendantOfPower
+            | ItemKind::Crystal1
+            | ItemKind::Crystal2
+            | ItemKind::Crystal3
+            | ItemKind::Crystal4
+            | ItemKind::Crystal5
+            | ItemKind::Crystal6
+            | ItemKind::Crystal7 => {
                 inputs.prize_locations.push(location_idx);
-                inputs.prize_pool.push(item);
+                inputs.prize_pool.push(Item::from_kind(kind).unwrap());
                 if let Some(dungeon) = dungeon {
                     dungeon.prize_locations.push(location_idx);
                 }
             }
+            ItemKind::Map | ItemKind::Compass => {
+                inputs.ordinary_locations.push(location_idx);
+                let dungeon = dungeon.unwrap();
+                dungeon.map_compass_pool.push(if kind == ItemKind::Map {
+                    Item::Map(dungeon.room_id)
+                } else {
+                    Item::Compass(dungeon.room_id)
+                });
+                dungeon.ordinary_locations.push(location_idx);
+            }
             _ => {
                 inputs.ordinary_locations.push(location_idx);
-                if matches!(item, Item::Map | Item::Compass) {
-                    if let Some(dungeon) = dungeon {
-                        dungeon.map_compass_pool.push(item);
-                        dungeon.ordinary_locations.push(location_idx);
-                    }
-                } else {
-                    if let Some(dungeon) = dungeon {
-                        dungeon.ordinary_locations.push(location_idx);
-                    }
+                if let Some(dungeon) = dungeon {
+                    dungeon.ordinary_locations.push(location_idx);
                 }
             }
         }
@@ -178,27 +199,27 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
             "item pool contains {pool_count} items, but only {ordinary_location_count} ordinary locations are available"
         )).into());
     }
-    for (&item, &count) in &item_pool {
-        match item {
-            Item::SmallKey(_)
-            | Item::BigKey
-            | Item::Map
-            | Item::Compass
-            | Item::PendantOfCourage
-            | Item::PendantOfWisdom
-            | Item::PendantOfPower
-            | Item::Crystal1
-            | Item::Crystal2
-            | Item::Crystal3
-            | Item::Crystal4
-            | Item::Crystal5
-            | Item::Crystal6
-            | Item::Crystal7 => bail!(
+    for (&kind, &count) in &item_pool {
+        let item = match kind {
+            ItemKind::SmallKey
+            | ItemKind::BigKey
+            | ItemKind::Map
+            | ItemKind::Compass
+            | ItemKind::PendantOfCourage
+            | ItemKind::PendantOfWisdom
+            | ItemKind::PendantOfPower
+            | ItemKind::Crystal1
+            | ItemKind::Crystal2
+            | ItemKind::Crystal3
+            | ItemKind::Crystal4
+            | ItemKind::Crystal5
+            | ItemKind::Crystal6
+            | ItemKind::Crystal7 => bail!(
                 "item {:?} is not allowed in the ordinary item pool; dungeon items and prizes use separate placement phases",
-                item,
+                kind,
             ),
-            _ => {}
-        }
+            _ => Item::from_kind(kind).unwrap(),
+        };
         for _ in 0..count {
             inputs.ordinary_pool.push(item);
         }

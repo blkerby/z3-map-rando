@@ -36,7 +36,7 @@ struct SpoilerOutput {
 #[derive(Serialize)]
 struct SpoilerEntry {
     location: String,
-    /// Serialized `Item` name, or None for a location without a saved item.
+    /// Item kind token, or None for a location without a saved item.
     item: Option<String>,
     /// For a Small Key, the name of the door it opens.
     door: Option<String>,
@@ -79,10 +79,13 @@ fn create_spoiler_entry(
     let mut item_name = None;
     let mut door = None;
     if let Some(item) = item {
-        item_name = Some(match serde_json::to_value(item)? {
-            serde_json::Value::Object(map) => map.keys().next().unwrap().clone(),
-            value => value.as_str().unwrap().to_owned(),
-        });
+        // An item kind serializes as its token string.
+        item_name = Some(
+            serde_json::to_value(item.get_kind())?
+                .as_str()
+                .unwrap()
+                .to_owned(),
+        );
         if let Item::SmallKey(door_id) = item {
             for catalog_door in &catalog.doors {
                 let room = &catalog.rooms[catalog_door.room_idx.0 as usize];
