@@ -131,36 +131,55 @@
 		routeDialog?.showModal();
 	}
 
-	function formatHearts(eighths: number): string {
-		return `${eighths / 8} ${eighths === 8 ? 'heart' : 'hearts'}`;
+	interface StatePart {
+		icon?: string | null;
+		/** Alternative text for the icon. */
+		label?: string;
+		text: string;
 	}
 
-	/** Describe the full state on the first row, then only the components that change. */
-	function describeState(state: RouteState, previous: RouteState | undefined): string[] {
-		const parts: string[] = [];
-		if (state.form !== previous?.form) parts.push(state.form);
+	/** State before any usage, which the first row is compared against. */
+	const UNUSED_STATE: RouteState = {
+		form: 'Link',
+		health_used: 0,
+		health_remaining: null,
+		magic_used: 0,
+		bombs_used: 0,
+		arrows_used: 0,
+		bottles_used: 0,
+		followers: []
+	};
+
+	/** Describe the components that differ from the previous row, or on the first row from an unused state. */
+	function describeState(state: RouteState, previous: RouteState = UNUSED_STATE): StatePart[] {
+		const parts: StatePart[] = [];
+		if (state.form !== previous.form) parts.push({ text: state.form });
 		if (
-			state.health_used !== previous?.health_used ||
-			state.health_remaining !== previous?.health_remaining
+			state.health_used !== previous.health_used ||
+			state.health_remaining !== previous.health_remaining
 		) {
-			parts.push(
-				state.health_remaining === null
-					? `${formatHearts(state.health_used ?? 0)} used`
-					: `${formatHearts(state.health_remaining)} left`
-			);
+			parts.push({
+				icon: getItemLevelIcon('heart_container', 1),
+				label: state.health_remaining === null ? 'Hearts used' : 'Hearts remaining',
+				text:
+					state.health_remaining === null
+						? `${(state.health_used ?? 0) / 8}`
+						: `${state.health_remaining / 8} left`
+			});
 		}
-		const counters: [number, number | undefined, string][] = [
-			[state.magic_used, previous?.magic_used, 'magic'],
-			[state.bombs_used, previous?.bombs_used, 'bombs'],
-			[state.arrows_used, previous?.arrows_used, 'arrows'],
-			[state.bottles_used, previous?.bottles_used, 'bottles']
+		const counters: [number, number, string, string][] = [
+			[state.magic_used, previous.magic_used, 'half_magic', 'Magic used'],
+			[state.bombs_used, previous.bombs_used, 'bomb', 'Bombs used'],
+			[state.arrows_used, previous.arrows_used, 'bow', 'Arrows used'],
+			[state.bottles_used, previous.bottles_used, 'bottle', 'Bottles used']
 		];
-		for (const [value, previousValue, name] of counters) {
-			if (value !== previousValue) parts.push(`${value} ${name} used`);
+		for (const [value, previousValue, icon, label] of counters) {
+			if (value !== previousValue)
+				parts.push({ icon: getItemLevelIcon(icon, 1), label, text: `${value}` });
 		}
 		const followers = state.followers.join(' or ');
-		if (followers !== previous?.followers.join(' or ')) {
-			parts.push(followers ? `Follower: ${followers}` : 'No follower');
+		if (followers !== previous.followers.join(' or ')) {
+			parts.push({ text: followers ? `Follower: ${followers}` : 'No follower' });
 		}
 		return parts;
 	}
@@ -335,7 +354,17 @@
 											<div class="text-body-secondary">Requires {step.dependencies.join(', ')}</div>
 										{/if}
 									</td>
-									<td>{describeState(step.state, route.steps[stepIndex - 1]?.state).join(', ')}</td>
+									<td>
+										{#each describeState(step.state, route.steps[stepIndex - 1]?.state) as part, partIndex (partIndex)}
+											<span class="state-part">
+												{#if part.icon}<img
+														src={part.icon}
+														alt={part.label}
+														title={part.label}
+													/>{/if}{part.text}
+											</span>
+										{/each}
+									</td>
 								</tr>
 							{/each}
 						</tbody>
@@ -430,6 +459,19 @@
 
 	.route-dialog::backdrop {
 		background: rgb(0 0 0 / 0.55);
+	}
+
+	.state-part {
+		display: inline-flex;
+		align-items: center;
+		gap: 2px;
+		margin-right: 0.5rem;
+	}
+
+	.state-part img {
+		width: 16px;
+		height: 16px;
+		image-rendering: pixelated;
 	}
 
 	.route td {
