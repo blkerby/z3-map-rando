@@ -85,7 +85,9 @@
 	let started = false;
 
 	interface Route {
-		description: string;
+		tile: Tile;
+		item: string;
+		location: string;
 		/** Null if no route was found. */
 		steps: RouteRow[] | null;
 	}
@@ -124,8 +126,12 @@
 
 	function showRoute(tile: Tile) {
 		if (!session) return;
+		// A tile's description is the item label, then the location on its own line.
+		const [item, location] = tile.description.split('\n');
 		route = {
-			description: tile.description.replace('\n', ' — '),
+			tile,
+			item,
+			location,
 			steps: session.traceRoute(tile.locationIdx)
 		};
 		routeDialog?.showModal();
@@ -323,10 +329,20 @@
 		onclose={() => (route = null)}
 	>
 		{#if route}
-			<div class="d-flex align-items-center px-4 py-3 border-bottom">
-				<h2 id="spoiler-route-title" class="h5 fw-bold mb-0 me-auto">
-					Route to {route.description}
-				</h2>
+			<div class="d-flex align-items-center gap-2 px-4 py-3 border-bottom">
+				<span class="tile">
+					{#if route.tile.icon}
+						<img src={route.tile.icon} alt="" />
+					{:else}
+						<span class="badge-text" style:color={route.tile.badge.color}
+							>{route.tile.badge.text}</span
+						>
+					{/if}
+				</span>
+				<div class="me-auto">
+					<h2 id="spoiler-route-title" class="h5 fw-bold mb-0">Route to {route.item}</h2>
+					<div class="small text-body-secondary">{route.location}</div>
+				</div>
 				<button
 					type="button"
 					class="btn-close"
