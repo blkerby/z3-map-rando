@@ -28,7 +28,7 @@ Pits use separate tables beginning at [`$1BB800`](../../jpdasm/bank_1B.asm#L1146
 
 | Address | Field | Size | Meaning and effect |
 | --- | --- | --- | --- |
-| `$1BB800` | Map16 buffer offset | 19 words | Byte offset of the pit tile in the current Map16 buffer at `$7E2000`. |
+| `$1BB800` | Map16 buffer offset | 19 words | Byte offset in the current Map16 buffer at `$7E2000` of Link's position as the lookup runs, not of the pit tile: before the lookup, the fall handler at `$07946C` moves Link's Y to 16 pixels above the top of the screen, so the stored row is 120 to 144 pixels above the hole. |
 | `$1BB826` | Overworld screen ID | 19 words | Area containing the pit; checked together with the Map16 offset to distinguish identical local coordinates on different screens. |
 | `$1BB84C` | Entrance ID | 20 bytes | Selects `EntranceData` through `$010E`. Entries `$00-$12` correspond to the 19 locations; entry `$13` is the unmatched-pit fallback for the Houlihan room. |
 

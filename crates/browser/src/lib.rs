@@ -9,7 +9,7 @@ use logic_catalog::{
     Follower, ItemLocationIndex, LogicCatalog, MapBoundaryKind, OcarinaState, Requirement,
     RoomIndex, TransitionState, VertexIndex, VertexOrigin, World,
 };
-use patcher::import::{OverworldEntrance, OverworldPitEntrance, SPECIAL_TRANSITIONS};
+use patcher::import::{OverworldEntrance, SPECIAL_TRANSITIONS};
 use seed_data::SeedData;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -111,6 +111,26 @@ const OVERWORLD_ITEM_TILES: [(u32, u32, u8, u8); 18] = [
     (38, 1, 20, 14), // Sunken Item
 ];
 
+/// Overworld pit entrances as (ROM entrance ID, x, y), with the hole's center in 16x16 tiles
+/// from its area's top-left. Vanilla's pit tables hold Link's position after the fall moves him
+/// to the top of the screen, 120 to 144 pixels above the hole, so these are measured instead:
+/// from the hidden-item table for holes under bushes, from the overlay and gravestone routines
+/// for the Lumberjack tree, Pyramid, and Cemetery grave, and from the Map16 grid otherwise.
+const PIT_TILES: [(u8, f32, f32); 12] = [
+    (0x76, 48.5, 32.5), // Skull Woods bush
+    (0x77, 40.0, 45.0), // Skull Woods bottom left
+    (0x78, 50.0, 43.0), // Skull Woods bottom right
+    (0x79, 31.0, 23.0), // Skull Woods top left
+    (0x7a, 48.5, 32.5), // Lost Woods Hideout bush
+    (0x7b, 31.5, 8.5),  // Ganon drop in the Pyramid
+    (0x7c, 4.5, 14.5),  // North Great Fairy bush
+    (0x7d, 56.5, 10.5), // Hyrule Castle secret entrance bush
+    (0x7e, 19.0, 16.0), // Magic Bat Cave
+    (0x7f, 13.0, 19.0), // Lumberjack tree
+    (0x80, 6.0, 13.0),  // Kakariko Well
+    (0x81, 5.0, 11.0),  // Hyrule Castle Sewers grave
+];
+
 #[derive(Serialize)]
 struct Dependency {
     name: String,
@@ -150,13 +170,10 @@ pub struct SpoilerSession {
     catalog: LogicCatalog,
     replay: SpoilerReplay,
     seed: SeedData,
-    /// Vanilla overworld door and pit entrances, by vanilla area, once the world maps are
-    /// loaded from a ROM.
-    entrances: Option<EntranceTables>,
+    /// Vanilla overworld door entrances, by vanilla area, once the world maps are loaded from
+    /// a ROM.
+    doors: Option<Vec<Vec<OverworldEntrance>>>,
 }
-
-/// Vanilla overworld door and pit entrances, by vanilla area.
-type EntranceTables = (Vec<Vec<OverworldEntrance>>, Vec<Vec<OverworldPitEntrance>>);
 
 #[wasm_bindgen]
 impl SpoilerSession {
@@ -171,7 +188,7 @@ impl SpoilerSession {
                 catalog,
                 replay,
                 seed,
-                entrances: None,
+                doors: None,
             })
         };
         replay().map_err(|error| JsError::new(&format!("{error:#}")))
@@ -179,8 +196,8 @@ impl SpoilerSession {
 
     /// Render the seed's Light and Dark World maps as 384x384 PNGs from a vanilla ROM, the
     /// seed's filtered retiling catalog, and the patch catalog, cropping half of the clouds
-    /// around the room grid. Also read the ROM's entrance positions, so later routes include
-    /// entrance points.
+    /// around the room grid. Also read the ROM's door positions, so later routes include
+    /// door points.
     pub fn load_world_maps(
         &mut self,
         rom: &[u8],
@@ -193,7 +210,7 @@ impl SpoilerSession {
             let layout = patcher::resolve_world_layout(&self.seed, &patches)?;
             let importer = patcher::import::Importer::new(rom.to_vec())?;
             let map = patcher::retiling::compile_world_map(&retiling, &importer, &layout, true)?;
-            self.entrances = Some(importer.load_overworld_entrances()?);
+            self.doors = Some(importer.load_overworld_entrances()?.0);
             map.encode_pngs(MAP_MARGIN)
         };
         let pngs = render().map_err(|error| JsError::new(&format!("{error:#}")))?;
@@ -387,8 +404,19 @@ impl SpoilerSession {
                 };
                 self.locate_tile(vertex_idx, x, y)
             }
-            Connection::Entrance { entrance_idx, .. } => {
+            Connection::Entrance {
+                kind, entrance_idx, ..
+            } => {
                 let entrance = self.catalog.entrance(*entrance_idx);
+                if let EntranceKind::Drop = kind {
+                    let entrance_id = entrance.rom_entrance_id?;
+                    for (pit_entrance_id, x, y) in PIT_TILES {
+                        if pit_entrance_id == entrance_id {
+                            return self.locate_tile(entrance.vertex_idx, x, y);
+                        }
+                    }
+                    return None;
+                }
                 let room = self
                     .catalog
                     .room(self.catalog.vertex(entrance.vertex_idx).room_idx);
@@ -399,15 +427,9 @@ impl SpoilerSession {
                 }
                 let mut offsets = Vec::new();
                 if let Some(entrance_id) = entrance.rom_entrance_id {
-                    let (entrances, pits) = self.entrances.as_ref()?;
-                    for door in &entrances[area] {
+                    for door in &self.doors.as_ref()?[area] {
                         if door.entrance_id == entrance_id {
                             offsets.push(door.map16_offset);
-                        }
-                    }
-                    for pit in &pits[area] {
-                        if pit.entrance_id == entrance_id {
-                            offsets.push(pit.map16_offset);
                         }
                     }
                 } else {
