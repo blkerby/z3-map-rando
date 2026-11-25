@@ -1,5 +1,6 @@
 import type { Tree } from '$lib/settings/tree';
 import { loadBrowser } from '$lib/browser';
+import logicCatalogUrl from '$build/logic_catalog.bin?url';
 import patchCatalogUrl from '$build/patch_catalog.bin?url';
 
 export interface GenerateResult {
@@ -60,4 +61,29 @@ export async function downloadRom(request: RomRequest): Promise<void> {
 	a.click();
 	a.remove();
 	setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export interface SpoilerEntry {
+	location: string;
+	/** Item kind token, or null for a location without a saved item. */
+	item: string | null;
+	/** For a Small Key, the door it opens. */
+	door: string | null;
+}
+
+export interface Spoiler {
+	/** Locations first collectible in each sphere, in catalog order. */
+	spheres: SpoilerEntry[][];
+	/** Locations the current logic never reaches. */
+	unreachable: SpoilerEntry[];
+}
+
+/** Replay the saved seed's logical traversal in the browser to group its items into spheres. */
+export async function computeSpoiler(seed: string): Promise<Spoiler> {
+	const [browser, seedBytes, logic] = await Promise.all([
+		loadBrowser(),
+		fetchBytes(`/api/seed/${encodeURIComponent(seed)}`),
+		fetchBytes(logicCatalogUrl)
+	]);
+	return JSON.parse(browser.replay_spoiler(seedBytes, logic));
 }

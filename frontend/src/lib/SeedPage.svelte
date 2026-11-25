@@ -13,6 +13,7 @@
 	import PresetManager from '$lib/settings/PresetManager.svelte';
 	import SettingsProvider from '$lib/settings/SettingsProvider.svelte';
 	import SummaryPanel from '$lib/settings/SummaryPanel.svelte';
+	import SpoilerList from '$lib/spoiler/SpoilerList.svelte';
 	import { SearchState } from '$lib/settings/search.svelte';
 	import { REVISION, StaleError, processDocument, type SettingsIssue } from '$lib/settings/processing';
 	import { SettingsStore, type Draft } from '$lib/settings/store.svelte';
@@ -56,7 +57,7 @@
 	// ---- Modes --------------------------------------------------------------
 	// /generate: no game yet, settings are editable, Generate section is open.
 	// /seed/<name>: a game exists, its settings are locked, Customize section is open.
-	type Section = 'generate' | 'customize';
+	type Section = 'generate' | 'customize' | 'spoiler';
 
 	const generated = $derived(seed !== null);
 	const GENERATED_LOCK = 'This game has already been generated, so its settings can no longer be changed.';
@@ -70,6 +71,7 @@
 	let generateOpen = $state(!generated);
 	// svelte-ignore state_referenced_locally
 	let customizeOpen = $state(generated);
+	let spoilerOpen = $state(false);
 
 	// ---- Storage ------------------------------------------------------------
 	// The draft holds the /generate settings. It is kept after generating, so returning to
@@ -342,7 +344,8 @@
 
 	function openSection(section: Section) {
 		if (section === 'generate') generateOpen = true;
-		else customizeOpen = true;
+		else if (section === 'customize') customizeOpen = true;
+		else spoilerOpen = true;
 	}
 
 	// Buttons instead of #anchors, so the URL stays a clean seed link.
@@ -519,6 +522,17 @@
 				Customize
 			</button>
 			{@render navLinks(custom, 'customize')}
+
+			{#if seed}
+				<button
+					type="button"
+					class="nav-link-btn section-link"
+					class:active={activeId === 'spoiler'}
+					onclick={() => goTo('spoiler', 'spoiler')}
+				>
+					Spoiler
+				</button>
+			{/if}
 		</nav>
 
 		<div class="content">
@@ -577,6 +591,12 @@
 					</button>
 				</span>
 			</CollapsibleSection>
+
+			{#if seed}
+				<CollapsibleSection id="spoiler" title="Spoiler" bind:open={spoilerOpen}>
+					<SpoilerList {seed} active={spoilerOpen} />
+				</CollapsibleSection>
+			{/if}
 		</div>
 
 		<!-- Shared by both sections: stays in view while you scroll through either. -->
