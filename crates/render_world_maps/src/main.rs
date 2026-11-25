@@ -99,7 +99,7 @@ fn write_maps(
     both_worlds: bool,
 ) -> Result<()> {
     let map = compile_world_map(catalog, importer, layout, both_worlds)?;
-    for (png, suffix) in map.encode_pngs()?.iter().zip(["light", "dark"]) {
+    for (png, suffix) in map.encode_pngs(0)?.iter().zip(["light", "dark"]) {
         let path = output_dir.join(format!("{name}-{suffix}.png"));
         fs::write(&path, png)?;
         eprintln!("Wrote {}", path.display());

@@ -483,7 +483,7 @@
 						Couldn't render the map: {mapError}
 					</div>
 				{:else if worldMaps}
-					<div class="mb-2">
+					<div class="mb-2 text-center">
 						<Segmented
 							options={WORLD_OPTIONS}
 							value={mapWorld}
@@ -628,10 +628,12 @@
 		background: none;
 	}
 
+	/* Twice the PNG's 384px size, so pixels scale evenly. */
 	.world-map {
 		display: block;
-		width: 512px;
+		width: 768px;
 		max-width: 100%;
+		margin: 0 auto;
 		image-rendering: pixelated;
 	}
 

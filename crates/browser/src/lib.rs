@@ -36,8 +36,9 @@ pub fn patch_rom(
     patch().map_err(|error| JsError::new(&format!("{error:#}")))
 }
 
-/// Render a saved seed's Light and Dark World maps as PNGs, using graphics from a vanilla ROM
-/// and the seed's filtered retiling catalog.
+/// Render a saved seed's Light and Dark World maps as 384x384 PNGs, using graphics from a vanilla
+/// ROM and the seed's filtered retiling catalog. Half of the clouds around the room grid are cropped
+/// away.
 #[wasm_bindgen]
 pub fn render_world_maps(
     rom: &[u8],
@@ -52,7 +53,7 @@ pub fn render_world_maps(
         let layout = patcher::resolve_world_layout(&seed, &patches)?;
         let importer = patcher::import::Importer::new(rom.to_vec())?;
         let map = patcher::retiling::compile_world_map(&retiling, &importer, &layout, true)?;
-        map.encode_pngs()
+        map.encode_pngs(64)
     };
     let pngs = render().map_err(|error| JsError::new(&format!("{error:#}")))?;
     let mut output = Vec::new();
