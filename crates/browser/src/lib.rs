@@ -5,9 +5,9 @@ use generator::{
     state::HealthState,
 };
 use logic_catalog::{
-    Connection, DoorIndex, EdgeOrigin, EntranceKind, FlagIndex, Follower, ItemLocationIndex,
-    LogicCatalog, MapBoundaryKind, OcarinaState, Requirement, TransitionState, VertexIndex,
-    VertexOrigin, World,
+    Connection, Direction, DoorIndex, EdgeOrigin, EntranceKind, FlagIndex, Follower,
+    ItemLocationIndex, LogicCatalog, MapBoundaryKind, OcarinaState, Requirement, TransitionState,
+    VertexIndex, VertexOrigin, World,
 };
 use seed_data::SeedData;
 use serde::{Deserialize, Serialize};
@@ -245,6 +245,7 @@ fn describe_edge(
     connections: &[Connection],
     edge: &TraversalEdge,
 ) -> String {
+    let from_room_idx = catalog.vertex(edge.edge.from_vertex_idx).room_idx;
     match edge.origin {
         TraversalEdgeOrigin::Catalog(edge_idx) => match catalog.edge_metadata(edge_idx).origin {
             EdgeOrigin::Strat {
@@ -256,17 +257,32 @@ fn describe_edge(
             EdgeOrigin::LakeHyliaBottleExchange => "Bottle exchange".to_owned(),
         },
         TraversalEdgeOrigin::Connection(connection_idx) => match &connections[connection_idx] {
-            Connection::MapBoundary { kind, .. } => match kind {
-                MapBoundaryKind::Ordinary => "Cross room boundary".to_owned(),
-                MapBoundaryKind::Mirror => "Mirror across room boundary".to_owned(),
-                MapBoundaryKind::Return => "Leave and return".to_owned(),
-            },
+            Connection::MapBoundary {
+                endpoints,
+                kind,
+                direction,
+            } => {
+                // A reverse edge starts in the second endpoint's room.
+                let mut direction = *direction;
+                if catalog.vertex(endpoints[0]).room_idx != from_room_idx {
+                    direction = match direction {
+                        Direction::North => Direction::South,
+                        Direction::South => Direction::North,
+                        Direction::East => Direction::West,
+                        Direction::West => Direction::East,
+                    };
+                }
+                match kind {
+                    MapBoundaryKind::Ordinary => format!("Cross {direction:?}"),
+                    MapBoundaryKind::Mirror => format!("Mirror {direction:?}"),
+                    MapBoundaryKind::Return => format!("Leave {direction:?} and return"),
+                }
+            }
             Connection::Entrance {
                 kind, entrance_idx, ..
             } => {
                 let entrance = catalog.entrance(*entrance_idx);
-                let outside = catalog.vertex(entrance.vertex_idx).room_idx
-                    == catalog.vertex(edge.edge.from_vertex_idx).room_idx;
+                let outside = catalog.vertex(entrance.vertex_idx).room_idx == from_room_idx;
                 match kind {
                     EntranceKind::Drop => format!("Drop into {}", entrance.name),
                     EntranceKind::Door if outside => format!("Enter {}", entrance.name),
@@ -275,7 +291,17 @@ fn describe_edge(
             }
             Connection::Teleport { .. } => "Teleport".to_owned(),
             Connection::Whirlpool { .. } => "Whirlpool".to_owned(),
-            Connection::ScreenBoundary { .. } => "Cross screen boundary".to_owned(),
+            Connection::ScreenBoundary { endpoints } => {
+                // Each boundary's direction is the side of its own room, so take the source's.
+                let mut direction = None;
+                for endpoint in endpoints {
+                    let boundary = &catalog.screen_boundaries[endpoint.0 as usize];
+                    if catalog.vertex(boundary.vertex_idx).room_idx == from_room_idx {
+                        direction = Some(boundary.direction);
+                    }
+                }
+                format!("Cross {:?}", direction.unwrap())
+            }
         },
         TraversalEdgeOrigin::SaveAndQuit => "Save and quit".to_owned(),
     }

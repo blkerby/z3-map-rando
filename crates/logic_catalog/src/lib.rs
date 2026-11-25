@@ -398,6 +398,9 @@ pub enum Connection {
     MapBoundary {
         endpoints: [VertexIndex; 2],
         kind: MapBoundaryKind,
+        /// Direction of travel from the first endpoint to the second; a reverse edge travels
+        /// the opposite way. For a return, the direction of leaving the room.
+        direction: Direction,
     },
     Entrance {
         kind: EntranceKind,

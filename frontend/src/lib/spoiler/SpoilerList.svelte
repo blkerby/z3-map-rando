@@ -296,7 +296,7 @@
 	</div>
 	<p class="small text-body-secondary">
 		Each row is a sphere: the items collectible once all items in earlier rows are collected. Click
-		a row to reveal it and the rows above it, and click a revealed item to show a route to it.
+		a row to reveal it and the rows above it, and click an item to show a route to it.
 	</p>
 	<div class="rows">
 		{#each rows as row (row.index)}

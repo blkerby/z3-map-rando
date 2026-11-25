@@ -5,7 +5,8 @@ use std::collections::BTreeMap;
 use anyhow::{Result, ensure};
 use common_types::SourceRoomId;
 use logic_catalog::{
-    BoundaryEndpoint, Connection, LogicCatalog, MapBoundaryKind, Room, VertexIndex, World,
+    BoundaryEndpoint, Connection, Direction, LogicCatalog, MapBoundaryKind, Room, VertexIndex,
+    World,
 };
 use rand::Rng;
 use seed_data::{BorderSide, MapBorder, OverworldRoomPlacement, WorldLayout};
@@ -234,6 +235,11 @@ pub fn build_connections(catalog: &LogicCatalog, layout: &WorldLayout) -> Vec<Co
         }
         let a = &contact.variants[0][name];
         let b = &contact.variants[1][name];
+        // Directions of travel from the first room to the second, and back.
+        let (forward, backward) = match contact.side {
+            BorderSide::East => (Direction::East, Direction::West),
+            BorderSide::South => (Direction::South, Direction::North),
+        };
         if name == "light-and-mirror" {
             if let (Some(from), Some(to)) = (
                 get_vertex(&a[0], World::Light),
@@ -242,9 +248,10 @@ pub fn build_connections(catalog: &LogicCatalog, layout: &WorldLayout) -> Vec<Co
                 connections.push(Connection::MapBoundary {
                     endpoints: [from, to],
                     kind: MapBoundaryKind::Ordinary,
+                    direction: forward,
                 });
             }
-            for (source, target) in [(a, b), (b, a)] {
+            for (source, target, direction) in [(a, b, forward), (b, a, backward)] {
                 if let (Some(from), Some(to)) = (
                     get_vertex(&source[1], World::Dark),
                     get_vertex(&target[2], World::Light),
@@ -252,6 +259,7 @@ pub fn build_connections(catalog: &LogicCatalog, layout: &WorldLayout) -> Vec<Co
                     connections.push(Connection::MapBoundary {
                         endpoints: [from, to],
                         kind: MapBoundaryKind::Mirror,
+                        direction,
                     });
                 }
             }
@@ -266,16 +274,19 @@ pub fn build_connections(catalog: &LogicCatalog, layout: &WorldLayout) -> Vec<Co
                     (Some(from), Some(to)) => connections.push(Connection::MapBoundary {
                         endpoints: [from, to],
                         kind: MapBoundaryKind::Ordinary,
+                        direction: forward,
                     }),
                     (Some(vertex), None) if matches!(b, BoundaryEndpoint::Return) => connections
                         .push(Connection::MapBoundary {
                             endpoints: [vertex, vertex],
                             kind: MapBoundaryKind::Return,
+                            direction: forward,
                         }),
                     (None, Some(vertex)) if matches!(a, BoundaryEndpoint::Return) => connections
                         .push(Connection::MapBoundary {
                             endpoints: [vertex, vertex],
                             kind: MapBoundaryKind::Return,
+                            direction: backward,
                         }),
                     _ => {}
                 }

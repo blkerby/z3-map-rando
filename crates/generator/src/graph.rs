@@ -101,7 +101,9 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
     // Now add edges for cross-room connections.
     for (connection_idx, connection) in connections.iter().enumerate() {
         let (first, second, bidirectional, requirement) = match connection {
-            Connection::MapBoundary { endpoints, kind } => (
+            Connection::MapBoundary {
+                endpoints, kind, ..
+            } => (
                 ConnectionEndpoint {
                     vertex_idx: endpoints[0],
                     entrance_idx: None,
