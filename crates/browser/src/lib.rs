@@ -305,7 +305,7 @@ impl SpoilerSession {
                     strat: describe_edge(catalog, &self.replay.connections, edge),
                     dependencies,
                     points: self.locate_edge(edge).unwrap_or_default(),
-                    indirect: check_indirect(catalog, edge),
+                    indirect: check_indirect(catalog, &self.replay.connections, edge),
                     state: RouteState {
                         form: format!("{:?}", state.form),
                         health_used,
@@ -594,7 +594,11 @@ fn get_travel_direction(
 }
 
 /// Whether an edge is a warp or starts in an interior.
-fn check_indirect(catalog: &LogicCatalog, edge: &TraversalEdge) -> bool {
+fn check_indirect(
+    catalog: &LogicCatalog,
+    connections: &[Connection],
+    edge: &TraversalEdge,
+) -> bool {
     if catalog
         .vertex_metadata(edge.edge.from_vertex_idx)
         .world
@@ -607,7 +611,10 @@ fn check_indirect(catalog: &LogicCatalog, edge: &TraversalEdge) -> bool {
             catalog.edge_metadata(edge_idx).origin,
             EdgeOrigin::ImplicitMirror | EdgeOrigin::ImplicitFlute
         ),
-        TraversalEdgeOrigin::Connection(_) => false,
+        TraversalEdgeOrigin::Connection(connection_idx) => matches!(
+            connections[connection_idx],
+            Connection::Teleport { .. } | Connection::Whirlpool { .. }
+        ),
         TraversalEdgeOrigin::SaveAndQuit => true,
     }
 }

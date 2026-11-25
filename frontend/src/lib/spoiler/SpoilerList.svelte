@@ -747,13 +747,13 @@
 	/* Lengths are in map pixels, each two screen pixels at full size. */
 	.route-line {
 		fill: none;
-		stroke: #ff3366;
+		stroke: #fff;
 		stroke-width: 1.5;
 		stroke-linejoin: round;
 	}
 
 	.route-line.flow {
-		stroke: rgb(255 255 255 / 0.85);
+		stroke: rgb(0 0 0 / 0.5);
 		stroke-width: 0.75;
 		stroke-dasharray: 2 8;
 		animation: march-flow 1s linear infinite;
