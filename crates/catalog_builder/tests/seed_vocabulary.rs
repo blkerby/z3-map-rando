@@ -12,6 +12,8 @@
 //!   as a corrected spelling. If the identifier now refers to a different
 //!   location, door, or variant, the source data is wrong: the old identifier
 //!   must be retired and the new one given a fresh identifier.
+//! - An edge slot may gain variants. Losing one counts as removing an
+//!   identifier, since saved borders may use it.
 //! - Before the first release, an identifier may be removed from the vocabulary.
 //! - AFTER THE FIRST RELEASE, AN IDENTIFIER IS NEVER REMOVED. It moves to a
 //!   retired list together with a migration to a current equivalent that
@@ -26,12 +28,12 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, BTreeSet},
+    fmt::Debug,
     fs::{self, File},
     path::Path,
 };
 
-/// Keys are formatted identifiers and values are their names. Variant names,
-/// theme IDs, and item names are their own names.
+/// Keys are formatted identifiers. Theme IDs and item names are their own names.
 #[derive(Deserialize)]
 struct SeedVocabulary {
     /// Every authored room, keyed by `<overworld|underworld>:<room_id>`.
@@ -40,8 +42,10 @@ struct SeedVocabulary {
     item_locations: BTreeMap<String, String>,
     /// Doors that a Small Key can be assigned to, keyed by `<room key>:<door_id>`.
     small_key_doors: BTreeMap<String, String>,
-    /// Edge variants, including the implicit `closed`.
-    border_variants: BTreeSet<String>,
+    /// Variants that each room edge slot allows, including `closed`, keyed by
+    /// `<room key>:<slot>` with retiling slot names such as `north` or `north-1`.
+    /// A saved border needs its variant in the slots of both rooms it joins.
+    edge_variants: BTreeMap<String, BTreeSet<String>>,
     /// Retiling theme IDs in `SUPPORTED_THEMES`.
     themes: BTreeSet<String>,
     /// Serialized `Item` names, as saved in item placements.
@@ -112,34 +116,38 @@ fn check_seed_vocabulary() -> Result<()> {
         &mut errors,
     );
 
-    let mut committed_variants = BTreeMap::new();
-    for variant in &vocabulary.border_variants {
-        committed_variants.insert(variant.clone(), variant.clone());
-    }
-    let mut logic_variants = BTreeMap::new();
+    let mut edge_variants = BTreeMap::new();
     for room in &logic_catalog.rooms {
-        for side in &room.edge_variants {
-            for segment in side {
+        for (side, segments) in ["north", "south", "east", "west"]
+            .into_iter()
+            .zip(&room.edge_variants)
+        {
+            for (index, segment) in segments.iter().enumerate() {
+                let slot = if segments.len() == 1 {
+                    side.to_owned()
+                } else {
+                    format!("{side}-{}", index + 1)
+                };
+                let mut variants = BTreeSet::new();
                 for variant in segment.keys() {
-                    logic_variants.insert(variant.clone(), variant.clone());
+                    if !retiling_catalog.conditions.edge_variants.contains(variant) {
+                        errors.push(format!(
+                            "edge_variants: {variant} is missing from the retiling conditions"
+                        ));
+                    }
+                    variants.insert(variant.clone());
                 }
+                edge_variants.insert(
+                    format!("{}:{slot}", format_room_id(room.room_id.unwrap())),
+                    variants,
+                );
             }
         }
     }
     compare_entries(
-        "border_variants (logic catalog)",
-        &committed_variants,
-        &logic_variants,
-        &mut errors,
-    );
-    let mut retiling_variants = BTreeMap::new();
-    for variant in &retiling_catalog.conditions.edge_variants {
-        retiling_variants.insert(variant.clone(), variant.clone());
-    }
-    compare_entries(
-        "border_variants (retiling catalog)",
-        &committed_variants,
-        &retiling_variants,
+        "edge_variants",
+        &vocabulary.edge_variants,
+        &edge_variants,
         &mut errors,
     );
 
@@ -195,25 +203,27 @@ fn format_room_id(room_id: SourceRoomId) -> String {
     }
 }
 
-fn compare_entries(
+fn compare_entries<V: PartialEq + Debug>(
     kind: &str,
-    committed: &BTreeMap<String, String>,
-    current: &BTreeMap<String, String>,
+    committed: &BTreeMap<String, V>,
+    current: &BTreeMap<String, V>,
     errors: &mut Vec<String>,
 ) {
-    for (key, name) in current {
+    for (key, value) in current {
         match committed.get(key) {
-            None => errors.push(format!("{kind}: {key} ({name}) is missing from the vocabulary")),
-            Some(committed_name) if committed_name != name => errors.push(format!(
-                "{kind}: {key} is named {committed_name:?} in the vocabulary but {name:?} in the catalog"
+            None => errors.push(format!(
+                "{kind}: {key} ({value:?}) is missing from the vocabulary"
+            )),
+            Some(committed_value) if committed_value != value => errors.push(format!(
+                "{kind}: {key} is {committed_value:?} in the vocabulary but {value:?} in the catalog"
             )),
             Some(_) => {}
         }
     }
-    for (key, name) in committed {
+    for (key, value) in committed {
         if !current.contains_key(key) {
             errors.push(format!(
-                "{kind}: {key} ({name}) is no longer in the catalog"
+                "{kind}: {key} ({value:?}) is no longer in the catalog"
             ));
         }
     }
