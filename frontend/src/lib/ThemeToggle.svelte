@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import lightWorld from '$lib/assets/light-world.png';
-	import darkWorld from '$lib/assets/dark-world.png';
+	import linkHead from '$lib/assets/link_head.png';
+	import bunnyHead from '$lib/assets/bunny_head.png';
 
 	let theme = $state<'light' | 'dark'>('light');
 
@@ -22,8 +22,8 @@
 	aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
 	title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
 >
-	<img class="icon-light" src={darkWorld} alt="" />
-	<img class="icon-dark" src={lightWorld} alt="" />
+	<img class="icon-light" src={bunnyHead} alt="" />
+	<img class="icon-dark" src={linkHead} alt="" />
 </button>
 
 <style>
