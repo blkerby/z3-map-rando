@@ -167,6 +167,16 @@
 		followers: []
 	};
 
+	/** Unicode fraction characters, by the number of eighths. */
+	const EIGHTHS = ['', '⅛', '¼', '⅜', '½', '⅝', '¾', '⅞'];
+
+	/** Format a health amount in eighths of a heart as a mixed number of hearts, e.g. 10 as "1¼". */
+	function formatHearts(eighths: number): string {
+		const whole = Math.floor(eighths / 8);
+		const fraction = EIGHTHS[eighths % 8];
+		return whole === 0 && fraction ? fraction : `${whole}${fraction}`;
+	}
+
 	/** Describe the components that differ from the previous row, or on the first row from an unused state. */
 	function describeState(state: RouteState, previous: RouteState = UNUSED_STATE): StatePart[] {
 		const parts: StatePart[] = [];
@@ -180,8 +190,8 @@
 				label: state.health_remaining === null ? 'Hearts used' : 'Hearts remaining',
 				text:
 					state.health_remaining === null
-						? `${(state.health_used ?? 0) / 8}`
-						: `${state.health_remaining / 8} left`
+						? formatHearts(state.health_used ?? 0)
+						: `${formatHearts(state.health_remaining)} left`
 			});
 		}
 		const counters: [number, number, string, string][] = [
