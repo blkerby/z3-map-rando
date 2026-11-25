@@ -52,17 +52,10 @@
 		crystal7: { text: 'C7' }
 	};
 
-	/** Display order within a row, by placement tier, with prizes and dungeon items (which have no tier) between. */
-	const RANK_ORDER = ['major', 'prize', 'high', 'mid', 'dungeon', 'minor', 'junk'];
-
+	/** Display order within a row: the order item kinds appear in items.json. */
 	function getRank(name: string): number {
-		const record = items.find((item) => item.name === name);
-		const key =
-			record?.category === 'prize' || record?.category === 'dungeon'
-				? record.category
-				: record?.tier;
-		const rank = RANK_ORDER.indexOf(key ?? '');
-		return rank < 0 ? RANK_ORDER.length : rank;
+		const rank = items.findIndex((item) => item.name === name);
+		return rank < 0 ? items.length : rank;
 	}
 
 	function getBadge(name: string): Badge {
