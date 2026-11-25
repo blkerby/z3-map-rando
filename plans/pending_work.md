@@ -5,8 +5,6 @@ An index of work that is planned or in progress. Details belong in the linked do
 ## In progress
 
 - [Spoiler](spoiler.md): seed-page spoiler computed by replaying traversal in the browser. Work item 1 is done; items 2–5 remain, after the room theme refactor below.
-- [Overworld asset loading](asset_loading.md): submilestones 9B.1–9B.4 are implemented; gameplay validation is pending.
-- [BG1 streamer](bg1_streamer.md): milestone 4 is implemented; gameplay validation is pending before milestone 5.
 - [Settings processing](settings-processing.md): milestones 1–3 are complete; milestones 4 onward move browser loading onto the backend.
 
 ## Planned
@@ -20,5 +18,6 @@ An index of work that is planned or in progress. Details belong in the linked do
 - [Incremental traversal](incremental-traversal.md): additional generation timing runs.
 - [Prototype implementation plan](../plan.md#development-verification-and-deferred-work): deferred gameplay and generation work.
 - Retired identifiers in the [seed vocabulary](../crates/catalog_builder/tests/seed_vocabulary.rs): the retired list and migration form, designed when an identifier is first retired after release.
+- Fine-grained CGRAM uploads for ordinary scrolling transitions, only if NMI measurements show the full 512-byte `$15` upload is too expensive. `$15=$80` would upload only the background palette rows set in an 8-bit mask: the main loop loads a row into `$7EC300`, copies it to the matching `$7EC500` row so later full uploads stay consistent, and sets its bit; NMI uploads each marked row from `$7EC300` and clears the mask. A pending full upload supersedes the mask, including `$81` from legacy increments, and clears it. This mode stays independent of `$17=$03`. See [overworld asset loading](../docs/engine/overworld_assets.md).
 - [Customization](customization.md): proposal, not implemented.
 - [Dungeon layouts](dungeon.md) and [text](text.md): deferred until needed.

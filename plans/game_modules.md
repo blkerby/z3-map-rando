@@ -169,5 +169,5 @@ For milestone 1, replacing `Module09_21` removes only one vanilla BG2 rebuild pa
 ## Related references
 
 - [`overworld_banks.md`](overworld_banks.md) describes where overworld code and data live.
-- [`bg_streamer.md`](bg_streamer.md) describes the replacement BG renderer.
+- [`overworld_bg_tilemaps.asm`](../patches/src/overworld_bg_tilemaps.asm) implements the replacement BG renderer.
 - [`vram.md`](vram.md) describes tilemap and upload ownership.

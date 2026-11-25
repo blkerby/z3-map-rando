@@ -267,7 +267,7 @@ Convert playable-overworld BG2 from 64x64 to 64x32 while leaving the logical Map
 
 ### Implementation strategy
 
-The detailed design and implementation checkpoints are in [`bg_streamer.md`](bg_streamer.md). In summary:
+The resulting design is described in the header of [`overworld_bg_tilemaps.asm`](../patches/src/overworld_bg_tilemaps.asm). In summary:
 
 1. Disable every vanilla playable-overworld BG2 tilemap producer while preserving logical Map16 updates. First validate that BG2 remains blank.
 2. For a full load, render the 33x29 tile window beginning at the tile containing the viewport's top-left pixel into the existing `$1100/$18` arbitrary DMA list.
@@ -279,10 +279,9 @@ Rows split at 32-tile VRAM screen-block boundaries and columns split at the 32-r
 
 ### Validation and exit criteria
 
-1. Complete the five incremental checkpoints in `bg_streamer.md`.
-2. Test ordinary movement, diagonal movement, shake, and scrolling area transitions in all four directions.
-3. Test dynamic tiles near wrap boundaries, flute travel, mirror, whirlpools, interior exits, pits, special overworlds, and ending credits.
-4. Confirm that BG2 never writes `$0800-$0FFF` and that frames without an 8-pixel boundary crossing perform no BG2 tilemap upload.
+1. Test ordinary movement, diagonal movement, shake, and scrolling area transitions in all four directions.
+2. Test dynamic tiles near wrap boundaries, flute travel, mirror, whirlpools, interior exits, pits, special overworlds, and ending credits.
+3. Confirm that BG2 never writes `$0800-$0FFF` and that frames without an 8-pixel boundary crossing perform no BG2 tilemap upload.
 
 Milestone 7 is complete. BG2 uses a 64x32 tilemap on every playable-overworld path, including bulk loads, scrolling transitions, immediate Map16 changes, mirror warps, portals, whirlpools, and world-map returns.
 
@@ -296,7 +295,7 @@ Adapt the proven milestone 7 design to BG1: a 33x29 forced-blank load followed b
 
 Rain remains separate from the streamer. Use a modified rain tilemap and offset sequence that fits in 64x32.
 
-The detailed design and incremental test gates are in [`bg1_streamer.md`](bg1_streamer.md).
+The resulting design is described in the header of [`overworld_bg_tilemaps.asm`](../patches/src/overworld_bg_tilemaps.asm) and in [overworld backgrounds](../docs/engine/overworld_backgrounds.md).
 
 ### Validation and exit criteria
 
@@ -340,7 +339,7 @@ Milestone 9A is complete. The game remains visually vanilla, all overworld scene
 
 Have the compiler convert the existing vanilla overworld graphics and palettes into one flat 4bpp bundle. Load it through generated descriptors into the milestone 9A layout while retaining the existing maps, Map16 definitions, collision records, and visual appearance.
 
-The implementation sequence begins with the module `$08` forced-blank path described in [`asset_loading.md`](asset_loading.md).
+The resulting formats and runtime rules are described in [overworld asset loading](../docs/engine/overworld_assets.md).
 
 Submilestones 9B.1-9B.4 are implemented, with gameplay validation pending. Generated static assets now cover forced-blank entry, scrolling, mirror and whirlpool effects, mosaic recovery, flute travel, world-map restoration, credits scenes, the Triforce room, and the four area-dependent OBJ slots. Submilestone 9B.5 is implemented with generated ROM-backed animation tracks; gameplay validation remains pending.
 

@@ -103,4 +103,4 @@ Changing an overworld door's entrance ID does not automatically change where the
 
 ## Generated overworlds
 
-The generated-overworld patch replaces the vanilla screen-and-offset scans with lists local to each generated area. The formats and area-record pointers are documented in [`asset_loading.md`](asset_loading.md#rom-storage-and-lookup) and implemented in [`overworld_entrances.asm`](../patches/src/overworld_entrances.asm). These lists still produce vanilla entrance IDs; `EntranceData` and the underworld exit handling remain the next stages of the transition.
+The generated-overworld patch replaces the vanilla screen-and-offset scans with lists local to each generated area. The formats and area-record pointers are documented in [overworld asset loading](../docs/engine/overworld_assets.md#area-record) and implemented in [`overworld_entrances.asm`](../patches/src/overworld_entrances.asm). These lists still produce vanilla entrance IDs; `EntranceData` and the underworld exit handling remain the next stages of the transition.

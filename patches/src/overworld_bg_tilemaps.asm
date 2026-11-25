@@ -23,6 +23,24 @@
 ; screen. Because of the elimination of the Map32 system (with its slow
 ; decompression step) this doesn't result in an overall slower sequence;
 ; in fact it's a bit faster than vanilla.
+;
+; The streamer owns every playable-overworld BG2 tilemap write. Vanilla still
+; updates the logical Map16 map at $7E2000 and its persistence data, but its
+; BG2 producers (full builds, scrolling stripes, and the immediate stripes of
+; DrawMap16Anywhere, DrawPersistentMap16, and AlterMap16Hardcore) no longer
+; expand those IDs into VRAM. Immediate Map16 changes keep the $1000/$14 stripe
+; list with a 64x32 destination calculation; bulk loads and camera edges use the
+; $1100/$18 DMA list. NMI processes $14 before $18, and edges are built after
+; logical Map16 changes, so streamed edges never overwrite an immediate change
+; with stale tiles. The main-loop/NMI handshake at $12 is the only
+; synchronization; no resident-window or margin state persists between frames.
+;
+; A 33x29 bulk window fills most of the $1100 list (2148 bytes), so BG1 and
+; BG2 bulk windows are queued on separate loading frames. The vanilla state
+; machines already load the overlay one frame before they build BG2; the
+; mirror instead uploads BG2 in its step 7 and BG1 in step 8, after the BG1
+; scroll is finalized. Generated BG1 maps, composition, and camera behavior
+; are described in docs/engine/overworld_backgrounds.md.
 
 lorom
 

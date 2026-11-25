@@ -443,7 +443,7 @@ hook_InitializeTilesetsBeforeAreaGraphics:
 ; Load the area record selected by A and synchronously process every batch
 ; in its full-reload sequence. This routine is for loading during forced blank,
 ; where there is no need to schedule batches onto individual frames.
-; See plans/asset_loading.md for details.
+; See docs/engine/overworld_assets.md for the data formats.
 ;
 ; Direct-page scratch:
 ;   $00-$02: area-record pointer, then current batch pointer
