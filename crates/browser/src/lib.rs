@@ -380,17 +380,17 @@ impl SpoilerSession {
                         Direction::East => 2,
                         Direction::West => 3,
                     };
-                // Positions along the side, in 16x16 tiles: the center of the source vertex's
-                // opening in each segment's selected variant, or the segment's middle where the
-                // variant's geometry is unknown. A segment spans one map cell.
+                // The position along the side, in 16x16 tiles: the center of the source vertex's
+                // opening in its segment's selected variant, or the segment's middle where the
+                // variant's geometry is unknown. A segment spans one map cell. Where the vertex
+                // has several openings, such as both of a dual-small variant's, the first is used.
                 let [cell_x, cell_y] = self.find_room_cell(room)?;
                 let [width, height] = room.size?;
                 // Sizes count 16x16-tile screens, two per cell.
                 let cells_wide = u8::try_from(width / 2).ok()?;
                 let cells_high = u8::try_from(height / 2).ok()?;
-                let mut along_sum = 0.0;
-                let mut count = 0;
-                for (segment, variants) in room.edge_variants[side].iter().enumerate() {
+                let mut along = None;
+                'segments: for (segment, variants) in room.edge_variants[side].iter().enumerate() {
                     let segment_cells = u8::try_from(segment).ok()?;
                     // The cell west or north of the border, as the seed records it.
                     let border = match side {
@@ -427,11 +427,11 @@ impl SpoilerSession {
                                 continue;
                             }
                             // Openings are measured in 8x8 tiles.
-                            along_sum += match openings.get(index) {
+                            along = Some(match openings.get(index) {
                                 Some(&(start, end)) => segment_start + (start + end) as f32 / 4.0,
                                 None => segment_start + 16.0,
-                            };
-                            count += 1;
+                            });
+                            break 'segments;
                         }
                     } else {
                         // A vanilla layout has no borders, so use the segment's middle.
@@ -440,15 +440,12 @@ impl SpoilerSession {
                             holds |= endpoints.iter().any(holds_vertex);
                         }
                         if holds {
-                            along_sum += segment_start + 16.0;
-                            count += 1;
+                            along = Some(segment_start + 16.0);
+                            break;
                         }
                     }
                 }
-                if count == 0 {
-                    return None;
-                }
-                let along = along_sum / count as f32;
+                let along = along?;
                 let (width, height) = (f32::from(width) * 16.0, f32::from(height) * 16.0);
                 // The boundary's position and the direction of travel across it.
                 let (x, y, dx, dy) = match side {
