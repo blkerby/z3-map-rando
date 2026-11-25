@@ -9,7 +9,7 @@ use logic_catalog::{
     Follower, ItemLocationIndex, LogicCatalog, MapBoundaryKind, OcarinaState, Requirement,
     RoomIndex, TransitionState, VertexIndex, VertexOrigin, World,
 };
-use patcher::import::{OverworldEntrance, OverworldPitEntrance};
+use patcher::import::{OverworldEntrance, OverworldPitEntrance, SPECIAL_TRANSITIONS};
 use seed_data::SeedData;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -388,9 +388,7 @@ impl SpoilerSession {
                 self.locate_tile(vertex_idx, x, y)
             }
             Connection::Entrance { entrance_idx, .. } => {
-                let (entrances, pits) = self.entrances.as_ref()?;
                 let entrance = self.catalog.entrance(*entrance_idx);
-                let entrance_id = entrance.rom_entrance_id?;
                 let room = self
                     .catalog
                     .room(self.catalog.vertex(entrance.vertex_idx).room_idx);
@@ -399,24 +397,39 @@ impl SpoilerSession {
                 if self.catalog.vertex_metadata(entrance.vertex_idx).world == Some(World::Dark) {
                     area += 0x40;
                 }
-                let mut offset = None;
-                for door in &entrances[area] {
-                    if door.entrance_id == entrance_id {
-                        offset = Some(door.map16_offset);
+                let mut offsets = Vec::new();
+                if let Some(entrance_id) = entrance.rom_entrance_id {
+                    let (entrances, pits) = self.entrances.as_ref()?;
+                    for door in &entrances[area] {
+                        if door.entrance_id == entrance_id {
+                            offsets.push(door.map16_offset);
+                        }
+                    }
+                    for pit in &pits[area] {
+                        if pit.entrance_id == entrance_id {
+                            offsets.push(pit.map16_offset);
+                        }
+                    }
+                } else {
+                    // A special area's entrance; each area leads to at most one.
+                    for (transition_area, offset, special_area, _) in SPECIAL_TRANSITIONS {
+                        if transition_area == area && special_area != 0 {
+                            offsets.push(offset);
+                        }
                     }
                 }
-                for pit in &pits[area] {
-                    if pit.entrance_id == entrance_id {
-                        offset = Some(pit.map16_offset);
-                    }
+                if offsets.is_empty() {
+                    return None;
                 }
-                // Map16 buffer rows are 64 two-byte entries; take the tile's center.
-                let offset = offset?;
-                self.locate_tile(
-                    entrance.vertex_idx,
-                    f32::from(offset % 0x80 / 2) + 0.5,
-                    f32::from(offset / 0x80) + 0.5,
-                )
+                // The center of the matching tiles. Map16 buffer rows are 64 two-byte entries.
+                let mut x_sum = 0.0;
+                let mut y_sum = 0.0;
+                for &offset in &offsets {
+                    x_sum += f32::from(offset % 0x80 / 2) + 0.5;
+                    y_sum += f32::from(offset / 0x80) + 0.5;
+                }
+                let count = offsets.len() as f32;
+                self.locate_tile(entrance.vertex_idx, x_sum / count, y_sum / count)
             }
             _ => None,
         }

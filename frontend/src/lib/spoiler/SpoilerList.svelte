@@ -232,7 +232,16 @@
 			end = point;
 			indirect = false;
 		}
-		return { lines, start, end };
+		// A five-pointed star marking the end, as SVG polygon points.
+		let star = '';
+		if (end) {
+			for (let corner = 0; corner < 10; corner++) {
+				const radius = corner % 2 === 0 ? 4 : 1.7;
+				const angle = (corner * Math.PI) / 5 - Math.PI / 2;
+				star += `${end.x + radius * Math.cos(angle)},${end.y + radius * Math.sin(angle)} `;
+			}
+		}
+		return { lines, start, end, star };
 	});
 
 	interface StatePart {
@@ -529,14 +538,6 @@
 						Couldn't render the map: {mapError}
 					</div>
 				{:else if worldMaps}
-					<div class="mb-2 text-center">
-						<Segmented
-							options={WORLD_OPTIONS}
-							value={mapWorld}
-							label="World"
-							onchange={(value) => (mapWorld = value)}
-						/>
-					</div>
 					<div class="world-map">
 						<img
 							src={worldMaps[mapWorld === 'light' ? 0 : 1]}
@@ -568,17 +569,22 @@
 									class:other-world={mapRoute.start.world !== mapWorld}
 								/>
 							{/if}
-							{#if mapRoute.end && route.tile?.icon}
-								<image
-									href={route.tile.icon}
-									x={mapRoute.end.x - 6}
-									y={mapRoute.end.y - 6}
-									width="12"
-									height="12"
+							{#if mapRoute.end}
+								<polygon
+									points={mapRoute.star}
+									class="route-end"
 									class:other-world={mapRoute.end.world !== mapWorld}
 								/>
 							{/if}
 						</svg>
+					</div>
+					<div class="mt-2 text-center">
+						<Segmented
+							options={WORLD_OPTIONS}
+							value={mapWorld}
+							label="World"
+							onchange={(value) => (mapWorld = value)}
+						/>
 					</div>
 				{:else if mapStarted}
 					<p class="text-body-secondary mb-0" role="status">
@@ -765,6 +771,13 @@
 		animation: march-dotted 0.3s linear infinite;
 	}
 
+	.route-end {
+		fill: #fff;
+		stroke: #333;
+		stroke-width: 0.4;
+		stroke-linejoin: round;
+	}
+
 	.other-world {
 		opacity: 0.5;
 	}
@@ -785,12 +798,6 @@
 	@keyframes march-dotted {
 		to {
 			stroke-dashoffset: -3;
-		}
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.route-line {
-			animation: none !important;
 		}
 	}
 
