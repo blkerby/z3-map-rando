@@ -4,8 +4,8 @@ The project has the following main components:
 
 - [**ASM patches**](#asm-patches): modify the game engine and produce IPS patches and a symbol manifest.
 - [**Catalog builders**](#catalog-builders): compile retiling, logic, patching, and preset data into compact binary catalogs.
-- [**Rearranger**](#rearranger): rearranges the overworld areas in a geometrically coherent way.
-- [**Generator**](#generator): places items to create a beatable randomized game ("seed") based on a rearrangement.
+- [**Rearranger**](#rearranger): rearranges the overworld areas in a geometrically coherent way, offline, into a pool of layouts.
+- [**Generator**](#generator): places items to create a beatable randomized game ("seed") based on a rearrangement from the pool.
 - [**Patcher**](#patcher): combines a verified vanilla ROM, IPS patches, and seed data into a randomized ROM.
 - [**CLI**](#cli): exposes generation and patching as native local commands.
 - [**Web backend**](#web-backend): exposes generation, patching, and seed storage behind an HTTP JSON API.
@@ -15,7 +15,7 @@ The project has the following main components:
 
 The ASM patches contain seed-independent code and hooks needed to support the randomizer, including the retiled overworld. They are assembled offline from patch sources without reading a ROM. Assembly produces IPS patches and a typed symbol manifest for writing seed-specific data. Shared ASM symbols are defined in `patches/src/symbols.inc`; `%export_symbol` marks those consumed by Rust, and `symbols.asm` exports them through Asar's symbol output. The builder checks exact correspondence with the fields of `PatchSymbols`. Rust patching code reads the exported runtime table and storage addresses from the current patch catalog. Some patches are optional; patcher code decides their selection, application order, and phases.
 
-Release binaries bundle the patch catalog, including IPS payloads and symbols, so ordinary users do not need an assembler. The planned work on the game engine is described in [engine.md](../plans/engine.md), which is currently a primary focus.
+Release binaries bundle the patch catalog, including IPS payloads and symbols, so ordinary users do not need an assembler. The engine changes are summarized in [engine modifications](engine/README.md).
 
 ## Catalog builders
 
@@ -72,17 +72,15 @@ A central feature of the randomizer is that it rearranges and rethemes the areas
 
 Each Light World area and its corresponding Dark World area form one randomization unit: they move to corresponding slots together and use the same selected tile theme.  Mirror/portal correspondence therefore follows this same paired placement. An area's neighbor-edge connections also typically align between Light World and Dark World, though a small amount of exceptions are permitted, as in the vanilla game.
 
-Edge variants are designed to be normalized to specific sizes and positions so that they can connect modularly to neighboring rooms. Not every edge variant works in every position of every room, because of constraints dependent on the room's shape and features. In order for the rearrangement process to be effective, there must be a large enough pool of edge variants available so that rearrangements are not too heavily constrained. This requires development work on the overworld editor, to support representing edge variants in a structured way; it also requires a significant amount of retiling work to create variants that integrate seamlessly with the area interior. The exact structure of how edge variants will be encoded still needs to be determined. Therefore, automating the overworld rearrangement is not a priority at this stage of the project. Nevertheless, we can describe the current plan:
+Edge variants are normalized to specific sizes and positions so that they can connect modularly to neighboring rooms. Not every edge variant works in every position of every room, because of constraints dependent on the room's shape and features, so rearrangement needs a large enough pool of edge variants not to be too heavily constrained.
 
-Assuming that the edge variants are constrained enough that a brute-force approach to rearrangement is not viable, the plan is to use a small reinforcement-learning model. Areas can be placed one at a time, starting in the top-left corner and proceeding row by row, skipping any cells already filled by a large area on the previous row. The model can consider candidates for each placement and predict final outcomes, such as the number of successfully placed areas and number of connected components, conditioned on each placement. These predictions can be aggregated to form reward scores, with higher-scoring candidates being assigned a higher probability of being selected. In addition to the essential scoring terms relating to the validity of the rearrangement, additional terms can be added to shape desirable characteristics, such as rewarding variety in placements (i.e., disincentivizing commonly selected placements or pairings of areas).
+The rearranger is a separate project, [z3-map-gen](https://github.com/blkerby/z3-map-gen), which uses a small reinforcement-learning model. It places areas one at a time, row by row from the top-left corner, skipping cells already filled by a large area, and its model predicts the final outcome of each candidate placement, such as the number of successfully placed areas and connected components. Two adjacent areas count as connected when any valid combination of traversable, compatible edge variants exists between them; concrete edge variants and themes are chosen later, during generation.
 
-During the area placement process, two adjacent areas can be assumed to be connected as long as there is any valid combination of traversible, compatible edge variants between them. Assignment of themes and concrete edge variants can be selected as a post-processing step, after a rearrangement's validity has already been determined: at this stage, some traversible edges may be replaced by non-traversible ones (e.g. rock walls), as long as global connectivity is preserved. Global connectivity may also take into account cave networks and the possibility of using whirlpools, flute transport, and portals/mirror.
-
-The rearranger will likely be written as a Python application with a Rust subcomponent (e.g. using PyO3 bindings managed with `maturin`). Python is appealing for easiest access to machine-learning functionality, while Rust is convenient for environment simulation and feature extraction. The rearranger will use the retiling catalog in order to determine if a given rearrangement (including assigned themes and edges) will satisfy hardware limits on palette colors and tilesets, and this would also fit on the Rust side.
+The rearranger runs offline to build a pool of layouts, so the CLI and server need no Python or machine-learning dependencies. A resampling step balances the pool, both in the geometric placement of individual rooms across their possible positions and in the possible edge connections, which would be hard to match with a live rearranger. The pool's format is documented in z3-map-gen's `docs/map_pool.md`; the randomizer reads it from `maps/map_pool.bin` (see [map randomization](map_randomization.md)).
 
 ## Generator
 
-The generator is a Rust library for creating a randomized game ("seed"). It invokes the rearranger to obtain a rearranged overworld, then places items in a way that provides logical progression, so that the game is beatable at the selected level of difficulty. If it fails, it can retry with a fresh rearrangement.
+The generator is a Rust library for creating a randomized game ("seed"). For a random layout it selects a rearrangement from the map pool and chooses edge variants, then places items in a way that provides logical progression, so that the game is beatable at the selected level of difficulty. If it fails, it can retry with another layout.
 
 [Door-specific keys](generation/keys.md) are assigned in a preliminary pass, one dungeon at a time, before ordinary item placement. Every new complete generation attempt reruns this pass.
 
@@ -110,7 +108,6 @@ Saved seeds record each overworld or special room's `theme` and, in a randomized
 
 ROM addresses, symbol addresses, and runtime asset allocation decisions belong to the current patcher and patch catalog, rather than the saved seed. A seed does not require a particular patcher version or the original versions of the catalogs used to generate it.
 
-Conceptually, rearrangement can be considered part of the generation process, and it is possible that they are combined in a single binary. However, because of the likely language boundary (with rearrangement likely happening primarily in Python), it may be more convenient for them to be separate services. On the other hand, there is also a possibility of building an offline pool of rearrangements, which would eliminate the need for rearrangement as a generation-time service.
 
 ## ROM patching
 

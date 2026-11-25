@@ -1,6 +1,6 @@
 # Map randomization integration plan
 
-Status: initial implementation present, with broader ROM gameplay verification outstanding. This document records the agreed behavior and verification scope. It builds on [engine milestones 10–12](../plans/engine.md#milestone-10-paired-world-area-topology-and-transitions), replacing the planned layout search with selection from the precomputed map pool. No Python runs during seed generation or ROM patching.
+Status: initial implementation present, with broader ROM gameplay verification outstanding. This document records the agreed behavior and verification scope. It builds on the engine's [area topology](engine/README.md#area-topology), with layouts selected from the precomputed map pool (see [the rearranger](architecture.md#rearranger)). No Python runs during seed generation or ROM patching.
 
 ## Agreed behavior
 
