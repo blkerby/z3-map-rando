@@ -7,7 +7,6 @@ use retiling_catalog::RetilingCatalog;
 use seed_data::WorldLayout;
 use std::{
     fs::{self, File},
-    io::BufWriter,
     path::{Path, PathBuf},
 };
 
@@ -100,36 +99,9 @@ fn write_maps(
     both_worlds: bool,
 ) -> Result<()> {
     let map = compile_world_map(catalog, importer, layout, both_worlds)?;
-    for (world, palette_bytes) in map.palettes.chunks_exact(256).enumerate() {
-        let mut palette = Vec::new();
-        for bytes in palette_bytes.chunks_exact(2) {
-            let color = u16::from_le_bytes([bytes[0], bytes[1]]);
-            for shift in [0, 5, 10] {
-                let component = ((color >> shift) & 31) as u8;
-                palette.push((component << 3) | (component >> 2));
-            }
-        }
-        let mut pixels = vec![0; 512 * 512];
-        for y in 0..512 {
-            for x in 0..512 {
-                let tx = x / 8;
-                let ty = y / 8;
-                // Compiled tilemaps store four 32x32 quadrants, not linear rows.
-                let tile = map.tilemaps
-                    [world * 4096 + (ty / 32 * 2 + tx / 32) * 1024 + ty % 32 * 32 + tx % 32];
-                pixels[y * 512 + x] =
-                    map.graphics[world * 0x4000 + usize::from(tile) * 64 + y % 8 * 8 + x % 8];
-            }
-        }
-        let suffix = ["light", "dark"][world];
+    for (png, suffix) in map.encode_pngs()?.iter().zip(["light", "dark"]) {
         let path = output_dir.join(format!("{name}-{suffix}.png"));
-        let mut encoder = png::Encoder::new(BufWriter::new(File::create(&path)?), 512, 512);
-        encoder.set_color(png::ColorType::Indexed);
-        encoder.set_depth(png::BitDepth::Eight);
-        encoder.set_palette(palette);
-        let mut writer = encoder.write_header()?;
-        writer.write_image_data(&pixels)?;
-        writer.finish()?;
+        fs::write(&path, png)?;
         eprintln!("Wrote {}", path.display());
     }
     Ok(())

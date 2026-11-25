@@ -36,6 +36,32 @@ pub fn patch_rom(
     patch().map_err(|error| JsError::new(&format!("{error:#}")))
 }
 
+/// Render a saved seed's Light and Dark World maps as PNGs, using graphics from a vanilla ROM
+/// and the seed's filtered retiling catalog.
+#[wasm_bindgen]
+pub fn render_world_maps(
+    rom: &[u8],
+    seed_json: &[u8],
+    retiling_catalog: &[u8],
+    patch_catalog: &[u8],
+) -> Result<Vec<js_sys::Uint8Array>, JsError> {
+    let render = || -> anyhow::Result<Vec<Vec<u8>>> {
+        let seed = SeedData::read(seed_json)?;
+        let retiling = retiling_catalog::decode_catalog(retiling_catalog)?;
+        let patches = patch_catalog::decode_catalog(patch_catalog)?;
+        let layout = patcher::resolve_world_layout(&seed, &patches)?;
+        let importer = patcher::import::Importer::new(rom.to_vec())?;
+        let map = patcher::retiling::compile_world_map(&retiling, &importer, &layout, true)?;
+        map.encode_pngs()
+    };
+    let pngs = render().map_err(|error| JsError::new(&format!("{error:#}")))?;
+    let mut output = Vec::new();
+    for png in pngs {
+        output.push(js_sys::Uint8Array::from(png.as_slice()));
+    }
+    Ok(output)
+}
+
 #[derive(Serialize)]
 struct SpoilerOutput {
     spheres: Vec<Vec<SpoilerEntry>>,

@@ -1,8 +1,11 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import { ITEM_LABELS, getItemLevelIcon, items } from '$lib/generation/data';
+	import { useRomStore } from '$lib/rom/store.svelte';
+	import Segmented from '$lib/settings/controls/Segmented.svelte';
 	import {
 		openSpoiler,
+		renderWorldMaps,
 		type RouteRow,
 		type RouteState,
 		type RouteTarget,
@@ -132,7 +135,44 @@
 	onDestroy(() => {
 		destroyed = true;
 		session?.free();
+		for (const url of worldMaps ?? []) URL.revokeObjectURL(url);
 	});
+
+	const rom = useRomStore();
+	/** PNG object URLs for the Light and Dark World maps, rendered once from the player's ROM. */
+	let worldMaps = $state<string[] | null>(null);
+	let mapError = $state('');
+	/** Whether rendering has started; the map renders the first time a route is shown, if a ROM is saved. */
+	let mapStarted = $state(false);
+	let mapWorld = $state('light');
+	const WORLD_OPTIONS = [
+		{ value: 'light', label: 'Light World' },
+		{ value: 'dark', label: 'Dark World' }
+	];
+
+	function renderMaps() {
+		mapStarted = true;
+		renderWorldMaps(seed, rom.bytes!)
+			.then((urls) => {
+				if (destroyed) {
+					for (const url of urls) URL.revokeObjectURL(url);
+					return;
+				}
+				worldMaps = urls;
+			})
+			.catch((e) => (mapError = e instanceof Error ? e.message : String(e)));
+	}
+
+	/** Render the map from a saved ROM, without asking for one. */
+	async function startMaps() {
+		await rom.loadStored();
+		if (rom.bytes && !mapStarted) renderMaps();
+	}
+
+	/** Ask for a ROM if none is saved, then render the map. */
+	async function loadRomForMaps() {
+		if ((await rom.require()) && !mapStarted) renderMaps();
+	}
 
 	/** Show a route in the dialog, replacing any route already shown. */
 	function showRoute(target: RouteTarget, name: string) {
@@ -146,6 +186,7 @@
 		};
 		if (routeDialog.open) routeDialog.scrollTop = 0;
 		else routeDialog.showModal();
+		if (!mapStarted) void startMaps();
 	}
 
 	interface StatePart {
@@ -436,6 +477,36 @@
 					<p class="text-body-secondary mb-0">No route found.</p>
 				{/if}
 			</div>
+			<div class="px-4 pb-4">
+				{#if mapError}
+					<div class="alert alert-danger small py-2 px-3 mb-0" role="alert">
+						Couldn't render the map: {mapError}
+					</div>
+				{:else if worldMaps}
+					<div class="mb-2">
+						<Segmented
+							options={WORLD_OPTIONS}
+							value={mapWorld}
+							label="World"
+							onchange={(value) => (mapWorld = value)}
+						/>
+					</div>
+					<img
+						class="world-map"
+						src={worldMaps[mapWorld === 'light' ? 0 : 1]}
+						alt="{mapWorld === 'light' ? 'Light' : 'Dark'} World map"
+					/>
+				{:else if mapStarted}
+					<p class="text-body-secondary mb-0" role="status">
+						<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+						Rendering the map…
+					</p>
+				{:else}
+					<button type="button" class="btn btn-sm btn-outline-secondary" onclick={loadRomForMaps}>
+						Load ROM to show the map
+					</button>
+				{/if}
+			</div>
 		{/if}
 	</dialog>
 {/if}
@@ -555,6 +626,13 @@
 
 	.row-button:hover .tile {
 		background: none;
+	}
+
+	.world-map {
+		display: block;
+		width: 512px;
+		max-width: 100%;
+		image-rendering: pixelated;
 	}
 
 	.badge-text {

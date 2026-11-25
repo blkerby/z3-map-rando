@@ -20,8 +20,8 @@ export class RomStore {
 		return this.#bytes;
 	}
 
-	/** Load a previously saved ROM. Safe to call more than once. */
-	#loadStored(): Promise<void> {
+	/** Load a previously saved ROM, without asking for one. Safe to call more than once. */
+	loadStored(): Promise<void> {
 		this.#init ??= (async () => {
 			const stored = await loadStoredRom();
 			// A saved ROM only counts if it still matches an accepted ROM (the list can change).
@@ -39,7 +39,7 @@ export class RomStore {
 	 * Resolves false if the player closes the dialog without choosing a ROM.
 	 */
 	async require(): Promise<boolean> {
-		await this.#loadStored();
+		await this.loadStored();
 		if (this.#bytes) return true;
 		if (this.#pending) return this.#pending.promise;
 		let resolve!: (ok: boolean) => void;

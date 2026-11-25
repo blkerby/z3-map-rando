@@ -65,6 +65,27 @@ export async function downloadRom(request: RomRequest): Promise<void> {
 	setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/**
+ * Render the saved seed's Light and Dark World maps from the player's ROM, as PNG object URLs. Revoke them when
+ * done.
+ */
+export async function renderWorldMaps(seed: string, rom: Uint8Array): Promise<string[]> {
+	const seedUrl = `/api/seed/${encodeURIComponent(seed)}`;
+	const [browser, seedBytes, retiling, patches] = await Promise.all([
+		loadBrowser(),
+		fetchBytes(seedUrl),
+		fetchBytes(`${seedUrl}/retiling`),
+		fetchBytes(patchCatalogUrl)
+	]);
+	const urls: string[] = [];
+	for (const png of browser.render_world_maps(rom, seedBytes, retiling, patches)) {
+		urls.push(
+			URL.createObjectURL(new Blob([png as Uint8Array<ArrayBuffer>], { type: 'image/png' }))
+		);
+	}
+	return urls;
+}
+
 export interface SpoilerEntry {
 	/** Catalog item location index, for route queries. */
 	location_idx: number;

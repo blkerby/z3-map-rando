@@ -213,7 +213,7 @@ pub fn patch_rom(
 }
 
 /// Express the seed's room choices as map cell indexes.
-pub(crate) fn resolve_world_layout(seed: &SeedData, patches: &PatchCatalog) -> Result<WorldLayout> {
+pub fn resolve_world_layout(seed: &SeedData, patches: &PatchCatalog) -> Result<WorldLayout> {
     let mut rooms = Vec::new();
     for room in &seed.rooms {
         if let (SourceRoomId::Overworld(room_id), Some([x, y]), Some(theme)) =
