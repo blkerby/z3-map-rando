@@ -85,15 +85,13 @@
 	let started = false;
 
 	interface Route {
-		/** Row containing the selected item, so hiding that row also hides the route. */
-		rowIndex: number;
-		locationIdx: number;
 		description: string;
 		/** Null if no route was found. */
 		steps: RouteRow[] | null;
 	}
 
 	let route = $state<Route | null>(null);
+	let routeDialog = $state<HTMLDialogElement>();
 	/** Number of rows shown, from the top; the rest show question marks until revealed. */
 	let revealed = $state(0);
 	/** Whether to show only major- and high-tier items, hiding rows left empty. Remembered across sessions. */
@@ -124,18 +122,13 @@
 		session?.free();
 	});
 
-	function selectTile(rowIndex: number, tile: Tile) {
+	function showRoute(tile: Tile) {
 		if (!session) return;
-		if (route?.locationIdx === tile.locationIdx) {
-			route = null;
-			return;
-		}
 		route = {
-			rowIndex,
-			locationIdx: tile.locationIdx,
 			description: tile.description.replace('\n', ' — '),
 			steps: session.traceRoute(tile.locationIdx)
 		};
+		routeDialog?.showModal();
 	}
 
 	function formatHearts(eighths: number): string {
@@ -273,12 +266,11 @@
 							<button
 								type="button"
 								class="tile"
-								class:selected={route?.locationIdx === tile.locationIdx}
 								title={tile.description}
 								aria-label="Show a route to {tile.description}"
 								onclick={(event) => {
 									event.stopPropagation();
-									selectTile(row.index, tile);
+									showRoute(tile);
 								}}
 							>
 								{#if tile.icon}
@@ -299,36 +291,61 @@
 			</div>
 		{/each}
 	</div>
-	{#if route && route.rowIndex < revealed}
-		<h3 class="h6 mt-3">Route to {route.description}</h3>
-		{#if route.steps}
-			<table class="table table-sm small route">
-				<thead>
-					<tr>
-						<th scope="col">Destination</th>
-						<th scope="col">Strat</th>
-						<th scope="col">State</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each route.steps as step, stepIndex (stepIndex)}
-						<tr>
-							<td>{step.destination}</td>
-							<td>
-								{step.strat}
-								{#if step.dependencies.length}
-									<div class="text-body-secondary">Requires {step.dependencies.join(', ')}</div>
-								{/if}
-							</td>
-							<td>{describeState(step.state, route.steps[stepIndex - 1]?.state).join(', ')}</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		{:else}
-			<p class="text-body-secondary">No route found.</p>
+	<!-- Escape, Close or a click on the backdrop closes it. `autofocus` makes `showModal()` focus the dialog
+	     itself rather than its close button. -->
+	<dialog
+		bind:this={routeDialog}
+		autofocus
+		class="route-dialog"
+		aria-labelledby="spoiler-route-title"
+		onclick={(e) => {
+			if (e.target === routeDialog) routeDialog.close();
+		}}
+		onclose={() => (route = null)}
+	>
+		{#if route}
+			<div class="d-flex align-items-center px-4 py-3 border-bottom">
+				<h2 id="spoiler-route-title" class="h5 fw-bold mb-0 me-auto">
+					Route to {route.description}
+				</h2>
+				<button
+					type="button"
+					class="btn-close"
+					aria-label="Close"
+					onclick={() => routeDialog?.close()}
+				></button>
+			</div>
+			<div class="p-4">
+				{#if route.steps}
+					<table class="table table-sm small route mb-0">
+						<thead>
+							<tr>
+								<th scope="col">Destination</th>
+								<th scope="col">Strat</th>
+								<th scope="col">State</th>
+							</tr>
+						</thead>
+						<tbody>
+							{#each route.steps as step, stepIndex (stepIndex)}
+								<tr>
+									<td>{step.destination}</td>
+									<td>
+										{step.strat}
+										{#if step.dependencies.length}
+											<div class="text-body-secondary">Requires {step.dependencies.join(', ')}</div>
+										{/if}
+									</td>
+									<td>{describeState(step.state, route.steps[stepIndex - 1]?.state).join(', ')}</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				{:else}
+					<p class="text-body-secondary mb-0">No route found.</p>
+				{/if}
+			</div>
 		{/if}
-	{/if}
+	</dialog>
 {/if}
 
 <style>
@@ -402,8 +419,17 @@
 		transform: scale(1.5);
 	}
 
-	.tile.selected {
-		outline: 2px solid var(--bs-primary);
+	.route-dialog {
+		width: min(60rem, calc(100vw - 2rem));
+		padding: 0;
+		border: 1px solid var(--bs-border-color);
+		border-radius: 0.6rem;
+		background: var(--bs-body-bg);
+		color: var(--bs-body-color);
+	}
+
+	.route-dialog::backdrop {
+		background: rgb(0 0 0 / 0.55);
 	}
 
 	.route td {
