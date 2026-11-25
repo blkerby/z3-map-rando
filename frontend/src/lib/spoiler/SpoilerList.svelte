@@ -173,15 +173,20 @@
 	</div>
 	<p class="small text-body-secondary">
 		Each row is a sphere: the items collectible once all items in earlier rows are collected. Click
-		a hidden row to reveal it and the rows above it.
+		a row to reveal it and the rows above it.
 	</p>
 	<div class="rows">
 		{#each rows as row (row.index)}
-			{#if row.index < revealed}
-				<div class="row-label">{row.title}</div>
-				<div class="tiles">
+			<div class="row-label">{row.title}</div>
+			<button
+				type="button"
+				class="tiles row-button"
+				aria-label="Reveal rows through {row.title} and hide the rest"
+				onclick={() => (revealed = row.index + 1)}
+			>
+				{#if row.index < revealed}
 					{#each row.tiles as tile, tileIndex (tileIndex)}
-						<span class="tile" title={tile.description} role="img" aria-label={tile.description}>
+						<span class="tile" title={tile.description}>
 							{#if tile.icon}
 								<img src={tile.icon} alt="" />
 							{:else}
@@ -189,20 +194,12 @@
 							{/if}
 						</span>
 					{/each}
-				</div>
-			{:else}
-				<div class="row-label">{row.title}</div>
-				<button
-					type="button"
-					class="tiles hidden-row"
-					aria-label="Reveal rows through {row.title}"
-					onclick={() => (revealed = row.index + 1)}
-				>
+				{:else}
 					{#each row.tiles as tile (tile)}
-						<span class="tile"><i class="bi bi-question-lg" aria-hidden="true"></i></span>
+						<span class="tile hidden-tile"><i class="bi bi-question-lg" aria-hidden="true"></i></span>
 					{/each}
-				</button>
-			{/if}
+				{/if}
+			</button>
 		{/each}
 	</div>
 {/if}
@@ -229,10 +226,12 @@
 		gap: 2px;
 	}
 
-	.hidden-row {
+	.row-button {
 		padding: 0;
 		border: none;
 		background: none;
+		color: inherit;
+		font: inherit;
 		cursor: pointer;
 		text-align: start;
 	}
@@ -253,11 +252,11 @@
 		image-rendering: pixelated;
 	}
 
-	.hidden-row .tile {
+	.hidden-tile {
 		color: var(--bs-secondary-color);
 	}
 
-	.hidden-row:hover .tile {
+	.row-button:hover .tile {
 		background: var(--bs-secondary-bg);
 	}
 
