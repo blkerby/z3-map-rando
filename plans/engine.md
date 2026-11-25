@@ -314,7 +314,7 @@ Install the final overworld VRAM layout while retaining the vanilla graphics, pa
 
 ### Overworld VRAM layout
 
-Install the final overworld-specific layout described in [`vram.md`](vram.md):
+Install the final overworld-specific layout described in [`vram.md`](../docs/engine/vram.md):
 
 - Put 960 shared BG1/BG2 4bpp characters at `$0000-$3BFF`.
 - Move the 32x32 BG3 tilemap to `$3C00-$3FFF`.

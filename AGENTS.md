@@ -9,7 +9,7 @@
 
 # Markdown guidelines
 
-- Avoid adding new paragraphs or sections to the main `README.md`. Put player-facing details in `docs/`, technical details in code comments near the implementation, and design plans in `plans/`; link from existing README text when needed.
+- Avoid adding new paragraphs or sections to the main `README.md`. Put player-facing details and the high-level design of implemented systems in `docs/`, technical details that pertain to a single patch or module in code comments near the implementation, and plans for work not yet done in `plans/`; link from existing README text when needed. When planned work is complete, move its lasting design into `docs/` and remove the plan.
 - Write each Markdown paragraph on a single source line without hard wrapping, including paragraphs in list items. 
 
 # Rust style guidelines

@@ -12,7 +12,7 @@ Ordinary overworld doors use 129 records split across three tables in bank `$1B`
 | `$1BBA71` | Map16 buffer offset | 129 words | Compared with the contacted tile's byte offset in the current Map16 buffer at `$7E2000`. Rows are `$80` bytes apart and each Map16 entry occupies two bytes. |
 | `$1BBB73` | Entrance ID | 129 bytes | Written to `$010E` after a match and used as the index into `EntranceData`. Multiple overworld locations can select the same entrance ID. |
 
-[`UseOverworldEntrance`](../jpdasm/bank_1B.asm#L12048) calculates the contacted Map16 offset and checks it together with the current overworld screen against the first two tables. A match supplies the entrance ID from the third table, which is written to `$010E`.
+[`UseOverworldEntrance`](../../jpdasm/bank_1B.asm#L12048) calculates the contacted Map16 offset and checks it together with the current overworld screen against the first two tables. A match supplies the entrance ID from the third table, which is written to `$010E`.
 
 For example, record `$00` describes Link's house:
 
@@ -24,7 +24,7 @@ The Map16 offset is an offset into the current overworld Map16 buffer at `$7E200
 
 ## Pit entrances
 
-Pits use separate tables beginning at [`$1BB800`](../jpdasm/bank_1B.asm#L11465):
+Pits use separate tables beginning at [`$1BB800`](../../jpdasm/bank_1B.asm#L11465):
 
 | Address | Field | Size | Meaning and effect |
 | --- | --- | --- | --- |
@@ -32,11 +32,11 @@ Pits use separate tables beginning at [`$1BB800`](../jpdasm/bank_1B.asm#L11465):
 | `$1BB826` | Overworld screen ID | 19 words | Area containing the pit; checked together with the Map16 offset to distinguish identical local coordinates on different screens. |
 | `$1BB84C` | Entrance ID | 20 bytes | Selects `EntranceData` through `$010E`. Entries `$00-$12` correspond to the 19 locations; entry `$13` is the unmatched-pit fallback for the Houlihan room. |
 
-[`GetPitEntranceDestination`](../jpdasm/bank_1B.asm#L11532) matches the first 19 entries by offset and screen. If none matches, it uses the twentieth entrance ID, `$82`, for the Houlihan room. The selected ID is also written to `$010E`.
+[`GetPitEntranceDestination`](../../jpdasm/bank_1B.asm#L11532) matches the first 19 entries by offset and screen. If none matches, it uses the twentieth entrance ID, `$82`, for the Houlihan room. The selected ID is also written to `$010E`.
 
 ## Underworld entrance data
 
-The entrance ID indexes 133 records, `$00-$84`, in [`EntranceData`](../jpdasm/bank_02.asm#L13092). This is another set of parallel tables, beginning at `$02C577`, with these fields:
+The entrance ID indexes 133 records, `$00-$84`, in [`EntranceData`](../../jpdasm/bank_02.asm#L13092). This is another set of parallel tables, beginning at `$02C577`, with these fields:
 
 | Address | Field | Bytes per entrance | Meaning and effect |
 | --- | --- | --- | --- |
@@ -58,13 +58,13 @@ The entrance ID indexes 133 records, `$00-$84`, in [`EntranceData`](../jpdasm/ba
 | `$02D488` | Overworld door tilemap | 2 | Return-side door descriptor stored in `$0696`. Normally it is the overworld Map16 buffer offset to replace with an open doorway; zero suppresses the update, `$FFFF` marks the reverse-facing exit, and bit 15 selects the bombable-entrance replacement. |
 | `$02D592` | Song | 1 | Requested room music in `$0132`. Special values request transfer or volume behavior; song `$03` changes to the cave theme after Zelda has been rescued. |
 
-[`LoadUnderworldEntrance`](../jpdasm/bank_02.asm#L15443) reads the selected values and initializes the indoor room. Continuing the Link's house example, `EntranceData[$01]` selects room `$0104` and its starting position, camera, graphics, and music.
+[`LoadUnderworldEntrance`](../../jpdasm/bank_02.asm#L15443) reads the selected values and initializes the indoor room. Continuing the Link's house example, `EntranceData[$01]` selects room `$0104` and its starting position, camera, graphics, and music.
 
 ## Returning to the overworld
 
 Returning outside is partly table-driven and partly based on state cached when Link entered.
 
-[`UnderworldExitData`](../jpdasm/bank_02.asm#L16267) contains 79 parallel records, `$00-$4E`, beginning at `$02DAEE`. Each record includes:
+[`UnderworldExitData`](../../jpdasm/bank_02.asm#L16267) contains 79 parallel records, `$00-$4E`, beginning at `$02DAEE`. Each record includes:
 
 | Address | Field | Bytes per exit | Meaning and effect |
 | --- | --- | --- | --- |
@@ -82,7 +82,7 @@ Returning outside is partly table-driven and partly based on state cached when L
 | `$02E0CB` | Door graphic | 2 | Door-opening descriptor stored in `$0696`. Zero means no ordinary door update, `$FFFF` marks the reverse-facing case, a normal value is a Map16 buffer offset for a wooden doorway, and bit 15 selects a bombable opening. |
 | `$02E169` | Door graphic location | 2 | Map16 buffer offset stored in `$0698` for a 2x2 animated door, such as Sanctuary or Hyrule Castle. Bit 15 requests the longer exit walk and is cleared before the offset is used. |
 
-[`LoadOverworldFromUnderworld`](../jpdasm/bank_02.asm#L17348) searches this data by the current room ID for Link's house, rooms below `$0100`, and special overworld rooms at or above `$0180`.
+[`LoadOverworldFromUnderworld`](../../jpdasm/bank_02.asm#L17348) searches this data by the current room ID for Link's house, rooms below `$0100`, and special overworld rooms at or above `$0180`.
 
 Other rooms from `$0100-$017F` return using the overworld properties cached by `LoadUnderworldEntrance` when Link entered. This lets a single-entrance room return to the actual overworld location used to reach it without requiring a separate exit record.
 
@@ -103,4 +103,4 @@ Changing an overworld door's entrance ID does not automatically change where the
 
 ## Generated overworlds
 
-The generated-overworld patch replaces the vanilla screen-and-offset scans with lists local to each generated area. The formats and area-record pointers are documented in [overworld asset loading](../docs/engine/overworld_assets.md#area-record) and implemented in [`overworld_entrances.asm`](../patches/src/overworld_entrances.asm). These lists still produce vanilla entrance IDs; `EntranceData` and the underworld exit handling remain the next stages of the transition.
+The generated-overworld patch replaces the vanilla screen-and-offset scans with lists local to each generated area. The formats and area-record pointers are documented in [overworld asset loading](overworld_assets.md#area-record) and implemented in [`overworld_entrances.asm`](../../patches/src/overworld_entrances.asm). These lists produce vanilla entrance IDs, and `EntranceData` and the underworld exit handling are unchanged, so each entrance keeps its vanilla destination. Connecting entrances to different overworld areas or locations is a possible future extension.

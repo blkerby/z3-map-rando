@@ -1,12 +1,12 @@
 # Overworld cutscenes
 
-Overworld cutscenes will be stored as JSON scripts created by the overworld editor. Rust will compile the scripts into ROM data, and a small ASM interpreter will execute them during gameplay.
+Overworld cutscenes are stored as JSON scripts created by the overworld editor. The patcher compiles the scripts into ROM data, and a small ASM interpreter in [`overworld_cutscenes.asm`](../../patches/src/overworld_cutscenes.asm) executes them during gameplay.
 
-The initial scope is dungeon-entrance-style cutscenes: timed changes to area layers, accompanied by sounds, shaking, and music. Scripts do not need to reproduce unwanted vanilla display effects such as black-and-white flashing.
+The scope is dungeon-entrance-style cutscenes: timed changes to area layers, accompanied by sounds, shaking, and music. Scripts do not need to reproduce unwanted vanilla display effects such as black-and-white flashing.
 
 ## Script model
 
-A script belongs to one area and contains a sequence of actions. Each area's theme directory stores its scripts in `cutscenes.json`, allowing more scripts to be added to the same file later. A `draw` action references a layer in that area directly. The initial implementation supports BG2 cutscene layers only.
+A script belongs to one area and contains a sequence of actions. Each area's theme directory stores its scripts in `cutscenes.json`, allowing more scripts to be added to the same file later. A `draw` action references a layer in that area directly. Only BG2 cutscene layers are supported.
 
 ```json
 {
@@ -31,7 +31,7 @@ A script belongs to one area and contains a sequence of actions. Each area's the
 
 Cutscene layers are sparse incremental patches. Drawing a layer adds its tiles to the displayed cutscene state; cells absent from the layer are left unchanged, and later writes replace earlier writes to the same cells. The compiler applies every drawn layer in script order to derive the persistent appearance used when loading an area whose event is complete. Keeping each layer to only its new tile writes also limits the work requested from NMI.
 
-Only the `Main` BG2 layer participates in ordinary initial rendering. Other BG2 layers are reserved for cutscenes now and future edge variants.
+Only the `Main` BG2 layer participates in ordinary initial rendering. Other BG2 layers are reserved for cutscenes and edge variants.
 
 The interpreter executes actions until one waits, then resumes from that point on a later frame. Effects such as screen shaking remain active across waits until stopped.
 
@@ -52,7 +52,7 @@ The fixed shake alternates between `[-1, 1]` and `[1, -1]` pixel displacements.
 
 ## Vanilla scripts
 
-These scripts transcribe the waits, terrain phases, sounds, music, and shaking in [`EntranceCutscene`](../jpdasm/bank_1B.asm#L14694). Layer names describe what the vanilla importer should create. Decimal sound and song numbers correspond to the hexadecimal IDs in the disassembly.
+These scripts transcribe the waits, terrain phases, sounds, music, and shaking in [`EntranceCutscene`](../../jpdasm/bank_1B.asm#L14694). Layer names describe what the vanilla importer should create. Decimal sound and song numbers correspond to the hexadecimal IDs in the disassembly.
 
 This model is adequate for the terrain, BG2 artwork, timing, sound, music, shaking, and persistence used by the five sequences. Ganon's Tower's orbiting crystals remain intact as a vanilla sprite sequence before the script starts, so they do not require sprite control in the cutscene format.
 
@@ -266,6 +266,6 @@ Starting a cutscene suspends normal player and sprite processing. Ending one res
 
 Drawing first updates the logical Map16 buffer and accumulates a pending rectangle in 8x8 coordinates. After the frame's BG1/BG2 scroll positions and edge updates are finalized, the shared renderer appends the visible part of that rectangle to the same `$1100` DMA list. Horizontal segments split at VRAM screen-block boundaries, and existing NMI mode `$18` uploads the combined list. The pending rectangle survives script completion so a final draw is uploaded even when `end` runs in the same frame.
 
-Cutscene triggers are separate from scripts. An area event selects and starts a script, while the script describes only what happens after it begins. The format does not initially include branches, loops, arbitrary ASM calls, arbitrary memory writes, or sprite choreography.
+Cutscene triggers are separate from scripts. An area event selects and starts a script, while the script describes only what happens after it begins. The format does not include branches, loops, arbitrary ASM calls, arbitrary memory writes, or sprite choreography.
 
 Each compiled theme must provide all five vanilla entrance events. Missing, duplicate, misplaced, or incomplete scripts are compiler errors; the runtime does not fall back to the vanilla cutscene implementation.

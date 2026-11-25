@@ -246,7 +246,7 @@ fn read_item_encodings(source_directory: &Path) -> Result<BTreeMap<String, ItemE
         for item in category.items {
             let receipt_id = u8::from_str_radix(item.item_receipt_id.trim_start_matches("0x"), 16)?;
             // Mask, map properties/tile, prize type, number tile, falling-prize ID.
-            // See plans/patches.md for the vanilla encodings and custom table layout.
+            // See docs/engine/patches.md for the vanilla encodings and custom table layout.
             let prize_patch_bytes = match item.name.as_str() {
                 "PendantOfCourage" => Some([0x04, 0x38, 0x60, 0x00, 0x69, 0x01]),
                 "PendantOfWisdom" => Some([0x01, 0x32, 0x60, 0x00, 0x69, 0x03]),
