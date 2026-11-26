@@ -92,9 +92,8 @@
 									tier: String(entry.tier)
 								})}
 							>
-								{entry.tier}
+								{entry.tier} ({entry.difficulty})
 							</a>
-							<span class="text-body-secondary">({entry.difficulty})</span>
 						</li>
 					{/each}
 				</ul>
@@ -109,7 +108,6 @@
 					<a href={resolve('/logic/tech/[techId]', { techId: String(tech.id) })}>
 						{tech.name}
 					</a>
-					<span class="text-body-secondary">({tech.difficulty})</span>
 				</li>
 			{/each}
 		</ul>
