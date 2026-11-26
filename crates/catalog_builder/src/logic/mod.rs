@@ -213,8 +213,8 @@ fn load_definitions(
         compiler.flags.insert(name.clone(), flag_idx);
         catalog.flags.push(name);
     }
-    let helpers: Vec<z3_json_data::Helper> = read_source(&source_directory.join("helpers.json"))?;
-    for helper in helpers {
+    let helpers: z3_json_data::Helpers = read_source(&source_directory.join("helpers.json"))?;
+    for helper in helpers.helpers {
         compiler.helpers.insert(helper.name.clone(), helper);
     }
     let techs: z3_json_data::Techs = read_source(&source_directory.join("tech.json"))?;

@@ -11,61 +11,41 @@ pub fn build_connections(
     for filename in ["entrances.json", "teleports.json", "whirlpools.json"] {
         let source: z3_json_data::Connections =
             read_source(&source_directory.join("connections").join(filename))?;
-        for connection in source.connections {
-            let entrance_kind = match &connection {
-                z3_json_data::Connection::Door { .. } => Some(EntranceKind::Door),
-                z3_json_data::Connection::Drop { .. } => Some(EntranceKind::Drop),
-                _ => None,
+        for entrance in source.entrances {
+            let outside = &room_indices[&SourceRoomId::Overworld(entrance.overworld.room_id)];
+            let inside = &room_indices[&SourceRoomId::Underworld(entrance.underworld.room_id)];
+            let kind = match entrance.kind {
+                z3_json_data::EntranceType::Door => EntranceKind::Door,
+                z3_json_data::EntranceType::Drop => EntranceKind::Drop,
             };
-            let connection = match connection {
-                z3_json_data::Connection::Door {
-                    world,
-                    overworld,
-                    underworld,
-                }
-                | z3_json_data::Connection::Drop {
-                    world,
-                    overworld,
-                    underworld,
-                } => {
-                    let outside = &room_indices[&SourceRoomId::Overworld(overworld.room_id)];
-                    let inside = &room_indices[&SourceRoomId::Underworld(underworld.room_id)];
-                    Connection::Entrance {
-                        kind: entrance_kind.unwrap(),
-                        entrance_idx: outside.entrances
-                            [&(overworld.entrance_id, world.get_world())],
-                        interior_vertex_idx: inside.vertices[&(underworld.node_id, None)],
-                    }
-                }
-                z3_json_data::Connection::Teleport {
-                    to_world,
-                    underworld,
-                    overworld,
-                } => {
-                    let inside = &room_indices[&SourceRoomId::Underworld(underworld.room_id)];
-                    let outside = &room_indices[&SourceRoomId::Overworld(overworld.room_id)];
-                    Connection::Teleport {
-                        from_vertex_idx: inside.vertices[&(underworld.node_id, None)],
-                        teleport_idx: outside.teleports
-                            [&(overworld.teleport_id, to_world.get_world())],
-                    }
-                }
-                z3_json_data::Connection::Whirlpool {
-                    world,
-                    overworld,
-                    overworld2,
-                } => {
-                    let first = &room_indices[&SourceRoomId::Overworld(overworld.room_id)];
-                    let second = &room_indices[&SourceRoomId::Overworld(overworld2.room_id)];
-                    Connection::Whirlpool {
-                        endpoints: [
-                            first.whirlpools[&(overworld.whirlpool_id, world.get_world())],
-                            second.whirlpools[&(overworld2.whirlpool_id, world.get_world())],
-                        ],
-                    }
-                }
-            };
-            catalog.vanilla_connections.push(connection);
+            catalog.vanilla_connections.push(Connection::Entrance {
+                kind,
+                entrance_idx: outside.entrances
+                    [&(entrance.overworld.entrance_id, entrance.world.get_world())],
+                interior_vertex_idx: inside.vertices[&(entrance.underworld.node_id, None)],
+            });
+        }
+        for teleport in source.teleports {
+            let inside = &room_indices[&SourceRoomId::Underworld(teleport.underworld.room_id)];
+            let outside = &room_indices[&SourceRoomId::Overworld(teleport.overworld.room_id)];
+            catalog.vanilla_connections.push(Connection::Teleport {
+                from_vertex_idx: inside.vertices[&(teleport.underworld.node_id, None)],
+                teleport_idx: outside.teleports[&(
+                    teleport.overworld.teleport_id,
+                    teleport.to_world.get_world(),
+                )],
+            });
+        }
+        for whirlpool in source.whirlpools {
+            let first = &room_indices[&SourceRoomId::Overworld(whirlpool.overworld.room_id)];
+            let second = &room_indices[&SourceRoomId::Overworld(whirlpool.overworld2.room_id)];
+            let world = whirlpool.world.get_world();
+            catalog.vanilla_connections.push(Connection::Whirlpool {
+                endpoints: [
+                    first.whirlpools[&(whirlpool.overworld.whirlpool_id, world)],
+                    second.whirlpools[&(whirlpool.overworld2.whirlpool_id, world)],
+                ],
+            });
         }
     }
 

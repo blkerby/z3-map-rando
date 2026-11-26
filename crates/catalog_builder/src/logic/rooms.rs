@@ -386,7 +386,7 @@ fn compile_room_strats(
                         z3_json_data::TransitionState::Overhead { class } => {
                             (TransitionState::Overhead(*class), None)
                         }
-                        z3_json_data::TransitionState::LeaveNormally => {
+                        z3_json_data::TransitionState::LeaveNormally {} => {
                             (TransitionState::LeaveNormally, None)
                         }
                     };

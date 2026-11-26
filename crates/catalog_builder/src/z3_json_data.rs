@@ -27,38 +27,46 @@ pub fn collect_source_files(directory: &Path, paths: &mut Vec<PathBuf>) -> Resul
     Ok(())
 }
 
+/// A connection file; each file fills one of the lists.
 #[derive(Deserialize)]
 pub struct Connections {
-    pub connections: Vec<Connection>,
+    #[serde(default)]
+    pub entrances: Vec<EntranceConnection>,
+    #[serde(default)]
+    pub teleports: Vec<TeleportConnection>,
+    #[serde(default)]
+    pub whirlpools: Vec<WhirlpoolConnection>,
 }
 
 #[derive(Deserialize)]
-#[serde(
-    tag = "type",
-    rename_all = "lowercase",
-    rename_all_fields = "camelCase"
-)]
-pub enum Connection {
-    Door {
-        world: SourceWorld,
-        overworld: EntranceEndpoint,
-        underworld: InteriorEndpoint,
-    },
-    Drop {
-        world: SourceWorld,
-        overworld: EntranceEndpoint,
-        underworld: InteriorEndpoint,
-    },
-    Teleport {
-        to_world: SourceWorld,
-        underworld: InteriorEndpoint,
-        overworld: TeleportEndpoint,
-    },
-    Whirlpool {
-        world: SourceWorld,
-        overworld: WhirlpoolEndpoint,
-        overworld2: WhirlpoolEndpoint,
-    },
+#[serde(rename_all = "lowercase")]
+pub enum EntranceType {
+    Door,
+    Drop,
+}
+
+#[derive(Deserialize)]
+pub struct EntranceConnection {
+    #[serde(rename = "type")]
+    pub kind: EntranceType,
+    pub world: SourceWorld,
+    pub overworld: EntranceEndpoint,
+    pub underworld: InteriorEndpoint,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TeleportConnection {
+    pub to_world: SourceWorld,
+    pub underworld: InteriorEndpoint,
+    pub overworld: TeleportEndpoint,
+}
+
+#[derive(Deserialize)]
+pub struct WhirlpoolConnection {
+    pub world: SourceWorld,
+    pub overworld: WhirlpoolEndpoint,
+    pub overworld2: WhirlpoolEndpoint,
 }
 
 #[derive(Deserialize)]
@@ -372,7 +380,7 @@ pub struct Strat {
 }
 
 #[derive(Deserialize)]
-#[serde(tag = "state", rename_all = "camelCase")]
+#[serde(rename_all = "camelCase")]
 pub enum TransitionState {
     Event {
         #[serde(rename = "type")]
@@ -384,7 +392,7 @@ pub enum TransitionState {
         #[serde(rename = "type")]
         class: OverheadClass,
     },
-    LeaveNormally,
+    LeaveNormally {},
 }
 
 #[derive(Deserialize)]
@@ -413,6 +421,11 @@ pub struct Item {
     pub item_receipt_id: String,
     #[serde(default)]
     pub requires: Vec<Requirement>,
+}
+
+#[derive(Deserialize)]
+pub struct Helpers {
+    pub helpers: Vec<Helper>,
 }
 
 #[derive(Deserialize)]
