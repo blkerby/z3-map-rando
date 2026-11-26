@@ -49,3 +49,28 @@ export interface LogicRoom extends RoomSummary, Notes {
 	nodes: StratNode[];
 	strats: LogicStrat[];
 }
+
+export interface TechSummary {
+	id: number;
+	name: string;
+	difficulty: string;
+}
+
+export interface TieredTechSummary {
+	id: number;
+	name: string;
+	tiers: { tier: number; difficulty: string }[];
+}
+
+export interface TechStratEntry {
+	room: Pick<RoomSummary, 'id' | 'name'>;
+	strat: LogicStrat;
+}
+
+export interface LogicTech extends TechSummary, Notes {
+	tier?: number;
+	techRequires: TechSummary[];
+	/** Other requirement items as source JSON text; empty when there are none. */
+	otherRequires: string;
+	strats: TechStratEntry[];
+}

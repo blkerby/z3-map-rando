@@ -1,16 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { generationModel } from '$lib/generation/data';
-	import { SettingsStore } from '$lib/settings/store.svelte';
 	import { findDiagrams, selectDefaultDiagram } from './diagrams';
-	import {
-		checkRoomStrats,
-		findBuiltInOption,
-		listBuiltInOptions,
-		listUserOptions,
-		loadUserPresets,
-		resolvePresetSkill
-	} from './difficulty';
+	import { checkRoomStrats } from './difficulty';
+	import DifficultyAlerts from './DifficultyAlerts.svelte';
+	import { DifficultyFilter } from './difficultyFilter.svelte';
 	import LogicNotes from './LogicNotes.svelte';
 	import StratEntry from './StratEntry.svelte';
 	import type { LogicRoom } from './types';
@@ -23,7 +16,6 @@
 	let { room, showNodeFilter = false }: { room: LogicRoom; showNodeFilter?: boolean } = $props();
 
 	const SHOW_DEV_NOTES_KEY = 'logic-show-dev-notes';
-	const DIFFICULTY_KEY = 'logic-difficulty';
 
 	const diagrams = $derived(findDiagrams(room.path, room.name));
 	let selectedLabel = $state<string>();
@@ -36,41 +28,24 @@
 	let world = $state<'light' | 'dark' | null>(null);
 	const hasWorlds = $derived(room.strats.some((strat) => strat.world !== undefined));
 
-	/** The player's generation presets, loaded once mounted. */
-	const presets = new SettingsStore(generationModel, 'logic-');
-	const difficultyOptions = $derived([...listBuiltInOptions(), ...listUserOptions(presets)]);
-	/** An option ID, or '' for strats of any difficulty. */
-	let difficultyId = $state('');
-	const difficulty = $derived(difficultyOptions.find((option) => option.id === difficultyId));
+	const difficultyFilter = new DifficultyFilter();
 	/** IDs of the strats passing with the chosen difficulty, once checked. */
 	let passingStrats = $state<Set<number> | null>(null);
-	let difficultyError = $state<string | null>(null);
 
 	$effect(() => {
-		const option = difficulty;
+		const option = difficultyFilter.selected;
 		const roomId = room.id;
 		passingStrats = null;
-		difficultyError = null;
+		difficultyFilter.error = null;
 		if (!option) return;
 		let current = true;
 		(async () => {
-			const skill = option.skill ?? (await resolvePresetSkill(presets, option.id));
-			const listed = listUserOptions(presets).some((o) => o.id === option.id);
-			if (skill !== null && !option.skill && !listed && difficultyId === option.id) {
-				// Processing removed the preset's skill tweaks, so it takes a built-in option's settings.
-				difficultyId = findBuiltInOption(skill)?.id ?? '';
-				saveDifficulty();
-				return;
-			}
-			if (!current) return;
-			if (skill === null) {
-				difficultyError = `Preset “${option.label}” couldn't be read.`;
-				return;
-			}
+			const skill = await difficultyFilter.resolveSkill();
+			if (!current || skill === null) return;
 			const ids = await checkRoomStrats(roomId, skill);
 			if (current) passingStrats = ids;
 		})().catch((error) => {
-			if (current) difficultyError = error.message;
+			if (current) difficultyFilter.error = error.message;
 		});
 		return () => {
 			current = false;
@@ -99,24 +74,10 @@
 		} catch {
 			// Storage unavailable; keep dev notes hidden.
 		}
-		if (!showNodeFilter) return;
-		let stored = '';
-		try {
-			stored = localStorage.getItem(DIFFICULTY_KEY) ?? '';
-		} catch {
-			// Storage unavailable; list strats of any difficulty.
+		if (showNodeFilter) {
+			difficultyFilter.load();
 		}
-		loadUserPresets(presets);
-		if (difficultyOptions.some((option) => option.id === stored)) difficultyId = stored;
 	});
-
-	function saveDifficulty() {
-		try {
-			localStorage.setItem(DIFFICULTY_KEY, difficultyId);
-		} catch {
-			// Storage unavailable; the choice lasts for this page only.
-		}
-	}
 
 	function toggleDevNotes() {
 		try {
@@ -178,11 +139,11 @@
 			<select
 				id="difficulty"
 				class="form-select"
-				bind:value={difficultyId}
-				onchange={saveDifficulty}
+				bind:value={difficultyFilter.selectedId}
+				onchange={() => difficultyFilter.save()}
 			>
 				<option value="">Any</option>
-				{#each difficultyOptions as option (option.id)}
+				{#each difficultyFilter.options as option (option.id)}
 					<option value={option.id}>{option.label}</option>
 				{/each}
 			</select>
@@ -218,34 +179,7 @@
 				</select>
 			{/if}
 		</div>
-		{#if difficultyError}
-			<div class="text-danger mt-2">{difficultyError}</div>
-		{/if}
-		{#if presets.notices.length}
-			<div class="alert alert-info small py-2 px-3 mt-3 d-flex align-items-start" role="status">
-				<div class="me-auto">
-					<div class="fw-semibold">
-						Some saved settings were updated for this version of the randomizer.
-					</div>
-					{#each presets.notices as group, i (i)}
-						<div class="mt-1">{group.source}:</div>
-						<ul class="mb-0">
-							{#each group.issues as issue, j (j)}
-								<li>
-									{issue.path.length ? `${presets.label(issue.path)}: ` : ''}{issue.message}
-								</li>
-							{/each}
-						</ul>
-					{/each}
-				</div>
-				<button
-					type="button"
-					class="btn-close btn-sm"
-					aria-label="Dismiss"
-					onclick={() => (presets.notices = [])}
-				></button>
-			</div>
-		{/if}
+		<DifficultyAlerts filter={difficultyFilter} />
 	{/if}
 
 	<h2 class="h5 mt-4">Strats ({strats.length})</h2>

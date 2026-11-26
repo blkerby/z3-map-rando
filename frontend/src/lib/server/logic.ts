@@ -1,5 +1,18 @@
 import logicData from '$build/logic_data.json';
-import type { LogicRoom, LogicStrat, Notes, RoomCategory, RoomSummary } from '$lib/logic/types';
+import settingsDataJson from '$settings_data';
+import helpersJson from '$z3_json_data/helpers.json';
+import techRaw from '$z3_json_data/tech.json?raw';
+import type {
+	LogicRoom,
+	LogicStrat,
+	LogicTech,
+	Notes,
+	RoomCategory,
+	RoomSummary,
+	TechStratEntry,
+	TechSummary,
+	TieredTechSummary
+} from '$lib/logic/types';
 
 /** Strat difficulties by room ID and strat ID, prepared by the catalog builder. */
 const difficulties = logicData as Record<string, Record<string, string>>;
@@ -150,6 +163,7 @@ interface SourceRoom {
 		id: number;
 		link: [number, number];
 		name: string;
+		requires: SourceRequirement[];
 		world?: 'light' | 'dark' | 'any';
 		fromWorld?: 'light' | 'dark';
 		toWorld?: 'light' | 'dark';
@@ -159,7 +173,143 @@ interface SourceRoom {
 	}[];
 }
 
-function readRoom(key: string, text: string): LogicRoom {
+type SourceRequirement =
+	| string
+	| {
+			and?: SourceRequirement[];
+			or?: SourceRequirement[];
+			[key: string]: unknown;
+	  };
+
+interface SourceTier {
+	value: number;
+	note?: string[];
+	detailNote?: string[];
+	devNote?: string[];
+}
+
+interface SourceTech {
+	id: number;
+	name: string;
+	tiers?: SourceTier[];
+	techRequires?: string[];
+	otherRequires?: SourceRequirement[];
+	extensionTechs?: SourceTech[];
+	note?: string[];
+	detailNote?: string[];
+	devNote?: string[];
+}
+
+/** Form conversions that implicitly depend on a tech (matches `catalog_builder/src/logic/requirements.rs`). */
+const formConversionTech: Record<string, string> = {
+	bunnyToSuperbunny: 'canSuperbunny',
+	bunnyToLonk: 'canCarryLonk',
+	bunnyToLink: 'canPearllessLink',
+	superbunnyToLink: 'canPearllessLink'
+};
+
+/** Helpers overridden to `free` by the randomizer (matches `catalog_builder/src/logic/requirements.rs`). */
+const freeHelpers = new Set(['h_MothulaVulnerableToGoldSword', 'h_greatFairyFreeUpgrades']);
+
+const helpers = new Map<string, SourceRequirement[]>();
+for (const helper of (helpersJson as { helpers: { name: string; requires: SourceRequirement[] }[] })
+	.helpers) {
+	if (!freeHelpers.has(helper.name)) {
+		helpers.set(helper.name, helper.requires);
+	}
+}
+
+const settingsData = settingsDataJson as {
+	difficulties: string[];
+	techs: { id: number; difficulty: string }[];
+	proficiencies: { id: number; levels: { level: number; difficulty: string }[] }[];
+};
+
+const techDifficulties = new Map<number, string>();
+for (const tech of settingsData.techs) {
+	techDifficulties.set(tech.id, tech.difficulty);
+}
+
+const tierDifficulties = new Map<string, string>();
+for (const prof of settingsData.proficiencies) {
+	for (const level of prof.levels) {
+		tierDifficulties.set(`${prof.id}:${level.level}`, level.difficulty);
+	}
+}
+
+/** Ranked difficulties from easiest to hardest. */
+export const difficultyOrder: string[] = settingsData.difficulties;
+
+const parsedTechs: { tech: SourceTech; span: Span }[] = [];
+const parsedTieredTechs: SourceTech[] = [];
+{
+	const techData = JSON.parse(techRaw) as { techCategories: { techs: SourceTech[] }[] };
+	const categorySpans = parseSpans(techRaw, 0).members.get('techCategories')!.items;
+	const collect = (list: SourceTech[], spans: Span[]) => {
+		for (let i = 0; i < list.length; i++) {
+			const tech = list[i];
+			const span = spans[i];
+			if (tech.tiers) {
+				parsedTieredTechs.push(tech);
+			} else {
+				parsedTechs.push({ tech, span });
+			}
+			if (tech.extensionTechs?.length) {
+				collect(tech.extensionTechs, span.members.get('extensionTechs')!.items);
+			}
+		}
+	};
+	for (let i = 0; i < techData.techCategories.length; i++) {
+		collect(techData.techCategories[i].techs, categorySpans[i].members.get('techs')!.items);
+	}
+}
+
+const techSummaryByName = new Map<string, TechSummary>();
+for (const { tech } of parsedTechs) {
+	techSummaryByName.set(tech.name, {
+		id: tech.id,
+		name: tech.name,
+		difficulty: techDifficulties.get(tech.id)!
+	});
+}
+
+const tieredTechNames = new Set(parsedTieredTechs.map((tech) => tech.name));
+
+/**
+ * Collect tech keys referenced by `requires`, expanding helpers and form conversions but not
+ * `techRequires`. Non-tiered techs use their name; tiered techs use `${name}:${tier}`.
+ */
+function collectReferencedTechs(
+	requires: SourceRequirement[],
+	found: Set<string>,
+	visitedHelpers = new Set<string>()
+) {
+	for (const req of requires) {
+		if (typeof req === 'string') {
+			if (techSummaryByName.has(req)) {
+				found.add(req);
+			} else if (req in formConversionTech) {
+				found.add(formConversionTech[req]);
+			} else {
+				const helperReqs = helpers.get(req);
+				if (helperReqs && !visitedHelpers.has(req)) {
+					visitedHelpers.add(req);
+					collectReferencedTechs(helperReqs, found, visitedHelpers);
+				}
+			}
+		} else if (req && typeof req === 'object') {
+			if (req.and) collectReferencedTechs(req.and, found, visitedHelpers);
+			if (req.or) collectReferencedTechs(req.or, found, visitedHelpers);
+			for (const [key, value] of Object.entries(req)) {
+				if (tieredTechNames.has(key) && typeof value === 'number') {
+					found.add(`${key}:${value}`);
+				}
+			}
+		}
+	}
+}
+
+function readRoom(key: string, text: string): { room: LogicRoom; stratTechs: Set<string>[] } {
 	const room: SourceRoom = JSON.parse(text);
 	const stratSpans = parseSpans(text, 0).members.get('strats')!.items;
 	const nodeNames = new Map<number, string>();
@@ -167,6 +317,7 @@ function readRoom(key: string, text: string): LogicRoom {
 		nodeNames.set(node.id, node.name);
 	}
 	const strats: LogicStrat[] = [];
+	const stratTechs: Set<string>[] = [];
 	for (const [i, strat] of room.strats.entries()) {
 		const members = stratSpans[i].members;
 		const sourceText = (name: string) => {
@@ -193,25 +344,83 @@ function readRoom(key: string, text: string): LogicRoom {
 			properties,
 			...readNotes(strat)
 		});
+		const referenced = new Set<string>();
+		collectReferencedTechs(strat.requires, referenced);
+		stratTechs.push(referenced);
 	}
 	return {
-		id: room.id,
-		name: room.name,
-		darkWorldName: room.darkWorldName,
-		category: categories[room.roomType],
-		path: key.slice(key.indexOf('/rooms/') + '/rooms/'.length),
-		nodes: room.nodes.map(({ id, name }) => ({ id, name })),
-		strats,
-		...readNotes(room)
+		room: {
+			id: room.id,
+			name: room.name,
+			darkWorldName: room.darkWorldName,
+			category: categories[room.roomType],
+			path: key.slice(key.indexOf('/rooms/') + '/rooms/'.length),
+			nodes: room.nodes.map(({ id, name }) => ({ id, name })),
+			strats,
+			...readNotes(room)
+		},
+		stratTechs
 	};
 }
 
 /** All rooms, sorted by room ID. */
-export const rooms: LogicRoom[] = [];
-for (const [key, text] of Object.entries(sources)) {
-	rooms.push(readRoom(key, text));
+const parsedRooms = Object.entries(sources)
+	.map(([key, text]) => readRoom(key, text))
+	.sort((a, b) => a.room.id - b.room.id);
+
+export const rooms: LogicRoom[] = parsedRooms.map((entry) => entry.room);
+
+const stratsByTechKey = new Map<string, TechStratEntry[]>();
+for (const name of techSummaryByName.keys()) {
+	stratsByTechKey.set(name, []);
 }
-rooms.sort((a, b) => a.id - b.id);
+for (const tech of parsedTieredTechs) {
+	for (const tier of tech.tiers!) {
+		stratsByTechKey.set(`${tech.name}:${tier.value}`, []);
+	}
+}
+for (const { room, stratTechs } of parsedRooms) {
+	const roomRef = { id: room.id, name: room.name };
+	for (let i = 0; i < room.strats.length; i++) {
+		for (const techKey of stratTechs[i]) {
+			stratsByTechKey.get(techKey)!.push({ room: roomRef, strat: room.strats[i] });
+		}
+	}
+}
+
+/** All non-tiered techs, in `tech.json` order. */
+export const techs: LogicTech[] = parsedTechs.map(({ tech, span }) => {
+	const otherSpan = span.members.get('otherRequires');
+	const otherRequires = otherSpan
+		? formatRequires(techRaw.slice(otherSpan.start, otherSpan.end))
+		: '';
+	return {
+		id: tech.id,
+		name: tech.name,
+		difficulty: techDifficulties.get(tech.id)!,
+		techRequires: (tech.techRequires ?? []).map((name) => techSummaryByName.get(name)!),
+		otherRequires,
+		strats: stratsByTechKey.get(tech.name)!,
+		...readNotes(tech)
+	};
+});
+
+/** All tiered tech pages, in `tech.json` order. */
+export const tieredTechPages: LogicTech[] = [];
+for (const tech of parsedTieredTechs) {
+	for (const tier of tech.tiers!) {
+		tieredTechPages.push({
+			id: tech.id,
+			name: tech.name,
+			tier: tier.value,
+			difficulty: tierDifficulties.get(`${tech.id}:${tier.value}`)!,
+			techRequires: [],
+			otherRequires: '',
+			strats: stratsByTechKey.get(`${tech.name}:${tier.value}`)!,
+			...readNotes(tier)
+		});
+	}
+}
 
 /** All rooms, sorted by room ID. */
 export function listRooms(): RoomSummary[] {
@@ -224,4 +433,37 @@ export function listRooms(): RoomSummary[] {
 
 export function findRoom(id: number): LogicRoom | undefined {
 	return rooms.find((room) => room.id === id);
+}
+
+/** All non-tiered techs, in `tech.json` order. */
+export function listTechs(): TechSummary[] {
+	const summaries = [];
+	for (const { id, name, difficulty } of techs) {
+		summaries.push({ id, name, difficulty });
+	}
+	return summaries;
+}
+
+/** All tiered techs with their tiers and difficulties, in `tech.json` order. */
+export function listTieredTechs(): TieredTechSummary[] {
+	const summaries: TieredTechSummary[] = [];
+	for (const tech of parsedTieredTechs) {
+		summaries.push({
+			id: tech.id,
+			name: tech.name,
+			tiers: tech.tiers!.map((tier) => ({
+				tier: tier.value,
+				difficulty: tierDifficulties.get(`${tech.id}:${tier.value}`)!
+			}))
+		});
+	}
+	return summaries;
+}
+
+export function findTech(id: number): LogicTech | undefined {
+	return techs.find((tech) => tech.id === id);
+}
+
+export function findTieredTech(id: number, tier: number): LogicTech | undefined {
+	return tieredTechPages.find((tech) => tech.id === id && tech.tier === tier);
 }

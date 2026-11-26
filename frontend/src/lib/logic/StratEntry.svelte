@@ -1,9 +1,13 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import LogicNotes from './LogicNotes.svelte';
-	import type { LogicRoom, LogicStrat } from './types';
+	import type { LogicStrat, RoomSummary } from './types';
 
-	let { room, strat, showDevNotes }: { room: LogicRoom; strat: LogicStrat; showDevNotes: boolean } =
+	let {
+		room,
+		strat,
+		showDevNotes
+	}: { room: Pick<RoomSummary, 'id' | 'name'>; strat: LogicStrat; showDevNotes: boolean } =
 		$props();
 
 	const roomParams = $derived({ roomId: String(room.id) });

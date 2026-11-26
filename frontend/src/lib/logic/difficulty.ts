@@ -86,17 +86,35 @@ export async function resolvePresetSkill(store: SettingsStore, id: string): Prom
 let session:
 	Promise<{ check_room_strats(roomId: number, skill: Uint8Array): Uint32Array }> | undefined;
 
-/** IDs of the room's strats that pass with the skill settings, with every item owned. */
-export async function checkRoomStrats(roomId: number, skill: Tree): Promise<Set<number>> {
+function getSession() {
 	session ??= Promise.all([loadBrowser(), fetchBytes(logicCatalogUrl)])
 		.then(([browser, catalog]) => new browser.LogicSession(catalog))
 		.catch((error) => {
 			session = undefined;
 			throw error;
 		});
-	const ids = (await session).check_room_strats(
+	return session;
+}
+
+/** IDs of the room's strats that pass with the skill settings, with every item owned. */
+export async function checkRoomStrats(roomId: number, skill: Tree): Promise<Set<number>> {
+	const ids = (await getSession()).check_room_strats(
 		roomId,
 		new TextEncoder().encode(JSON.stringify(skill))
 	);
 	return new Set(ids);
+}
+
+/** Passing strat IDs for each room ID, with every item owned. */
+export async function checkRoomsStrats(
+	roomIds: number[],
+	skill: Tree
+): Promise<Map<number, Set<number>>> {
+	const logicSession = await getSession();
+	const encoded = new TextEncoder().encode(JSON.stringify(skill));
+	const result = new Map<number, Set<number>>();
+	for (const roomId of roomIds) {
+		result.set(roomId, new Set(logicSession.check_room_strats(roomId, encoded)));
+	}
+	return result;
 }
