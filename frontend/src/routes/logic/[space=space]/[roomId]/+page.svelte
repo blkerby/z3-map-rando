@@ -8,4 +8,4 @@
 	<title>{data.room.name} - Logic</title>
 </svelte:head>
 
-<RoomLogic room={data.room} />
+<RoomLogic room={data.room} showNodeFilter />

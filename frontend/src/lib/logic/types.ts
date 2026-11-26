@@ -44,5 +44,6 @@ export interface LogicStrat extends Notes {
 export interface LogicRoom extends RoomSummary, Notes {
 	/** Room file path relative to the rooms folder, which locates its diagrams. */
 	path: string;
+	nodes: StratNode[];
 	strats: LogicStrat[];
 }

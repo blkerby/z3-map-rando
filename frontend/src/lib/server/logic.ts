@@ -190,6 +190,7 @@ function readRoom(key: string, text: string): LogicRoom {
 		darkWorldName: room.darkWorldName,
 		category: categories[room.roomType],
 		path: key.slice(key.indexOf('/rooms/') + '/rooms/'.length),
+		nodes: room.nodes.map(({ id, name }) => ({ id, name })),
 		strats,
 		...readNotes(room)
 	};
