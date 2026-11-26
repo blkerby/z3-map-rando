@@ -146,6 +146,9 @@ interface SourceRoom {
 		id: number;
 		link: [number, number];
 		name: string;
+		world?: 'light' | 'dark' | 'any';
+		fromWorld?: 'light' | 'dark';
+		toWorld?: 'light' | 'dark';
 		note?: string[];
 		detailNote?: string[];
 		devNote?: string[];
@@ -176,6 +179,9 @@ function readRoom(key: string, text: string): LogicRoom {
 		strats.push({
 			id: strat.id,
 			name: strat.name,
+			world: strat.world,
+			fromWorld: strat.fromWorld,
+			toWorld: strat.toWorld,
 			from: { id: from, name: nodeNames.get(from)! },
 			to: { id: to, name: nodeNames.get(to)! },
 			requires: formatRequires(sourceText('requires')),

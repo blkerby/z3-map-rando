@@ -27,9 +27,13 @@ export interface StratProperty {
 	text: string;
 }
 
+/** Overworld strats set either `world` or, when crossing between worlds, `fromWorld` and `toWorld`. */
 export interface LogicStrat extends Notes {
 	id: number;
 	name: string;
+	world?: 'light' | 'dark' | 'any';
+	fromWorld?: 'light' | 'dark';
+	toWorld?: 'light' | 'dark';
 	from: StratNode;
 	to: StratNode;
 	/** Requirement items as source JSON text, one or more lines each; empty when there are none. */

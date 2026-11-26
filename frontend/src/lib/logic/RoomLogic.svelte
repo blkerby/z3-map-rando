@@ -7,7 +7,7 @@
 
 	/**
 	 * A room's header, diagram, and strats; `room.strats` holds the strats to list. `showNodeFilter` adds
-	 * controls to list only strats from or to a chosen node.
+	 * controls to list only strats from or to a chosen node and, in overworld rooms, usable in a chosen world.
 	 */
 	let { room, showNodeFilter = false }: { room: LogicRoom; showNodeFilter?: boolean } = $props();
 
@@ -21,11 +21,18 @@
 
 	let fromNode = $state<number | null>(null);
 	let toNode = $state<number | null>(null);
+	let world = $state<'light' | 'dark' | null>(null);
+	const hasWorlds = $derived(room.strats.some((strat) => strat.world !== undefined));
 	const strats = $derived(
 		room.strats.filter(
 			(strat) =>
 				(fromNode === null || strat.from.id === fromNode) &&
-				(toNode === null || strat.to.id === toNode)
+				(toNode === null || strat.to.id === toNode) &&
+				(world === null ||
+					strat.world === world ||
+					strat.world === 'any' ||
+					strat.fromWorld === world ||
+					strat.toWorld === world)
 		)
 	);
 
@@ -118,6 +125,14 @@
 			>
 				<i class="bi bi-arrow-down-up"></i>
 			</button>
+			{#if hasWorlds}
+				<label for="world">World</label>
+				<select id="world" class="form-select" bind:value={world}>
+					<option value={null}>Any</option>
+					<option value="light">Light</option>
+					<option value="dark">Dark</option>
+				</select>
+			{/if}
 		</div>
 	{/if}
 
