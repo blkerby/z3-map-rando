@@ -6,7 +6,16 @@
 	let { data } = $props();
 
 	let hoveredRoom = $state<RoomSummary | null>(null);
+	let searchQuery = $state('');
 	const mapRooms = $derived(data.rooms.filter((room) => room.mapRect !== undefined));
+
+	const searchTerms = $derived(searchQuery.trim().toLowerCase().split(/\s+/).filter(Boolean));
+
+	function matchesSearch(text: string): boolean {
+		if (searchTerms.length === 0) return true;
+		const lower = text.toLowerCase();
+		return searchTerms.every((term) => lower.includes(term));
+	}
 
 	const sections: { category: RoomCategory; title: string }[] = [
 		{ category: 'overworld', title: 'Overworld' },
@@ -14,6 +23,24 @@
 		{ category: 'cave', title: 'Caves' },
 		{ category: 'house', title: 'Houses' }
 	];
+
+	const filteredTieredTechs = $derived.by(() => {
+		if (searchTerms.length === 0) return data.tieredTechs;
+		const result = [];
+		for (const tech of data.tieredTechs) {
+			if (matchesSearch(tech.name)) {
+				result.push(tech);
+			} else {
+				const tiers = tech.tiers.filter((entry) =>
+					matchesSearch(`${tech.name} ${entry.tier} ${entry.difficulty}`)
+				);
+				if (tiers.length > 0) {
+					result.push({ ...tech, tiers });
+				}
+			}
+		}
+		return result;
+	});
 
 	const techGroups = $derived.by(() => {
 		const order = [...data.difficulties];
@@ -24,13 +51,30 @@
 		}
 		const groups: { difficulty: string; techs: TechSummary[] }[] = [];
 		for (const difficulty of order) {
-			const techs = data.techs.filter((tech) => tech.difficulty === difficulty);
+			const techs = data.techs.filter(
+				(tech) => tech.difficulty === difficulty && matchesSearch(`${tech.name} ${tech.difficulty}`)
+			);
 			if (techs.length > 0) {
 				groups.push({ difficulty, techs });
 			}
 		}
 		return groups;
 	});
+
+	const roomSections = $derived(
+		sections
+			.map((section) => ({
+				...section,
+				rooms: data.rooms.filter(
+					(room) =>
+						room.category === section.category &&
+						matchesSearch(room.darkWorldName ? `${room.name} ${room.darkWorldName}` : room.name)
+				)
+			}))
+			.filter((section) => section.rooms.length > 0)
+	);
+
+	const hasTechMatches = $derived(filteredTieredTechs.length > 0 || techGroups.length > 0);
 </script>
 
 <svelte:head>
@@ -78,44 +122,57 @@
 			{/if}
 		</svg>
 	</div>
-	<h2 class="h4 mt-4">Tech</h2>
-	<div class="tiered-techs">
-		{#each data.tieredTechs as tech (tech.id)}
-			<div>
-				<h3 class="h6 mt-3">{tech.name}:</h3>
-				<ul class="list-unstyled">
-					{#each tech.tiers as entry (entry.tier)}
-						<li>
-							<a
-								href={resolve('/logic/tech/[techId]/[tier]', {
-									techId: String(tech.id),
-									tier: String(entry.tier)
-								})}
-							>
-								{entry.tier} ({entry.difficulty})
-							</a>
-						</li>
-					{/each}
-				</ul>
-			</div>
-		{/each}
+	<div class="search-bar my-3">
+		<input
+			type="search"
+			class="form-control"
+			placeholder="Search tech and rooms…"
+			aria-label="Search tech and rooms"
+			bind:value={searchQuery}
+		/>
 	</div>
-	{#each techGroups as group (group.difficulty)}
-		<h3 class="h6 mt-3">{group.difficulty}</h3>
-		<ul class="room-list list-unstyled">
-			{#each group.techs as tech (tech.id)}
-				<li>
-					<a href={resolve('/logic/tech/[techId]', { techId: String(tech.id) })}>
-						{tech.name}
-					</a>
-				</li>
-			{/each}
-		</ul>
-	{/each}
-	{#each sections as section (section.category)}
+	{#if hasTechMatches}
+		<h2 class="h4 mt-4">Tech</h2>
+		{#if filteredTieredTechs.length > 0}
+			<div class="tiered-techs">
+				{#each filteredTieredTechs as tech (tech.id)}
+					<div>
+						<h3 class="h6 mt-3">{tech.name}:</h3>
+						<ul class="list-unstyled">
+							{#each tech.tiers as entry (entry.tier)}
+								<li>
+									<a
+										href={resolve('/logic/tech/[techId]/[tier]', {
+											techId: String(tech.id),
+											tier: String(entry.tier)
+										})}
+									>
+										{entry.tier} ({entry.difficulty})
+									</a>
+								</li>
+							{/each}
+						</ul>
+					</div>
+				{/each}
+			</div>
+		{/if}
+		{#each techGroups as group (group.difficulty)}
+			<h3 class="h6 mt-3">{group.difficulty}</h3>
+			<ul class="room-list list-unstyled">
+				{#each group.techs as tech (tech.id)}
+					<li>
+						<a href={resolve('/logic/tech/[techId]', { techId: String(tech.id) })}>
+							{tech.name}
+						</a>
+					</li>
+				{/each}
+			</ul>
+		{/each}
+	{/if}
+	{#each roomSections as section (section.category)}
 		<h2 class="h4 mt-4">{section.title}</h2>
 		<ul class="room-list list-unstyled">
-			{#each data.rooms.filter((room) => room.category === section.category) as room (room.id)}
+			{#each section.rooms as room (room.id)}
 				<li>
 					<a href={resolve('/logic/[roomId]', { roomId: String(room.id) })}>
 						{room.name}
@@ -127,6 +184,9 @@
 			{/each}
 		</ul>
 	{/each}
+	{#if !hasTechMatches && roomSections.length === 0}
+		<p class="text-body-secondary mt-3">No matching tech or rooms.</p>
+	{/if}
 </main>
 
 <style>
@@ -168,6 +228,11 @@
 		stroke-width: 1.5;
 		vector-effect: non-scaling-stroke;
 		pointer-events: none;
+	}
+
+	.search-bar {
+		width: 512px;
+		max-width: 100%;
 	}
 
 	.room-list {
