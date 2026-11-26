@@ -93,7 +93,7 @@
 	</p>
 	<div class="overworld-map my-3">
 		<img src={overworldMap} alt="Light World overworld map" />
-		<svg viewBox="0 0 256 256" aria-label="Overworld rooms">
+		<svg viewBox="0 0 320 320" aria-label="Overworld rooms">
 			{#each mapRooms as room (room.id)}
 				{@const rect = room.mapRect!}
 				{@const label = room.darkWorldName ? `${room.name} / ${room.darkWorldName}` : room.name}
@@ -106,7 +106,12 @@
 					onfocus={() => (hoveredRoom = room)}
 					onblur={() => (hoveredRoom = null)}
 				>
-					<rect x={rect.x * 32} y={rect.y * 32} width={rect.width * 32} height={rect.height * 32} />
+					<rect
+						x={32 + rect.x * 32}
+						y={32 + rect.y * 32}
+						width={rect.width * 32}
+						height={rect.height * 32}
+					/>
 					<title>{label}</title>
 				</a>
 			{/each}
@@ -114,8 +119,8 @@
 				{@const rect = hoveredRoom.mapRect}
 				<rect
 					class="room-highlight"
-					x={rect.x * 32}
-					y={rect.y * 32}
+					x={32 + rect.x * 32}
+					y={32 + rect.y * 32}
 					width={rect.width * 32}
 					height={rect.height * 32}
 				/>
@@ -190,10 +195,10 @@
 </main>
 
 <style>
-	/* Twice the PNG's 256px size, so pixels scale evenly. */
+	/* Twice the PNG's 320px size, so pixels scale evenly. */
 	.overworld-map {
 		position: relative;
-		width: 512px;
+		width: 640px;
 		max-width: 100%;
 		margin: 0 auto;
 	}
