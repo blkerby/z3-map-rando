@@ -14,12 +14,18 @@
 
 	const rom = provideRomStore();
 
-	const navLinks: { href: '/' | '/generate' | '/releases' | '/about'; label: string }[] = [
+	const navLinks: { href: '/' | '/generate' | '/releases' | '/logic' | '/about'; label: string }[] = [
 		{ href: '/', label: 'Home' },
 		{ href: '/generate', label: 'Generate' },
 		{ href: '/releases', label: 'Releases' },
+		{ href: '/logic', label: 'Logic' },
 		{ href: '/about', label: 'About' }
 	];
+
+	/** Whether the current page is the link's page or one nested under it. */
+	function isActive(href: string): boolean {
+		return page.route.id === href || (page.route.id?.startsWith(href + '/') ?? false);
+	}
 
 	onMount(async () => {
 		await import('bootstrap/dist/js/bootstrap.bundle.min.js');
@@ -54,8 +60,8 @@
 					<li class="nav-item">
 						<a
 							class="nav-link"
-							class:active={page.route.id === link.href}
-							aria-current={page.route.id === link.href ? 'page' : undefined}
+							class:active={isActive(link.href)}
+							aria-current={isActive(link.href) ? 'page' : undefined}
 							href={resolve(link.href)}
 						>
 							{link.label}

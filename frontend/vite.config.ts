@@ -1,7 +1,11 @@
 import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
-import { apiTarget, browserPackage, buildDirectory, prepareBrowserPackage, prepareCatalogs, settingsData } from './scripts/prepare.js';
+import path from 'node:path';
+import { apiTarget, browserPackage, buildDirectory, prepareBrowserPackage, prepareCatalogs, repoRoot, settingsData } from './scripts/prepare.js';
 import { defineConfig } from 'vite';
+
+// The logic data shown on the Logic pages, read at build time.
+const z3JsonData = path.join(repoRoot, 'z3-json-data');
 
 // The frontend reads the settings data, browser package and catalogs that scripts/prepare.js builds, so prepare
 // them whenever this config is loaded, and `dev`, `build` and `check` always see current inputs. Vite loads this
@@ -18,7 +22,7 @@ export default defineConfig({
 	server: {
 		// E.g. `DEV_HOST=0.0.0.0 npm run dev` to reach the dev server from other devices on the network.
 		host: process.env.DEV_HOST,
-		fs: { allow: [buildDirectory] },
+		fs: { allow: [buildDirectory, z3JsonData] },
 		proxy: { '/api/': apiTarget }
 	},
 	css: {
@@ -46,7 +50,8 @@ export default defineConfig({
 				$settings_data: settingsData,
 				$browser: browserPackage,
 				// A directory alias, since Vite only matches a file alias exactly or followed by `/`, not by `?url`.
-				$build: buildDirectory
+				$build: buildDirectory,
+				$z3_json_data: z3JsonData
 			}
 		})
 	]

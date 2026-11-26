@@ -41,6 +41,10 @@ The settings data (built-in presets, skill difficulties, items) comes from `sett
 
 The Generate page is written directly as Svelte components (`src/lib/generation/GenerationSettings.svelte`, `src/lib/customization/CustomizationSettings.svelte`). Each setting component names its path in the settings (e.g. `['skill', 'tech', '5']`) and registers its label with the settings store while mounted, which is how the summary panel and search know about it. The store (`src/lib/settings/store.svelte.ts`) handles presets, tweaks, and unsaved changes by path.
 
+## Logic pages
+
+The Logic pages (`/logic/`) show the [`z3-json-data`](../z3-json-data/) logic: an index of rooms by type, a page per room (`/logic/o/<room_id>/` for overworld rooms, `/logic/u/<room_id>/` for underworld rooms, matching the separate room-ID spaces), and a page per strat (`.../<room_id>/<strat_id>/`, using the strat's stable `id`). They are prerendered from the room files at build time by `src/lib/server/logic.ts` (through the `$z3_json_data` alias); the catalog builder is not involved. Requirements and other strat properties are shown as their source JSON text, sliced from the room file so they keep its formatting. Diagrams come from the `roomDiagrams` folders (`src/lib/logic/diagrams.ts`): overworld rooms by file prefix, dungeons by name and floor, one floor at a time. Dev notes are hidden unless enabled with a toggle, remembered in the browser.
+
 ## ROM
 
 You need your own copy of the game. The file stays in the browser (IndexedDB) and is never uploaded. ROMs are git-ignored; do not commit them.
