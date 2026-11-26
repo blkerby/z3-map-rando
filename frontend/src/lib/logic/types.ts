@@ -45,7 +45,7 @@ export interface LogicStrat extends Notes {
 	properties: StratProperty[];
 }
 
-export type RoomConnectionKind = 'scroll' | 'entrance' | 'whirlpool' | 'teleport';
+export type RoomConnectionKind = 'entrance' | 'whirlpool' | 'teleport';
 
 export type ConnectionDirection = 'both' | 'out' | 'in';
 
@@ -53,16 +53,16 @@ export interface RoomConnection {
 	kind: RoomConnectionKind;
 	/** Local node ID in this room where the connection is located. */
 	nodeId: number;
-	/** Optional name (e.g. overworld entrance, whirlpool, or teleport name). */
-	name?: string;
+	/** Connection name from the overworld room definition. */
+	name: string;
 	/** Direction relative to this room: two-way, outgoing, or incoming. */
 	direction: ConnectionDirection;
 	/** Room on the other side of the connection. */
 	targetRoom: Pick<RoomSummary, 'id' | 'name' | 'darkWorldName'>;
-	/** Parenthetical details (e.g. "south", "Light, door", "Light → Dark"). */
+	/** Parenthetical details (e.g. "Light", "Dark", "Light → Dark"). */
 	detail: string;
 	/** World context for displaying the target room's Light vs Dark World name. */
-	targetWorld: 'light' | 'dark' | 'both';
+	targetWorld: 'light' | 'dark';
 }
 
 export interface LogicRoom extends RoomSummary, Notes {

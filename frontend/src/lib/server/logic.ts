@@ -154,13 +154,6 @@ const categories: Record<string, RoomCategory> = {
 	House: 'house'
 };
 
-type CardinalDirection = 'north' | 'south' | 'east' | 'west';
-
-interface SourceEdgeSegment {
-	supported: Record<string, (number | string | null)[]>;
-	default: string;
-}
-
 interface SourceRoom {
 	id: number;
 	name: string;
@@ -168,7 +161,6 @@ interface SourceRoom {
 	roomType: string;
 	position?: [number, number];
 	size?: [number, number];
-	edgeVariants?: Record<CardinalDirection, SourceEdgeSegment[]>;
 	note?: string[];
 	detailNote?: string[];
 	devNote?: string[];
@@ -354,14 +346,6 @@ type OverworldEndpoint = { name: string; nodeId: number };
 const overworldEntrances = new Map<string, OverworldEndpoint>();
 const overworldWhirlpools = new Map<string, OverworldEndpoint>();
 const overworldTeleports = new Map<string, OverworldEndpoint>();
-const overworldLayout = new Map<
-	number,
-	{
-		position: [number, number];
-		size: [number, number];
-		edgeVariants: Record<CardinalDirection, SourceEdgeSegment[]>;
-	}
->();
 
 function readRoom(key: string, text: string): { room: LogicRoom; stratTechs: Set<string>[] } {
 	const room: SourceRoom = JSON.parse(text);
@@ -387,13 +371,6 @@ function readRoom(key: string, text: string): { room: LogicRoom; stratTechs: Set
 				nodeId: node.id
 			});
 		}
-	}
-	if (room.position && room.size && room.edgeVariants) {
-		overworldLayout.set(room.id, {
-			position: room.position,
-			size: room.size,
-			edgeVariants: room.edgeVariants
-		});
 	}
 	const strats: LogicStrat[] = [];
 	const stratTechs: Set<string>[] = [];
@@ -468,80 +445,8 @@ export const rooms: LogicRoom[] = parsedRooms.map((entry) => entry.room);
 	});
 
 	const roomsById = new Map<number, LogicRoom>();
-	const overworldGrid = new Map<string, LogicRoom>();
 	for (const room of rooms) {
 		roomsById.set(room.id, room);
-		const layout = overworldLayout.get(room.id);
-		if (layout) {
-			const [x, y] = layout.position;
-			const w = layout.size[0] / 2;
-			const h = layout.size[1] / 2;
-			for (let dx = 0; dx < w; dx++) {
-				for (let dy = 0; dy < h; dy++) {
-					overworldGrid.set(`${x + dx},${y + dy}`, room);
-				}
-			}
-		}
-	}
-
-	const directions: CardinalDirection[] = ['north', 'south', 'east', 'west'];
-	for (const [roomId, layout] of overworldLayout) {
-		const room = roomsById.get(roomId)!;
-		const seen = new Set<string>();
-		const addScroll = (
-			nodeId: number,
-			direction: RoomConnection['direction'],
-			targetRoom: LogicRoom,
-			detail: string,
-			targetWorld: RoomConnection['targetWorld']
-		) => {
-			const key = `${nodeId}:${direction}:${targetRoom.id}:${detail}`;
-			if (seen.has(key)) return;
-			seen.add(key);
-			room.connections.push({
-				kind: 'scroll',
-				nodeId,
-				direction,
-				targetRoom: roomTarget(targetRoom),
-				detail,
-				targetWorld
-			});
-		};
-		const [x, y] = layout.position;
-		const w = layout.size[0] / 2;
-		const h = layout.size[1] / 2;
-		for (const dir of directions) {
-			for (const [seg, segment] of layout.edgeVariants[dir].entries()) {
-				if (segment.default === 'closed') continue;
-				const nx = dir === 'east' ? x + w : dir === 'west' ? x - 1 : x + seg;
-				const ny = dir === 'south' ? y + h : dir === 'north' ? y - 1 : y + seg;
-				const neighbor = overworldGrid.get(`${nx},${ny}`)!;
-				const entries = segment.supported[segment.default];
-				if (segment.default === 'light-and-mirror') {
-					if (typeof entries[0] === 'number') {
-						addScroll(entries[0], 'both', neighbor, `${dir}, Light`, 'light');
-					}
-					if (typeof entries[1] === 'number') {
-						addScroll(entries[1], 'out', neighbor, `${dir}, Dark → Light (mirror)`, 'light');
-					}
-					if (typeof entries[2] === 'number') {
-						addScroll(entries[2], 'in', neighbor, `${dir}, Dark → Light (mirror)`, 'dark');
-					}
-				} else if (segment.default === 'light-only') {
-					for (const entry of entries) {
-						if (typeof entry === 'number') {
-							addScroll(entry, 'both', neighbor, `${dir}, Light`, 'light');
-						}
-					}
-				} else {
-					for (const entry of entries) {
-						if (typeof entry === 'number') {
-							addScroll(entry, 'both', neighbor, dir, 'both');
-						}
-					}
-				}
-			}
-		}
 	}
 
 	const entrances = (entrancesJson as { entrances: SourceEntranceConnection[] }).entrances;
@@ -633,9 +538,8 @@ export const rooms: LogicRoom[] = parsedRooms.map((entry) => entry.room);
 	}
 
 	const worldOrder: Record<RoomConnection['targetWorld'], number> = {
-		both: 0,
-		light: 1,
-		dark: 2
+		light: 0,
+		dark: 1
 	};
 	for (const room of rooms) {
 		room.connections.sort(

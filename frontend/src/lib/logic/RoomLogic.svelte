@@ -17,20 +17,14 @@
 	let { room, showNodeFilter = false }: { room: LogicRoom; showNodeFilter?: boolean } = $props();
 
 	const connectionGroups: { kind: RoomConnectionKind; label: string }[] = [
-		{ kind: 'scroll', label: 'Scrolling' },
 		{ kind: 'entrance', label: 'Entrances' },
 		{ kind: 'whirlpool', label: 'Whirlpools' },
 		{ kind: 'teleport', label: 'Teleports' }
 	];
 
 	function targetRoomName(conn: RoomConnection): string {
-		if (conn.targetRoom.darkWorldName) {
-			if (conn.targetWorld === 'dark') {
-				return conn.targetRoom.darkWorldName;
-			}
-			if (conn.targetWorld === 'both') {
-				return `${conn.targetRoom.name} / ${conn.targetRoom.darkWorldName}`;
-			}
+		if (conn.targetWorld === 'dark' && conn.targetRoom.darkWorldName) {
+			return conn.targetRoom.darkWorldName;
 		}
 		return conn.targetRoom.name;
 	}
@@ -154,21 +148,16 @@
 	{/if}
 
 	{#if room.connections.length > 0}
-		<h2 class="h5 mt-4">Connections</h2>
 		{#each connectionGroups as group (group.kind)}
 			{@const items = room.connections.filter((conn) => conn.kind === group.kind)}
 			{#if items.length > 0}
-				<h3 class="h6 text-body-secondary mt-2 mb-1">{group.label}</h3>
-				<ul class="list-unstyled mb-2">
+				<h2 class="h5 mt-4">{group.label}</h2>
+				<ul class="list-unstyled mb-3">
 					{#each items as conn, i (i)}
 						{@const roomName = targetRoomName(conn)}
 						<li>
-							<span class="text-body-secondary"
-								>Node {conn.nodeId} ({conn.detail}){#if conn.name}:{/if}</span
-							>
-							{#if conn.name}
-								{conn.name}
-							{/if}
+							<span class="text-body-secondary">Node {conn.nodeId} ({conn.detail}):</span>
+							{conn.name}
 							<svg
 								class="conn-arrow mx-1"
 								viewBox="0 0 16 12"
