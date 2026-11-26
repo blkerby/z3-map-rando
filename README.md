@@ -18,10 +18,23 @@ If you notice any issue while testing or if you run into any trouble following t
 
 ## How to use the CLI
 
-Install Rust with [rustup](https://www.rust-lang.org/tools/install), along with CMake and a C++ compiler, which are used to build a patched version of the Asar assembler (e.g. `sudo apt install build-essential cmake` on Ubuntu). Clone the repository with its submodules, and place the exported map pool at `maps/map_pool.bin`:
+Install Rust with [rustup](https://www.rust-lang.org/tools/install). You also need CMake and a C++ compiler to build the patched Asar assembler, and `curl` to download the map pool. On Ubuntu, install these packages with the following command.
+
+```sh
+sudo apt install build-essential cmake curl
+```
+
+Clone the repository with its submodules and enter the repository directory.
 
 ```sh
 git clone --recurse-submodules https://github.com/blkerby/z3-map-rando.git
+cd z3-map-rando
+```
+
+Download the map pool to `maps/map_pool.bin`. Running the script again replaces the existing pool.
+
+```sh
+./scripts/download_data.sh
 ```
 
 From the repository root, generate a seed with the default settings and patch it:

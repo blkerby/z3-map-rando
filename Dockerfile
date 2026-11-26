@@ -13,7 +13,7 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS build
 COPY --from=node /usr/local/ /usr/local/
-RUN apt-get update && apt-get install -y --no-install-recommends clang cmake llvm && rm -r /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends clang cmake curl llvm && rm -r /var/lib/apt/lists/*
 RUN rustup target add wasm32-unknown-unknown && cargo install --locked wasm-pack --version 0.13.0
 
 COPY --from=planner /src/recipe.json ./
@@ -24,6 +24,9 @@ RUN cargo chef cook --locked --release --target wasm32-unknown-unknown --package
 COPY frontend/package.json frontend/package-lock.json ./frontend/
 RUN npm --prefix frontend ci
 
+COPY scripts/download_data.sh scripts/download_data.sh
+RUN ./scripts/download_data.sh
+
 COPY Cargo.toml Cargo.lock VERSION catalog-build.default.toml package.json ./
 COPY crates/ crates/
 COPY schema/ schema/
@@ -32,7 +35,6 @@ COPY patches/ patches/
 COPY asar/ asar/
 COPY ALTTPRetiling/ ALTTPRetiling/
 COPY z3-json-data/ z3-json-data/
-ADD https://f004.backblazeb2.com/file/z3-map-rando-artifacts/map-pools/map-pool-20261121-070108-44913.bin maps/map_pool.bin
 RUN cargo build --locked --release --package server
 
 # UI edits can reuse the catalogs and optimized Wasm.
