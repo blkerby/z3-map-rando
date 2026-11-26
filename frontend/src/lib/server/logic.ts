@@ -6,9 +6,11 @@ import whirlpoolsJson from '$z3_json_data/connections/whirlpools.json';
 import helpersJson from '$z3_json_data/helpers.json';
 import techRaw from '$z3_json_data/tech.json?raw';
 import type {
+	LogicNotable,
 	LogicRoom,
 	LogicStrat,
 	LogicTech,
+	NotableSummary,
 	Notes,
 	RoomCategory,
 	RoomConnection,
@@ -154,6 +156,14 @@ const categories: Record<string, RoomCategory> = {
 	House: 'house'
 };
 
+interface SourceNotable {
+	id: number;
+	name: string;
+	note?: string[];
+	detailNote?: string[];
+	devNote?: string[];
+}
+
 interface SourceRoom {
 	id: number;
 	name: string;
@@ -171,6 +181,7 @@ interface SourceRoom {
 		whirlpools?: { id: number; name: string }[];
 		teleports?: { id: number; name: string }[];
 	}[];
+	notables?: SourceNotable[];
 	strats: {
 		id: number;
 		link: [number, number];
@@ -255,6 +266,7 @@ const settingsData = settingsDataJson as {
 	difficulties: string[];
 	techs: { id: number; difficulty: string }[];
 	proficiencies: { id: number; levels: { level: number; difficulty: string }[] }[];
+	notables: { room: number; id: number; difficulty: string }[];
 };
 
 const techDifficulties = new Map<number, string>();
@@ -267,6 +279,11 @@ for (const prof of settingsData.proficiencies) {
 	for (const level of prof.levels) {
 		tierDifficulties.set(`${prof.id}:${level.level}`, level.difficulty);
 	}
+}
+
+const notableDifficulties = new Map<string, string>();
+for (const notable of settingsData.notables) {
+	notableDifficulties.set(`${notable.room}:${notable.id}`, notable.difficulty);
 }
 
 /** Ranked difficulties from easiest to hardest. */
@@ -308,33 +325,38 @@ for (const { tech } of parsedTechs) {
 const tieredTechNames = new Set(parsedTieredTechs.map((tech) => tech.name));
 
 /**
- * Collect tech keys referenced by `requires`, expanding helpers and form conversions but not
- * `techRequires`. Non-tiered techs use their name; tiered techs use `${name}:${tier}`.
+ * Collect tech keys and notable names referenced by `requires`, expanding helpers and form
+ * conversions but not `techRequires`. Non-tiered techs use their name; tiered techs use
+ * `${name}:${tier}`.
  */
-function collectReferencedTechs(
+function collectReferences(
 	requires: SourceRequirement[],
-	found: Set<string>,
+	foundTechs: Set<string>,
+	foundNotables: Set<string>,
 	visitedHelpers = new Set<string>()
 ) {
 	for (const req of requires) {
 		if (typeof req === 'string') {
 			if (techSummaryByName.has(req)) {
-				found.add(req);
+				foundTechs.add(req);
 			} else if (req in formConversionTech) {
-				found.add(formConversionTech[req]);
+				foundTechs.add(formConversionTech[req]);
 			} else {
 				const helperReqs = helpers.get(req);
 				if (helperReqs && !visitedHelpers.has(req)) {
 					visitedHelpers.add(req);
-					collectReferencedTechs(helperReqs, found, visitedHelpers);
+					collectReferences(helperReqs, foundTechs, foundNotables, visitedHelpers);
 				}
 			}
 		} else if (req && typeof req === 'object') {
-			if (req.and) collectReferencedTechs(req.and, found, visitedHelpers);
-			if (req.or) collectReferencedTechs(req.or, found, visitedHelpers);
+			if (req.and) collectReferences(req.and, foundTechs, foundNotables, visitedHelpers);
+			if (req.or) collectReferences(req.or, foundTechs, foundNotables, visitedHelpers);
+			if (typeof req.notable === 'string') {
+				foundNotables.add(req.notable);
+			}
 			for (const [key, value] of Object.entries(req)) {
 				if (tieredTechNames.has(key) && typeof value === 'number') {
-					found.add(`${key}:${value}`);
+					foundTechs.add(`${key}:${value}`);
 				}
 			}
 		}
@@ -347,7 +369,10 @@ const overworldEntrances = new Map<string, OverworldEndpoint>();
 const overworldWhirlpools = new Map<string, OverworldEndpoint>();
 const overworldTeleports = new Map<string, OverworldEndpoint>();
 
-function readRoom(key: string, text: string): { room: LogicRoom; stratTechs: Set<string>[] } {
+function readRoom(
+	key: string,
+	text: string
+): { room: LogicRoom; stratTechs: Set<string>[]; notables: LogicNotable[] } {
 	const room: SourceRoom = JSON.parse(text);
 	const stratSpans = parseSpans(text, 0).members.get('strats')!.items;
 	const nodeNames = new Map<number, string>();
@@ -374,6 +399,10 @@ function readRoom(key: string, text: string): { room: LogicRoom; stratTechs: Set
 	}
 	const strats: LogicStrat[] = [];
 	const stratTechs: Set<string>[] = [];
+	const stratsByNotableName = new Map<string, LogicStrat[]>();
+	for (const notable of room.notables ?? []) {
+		stratsByNotableName.set(notable.name, []);
+	}
 	for (const [i, strat] of room.strats.entries()) {
 		const members = stratSpans[i].members;
 		const sourceText = (name: string) => {
@@ -387,7 +416,7 @@ function readRoom(key: string, text: string): { room: LogicRoom; stratTechs: Set
 			}
 		}
 		const [from, to] = strat.link;
-		strats.push({
+		const logicStrat: LogicStrat = {
 			id: strat.id,
 			name: strat.name,
 			difficulty: difficulties[room.id][strat.id],
@@ -399,11 +428,25 @@ function readRoom(key: string, text: string): { room: LogicRoom; stratTechs: Set
 			requires: formatRequires(sourceText('requires')),
 			properties,
 			...readNotes(strat)
-		});
-		const referenced = new Set<string>();
-		collectReferencedTechs(strat.requires, referenced);
-		stratTechs.push(referenced);
+		};
+		strats.push(logicStrat);
+		const referencedTechs = new Set<string>();
+		const referencedNotables = new Set<string>();
+		collectReferences(strat.requires, referencedTechs, referencedNotables);
+		stratTechs.push(referencedTechs);
+		for (const notableName of referencedNotables) {
+			stratsByNotableName.get(notableName)?.push(logicStrat);
+		}
 	}
+	const roomRef = { id: room.id, name: room.name };
+	const roomNotables: LogicNotable[] = (room.notables ?? []).map((notable) => ({
+		id: notable.id,
+		name: notable.name,
+		difficulty: notableDifficulties.get(`${room.id}:${notable.id}`)!,
+		room: roomRef,
+		strats: stratsByNotableName.get(notable.name)!,
+		...readNotes(notable)
+	}));
 	return {
 		room: {
 			id: room.id,
@@ -425,7 +468,8 @@ function readRoom(key: string, text: string): { room: LogicRoom; stratTechs: Set
 			strats,
 			...readNotes(room)
 		},
-		stratTechs
+		stratTechs,
+		notables: roomNotables
 	};
 }
 
@@ -600,6 +644,9 @@ for (const tech of parsedTieredTechs) {
 	}
 }
 
+/** All notables, sorted by room ID and notable ID. */
+export const notables: LogicNotable[] = parsedRooms.flatMap((entry) => entry.notables);
+
 /** All rooms, sorted by room ID. */
 export function listRooms(): RoomSummary[] {
 	const summaries = [];
@@ -644,4 +691,17 @@ export function findTech(id: number): LogicTech | undefined {
 
 export function findTieredTech(id: number, tier: number): LogicTech | undefined {
 	return tieredTechPages.find((tech) => tech.id === id && tech.tier === tier);
+}
+
+/** All notables, sorted by room ID and notable ID. */
+export function listNotables(): NotableSummary[] {
+	const summaries = [];
+	for (const { id, name, difficulty, room } of notables) {
+		summaries.push({ id, name, difficulty, room });
+	}
+	return summaries;
+}
+
+export function findNotable(roomId: number, notableId: number): LogicNotable | undefined {
+	return notables.find((notable) => notable.room.id === roomId && notable.id === notableId);
 }

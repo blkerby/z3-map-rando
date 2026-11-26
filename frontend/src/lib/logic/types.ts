@@ -97,3 +97,14 @@ export interface LogicTech extends TechSummary, Notes {
 	otherRequires: string;
 	strats: TechStratEntry[];
 }
+
+export interface NotableSummary {
+	id: number;
+	name: string;
+	difficulty: string;
+	room: Pick<RoomSummary, 'id' | 'name'>;
+}
+
+export interface LogicNotable extends NotableSummary, Notes {
+	strats: LogicStrat[];
+}

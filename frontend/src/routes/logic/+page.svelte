@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import overworldMap from '$lib/assets/overworld_map.png';
-	import type { RoomCategory, RoomSummary, TechSummary } from '$lib/logic/types';
+	import type { NotableSummary, RoomCategory, RoomSummary, TechSummary } from '$lib/logic/types';
 
 	let { data } = $props();
 
@@ -56,6 +56,27 @@
 			);
 			if (techs.length > 0) {
 				groups.push({ difficulty, techs });
+			}
+		}
+		return groups;
+	});
+
+	const notableGroups = $derived.by(() => {
+		const order = [...data.difficulties];
+		for (const notable of data.notables) {
+			if (!order.includes(notable.difficulty)) {
+				order.push(notable.difficulty);
+			}
+		}
+		const groups: { difficulty: string; notables: NotableSummary[] }[] = [];
+		for (const difficulty of order) {
+			const items = data.notables.filter(
+				(notable) =>
+					notable.difficulty === difficulty &&
+					matchesSearch(`${notable.name} ${notable.room.name} ${notable.difficulty}`)
+			);
+			if (items.length > 0) {
+				groups.push({ difficulty, notables: items });
 			}
 		}
 		return groups;
@@ -174,6 +195,26 @@
 			</ul>
 		{/each}
 	{/if}
+	{#if notableGroups.length > 0}
+		<h2 class="h4 mt-4">Notables</h2>
+		{#each notableGroups as group (group.difficulty)}
+			<h3 class="h6 mt-3">{group.difficulty}</h3>
+			<ul class="room-list list-unstyled">
+				{#each group.notables as notable (`${notable.room.id}:${notable.id}`)}
+					<li>
+						<a
+							href={resolve('/logic/notable/[roomId]/[notableId]', {
+								roomId: String(notable.room.id),
+								notableId: String(notable.id)
+							})}
+						>
+							{notable.room.name}: {notable.name}
+						</a>
+					</li>
+				{/each}
+			</ul>
+		{/each}
+	{/if}
 	{#each roomSections as section (section.category)}
 		<h2 class="h4 mt-4">{section.title}</h2>
 		<ul class="room-list list-unstyled">
@@ -189,8 +230,8 @@
 			{/each}
 		</ul>
 	{/each}
-	{#if !hasTechMatches && roomSections.length === 0}
-		<p class="text-body-secondary mt-3">No matching tech or rooms.</p>
+	{#if !hasTechMatches && notableGroups.length === 0 && roomSections.length === 0}
+		<p class="text-body-secondary mt-3">No matching tech, notables, or rooms.</p>
 	{/if}
 </main>
 
