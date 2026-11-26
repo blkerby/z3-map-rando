@@ -7,7 +7,7 @@
 	<div class="card hero-card shadow">
 		<div class="row g-0 align-items-stretch">
 			<div class="col-lg-8 card-body">
-				<h1 class="display-6 fw-bold mb-3">A Link to the Past Map Rando</h1>
+				<h1 class="display-6 fw-bold mb-3">Link to the Past Map Rando</h1>
 				<p class="mb-4 fs-5">
 					Hyrule has been rearranged, and Link must discover a new way to save the kingdom.
 				</p>
