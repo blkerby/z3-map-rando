@@ -8,6 +8,8 @@ export interface RoomSummary {
 	name: string;
 	darkWorldName?: string;
 	category: RoomCategory;
+	/** Overworld 8x8 grid rectangle, present for Overworld rooms. */
+	mapRect?: { x: number; y: number; width: number; height: number };
 }
 
 export interface Notes {

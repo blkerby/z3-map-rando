@@ -1,8 +1,12 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { RoomCategory, TechSummary } from '$lib/logic/types';
+	import overworldMap from '$lib/assets/overworld_map.png';
+	import type { RoomCategory, RoomSummary, TechSummary } from '$lib/logic/types';
 
 	let { data } = $props();
+
+	let hoveredRoom = $state<RoomSummary | null>(null);
+	const mapRooms = $derived(data.rooms.filter((room) => room.mapRect !== undefined));
 
 	const sections: { category: RoomCategory; title: string }[] = [
 		{ category: 'overworld', title: 'Overworld' },
@@ -43,6 +47,37 @@
 		project. Each room page lists the strats for moving through the room and their requirements, and each
 		tech page lists the strats that depend on that tech.
 	</p>
+	<div class="overworld-map my-3">
+		<img src={overworldMap} alt="Light World overworld map" />
+		<svg viewBox="0 0 256 256" aria-label="Overworld rooms">
+			{#each mapRooms as room (room.id)}
+				{@const rect = room.mapRect!}
+				{@const label = room.darkWorldName ? `${room.name} / ${room.darkWorldName}` : room.name}
+				<a
+					href={resolve('/logic/[roomId]', { roomId: String(room.id) })}
+					class="room-link"
+					aria-label={label}
+					onmouseenter={() => (hoveredRoom = room)}
+					onmouseleave={() => (hoveredRoom = null)}
+					onfocus={() => (hoveredRoom = room)}
+					onblur={() => (hoveredRoom = null)}
+				>
+					<rect x={rect.x * 32} y={rect.y * 32} width={rect.width * 32} height={rect.height * 32} />
+					<title>{label}</title>
+				</a>
+			{/each}
+			{#if hoveredRoom?.mapRect}
+				{@const rect = hoveredRoom.mapRect}
+				<rect
+					class="room-highlight"
+					x={rect.x * 32}
+					y={rect.y * 32}
+					width={rect.width * 32}
+					height={rect.height * 32}
+				/>
+			{/if}
+		</svg>
+	</div>
 	<h2 class="h4 mt-4">Tech</h2>
 	<div class="tiered-techs">
 		{#each data.tieredTechs as tech (tech.id)}
@@ -97,6 +132,46 @@
 </main>
 
 <style>
+	/* Twice the PNG's 256px size, so pixels scale evenly. */
+	.overworld-map {
+		position: relative;
+		width: 512px;
+		max-width: 100%;
+		margin: 0 auto;
+	}
+
+	.overworld-map img {
+		display: block;
+		width: 100%;
+		image-rendering: pixelated;
+	}
+
+	.overworld-map svg {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+	}
+
+	.room-link {
+		outline: none;
+	}
+
+	.room-link rect {
+		fill: transparent;
+		stroke: rgb(180 180 180 / 0.75);
+		stroke-width: 1;
+		vector-effect: non-scaling-stroke;
+	}
+
+	.room-highlight {
+		fill: rgb(255 255 255 / 0.2);
+		stroke: #fff;
+		stroke-width: 1.5;
+		vector-effect: non-scaling-stroke;
+		pointer-events: none;
+	}
+
 	.room-list {
 		columns: 18rem;
 	}

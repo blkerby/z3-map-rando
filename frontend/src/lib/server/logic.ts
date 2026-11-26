@@ -433,6 +433,15 @@ function readRoom(key: string, text: string): { room: LogicRoom; stratTechs: Set
 			name: room.name,
 			darkWorldName: room.darkWorldName,
 			category: categories[room.roomType],
+			mapRect:
+				room.position && room.size
+					? {
+							x: room.position[0],
+							y: room.position[1],
+							width: room.size[0] / 2,
+							height: room.size[1] / 2
+						}
+					: undefined,
 			path: key.slice(key.indexOf('/rooms/') + '/rooms/'.length),
 			nodes: room.nodes.map(({ id, name }) => ({ id, name })),
 			connections: [],
@@ -690,8 +699,8 @@ for (const tech of parsedTieredTechs) {
 /** All rooms, sorted by room ID. */
 export function listRooms(): RoomSummary[] {
 	const summaries = [];
-	for (const { id, name, darkWorldName, category } of rooms) {
-		summaries.push({ id, name, darkWorldName, category });
+	for (const { id, name, darkWorldName, category, mapRect } of rooms) {
+		summaries.push({ id, name, darkWorldName, category, mapRect });
 	}
 	return summaries;
 }
