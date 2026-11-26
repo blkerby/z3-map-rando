@@ -93,22 +93,22 @@ function formatRequires(text: string): string {
 	return dedent(['', ...lines.slice(1, -1)]).slice(1);
 }
 
-function toParagraphs(value: string | string[] | undefined): string[] {
+function joinNotes(value: string | string[] | undefined): string {
 	if (value === undefined) {
-		return [];
+		return '';
 	}
-	return typeof value === 'string' ? [value] : value;
+	return typeof value === 'string' ? value : value.join(' ');
 }
 
 function readNotes(source: {
 	note?: string | string[];
-	detailNote?: string[];
-	devNote?: string[];
+	detailNote?: string | string[];
+	devNote?: string | string[];
 }): Notes {
 	return {
-		note: toParagraphs(source.note),
-		detailNote: toParagraphs(source.detailNote),
-		devNote: toParagraphs(source.devNote)
+		note: joinNotes(source.note),
+		detailNote: joinNotes(source.detailNote),
+		devNote: joinNotes(source.devNote)
 	};
 }
 

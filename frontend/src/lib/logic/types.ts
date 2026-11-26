@@ -11,9 +11,9 @@ export interface RoomSummary {
 }
 
 export interface Notes {
-	note: string[];
-	detailNote: string[];
-	devNote: string[];
+	note: string;
+	detailNote: string;
+	devNote: string;
 }
 
 export interface StratNode {
