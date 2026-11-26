@@ -18,7 +18,6 @@ interface SettingsData {
 	}[];
 	techs: { id: number; name: string; difficulty: string; note: string }[];
 	notables: {
-		world: string;
 		room: number;
 		room_name: string;
 		id: number;
@@ -114,7 +113,6 @@ export const tech: { id: string; name: string; difficulty: string; note: string 
 for (const t of settingsData.techs) tech.push({ ...t, id: String(t.id) });
 
 export const notables: {
-	world: string;
 	room: string;
 	roomName: string;
 	id: string;
@@ -125,7 +123,6 @@ export const notables: {
 }[] = [];
 for (const n of settingsData.notables) {
 	notables.push({
-		world: n.world,
 		room: String(n.room),
 		roomName: n.room_name,
 		id: String(n.id),

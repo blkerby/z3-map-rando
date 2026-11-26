@@ -6,7 +6,7 @@ use crate::{
     retiling as theme, verify_vanilla_rom,
 };
 use anyhow::{Context, Result, ensure};
-use common_types::{ItemKind, SourceRoomId};
+use common_types::ItemKind;
 use patch_catalog::PatchCatalog;
 use retiling_catalog::RetilingCatalog;
 use seed_data::{
@@ -216,12 +216,10 @@ pub fn patch_rom(
 pub fn resolve_world_layout(seed: &SeedData, patches: &PatchCatalog) -> Result<WorldLayout> {
     let mut rooms = Vec::new();
     for room in &seed.rooms {
-        if let (SourceRoomId::Overworld(room_id), Some([x, y]), Some(theme)) =
-            (room.room_id, room.position, &room.theme)
-        {
+        if let (Some([x, y]), Some(theme)) = (room.position, &room.theme) {
             let area = &patches.room_areas[&room.room_id];
             rooms.push(OverworldRoomPlacement {
-                room_id,
+                room_id: room.room_id,
                 vanilla_map_id: area.area_id,
                 position: y * 8 + x,
                 size: area.size,

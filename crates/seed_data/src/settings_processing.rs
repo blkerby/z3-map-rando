@@ -414,16 +414,7 @@ impl SettingsContext {
             vec!["item_pool".to_owned(), "items".to_owned()],
             vec!["skill".to_owned(), "proficiencies".to_owned()],
             vec!["skill".to_owned(), "tech".to_owned()],
-            vec![
-                "skill".to_owned(),
-                "notables".to_owned(),
-                "overworld".to_owned(),
-            ],
-            vec![
-                "skill".to_owned(),
-                "notables".to_owned(),
-                "underworld".to_owned(),
-            ],
+            vec!["skill".to_owned(), "notables".to_owned()],
         ] {
             if let (Some(value), Some(known)) = (get_value(values, &path), get_value(&known, &path))
             {

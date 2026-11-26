@@ -28,14 +28,9 @@
 	{#each sections as section (section.category)}
 		<h2 class="h4 mt-4">{section.title}</h2>
 		<ul class="room-list list-unstyled">
-			{#each data.rooms.filter((room) => room.category === section.category) as room (room.space + room.id)}
+			{#each data.rooms.filter((room) => room.category === section.category) as room (room.id)}
 				<li>
-					<a
-						href={resolve('/logic/[space=space]/[roomId]', {
-							space: room.space,
-							roomId: String(room.id)
-						})}
-					>
+					<a href={resolve('/logic/[roomId]', { roomId: String(room.id) })}>
 						{room.name}
 					</a>
 					{#if room.darkWorldName}

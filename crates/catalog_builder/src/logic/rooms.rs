@@ -29,21 +29,11 @@ pub(super) fn compile_rooms(
     for path in paths {
         source_rooms.push(read_source(&path)?);
     }
-    source_rooms.sort_by_key(|room| {
-        if room.room_type == RoomKind::Overworld {
-            SourceRoomId::Overworld(room.id)
-        } else {
-            SourceRoomId::Underworld(room.id)
-        }
-    });
+    source_rooms.sort_by_key(|room| room.id);
     let mut events = EventVertices::default();
     let mut room_indices = BTreeMap::new();
     for source_room in source_rooms {
-        let room_id = if source_room.room_type == RoomKind::Overworld {
-            SourceRoomId::Overworld(source_room.id)
-        } else {
-            SourceRoomId::Underworld(source_room.id)
-        };
+        let room_id = source_room.id;
         let dungeon_idx = if source_room.room_type == RoomKind::Dungeon {
             let idx = DungeonIndex(catalog.dungeons.len() as u32);
             catalog.dungeons.push(RoomIndex(catalog.rooms.len() as u32));
@@ -152,7 +142,7 @@ pub(super) fn compile_rooms(
         }
         // The Lake Hylia fairy exchanges an empty bottle for a fairy or golden bee
         // (fairy_ponds.asm). Golden bees have no logical use, so only fairies are modeled.
-        if room_id == SourceRoomId::Underworld(27) {
+        if room_id == SourceRoomId(67) {
             let vertex_idx = indices.vertices[&(1, None)];
             catalog.edges.push(Edge {
                 from_vertex_idx: vertex_idx,

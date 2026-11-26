@@ -101,9 +101,9 @@
 					{/snippet}
 				</ToggleSetting>
 			{/each}
-			{#each notables.filter((n) => n.difficulty === difficulty) as n (`${n.world}/${n.room}/${n.id}`)}
+			{#each notables.filter((n) => n.difficulty === difficulty) as n (`${n.room}/${n.id}`)}
 				<ToggleSetting
-					path={['skill', 'notables', n.world, n.room, n.id]}
+					path={['skill', 'notables', n.room, n.id]}
 					label="{n.roomName}: {n.name}"
 				>
 					{#snippet help()}

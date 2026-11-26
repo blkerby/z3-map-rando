@@ -11,7 +11,7 @@ use crate::{
     traversal::compute_closure,
 };
 use anyhow::{Context, Result, bail};
-use common_types::{Item, ItemLocationId, SourceRoomId};
+use common_types::{Item, ItemLocationId};
 use hashbrown::HashSet;
 use logic_catalog::{
     Connection, DoorIndex, Effect, FlagIndex, ItemLocationIndex, LockKind, LogicCatalog,
@@ -93,9 +93,7 @@ pub fn replay_spoiler(catalog: &LogicCatalog, seed: &SeedData) -> Result<Spoiler
     let mut rooms = Vec::new();
     let mut seed_placements = vec![None; catalog.item_locations.len()];
     for room in &seed.rooms {
-        if let (SourceRoomId::Overworld(_), Some([x, y]), Some(theme)) =
-            (room.room_id, room.position, &room.theme)
-        {
+        if let (Some([x, y]), Some(theme)) = (room.position, &room.theme) {
             let catalog_room = catalog_rooms.get(&room.room_id).with_context(|| {
                 format!("seed room {:?} is not in the logic catalog", room.room_id)
             })?;

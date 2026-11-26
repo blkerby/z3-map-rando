@@ -251,15 +251,7 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         let room_id = catalog.room(notable.room_idx).room_id.unwrap();
         notable_indices.insert((room_id, notable.notable_id), index);
     }
-    let notables = &settings.skill.notables;
-    let mut notable_settings = Vec::new();
-    for (&room, room_notables) in &notables.overworld {
-        notable_settings.push((SourceRoomId::Overworld(room), room_notables));
-    }
-    for (&room, room_notables) in &notables.underworld {
-        notable_settings.push((SourceRoomId::Underworld(room), room_notables));
-    }
-    for (room_id, room_notables) in notable_settings {
+    for (&room_id, room_notables) in &settings.skill.notables {
         for (&notable_id, &enabled) in room_notables {
             let index = notable_indices
                 .get(&(room_id, notable_id))

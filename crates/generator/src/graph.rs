@@ -177,7 +177,7 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                 let room = catalog.room(catalog.vertex(*from_vertex_idx).room_idx);
                 let requirement = match room.room_id {
                     // Chris Houlihan Room
-                    Some(SourceRoomId::Underworld(20)) => Requirement::make_and(vec![
+                    Some(SourceRoomId(60)) => Requirement::make_and(vec![
                         Requirement::LoseFollowers(FollowerMask::make([Follower::Blind])),
                         Requirement::ResetForm {
                             world,
@@ -185,7 +185,7 @@ pub fn build_graph(catalog: &LogicCatalog, connections: &[Connection]) -> Traver
                         },
                     ]),
                     // Agahnim 2 in Ganon's Tower
-                    Some(SourceRoomId::Underworld(100)) => Requirement::SetLink,
+                    Some(SourceRoomId(140)) => Requirement::SetLink,
                     _ => Requirement::ResetForm {
                         world,
                         only_with_pearl: false,

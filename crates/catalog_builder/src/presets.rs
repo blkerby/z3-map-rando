@@ -2,11 +2,8 @@ use crate::config::BuildConfig;
 use crate::z3_json_data::{self, collect_source_files, read_source};
 use anyhow::{Context, Result, anyhow, bail};
 use common_types::SourceRoomId;
-use logic_catalog::RoomKind;
 use preset_catalog::{ItemPoolPreset, PresetCatalog, RootPreset, SkillPreset, StartingStatePreset};
-use seed_data::{
-    CustomizationPreset, NotableSettings, SettingsErrors, SettingsMode, SkillSettings,
-};
+use seed_data::{CustomizationPreset, SettingsErrors, SettingsMode, SkillSettings};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{collections::BTreeMap, fs, fs::File, io::BufWriter, path::Path};
@@ -80,8 +77,7 @@ struct TechData {
 
 #[derive(Serialize)]
 struct NotableData {
-    world: &'static str,
-    room: u32,
+    room: SourceRoomId,
     room_name: String,
     id: u32,
     name: String,
@@ -126,13 +122,8 @@ pub fn build_catalog(config: &BuildConfig, output: &Path, revision: String) -> R
     let mut notable_sources = BTreeMap::new();
     for path in room_paths {
         let room: z3_json_data::Room = read_source(&path)?;
-        let room_id = if room.room_type == RoomKind::Overworld {
-            SourceRoomId::Overworld(room.id)
-        } else {
-            SourceRoomId::Underworld(room.id)
-        };
         for notable in room.notables {
-            notable_sources.insert((room_id, notable.id), notable);
+            notable_sources.insert((room.id, notable.id), notable);
         }
     }
 
@@ -173,10 +164,7 @@ pub fn build_catalog(config: &BuildConfig, output: &Path, revision: String) -> R
         let mut settings = SkillSettings {
             proficiencies: BTreeMap::new(),
             tech: BTreeMap::new(),
-            notables: NotableSettings {
-                overworld: BTreeMap::new(),
-                underworld: BTreeMap::new(),
-            },
+            notables: BTreeMap::new(),
         };
         for tech in &techs {
             match tech.level {
@@ -194,12 +182,9 @@ pub fn build_catalog(config: &BuildConfig, output: &Path, revision: String) -> R
             }
         }
         for notable in &notables {
-            let (rooms, room) = match notable.room_id {
-                SourceRoomId::Overworld(room) => (&mut settings.notables.overworld, room),
-                SourceRoomId::Underworld(room) => (&mut settings.notables.underworld, room),
-            };
-            rooms
-                .entry(room)
+            settings
+                .notables
+                .entry(notable.room_id)
                 .or_default()
                 .insert(notable.notable_id, reached(&notable.difficulty));
         }
@@ -376,13 +361,8 @@ pub fn build_catalog(config: &BuildConfig, output: &Path, revision: String) -> R
         let source = notable_sources
             .get(&(notable.room_id, notable.notable_id))
             .with_context(|| format!("notable {} is not in the room data", notable.name))?;
-        let (world, room) = match notable.room_id {
-            SourceRoomId::Overworld(room) => ("overworld", room),
-            SourceRoomId::Underworld(room) => ("underworld", room),
-        };
         settings_data.notables.push(NotableData {
-            world,
-            room,
+            room: notable.room_id,
             room_name: notable.room_name,
             id: notable.notable_id,
             name: notable.name,

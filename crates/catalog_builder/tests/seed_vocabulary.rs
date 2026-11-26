@@ -22,7 +22,7 @@
 
 use anyhow::{Context, Result};
 use catalog_builder::config::BuildConfig;
-use common_types::{ItemKind, SUPPORTED_THEMES, SourceRoomId};
+use common_types::{ItemKind, SUPPORTED_THEMES};
 use logic_catalog::LockKind;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -76,7 +76,7 @@ fn check_seed_vocabulary() -> Result<()> {
     let mut rooms = BTreeMap::new();
     for room in &logic_catalog.rooms {
         if let Some(room_id) = room.room_id {
-            rooms.insert(format_room_id(room_id), room.name.clone());
+            rooms.insert(room_id.0.to_string(), room.name.clone());
         }
     }
     compare_entries("rooms", &vocabulary.rooms, &rooms, &mut errors);
@@ -84,11 +84,7 @@ fn check_seed_vocabulary() -> Result<()> {
     let mut item_locations = BTreeMap::new();
     for location in &logic_catalog.item_locations {
         item_locations.insert(
-            format!(
-                "{}:{}",
-                format_room_id(location.id.room_id),
-                location.id.item_id
-            ),
+            format!("{}:{}", location.id.room_id.0, location.id.item_id),
             location.name.clone(),
         );
     }
@@ -104,7 +100,7 @@ fn check_seed_vocabulary() -> Result<()> {
         if door.lock == LockKind::SmallKey {
             let room = &logic_catalog.rooms[door.room_idx.0 as usize];
             small_key_doors.insert(
-                format!("{}:{}", format_room_id(room.room_id.unwrap()), door.door_id),
+                format!("{}:{}", room.room_id.unwrap().0, door.door_id),
                 format!("{} - {}", room.name, door.name),
             );
         }
@@ -137,10 +133,7 @@ fn check_seed_vocabulary() -> Result<()> {
                     }
                     variants.insert(variant.clone());
                 }
-                edge_variants.insert(
-                    format!("{}:{slot}", format_room_id(room.room_id.unwrap())),
-                    variants,
-                );
+                edge_variants.insert(format!("{}:{slot}", room.room_id.unwrap().0), variants);
             }
         }
     }
@@ -194,13 +187,6 @@ fn check_seed_vocabulary() -> Result<()> {
         errors.join("\n")
     );
     Ok(())
-}
-
-fn format_room_id(room_id: SourceRoomId) -> String {
-    match room_id {
-        SourceRoomId::Overworld(id) => format!("overworld:{id}"),
-        SourceRoomId::Underworld(id) => format!("underworld:{id}"),
-    }
 }
 
 fn compare_entries<V: PartialEq + Debug>(

@@ -1,4 +1,4 @@
-use common_types::ItemKind;
+use common_types::{ItemKind, SourceRoomId};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -293,14 +293,8 @@ pub struct SkillSettings {
     pub proficiencies: BTreeMap<u32, u32>,
     /// Enabled flag by tech ID.
     pub tech: BTreeMap<u32, bool>,
-    pub notables: NotableSettings,
-}
-
-/// Enabled flags of notables, keyed by room ID and then by room-scoped notable ID.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct NotableSettings {
-    pub overworld: BTreeMap<u32, BTreeMap<u32, bool>>,
-    pub underworld: BTreeMap<u32, BTreeMap<u32, bool>>,
+    /// Enabled flags of notables, keyed by room ID and then by room-scoped notable ID.
+    pub notables: BTreeMap<SourceRoomId, BTreeMap<u32, bool>>,
 }
 
 /// The player's cosmetic choices, as described by `schema/settings/customization.json`.

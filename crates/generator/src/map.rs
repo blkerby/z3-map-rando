@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 use anyhow::{Result, ensure};
 use common_types::SourceRoomId;
 use logic_catalog::{
-    BoundaryEndpoint, Connection, Direction, LogicCatalog, MapBoundaryKind, Room, VertexIndex,
-    World,
+    BoundaryEndpoint, Connection, Direction, LogicCatalog, MapBoundaryKind, Room, RoomKind,
+    VertexIndex, World,
 };
 use rand::Rng;
 use seed_data::{BorderSide, MapBorder, OverworldRoomPlacement, WorldLayout};
@@ -34,7 +34,7 @@ impl<'a> MapPool<'a> {
             let room_index = catalog
                 .rooms
                 .iter()
-                .position(|room| room.room_id == Some(SourceRoomId::Overworld(u32::from(id))))
+                .position(|room| room.room_id == Some(SourceRoomId(u32::from(id))))
                 .ok_or_else(|| {
                     anyhow::anyhow!("map-pool room {id} is absent from the logic catalog")
                 })?;
@@ -91,7 +91,8 @@ impl<'a> MapPool<'a> {
 pub fn build_vanilla_rooms(catalog: &LogicCatalog, theme: &str) -> Vec<OverworldRoomPlacement> {
     let mut rooms = Vec::new();
     for room in &catalog.rooms {
-        if let (Some(SourceRoomId::Overworld(_)), Some([x, y])) = (room.room_id, room.position) {
+        if room.kind == RoomKind::Overworld {
+            let [x, y] = room.position.unwrap();
             rooms.push(create_room_placement(room, y * 8 + x, theme));
         }
     }
@@ -103,13 +104,10 @@ pub(crate) fn create_room_placement(
     position: u8,
     theme: &str,
 ) -> OverworldRoomPlacement {
-    let Some(SourceRoomId::Overworld(room_id)) = room.room_id else {
-        unreachable!()
-    };
     let [source_x, source_y] = room.position.unwrap();
     let [width, height] = room.size.unwrap();
     OverworldRoomPlacement {
-        room_id,
+        room_id: room.room_id.unwrap(),
         vanilla_map_id: source_y * 8 + source_x,
         position,
         size: [(width / 2) as u8, (height / 2) as u8],
@@ -133,7 +131,7 @@ fn find_room_contacts<'a>(catalog: &'a LogicCatalog, layout: &WorldLayout) -> Ve
             catalog
                 .rooms
                 .iter()
-                .position(|source| source.room_id == Some(SourceRoomId::Overworld(room.room_id)))
+                .position(|source| source.room_id == Some(room.room_id))
                 .unwrap(),
         );
         for dy in 0..room.size[1] {

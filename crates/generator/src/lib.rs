@@ -16,7 +16,7 @@ pub mod traversal;
 pub use seed_data::{SeedData, Settings};
 
 use anyhow::{Result, bail, ensure};
-use common_types::{Item, SourceRoomId};
+use common_types::Item;
 use graph::{TraversalGraph, build_graph};
 use inputs::{GenerationInputs, prepare_inputs};
 use key_assignment::{KeyAssignmentExhausted, KeyPlacementState, assign_small_keys};
@@ -139,7 +139,7 @@ pub fn generate(
         };
         let mut rooms = BTreeMap::new();
         for placement in &world_layout.rooms {
-            let room_id = SourceRoomId::Overworld(placement.room_id);
+            let room_id = placement.room_id;
             rooms.insert(
                 room_id,
                 RoomData {

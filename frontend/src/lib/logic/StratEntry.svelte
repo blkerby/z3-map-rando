@@ -6,14 +6,14 @@
 	let { room, strat, showDevNotes }: { room: LogicRoom; strat: LogicStrat; showDevNotes: boolean } =
 		$props();
 
-	const roomParams = $derived({ space: room.space, roomId: String(room.id) });
+	const roomParams = $derived({ roomId: String(room.id) });
 </script>
 
 <div class="strat border-top py-3">
 	<div class="row mb-2">
 		<div class="col-sm-6">
 			<a
-				href={resolve('/logic/[space=space]/[roomId]/[stratId]', {
+				href={resolve('/logic/[roomId]/[stratId]', {
 					...roomParams,
 					stratId: String(strat.id)
 				})}
@@ -21,7 +21,7 @@
 				{strat.name}
 			</a>
 			<br />
-			<a href={resolve('/logic/[space=space]/[roomId]', roomParams)}>{room.name}</a>
+			<a href={resolve('/logic/[roomId]', roomParams)}>{room.name}</a>
 		</div>
 		<div class="col-6 col-sm-3">From: {strat.from.id}<br />{strat.from.name}</div>
 		<div class="col-6 col-sm-3">To: {strat.to.id}<br />{strat.to.name}</div>

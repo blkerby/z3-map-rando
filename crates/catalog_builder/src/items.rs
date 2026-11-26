@@ -7,11 +7,11 @@ use std::{fs, path::Path};
 /// Waterfall of Wishing and Pyramid fairies are replaced by one upgrade per fairy.
 pub const RETIRED_ITEM_LOCATIONS: [ItemLocationId; 2] = [
     ItemLocationId {
-        room_id: SourceRoomId::Underworld(12),
+        room_id: SourceRoomId(52),
         item_id: 2,
     },
     ItemLocationId {
-        room_id: SourceRoomId::Underworld(69),
+        room_id: SourceRoomId(109),
         item_id: 2,
     },
 ];

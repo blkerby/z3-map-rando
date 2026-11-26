@@ -292,7 +292,7 @@ fn read_room_records(
     let mut room_areas = BTreeMap::new();
     for (room_id, area_id, _) in common_types::SPECIAL_ROOM_AREAS {
         room_areas.insert(
-            SourceRoomId::Underworld(room_id),
+            room_id,
             RoomArea {
                 area_id,
                 size: [1, 1],
@@ -304,11 +304,7 @@ fn read_room_records(
     room_paths.sort();
     for path in room_paths {
         let room: z3_json_data::Room = read_source(&path)?;
-        let room_id = if room.room_type == logic_catalog::RoomKind::Overworld {
-            SourceRoomId::Overworld(room.id)
-        } else {
-            SourceRoomId::Underworld(room.id)
-        };
+        let room_id = room.id;
         if let (Some([x, y]), Some([width, height])) = (room.position, room.size) {
             room_areas.insert(
                 room_id,
@@ -366,8 +362,8 @@ fn read_room_records(
             // These gifts keep their vanilla sprite subtype as a placeholder.
             // Their item IDs are read from separate data instead of that subtype.
             let item_address = match (room_id, item.id) {
-                (SourceRoomId::Overworld(7), 1) => Some(symbols.catfish_item),
-                (SourceRoomId::Underworld(104), 1) => Some(symbols.king_zora_item),
+                (SourceRoomId(7), 1) => Some(symbols.catfish_item),
+                (SourceRoomId(144), 1) => Some(symbols.king_zora_item),
                 _ => FAIRY_UPGRADE_LOCATIONS
                     .iter()
                     .position(|&fairy| fairy == id)

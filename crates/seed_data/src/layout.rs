@@ -3,6 +3,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use common_types::SourceRoomId;
+
 use crate::{BorderSide, MapBorder};
 
 /// Placements and themes of the overworld rooms, and the borders between them.
@@ -18,7 +20,7 @@ pub struct WorldLayout {
 
 #[derive(Clone, Debug)]
 pub struct OverworldRoomPlacement {
-    pub room_id: u32,
+    pub room_id: SourceRoomId,
     pub vanilla_map_id: u8,
     pub position: u8,
     pub size: [u8; 2],

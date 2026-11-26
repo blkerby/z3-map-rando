@@ -43,7 +43,7 @@ The Generate page is written directly as Svelte components (`src/lib/generation/
 
 ## Logic pages
 
-The Logic pages (`/logic/`) show the [`z3-json-data`](../z3-json-data/) logic: an index of rooms by type, a page per room (`/logic/o/<room_id>/` for overworld rooms, `/logic/u/<room_id>/` for underworld rooms, matching the separate room-ID spaces), and a page per strat (`.../<room_id>/<strat_id>/`, using the strat's stable `id`). They are prerendered from the room files at build time by `src/lib/server/logic.ts` (through the `$z3_json_data` alias); the catalog builder is not involved. Requirements and other strat properties are shown as their source JSON text, sliced from the room file so they keep its formatting. Diagrams come from the `roomDiagrams` folders (`src/lib/logic/diagrams.ts`): overworld rooms by file prefix, dungeons by name and floor, one floor at a time. Dev notes are hidden unless enabled with a toggle, remembered in the browser.
+The Logic pages (`/logic/`) show the [`z3-json-data`](../z3-json-data/) logic: an index of rooms by type, a page per room (`/logic/<room_id>/`), and a page per strat (`/logic/<room_id>/<strat_id>/`, using the strat's stable `id`). They are prerendered from the room files at build time by `src/lib/server/logic.ts` (through the `$z3_json_data` alias); the catalog builder is not involved. Requirements and other strat properties are shown as their source JSON text, sliced from the room file so they keep its formatting. Diagrams come from the `roomDiagrams` folders (`src/lib/logic/diagrams.ts`): overworld rooms by file prefix, dungeons by name and floor, one floor at a time. Dev notes are hidden unless enabled with a toggle, remembered in the browser.
 
 ## ROM
 

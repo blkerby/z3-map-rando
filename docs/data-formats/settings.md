@@ -60,7 +60,7 @@ Settings generated from data are members of a family object, keyed by stable IDs
 | --- | --- | --- |
 | Technique | `skill` › `tech` › `<tech_id>` | Upstream tech ID |
 | Proficiency | `skill` › `proficiencies` › `<tech_id>` | Upstream tech ID |
-| Notable | `skill` › `notables` › `<world>` › `<room>` › `<notable_id>` | Upstream room identity and room-scoped notable ID |
+| Notable | `skill` › `notables` › `<room>` › `<notable_id>` | Upstream room ID and room-scoped notable ID |
 | Item count | `item_pool` › `items` › `<item>` | Item token from [`data/items.json`](../../data/items.json) |
 
 `starting_state` contains `equipment` and `resources` objects. Equipment uses booleans for unique items and named tiers for progressive items and the Ocarina. Resources contain whole-heart capacity, bomb/arrow capacities, starting bomb/arrow ammunition, rupees, and the contents of each of the four bottle slots `bottle_1`–`bottle_4` (`none`, `empty`, `red_potion`, `green_potion`, `blue_potion`, `fairy`, `bee`, or `gold_bee`). `item_pool` contains `items` pickup counts, `deduct_starting_items` (equipment only), and `bomb_upgrade_size`/`arrow_upgrade_size` (1–99 each). Resolved values retain these authored choices; generation derives the remaining pickup pool and fills unused locations with Nothing.

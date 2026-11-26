@@ -559,9 +559,7 @@ impl SpoilerSession {
     fn locate_item(&self, location_idx: ItemLocationIndex) -> Option<MapPoint> {
         let location = self.catalog.item_location(location_idx);
         for (room_id, item_id, x, y) in OVERWORLD_ITEM_TILES {
-            if location.id.room_id == SourceRoomId::Overworld(room_id)
-                && location.id.item_id == item_id
-            {
+            if location.id.room_id == SourceRoomId(room_id) && location.id.item_id == item_id {
                 return self.locate_tile(
                     location.vertex_idx,
                     f32::from(x) + 0.5,

@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use logic_catalog::{Direction, NodeType, OverheadClass, RoomKind, World};
+use logic_catalog::{Direction, NodeType, OverheadClass, RoomKind, SourceRoomId, World};
 use serde::{Deserialize, de::DeserializeOwned};
 use std::{
     fs,
@@ -72,35 +72,35 @@ pub struct WhirlpoolConnection {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InteriorEndpoint {
-    pub room_id: u32,
+    pub room_id: SourceRoomId,
     pub node_id: u32,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EntranceEndpoint {
-    pub room_id: u32,
+    pub room_id: SourceRoomId,
     pub entrance_id: u32,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TeleportEndpoint {
-    pub room_id: u32,
+    pub room_id: SourceRoomId,
     pub teleport_id: u32,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WhirlpoolEndpoint {
-    pub room_id: u32,
+    pub room_id: SourceRoomId,
     pub whirlpool_id: u32,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Room {
-    pub id: u32,
+    pub id: SourceRoomId,
     pub name: String,
     pub room_type: RoomKind,
     pub dungeon_id: Option<u32>,

@@ -184,7 +184,6 @@ function readRoom(key: string, text: string): LogicRoom {
 		});
 	}
 	return {
-		space: room.roomType === 'Overworld' ? 'o' : 'u',
 		id: room.id,
 		name: room.name,
 		darkWorldName: room.darkWorldName,
@@ -206,12 +205,12 @@ rooms.sort((a, b) => a.id - b.id);
 /** All rooms, sorted by room ID. */
 export function listRooms(): RoomSummary[] {
 	const summaries = [];
-	for (const { space, id, name, darkWorldName, category } of rooms) {
-		summaries.push({ space, id, name, darkWorldName, category });
+	for (const { id, name, darkWorldName, category } of rooms) {
+		summaries.push({ id, name, darkWorldName, category });
 	}
 	return summaries;
 }
 
-export function findRoom(space: string, id: number): LogicRoom | undefined {
-	return rooms.find((room) => room.space === space && room.id === id);
+export function findRoom(id: number): LogicRoom | undefined {
+	return rooms.find((room) => room.id === id);
 }

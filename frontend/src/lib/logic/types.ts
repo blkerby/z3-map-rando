@@ -1,13 +1,9 @@
 /** Data for the Logic pages, prepared at build time from the z3-json-data room files. */
 
-/** URL segment of a room's ID space: overworld or underworld. */
-export type RoomSpace = 'o' | 'u';
-
 /** Index page section; Special rooms are listed with the overworld. */
 export type RoomCategory = 'overworld' | 'dungeon' | 'cave' | 'house';
 
 export interface RoomSummary {
-	space: RoomSpace;
 	id: number;
 	name: string;
 	darkWorldName?: string;
