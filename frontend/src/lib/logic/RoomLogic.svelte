@@ -174,6 +174,18 @@
 
 	{#if showNodeFilter}
 		<div class="node-filter mt-3">
+			<label for="difficulty">Difficulty</label>
+			<select
+				id="difficulty"
+				class="form-select"
+				bind:value={difficultyId}
+				onchange={saveDifficulty}
+			>
+				<option value="">Any</option>
+				{#each difficultyOptions as option (option.id)}
+					<option value={option.id}>{option.label}</option>
+				{/each}
+			</select>
 			<label for="from-node">From node</label>
 			<select id="from-node" class="form-select" bind:value={fromNode}>
 				<option value={null}>Any</option>
@@ -205,18 +217,6 @@
 					<option value="dark">Dark</option>
 				</select>
 			{/if}
-			<label for="difficulty">Difficulty</label>
-			<select
-				id="difficulty"
-				class="form-select"
-				bind:value={difficultyId}
-				onchange={saveDifficulty}
-			>
-				<option value="">Any</option>
-				{#each difficultyOptions as option (option.id)}
-					<option value={option.id}>{option.label}</option>
-				{/each}
-			</select>
 		</div>
 		{#if difficultyError}
 			<div class="text-danger mt-2">{difficultyError}</div>
@@ -274,6 +274,6 @@
 
 	.node-filter .swap {
 		grid-column: 3;
-		grid-row: 1 / span 2;
+		grid-row: 2 / span 2;
 	}
 </style>
