@@ -6,7 +6,13 @@ use preset_catalog::{ItemPoolPreset, PresetCatalog, RootPreset, SkillPreset, Sta
 use seed_data::{CustomizationPreset, SettingsErrors, SettingsMode, SkillSettings};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{collections::BTreeMap, fs, fs::File, io::BufWriter, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    fs::File,
+    io::BufWriter,
+    path::Path,
+};
 
 /// Difficulties ranked easiest to hardest. Others (e.g. "Ignored") never take part in skill presets.
 const DIFFICULTIES: [&str; 5] = ["Basic", "Medium", "Hard", "Very Hard", "Expert"];
@@ -123,7 +129,7 @@ pub fn build_catalog(config: &BuildConfig, output: &Path, revision: String) -> R
     for path in room_paths {
         let room: z3_json_data::Room = read_source(&path)?;
         for notable in room.notables {
-            notable_sources.insert((room.id, notable.id), notable);
+            notable_sources.insert((room.id, notable.id), (room.name.clone(), notable));
         }
     }
 
@@ -313,6 +319,8 @@ pub fn build_catalog(config: &BuildConfig, output: &Path, revision: String) -> R
         items,
         presets: catalog,
     };
+    let mut seen_techs = BTreeSet::new();
+    let mut seen_proficiency_levels = BTreeSet::new();
     for tech in techs {
         let source = tech_sources
             .get(&tech.tech_id)
@@ -321,6 +329,7 @@ pub fn build_catalog(config: &BuildConfig, output: &Path, revision: String) -> R
             if source.note.is_empty() {
                 bail!("tech {} has no note", tech.name);
             }
+            seen_techs.insert(tech.tech_id);
             settings_data.techs.push(TechData {
                 id: tech.tech_id,
                 name: tech.name,
@@ -329,6 +338,7 @@ pub fn build_catalog(config: &BuildConfig, output: &Path, revision: String) -> R
             });
             continue;
         };
+        seen_proficiency_levels.insert((tech.tech_id, level));
         let note = if level == 0 {
             None
         } else {
@@ -357,10 +367,12 @@ pub fn build_catalog(config: &BuildConfig, output: &Path, revision: String) -> R
             }),
         }
     }
+    let mut seen_notables = BTreeSet::new();
     for notable in notables {
-        let source = notable_sources
+        let (_, source) = notable_sources
             .get(&(notable.room_id, notable.notable_id))
             .with_context(|| format!("notable {} is not in the room data", notable.name))?;
+        seen_notables.insert((notable.room_id, notable.notable_id));
         settings_data.notables.push(NotableData {
             room: notable.room_id,
             room_name: notable.room_name,
@@ -374,6 +386,47 @@ pub fn build_catalog(config: &BuildConfig, output: &Path, revision: String) -> R
                 Some(source.detail_note.join(" "))
             },
         });
+    }
+
+    let mut missing = Vec::new();
+    for source in tech_sources.values() {
+        if source.tiers.is_empty() {
+            if !seen_techs.contains(&source.id) {
+                missing.push(format!(
+                    "tech {} (id {}) missing from {}",
+                    source.name,
+                    source.id,
+                    config.tech_data.display()
+                ));
+            }
+        } else {
+            for tier in &source.tiers {
+                if !seen_proficiency_levels.contains(&(source.id, tier.value)) {
+                    missing.push(format!(
+                        "proficiency {} (id {}, level {}) missing from {}",
+                        source.name,
+                        source.id,
+                        tier.value,
+                        config.tech_data.display()
+                    ));
+                }
+            }
+        }
+    }
+    for (&(room_id, notable_id), (room_name, source)) in &notable_sources {
+        if !seen_notables.contains(&(room_id, notable_id)) {
+            missing.push(format!(
+                "notable {} (id {}) in {} (room {}) missing from {}",
+                source.name,
+                notable_id,
+                room_name,
+                room_id.0,
+                config.notable_data.display()
+            ));
+        }
+    }
+    if !missing.is_empty() {
+        bail!("unclassified upstream entries:\n  {}", missing.join("\n  "));
     }
 
     preset_catalog::encode_catalog(

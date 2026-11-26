@@ -30,6 +30,12 @@
         "difficulty": "Expert"
     },
     {
+        "tech_id": 1,
+        "name": "combatProficiency",
+        "level": 6,
+        "difficulty": "Ignored"
+    },
+    {
         "tech_id": 2,
         "name": "bossProficiency",
         "level": 1,
@@ -58,6 +64,12 @@
         "name": "bossProficiency",
         "level": 5,
         "difficulty": "Expert"
+    },
+    {
+        "tech_id": 2,
+        "name": "bossProficiency",
+        "level": 9,
+        "difficulty": "Ignored"
     },
     {
         "tech_id": 3,
@@ -118,6 +130,11 @@
         "tech_id": 9,
         "name": "canRiskPermanentLossOfAccess",
         "difficulty": "Ignored"
+    },
+    {
+        "tech_id": 10,
+        "name": "canCrossRoomOverheadPickups",
+        "difficulty": "Very Hard"
     },
     {
         "tech_id": 11,
