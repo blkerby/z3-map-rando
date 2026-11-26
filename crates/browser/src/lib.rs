@@ -1,8 +1,10 @@
 use common_types::{Item, SourceRoomId};
 use generator::{
     graph::{TraversalEdge, TraversalEdgeOrigin},
+    inputs::prepare_skill_inputs,
     spoiler::{RouteTarget, SpoilerReplay},
-    state::HealthState,
+    state::{GlobalState, HealthState},
+    strat_check::check_room_strats,
 };
 use logic_catalog::{
     BoundaryEndpoint, Connection, Direction, DoorIndex, EdgeOrigin, EntranceKind, FlagIndex,
@@ -169,6 +171,46 @@ struct RouteState {
     bottles_used: u8,
     /// Followers that may be present; having none is always possible.
     followers: Vec<&'static str>,
+}
+
+/// The logic catalog kept in WebAssembly memory, so the Logic pages can check strats against
+/// skill settings.
+#[wasm_bindgen]
+pub struct LogicSession {
+    catalog: LogicCatalog,
+    global: GlobalState,
+}
+
+#[wasm_bindgen]
+impl LogicSession {
+    #[wasm_bindgen(constructor)]
+    pub fn new(logic_catalog: &[u8]) -> Result<LogicSession, JsError> {
+        let catalog = logic_catalog::decode_catalog(logic_catalog)
+            .map_err(|error| JsError::new(&format!("{error:#}")))?;
+        let global = GlobalState::initialize_full(&catalog);
+        Ok(LogicSession { catalog, global })
+    }
+
+    /// IDs of the room's strats that pass with the skill settings (JSON), as checked by
+    /// `check_room_strats` with everything owned.
+    pub fn check_room_strats(&self, room_id: u32, skill_json: &[u8]) -> Result<Vec<u32>, JsError> {
+        let check = || -> anyhow::Result<Vec<u32>> {
+            let skill = prepare_skill_inputs(&self.catalog, &serde_json::from_slice(skill_json)?)?;
+            let mut room_idx = RoomIndex(0);
+            while self.catalog.room(room_idx).room_id != Some(SourceRoomId(room_id)) {
+                room_idx.0 += 1;
+            }
+            let passes = check_room_strats(&self.catalog, &self.global, &skill, room_idx);
+            let mut strat_ids = Vec::new();
+            for (strat, passes) in self.catalog.room(room_idx).strats.iter().zip(passes) {
+                if let (Some(strat_id), true) = (strat.strat_id, passes) {
+                    strat_ids.push(strat_id);
+                }
+            }
+            Ok(strat_ids)
+        };
+        check().map_err(|error| JsError::new(&format!("{error:#}")))
+    }
 }
 
 /// A replayed seed kept in WebAssembly memory, so routes can be traced on demand.

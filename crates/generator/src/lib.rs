@@ -11,6 +11,7 @@ pub mod metadata;
 pub mod placement;
 pub mod spoiler;
 pub mod state;
+pub mod strat_check;
 pub mod traversal;
 
 pub use seed_data::{SeedData, Settings};

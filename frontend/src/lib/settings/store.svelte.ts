@@ -215,7 +215,7 @@ export class SettingsStore {
 	 * The values a document gives: its root preset, the scope presets it chooses (or `picks`), and with
 	 * `tweaks` its values on top, except inside picked scopes, which take their preset plainly.
 	 */
-	private resolve(doc: Tree, picks: Record<string, string | null>, tweaks: boolean): Tree {
+	resolve(doc: Tree, picks: Record<string, string | null>, tweaks: boolean): Tree {
 		const out = cloneTree(this.rootOf(doc).settings);
 		const picked: Path[] = [];
 		for (const scope of this.model.scopes) {

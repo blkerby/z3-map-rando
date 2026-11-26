@@ -20,7 +20,7 @@ enum Command {
     Patches,
     /// Build the preset catalog from the preset files and difficulty data.
     Presets,
-    /// Update all four catalogs, reusing unchanged outputs.
+    /// Update all four catalogs and the Logic page data, reusing unchanged outputs.
     All,
 }
 

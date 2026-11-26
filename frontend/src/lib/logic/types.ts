@@ -31,6 +31,8 @@ export interface StratProperty {
 export interface LogicStrat extends Notes {
 	id: number;
 	name: string;
+	/** The easiest skill preset label the strat passes with, or "Ignored". */
+	difficulty: string;
 	world?: 'light' | 'dark' | 'any';
 	fromWorld?: 'light' | 'dark';
 	toWorld?: 'light' | 'dark';

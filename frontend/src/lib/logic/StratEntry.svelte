@@ -20,6 +20,7 @@
 			>
 				{strat.name}
 			</a>
+			<span class="label">({strat.difficulty})</span>
 			<br />
 			<a href={resolve('/logic/[roomId]', roomParams)}>{room.name}</a>
 		</div>

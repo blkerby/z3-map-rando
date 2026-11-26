@@ -163,6 +163,9 @@ for (const p of settingsData.presets.root) {
 	});
 }
 
+/** Where the player's generation presets are kept in localStorage. */
+export const SETTINGS_PRESETS_KEY = 'alttp-maprando:presets:settings';
+
 export const generationModel: SettingsModel = {
 	kind: 'generation',
 	rootPresets,

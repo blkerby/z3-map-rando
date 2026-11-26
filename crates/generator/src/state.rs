@@ -131,6 +131,47 @@ impl GlobalState {
         state
     }
 
+    /// Own every item at its highest level, with the largest capacities, all four bottles,
+    /// every refill source, Big Key, unlocked door, and flag.
+    pub fn initialize_full(catalog: &LogicCatalog) -> Self {
+        let mut state = Self {
+            unique_items: [true; UniqueItem::COUNT],
+            sword_level: 4,
+            shield_level: 3,
+            glove_level: 2,
+            mail_level: 2,
+            boomerang_level: 2,
+            ocarina: OcarinaState::Active,
+            health_capacity: 160,
+            magic_capacity: 128,
+            bomb_capacity: 99,
+            arrow_capacity: 99,
+            bomb_upgrade_size: 0,
+            arrow_upgrade_size: 0,
+            magic_usable_capacity: 0,
+            bomb_usable_capacity: 0,
+            arrow_usable_capacity: 0,
+            heart_pieces: 0,
+            bottles_owned: 4,
+            refills: RefillFlags {
+                magic: true,
+                bombs: true,
+                arrows: true,
+                red_potion: true,
+                green_potion: true,
+                blue_potion: true,
+                fairy: true,
+            },
+            big_keys: vec![true; catalog.dungeons.len()],
+            unlocked_doors: vec![true; catalog.doors.len()],
+            flags: vec![true; catalog.flags.len()],
+            reachable_item_locations: vec![false; catalog.item_locations.len()],
+            collected_item_locations: vec![false; catalog.item_locations.len()],
+        };
+        state.update_usable_capacities();
+        state
+    }
+
     /// Collect a placed item into inventory, returning an error for already-collected locations.
     /// The pickup location determines Big Key scope; Small Keys carry their door identity.
     /// Return the changed scheduling key, excluding duplicate or capped capabilities.
@@ -404,7 +445,7 @@ pub struct LocalState {
 
 impl LocalState {
     /// Begin a route with full health, no consumption, followers, or cleared obstacles.
-    pub(crate) fn initialize() -> Self {
+    pub fn initialize() -> Self {
         Self {
             form: Form::Link,
             health: HealthState::Consumed(0),

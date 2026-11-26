@@ -1,4 +1,8 @@
+import logicData from '$build/logic_data.json';
 import type { LogicRoom, LogicStrat, Notes, RoomCategory, RoomSummary } from '$lib/logic/types';
+
+/** Strat difficulties by room ID and strat ID, prepared by the catalog builder. */
+const difficulties = logicData as Record<string, Record<string, string>>;
 
 /** Raw room files keyed by Vite path; the text is kept so requirements display with their source formatting. */
 const sources = import.meta.glob<string>('$z3_json_data/rooms/**/*.json', {
@@ -179,6 +183,7 @@ function readRoom(key: string, text: string): LogicRoom {
 		strats.push({
 			id: strat.id,
 			name: strat.name,
+			difficulty: difficulties[room.id][strat.id],
 			world: strat.world,
 			fromWorld: strat.fromWorld,
 			toWorld: strat.toWorld,

@@ -356,6 +356,7 @@ impl Follower {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Strat {
+    pub id: u32,
     pub link: [u32; 2],
     pub name: String,
     pub requires: Vec<Requirement>,

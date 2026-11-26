@@ -2,7 +2,7 @@
 
 use crate::{
     graph::{BUNNY_WORLD, TraversalEdge},
-    inputs::GenerationInputs,
+    inputs::SkillInputs,
     local_state_reducer::LocalStateReducer,
     state::{GlobalDependency, GlobalState, HealthState, LocalState, RefillFlags},
 };
@@ -182,7 +182,7 @@ pub struct GlobalDiscoveries {
 
 pub struct Interpreter<'a> {
     pub catalog: &'a LogicCatalog,
-    pub inputs: &'a GenerationInputs,
+    pub skill: &'a SkillInputs,
     pub global: &'a GlobalState,
 }
 
@@ -236,7 +236,9 @@ impl Interpreter<'_> {
         improved
     }
 
-    fn evaluate_requirement(
+    /// Evaluate a requirement for a batch of local states, returning the successful outputs.
+    /// Report global discoveries as a requirement prefix succeeds, even if a later part fails.
+    pub fn evaluate_requirement(
         &self,
         requirement: &Requirement,
         mut states: LocalStateReducer,
@@ -289,10 +291,10 @@ impl Interpreter<'_> {
                 };
                 level >= *minimum_level
             }
-            Requirement::Tech(idx) => self.inputs.tech_enabled[idx.0 as usize],
-            Requirement::Notable(idx) => self.inputs.notable_enabled[idx.0 as usize],
+            Requirement::Tech(idx) => self.skill.tech_enabled[idx.0 as usize],
+            Requirement::Notable(idx) => self.skill.notable_enabled[idx.0 as usize],
             Requirement::Proficiency { tech_idx, minimum } => {
-                self.inputs.proficiency_levels[tech_idx.0 as usize] >= *minimum
+                self.skill.proficiency_levels[tech_idx.0 as usize] >= *minimum
             }
             Requirement::Flag(idx) => self.global.flags[idx.0 as usize],
             Requirement::PrizeCount { kind, minimum } => {
@@ -381,7 +383,7 @@ impl Interpreter<'_> {
             Requirement::CanUseYItems => state.form.can_use_y_items(),
             Requirement::ChangeForm { from, to, tech } => {
                 if state.form == *from
-                    && tech.is_none_or(|idx| self.inputs.tech_enabled[idx.0 as usize])
+                    && tech.is_none_or(|idx| self.skill.tech_enabled[idx.0 as usize])
                 {
                     state.form = *to;
                 }
@@ -487,7 +489,7 @@ impl Interpreter<'_> {
                         let restored_form = match state.form {
                             _ if pearl => Some(Form::Link),
                             Form::Bunny => Some(Form::Bunny),
-                            Form::Link if !self.inputs.can_convert_to_pearlless_link => {
+                            Form::Link if !self.skill.can_convert_to_pearlless_link => {
                                 Some(Form::Link)
                             }
                             _ => None,

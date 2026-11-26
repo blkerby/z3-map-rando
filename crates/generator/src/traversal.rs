@@ -112,7 +112,7 @@ pub fn compute_closure(
             graph,
             &Interpreter {
                 catalog,
-                inputs,
+                skill: &inputs.skill,
                 global,
             },
             local_states,

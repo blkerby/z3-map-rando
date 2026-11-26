@@ -271,7 +271,7 @@ impl SpoilerReplay {
     ) -> Option<Vec<RouteStep>> {
         let interpreter = Interpreter {
             catalog,
-            inputs: &self.inputs,
+            skill: &self.inputs.skill,
             global: self.get_route_state(target)?,
         };
         // The global state already holds everything the route may use, so discoveries are

@@ -36,7 +36,7 @@ export interface RomRequest {
 	customization: Tree;
 }
 
-async function fetchBytes(url: string): Promise<Uint8Array> {
+export async function fetchBytes(url: string): Promise<Uint8Array> {
 	const response = await fetch(url);
 	if (!response.ok) throw new Error(`Could not download ${url} (${response.status}).`);
 	return new Uint8Array(await response.arrayBuffer());

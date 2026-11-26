@@ -2,7 +2,7 @@ use anyhow::{Result, anyhow, bail};
 use common_types::{DoorId, FAIRY_UPGRADE_LOCATIONS, Item, ItemKind, SourceRoomId};
 use hashbrown::HashMap;
 use logic_catalog::{DoorIndex, DungeonIndex, ItemLocationIndex, LockKind, LogicCatalog};
-use seed_data::{Settings, StartingState};
+use seed_data::{Settings, SkillSettings, StartingState};
 use std::collections::BTreeMap;
 
 #[derive(Debug)]
@@ -40,15 +40,21 @@ pub struct GenerationInputs {
     pub fixed_items: BTreeMap<ItemLocationIndex, Item>,
     pub prize_locations: Vec<ItemLocationIndex>,
     pub prize_pool: Vec<Item>,
+    pub skill: SkillInputs,
+    pub starting_state: StartingState,
+    pub bomb_upgrade_size: u8,
+    pub arrow_upgrade_size: u8,
+}
+
+/// Skill settings resolved to catalog order.
+#[derive(Debug)]
+pub struct SkillInputs {
     /// Settings resolved by stable tech ID, stored in catalog tech order.
     pub tech_enabled: Vec<bool>,
     pub can_convert_to_pearlless_link: bool,
     /// Settings resolved by room identity and notable ID, in catalog notable order.
     pub notable_enabled: Vec<bool>,
     pub proficiency_levels: Vec<u32>,
-    pub starting_state: StartingState,
-    pub bomb_upgrade_size: u8,
-    pub arrow_upgrade_size: u8,
 }
 
 #[derive(Debug)]
@@ -78,10 +84,7 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         fixed_items: BTreeMap::new(),
         prize_locations: Vec::new(),
         prize_pool: Vec::new(),
-        tech_enabled: vec![false; catalog.techs.len()],
-        can_convert_to_pearlless_link: false,
-        notable_enabled: vec![false; catalog.notables.len()],
-        proficiency_levels: vec![0; catalog.techs.len()],
+        skill: prepare_skill_inputs(catalog, &settings.skill)?,
         starting_state: settings.starting_state.clone(),
         bomb_upgrade_size: settings.item_pool.bomb_upgrade_size,
         arrow_upgrade_size: settings.item_pool.arrow_upgrade_size,
@@ -228,22 +231,36 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         inputs.ordinary_pool.push(Item::Nothing);
     }
 
+    Ok(inputs)
+}
+
+/// Resolve skill settings by stable tech, room, and notable IDs.
+pub fn prepare_skill_inputs(
+    catalog: &LogicCatalog,
+    skill_settings: &SkillSettings,
+) -> Result<SkillInputs> {
+    let mut skill = SkillInputs {
+        tech_enabled: vec![false; catalog.techs.len()],
+        can_convert_to_pearlless_link: false,
+        notable_enabled: vec![false; catalog.notables.len()],
+        proficiency_levels: vec![0; catalog.techs.len()],
+    };
     let mut tech_indices = BTreeMap::new();
     for (index, tech) in catalog.techs.iter().enumerate() {
         tech_indices.insert(tech.tech_id, index);
     }
-    for (tech_id, &enabled) in &settings.skill.tech {
+    for (tech_id, &enabled) in &skill_settings.tech {
         let index = tech_indices
             .get(tech_id)
             .ok_or_else(|| anyhow!("unknown tech ID: {tech_id}"))?;
-        inputs.tech_enabled[*index] = enabled;
+        skill.tech_enabled[*index] = enabled;
         if enabled
             && matches!(
                 catalog.techs[*index].name.as_str(),
                 "canCarryLonk" | "canPearllessLink"
             )
         {
-            inputs.can_convert_to_pearlless_link = true;
+            skill.can_convert_to_pearlless_link = true;
         }
     }
     let mut notable_indices = HashMap::new();
@@ -251,19 +268,19 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         let room_id = catalog.room(notable.room_idx).room_id.unwrap();
         notable_indices.insert((room_id, notable.notable_id), index);
     }
-    for (&room_id, room_notables) in &settings.skill.notables {
+    for (&room_id, room_notables) in &skill_settings.notables {
         for (&notable_id, &enabled) in room_notables {
             let index = notable_indices
                 .get(&(room_id, notable_id))
                 .ok_or_else(|| anyhow!("unknown notable ID {notable_id} in room {room_id:?}"))?;
-            inputs.notable_enabled[*index] = enabled;
+            skill.notable_enabled[*index] = enabled;
         }
     }
-    for (tech_id, &level) in &settings.skill.proficiencies {
+    for (tech_id, &level) in &skill_settings.proficiencies {
         let index = tech_indices
             .get(tech_id)
             .ok_or_else(|| anyhow!("unknown proficiency tech ID: {tech_id}"))?;
-        inputs.proficiency_levels[*index] = level;
+        skill.proficiency_levels[*index] = level;
     }
-    Ok(inputs)
+    Ok(skill)
 }

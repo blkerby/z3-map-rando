@@ -2,6 +2,7 @@ pub mod cache;
 pub mod config;
 mod items;
 pub mod logic;
+pub mod logic_data;
 pub mod patches;
 pub mod presets;
 pub mod retiling;

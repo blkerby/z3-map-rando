@@ -347,6 +347,7 @@ fn compile_room_strats(
     for strat in &source_room.strats {
         let strat_idx = StratIndex(room.strats.len() as u32);
         room.strats.push(StratMetadata {
+            strat_id: Some(strat.id),
             name: strat.name.clone(),
         });
         let world_pairs = get_strat_world_pairs(strat, overworld, indices);
@@ -460,6 +461,7 @@ fn compile_room_strats(
             );
             let strat_idx = StratIndex(room.strats.len() as u32);
             room.strats.push(StratMetadata {
+                strat_id: None,
                 name: match class {
                     OverheadClass::Class1 => "Return with Weak Overhead Object",
                     OverheadClass::Class3 => "Return with Strong Overhead Object",

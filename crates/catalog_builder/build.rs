@@ -81,6 +81,18 @@ fn main() {
     write_inputs(
         &root,
         &mut source,
+        "LOGIC_DATA_CODE_INPUTS",
+        &[
+            "crates/generator",
+            "crates/logic_catalog",
+            "crates/preset_catalog",
+            "crates/seed_data",
+            "crates/common_types",
+        ],
+    );
+    write_inputs(
+        &root,
+        &mut source,
         "PRESET_CODE_INPUTS",
         &[
             "schema/settings",

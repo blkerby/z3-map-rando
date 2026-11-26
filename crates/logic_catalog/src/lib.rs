@@ -289,7 +289,7 @@ pub struct Room {
     pub obstacles: Vec<Obstacle>,
     /// Room-local nodes, shared by Light and Dark World vertices in overworld rooms.
     pub nodes: Vec<NodeMetadata>,
-    /// Source strats in authored order.
+    /// Source strats in authored order, followed by synthetic strats.
     pub strats: Vec<StratMetadata>,
 }
 
@@ -365,6 +365,8 @@ pub struct NodeMetadata {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StratMetadata {
+    /// Authored strat ID, unique within the room; synthetic strats have none.
+    pub strat_id: Option<u32>,
     pub name: String,
 }
 

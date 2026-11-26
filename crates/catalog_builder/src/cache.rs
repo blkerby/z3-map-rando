@@ -1,4 +1,4 @@
-use crate::{config::BuildConfig, logic, patches, presets, retiling};
+use crate::{config::BuildConfig, logic, logic_data, patches, presets, retiling};
 use anyhow::Result;
 use sha2::{Digest, Sha256};
 use std::fmt::Write as _;
@@ -200,8 +200,22 @@ impl CatalogCache {
         })
     }
 
-    pub fn update_all(&self) -> Result<()> {
+    pub fn update_logic_data(&self) -> Result<()> {
         self.update_presets()?;
+        let output = self.config.output_directory.join("logic_data.json");
+        let mut fingerprint = self.create_fingerprint(LOGIC_DATA_CODE_INPUTS);
+        let logic_catalog = self.config.output_directory.join("logic_catalog.bin");
+        let preset_catalog = self.config.output_directory.join("preset_catalog.bin");
+        for path in [&logic_catalog, &preset_catalog] {
+            hash_input(&mut fingerprint, &fs::read(path)?);
+        }
+        update_catalog(&output, fingerprint, true, || {
+            logic_data::build_logic_data(&logic_catalog, &preset_catalog, &output)
+        })
+    }
+
+    pub fn update_all(&self) -> Result<()> {
+        self.update_logic_data()?;
         self.update_retiling()?;
         self.update_patches()?;
         Ok(())

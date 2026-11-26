@@ -7,7 +7,7 @@
 	import CustomizationSettings from '$lib/customization/CustomizationSettings.svelte';
 	import { customizationModel } from '$lib/customization/model';
 	import GenerationSettings from '$lib/generation/GenerationSettings.svelte';
-	import { ITEM_LABELS, ITEM_LOCATIONS, countPoolItems, countStartingItems, generationModel } from '$lib/generation/data';
+	import { ITEM_LABELS, ITEM_LOCATIONS, SETTINGS_PRESETS_KEY, countPoolItems, countStartingItems, generationModel } from '$lib/generation/data';
 	import CollapsibleSection from '$lib/settings/CollapsibleSection.svelte';
 	import CustomizationPanel from '$lib/settings/CustomizationPanel.svelte';
 	import PresetManager from '$lib/settings/PresetManager.svelte';
@@ -77,7 +77,6 @@
 	// The draft holds the /generate settings. It is kept after generating, so returning to
 	// /generate continues from the settings last used there.
 	const DRAFT_KEY = 'alttp-maprando:draft';
-	const PRESETS_KEY = 'alttp-maprando:presets:settings';
 	// Customization is personal: saved in this browser only, never part of the seed link, never locked.
 	const CUSTOM_KEY = 'alttp-maprando:customization';
 	const CUSTOM_PRESETS_KEY = 'alttp-maprando:presets:customization';
@@ -191,7 +190,7 @@
 		try {
 			const [found, generationUnreadable, customUnreadable] = await Promise.all([
 				seed === null || loadSeed(seed),
-				restore(store, 'generation settings', PRESETS_KEY, seed === null ? { storage: () => sessionStorage, key: DRAFT_KEY } : null),
+				restore(store, 'generation settings', SETTINGS_PRESETS_KEY, seed === null ? { storage: () => sessionStorage, key: DRAFT_KEY } : null),
 				restore(custom, 'customization', CUSTOM_PRESETS_KEY, { storage: () => localStorage, key: CUSTOM_KEY })
 			]);
 			unreadable = [...generationUnreadable, ...customUnreadable];
@@ -265,7 +264,7 @@
 
 	$effect(() => {
 		JSON.stringify(store.userPresets); // tracked: re-runs when any preset changes
-		if (autosave) store.saveUserPresets(PRESETS_KEY);
+		if (autosave) store.saveUserPresets(SETTINGS_PRESETS_KEY);
 	});
 
 	$effect(() => {
