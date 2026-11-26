@@ -289,10 +289,9 @@ pub(super) fn select_areas(
 }
 
 /// The openings of an edge variant on one segment, as half-open ranges of 8x8 tiles along the
-/// segment, in the order of the variant's node references; empty for closed variants and
-/// split-house, whose geometry is not specified. Specialized variants' ranges were measured
-/// from the composed collision of the rooms supporting them and include water; the guessed
-/// ones are noted.
+/// segment, in the order of the variant's node references; empty for closed variants.
+/// Specialized variants' ranges were measured from the composed collision of the rooms
+/// supporting them and include water; the guessed ones are noted.
 pub fn get_edge_openings(north_south: bool, variant: &str) -> &'static [(usize, usize)] {
     match (north_south, variant) {
         (true, "small-1") => &[(14, 20)],
@@ -318,6 +317,8 @@ pub fn get_edge_openings(north_south: bool, variant: &str) -> &'static [(usize, 
         // Land, then water: the role order, not map order. Land lies on both sides of the
         // water; the larger northern run is a guess.
         (false, "lake") => &[(16, 25), (31, 41)],
+        // The passage below the house.
+        (false, "split-house") => &[(56, 61)],
         _ => &[],
     }
 }

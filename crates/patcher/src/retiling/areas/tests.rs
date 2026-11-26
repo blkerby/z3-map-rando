@@ -144,8 +144,7 @@ fn compose_collision(
 // preserving slopes and direction.
 //
 // Distinct combinations must produce distinct paired-world collision layers;
-// light-only and light-and-mirror count as one geometry choice. Split-house has no
-// specified openings, so it participates in uniqueness checks only.
+// light-only and light-and-mirror count as one geometry choice.
 // Uniqueness failures report one pair per room with the fewest differing slots.
 // Aperture failures report the failing strip closest to the transition across
 // all combinations, with an example combination.
