@@ -1,19 +1,39 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { resolve } from '$app/paths';
 	import { findDiagrams, selectDefaultDiagram } from './diagrams';
 	import { checkRoomStrats } from './difficulty';
 	import DifficultyAlerts from './DifficultyAlerts.svelte';
 	import { DifficultyFilter } from './difficultyFilter.svelte';
 	import LogicNotes from './LogicNotes.svelte';
 	import StratEntry from './StratEntry.svelte';
-	import type { LogicRoom } from './types';
+	import type { LogicRoom, RoomConnection, RoomConnectionKind } from './types';
 
 	/**
-	 * A room's header, diagram, and strats; `room.strats` holds the strats to list. `showNodeFilter` adds
-	 * controls to list only strats from or to a chosen node, passing with chosen skill settings, and, in overworld
-	 * rooms, usable in a chosen world.
+	 * A room's header, diagram, connections, and strats; `room.strats` holds the strats to list.
+	 * `showNodeFilter` adds controls to list only strats from or to a chosen node, passing with chosen
+	 * skill settings, and, in overworld rooms, usable in a chosen world.
 	 */
 	let { room, showNodeFilter = false }: { room: LogicRoom; showNodeFilter?: boolean } = $props();
+
+	const connectionGroups: { kind: RoomConnectionKind; label: string }[] = [
+		{ kind: 'scroll', label: 'Scrolling' },
+		{ kind: 'entrance', label: 'Entrances' },
+		{ kind: 'whirlpool', label: 'Whirlpools' },
+		{ kind: 'teleport', label: 'Teleports' }
+	];
+
+	function targetRoomName(conn: RoomConnection): string {
+		if (conn.targetRoom.darkWorldName) {
+			if (conn.targetWorld === 'dark') {
+				return conn.targetRoom.darkWorldName;
+			}
+			if (conn.targetWorld === 'both') {
+				return `${conn.targetRoom.name} / ${conn.targetRoom.darkWorldName}`;
+			}
+		}
+		return conn.targetRoom.name;
+	}
 
 	const SHOW_DEV_NOTES_KEY = 'logic-show-dev-notes';
 
@@ -133,6 +153,50 @@
 		<img class="diagram d-block mb-3" src={diagram.url} alt="{room.name} {diagram.label} diagram" />
 	{/if}
 
+	{#if room.connections.length > 0}
+		<h2 class="h5 mt-4">Connections</h2>
+		{#each connectionGroups as group (group.kind)}
+			{@const items = room.connections.filter((conn) => conn.kind === group.kind)}
+			{#if items.length > 0}
+				<h3 class="h6 text-body-secondary mt-2 mb-1">{group.label}</h3>
+				<ul class="list-unstyled mb-2">
+					{#each items as conn, i (i)}
+						{@const roomName = targetRoomName(conn)}
+						<li>
+							<span class="text-body-secondary"
+								>Node {conn.nodeId} ({conn.detail}){#if conn.name}:{/if}</span
+							>
+							{#if conn.name}
+								{conn.name}
+							{/if}
+							<svg
+								class="conn-arrow mx-1"
+								viewBox="0 0 16 12"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.5"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								aria-hidden="true"
+							>
+								<line x1="2" y1="6" x2="14" y2="6" />
+								{#if conn.direction === 'in' || conn.direction === 'both'}
+									<polyline points="5.5 2.5 2 6 5.5 9.5" />
+								{/if}
+								{#if conn.direction === 'out' || conn.direction === 'both'}
+									<polyline points="10.5 2.5 14 6 10.5 9.5" />
+								{/if}
+							</svg>
+							<a href={resolve('/logic/[roomId]', { roomId: String(conn.targetRoom.id) })}>
+								{roomName}
+							</a>
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		{/each}
+	{/if}
+
 	{#if showNodeFilter}
 		<div class="node-filter mt-3">
 			<label for="difficulty">Difficulty</label>
@@ -189,6 +253,12 @@
 </main>
 
 <style>
+	.conn-arrow {
+		width: 1em;
+		height: 0.75em;
+		vertical-align: -0.05em;
+	}
+
 	.diagram {
 		max-width: 100%;
 		height: auto;

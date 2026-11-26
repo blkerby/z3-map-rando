@@ -1,5 +1,8 @@
 import logicData from '$build/logic_data.json';
 import settingsDataJson from '$settings_data';
+import entrancesJson from '$z3_json_data/connections/entrances.json';
+import teleportsJson from '$z3_json_data/connections/teleports.json';
+import whirlpoolsJson from '$z3_json_data/connections/whirlpools.json';
 import helpersJson from '$z3_json_data/helpers.json';
 import techRaw from '$z3_json_data/tech.json?raw';
 import type {
@@ -8,6 +11,7 @@ import type {
 	LogicTech,
 	Notes,
 	RoomCategory,
+	RoomConnection,
 	RoomSummary,
 	TechStratEntry,
 	TechSummary,
@@ -150,15 +154,31 @@ const categories: Record<string, RoomCategory> = {
 	House: 'house'
 };
 
+type CardinalDirection = 'north' | 'south' | 'east' | 'west';
+
+interface SourceEdgeSegment {
+	supported: Record<string, (number | string | null)[]>;
+	default: string;
+}
+
 interface SourceRoom {
 	id: number;
 	name: string;
 	darkWorldName?: string;
 	roomType: string;
+	position?: [number, number];
+	size?: [number, number];
+	edgeVariants?: Record<CardinalDirection, SourceEdgeSegment[]>;
 	note?: string[];
 	detailNote?: string[];
 	devNote?: string[];
-	nodes: { id: number; name: string }[];
+	nodes: {
+		id: number;
+		name: string;
+		entrances?: { id: number; name: string }[];
+		whirlpools?: { id: number; name: string }[];
+		teleports?: { id: number; name: string }[];
+	}[];
 	strats: {
 		id: number;
 		link: [number, number];
@@ -171,6 +191,26 @@ interface SourceRoom {
 		detailNote?: string[];
 		devNote?: string[];
 	}[];
+}
+
+interface SourceEntranceConnection {
+	type: 'door' | 'drop';
+	world: 'light' | 'dark';
+	overworld: { roomId: number; entranceId: number };
+	underworld: { roomId: number; nodeId: number };
+}
+
+interface SourceWhirlpoolConnection {
+	world: 'light' | 'dark';
+	overworld: { roomId: number; whirlpoolId: number };
+	overworld2: { roomId: number; whirlpoolId: number };
+}
+
+interface SourceTeleportConnection {
+	fromWorld: 'light' | 'dark';
+	toWorld: 'light' | 'dark';
+	underworld: { roomId: number; nodeId: number };
+	overworld: { roomId: number; teleportId: number };
 }
 
 type SourceRequirement =
@@ -309,12 +349,51 @@ function collectReferencedTechs(
 	}
 }
 
+type OverworldEndpoint = { name: string; nodeId: number };
+
+const overworldEntrances = new Map<string, OverworldEndpoint>();
+const overworldWhirlpools = new Map<string, OverworldEndpoint>();
+const overworldTeleports = new Map<string, OverworldEndpoint>();
+const overworldLayout = new Map<
+	number,
+	{
+		position: [number, number];
+		size: [number, number];
+		edgeVariants: Record<CardinalDirection, SourceEdgeSegment[]>;
+	}
+>();
+
 function readRoom(key: string, text: string): { room: LogicRoom; stratTechs: Set<string>[] } {
 	const room: SourceRoom = JSON.parse(text);
 	const stratSpans = parseSpans(text, 0).members.get('strats')!.items;
 	const nodeNames = new Map<number, string>();
 	for (const node of room.nodes) {
 		nodeNames.set(node.id, node.name);
+		for (const entrance of node.entrances ?? []) {
+			overworldEntrances.set(`${room.id}:${entrance.id}`, {
+				name: entrance.name,
+				nodeId: node.id
+			});
+		}
+		for (const whirlpool of node.whirlpools ?? []) {
+			overworldWhirlpools.set(`${room.id}:${whirlpool.id}`, {
+				name: whirlpool.name,
+				nodeId: node.id
+			});
+		}
+		for (const teleport of node.teleports ?? []) {
+			overworldTeleports.set(`${room.id}:${teleport.id}`, {
+				name: teleport.name,
+				nodeId: node.id
+			});
+		}
+	}
+	if (room.position && room.size && room.edgeVariants) {
+		overworldLayout.set(room.id, {
+			position: room.position,
+			size: room.size,
+			edgeVariants: room.edgeVariants
+		});
 	}
 	const strats: LogicStrat[] = [];
 	const stratTechs: Set<string>[] = [];
@@ -356,6 +435,7 @@ function readRoom(key: string, text: string): { room: LogicRoom; stratTechs: Set
 			category: categories[room.roomType],
 			path: key.slice(key.indexOf('/rooms/') + '/rooms/'.length),
 			nodes: room.nodes.map(({ id, name }) => ({ id, name })),
+			connections: [],
 			strats,
 			...readNotes(room)
 		},
@@ -369,6 +449,191 @@ const parsedRooms = Object.entries(sources)
 	.sort((a, b) => a.room.id - b.room.id);
 
 export const rooms: LogicRoom[] = parsedRooms.map((entry) => entry.room);
+
+{
+	const worldLabel = (world: 'light' | 'dark') => (world === 'light' ? 'Light' : 'Dark');
+	const roomTarget = (room: LogicRoom) => ({
+		id: room.id,
+		name: room.name,
+		darkWorldName: room.darkWorldName
+	});
+
+	const roomsById = new Map<number, LogicRoom>();
+	const overworldGrid = new Map<string, LogicRoom>();
+	for (const room of rooms) {
+		roomsById.set(room.id, room);
+		const layout = overworldLayout.get(room.id);
+		if (layout) {
+			const [x, y] = layout.position;
+			const w = layout.size[0] / 2;
+			const h = layout.size[1] / 2;
+			for (let dx = 0; dx < w; dx++) {
+				for (let dy = 0; dy < h; dy++) {
+					overworldGrid.set(`${x + dx},${y + dy}`, room);
+				}
+			}
+		}
+	}
+
+	const directions: CardinalDirection[] = ['north', 'south', 'east', 'west'];
+	for (const [roomId, layout] of overworldLayout) {
+		const room = roomsById.get(roomId)!;
+		const seen = new Set<string>();
+		const addScroll = (
+			nodeId: number,
+			direction: RoomConnection['direction'],
+			targetRoom: LogicRoom,
+			detail: string,
+			targetWorld: RoomConnection['targetWorld']
+		) => {
+			const key = `${nodeId}:${direction}:${targetRoom.id}:${detail}`;
+			if (seen.has(key)) return;
+			seen.add(key);
+			room.connections.push({
+				kind: 'scroll',
+				nodeId,
+				direction,
+				targetRoom: roomTarget(targetRoom),
+				detail,
+				targetWorld
+			});
+		};
+		const [x, y] = layout.position;
+		const w = layout.size[0] / 2;
+		const h = layout.size[1] / 2;
+		for (const dir of directions) {
+			for (const [seg, segment] of layout.edgeVariants[dir].entries()) {
+				if (segment.default === 'closed') continue;
+				const nx = dir === 'east' ? x + w : dir === 'west' ? x - 1 : x + seg;
+				const ny = dir === 'south' ? y + h : dir === 'north' ? y - 1 : y + seg;
+				const neighbor = overworldGrid.get(`${nx},${ny}`)!;
+				const entries = segment.supported[segment.default];
+				if (segment.default === 'light-and-mirror') {
+					if (typeof entries[0] === 'number') {
+						addScroll(entries[0], 'both', neighbor, `${dir}, Light`, 'light');
+					}
+					if (typeof entries[1] === 'number') {
+						addScroll(entries[1], 'out', neighbor, `${dir}, Dark → Light (mirror)`, 'light');
+					}
+					if (typeof entries[2] === 'number') {
+						addScroll(entries[2], 'in', neighbor, `${dir}, Dark → Light (mirror)`, 'dark');
+					}
+				} else if (segment.default === 'light-only') {
+					for (const entry of entries) {
+						if (typeof entry === 'number') {
+							addScroll(entry, 'both', neighbor, `${dir}, Light`, 'light');
+						}
+					}
+				} else {
+					for (const entry of entries) {
+						if (typeof entry === 'number') {
+							addScroll(entry, 'both', neighbor, dir, 'both');
+						}
+					}
+				}
+			}
+		}
+	}
+
+	const entrances = (entrancesJson as { entrances: SourceEntranceConnection[] }).entrances;
+	for (const conn of entrances) {
+		const owRoom = roomsById.get(conn.overworld.roomId)!;
+		const uwRoom = roomsById.get(conn.underworld.roomId)!;
+		const owEntrance = overworldEntrances.get(
+			`${conn.overworld.roomId}:${conn.overworld.entranceId}`
+		)!;
+		const detail = worldLabel(conn.world);
+		owRoom.connections.push({
+			kind: 'entrance',
+			nodeId: owEntrance.nodeId,
+			name: owEntrance.name,
+			direction: conn.type === 'drop' ? 'out' : 'both',
+			targetRoom: roomTarget(uwRoom),
+			detail,
+			targetWorld: conn.world
+		});
+		uwRoom.connections.push({
+			kind: 'entrance',
+			nodeId: conn.underworld.nodeId,
+			name: owEntrance.name,
+			direction: conn.type === 'drop' ? 'in' : 'both',
+			targetRoom: roomTarget(owRoom),
+			detail,
+			targetWorld: conn.world
+		});
+	}
+
+	const whirlpools = (whirlpoolsJson as { whirlpools: SourceWhirlpoolConnection[] }).whirlpools;
+	for (const conn of whirlpools) {
+		const room1 = roomsById.get(conn.overworld.roomId)!;
+		const room2 = roomsById.get(conn.overworld2.roomId)!;
+		const wp1 = overworldWhirlpools.get(`${conn.overworld.roomId}:${conn.overworld.whirlpoolId}`)!;
+		const wp2 = overworldWhirlpools.get(
+			`${conn.overworld2.roomId}:${conn.overworld2.whirlpoolId}`
+		)!;
+		const detail = worldLabel(conn.world);
+		room1.connections.push({
+			kind: 'whirlpool',
+			nodeId: wp1.nodeId,
+			name: wp1.name,
+			direction: 'both',
+			targetRoom: roomTarget(room2),
+			detail,
+			targetWorld: conn.world
+		});
+		room2.connections.push({
+			kind: 'whirlpool',
+			nodeId: wp2.nodeId,
+			name: wp2.name,
+			direction: 'both',
+			targetRoom: roomTarget(room1),
+			detail,
+			targetWorld: conn.world
+		});
+	}
+
+	const teleports = (teleportsJson as { teleports: SourceTeleportConnection[] }).teleports;
+	for (const conn of teleports) {
+		const uwRoom = roomsById.get(conn.underworld.roomId)!;
+		const owRoom = roomsById.get(conn.overworld.roomId)!;
+		const owTeleport = overworldTeleports.get(
+			`${conn.overworld.roomId}:${conn.overworld.teleportId}`
+		)!;
+		const detail =
+			conn.fromWorld === conn.toWorld
+				? worldLabel(conn.fromWorld)
+				: `${worldLabel(conn.fromWorld)} → ${worldLabel(conn.toWorld)}`;
+		uwRoom.connections.push({
+			kind: 'teleport',
+			nodeId: conn.underworld.nodeId,
+			name: owTeleport.name,
+			direction: 'out',
+			targetRoom: roomTarget(owRoom),
+			detail,
+			targetWorld: conn.toWorld
+		});
+		owRoom.connections.push({
+			kind: 'teleport',
+			nodeId: owTeleport.nodeId,
+			name: owTeleport.name,
+			direction: 'in',
+			targetRoom: roomTarget(uwRoom),
+			detail,
+			targetWorld: conn.fromWorld
+		});
+	}
+
+	const worldOrder: Record<RoomConnection['targetWorld'], number> = {
+		both: 0,
+		light: 1,
+		dark: 2
+	};
+	for (const room of rooms) {
+		room.connections.sort(
+			(a, b) => worldOrder[a.targetWorld] - worldOrder[b.targetWorld] || a.nodeId - b.nodeId
+		);
+	}
+}
 
 const stratsByTechKey = new Map<string, TechStratEntry[]>();
 for (const name of techSummaryByName.keys()) {

@@ -17,5 +17,5 @@ export function load({ params }) {
 	if (!room || !strat) {
 		error(404, 'Strat not found');
 	}
-	return { room: { ...room, strats: [strat] } };
+	return { room: { ...room, connections: [], strats: [strat] } };
 }
