@@ -67,6 +67,9 @@ struct RouteRow {
     location: String,
     /// The strat or connection taken.
     strat: String,
+    /// `(room_id, strat_id)` when this step is an authored strat with a logic page.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    strat_link: Option<(u32, u32)>,
     /// Flags, opened doors, and Ocarina activation read by the edge's requirement, including
     /// alternatives the route may not have used.
     dependencies: Vec<Dependency>,
@@ -317,11 +320,15 @@ impl SpoilerSession {
         let mut rows = None;
         if let Some(route) = self.replay.trace_route(catalog, target) {
             let mut route_rows = Vec::new();
-            // One row per edge; the route's start step has none.
+            // One row per edge; the route's start step has none, and the synthetic flute hub is
+            // omitted because the preceding "Flute" step already represents the warp.
             for step in route {
                 let Some(index) = step.edge else {
                     continue;
                 };
+                if index.from_vertex_idx == catalog.flute_hub_vertex_idx {
+                    continue;
+                }
                 let edge = &self.replay.graph.outgoing[index.from_vertex_idx.0 as usize]
                     [index.outgoing_idx];
                 let mut dependencies = Vec::new();
@@ -342,9 +349,26 @@ impl SpoilerSession {
                     HealthState::Consumed(used) => (Some(used), None),
                     HealthState::Remaining(remaining) => (None, Some(remaining)),
                 };
+                let strat_link = match edge.origin {
+                    TraversalEdgeOrigin::Catalog(edge_idx) => match catalog.edge_metadata(edge_idx).origin {
+                        EdgeOrigin::Strat {
+                            room_idx,
+                            strat_idx,
+                        } => {
+                            let room = catalog.room(room_idx);
+                            match (room.room_id, room.strat(strat_idx).strat_id) {
+                                (Some(room_id), Some(strat_id)) => Some((room_id.0, strat_id)),
+                                _ => None,
+                            }
+                        }
+                        _ => None,
+                    },
+                    _ => None,
+                };
                 route_rows.push(RouteRow {
                     location: describe_vertex(catalog, index.from_vertex_idx),
                     strat: describe_edge(catalog, &self.replay.connections, edge),
+                    strat_link,
                     dependencies,
                     points: self.locate_edge(edge).unwrap_or_default(),
                     indirect: check_indirect(catalog, &self.replay.connections, edge),

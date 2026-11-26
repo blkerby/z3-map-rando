@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
+	import { resolve } from '$app/paths';
 	import linkHead from '$lib/assets/link_head.png';
 	import { ITEM_LABELS, getItemLevelIcon, items } from '$lib/generation/data';
 	import { useRomStore } from '$lib/rom/store.svelte';
@@ -496,7 +497,18 @@
 								<tr>
 									<td>{step.location}</td>
 									<td>
-										{step.strat}
+										{#if step.strat_link}
+											<a
+												href={resolve('/logic/[roomId]/[stratId]', {
+													roomId: String(step.strat_link[0]),
+													stratId: String(step.strat_link[1])
+												})}
+												target="_blank"
+												rel="noopener">{step.strat}</a
+											>
+										{:else}
+											{step.strat}
+										{/if}
 										{#each step.dependencies as dependency (dependency.name)}
 											<div>
 												{#if dependency.target}
@@ -505,7 +517,8 @@
 														type="button"
 														class="btn btn-link btn-sm p-0 text-start dependency"
 														onclick={() => showRoute(target, dependency.name)}
-														>{dependency.name}</button
+														><i class="bi bi-flag me-1" aria-hidden="true"
+														></i>{dependency.name}</button
 													>
 												{:else}
 													<span class="text-body-secondary">{dependency.name}</span>

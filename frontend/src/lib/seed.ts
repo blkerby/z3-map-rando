@@ -114,6 +114,8 @@ export interface RouteRow {
 	location: string;
 	/** The strat or connection taken. */
 	strat: string;
+	/** `[roomId, stratId]` when this step is an authored strat with a logic page. */
+	strat_link?: [number, number];
 	/** Flags, opened doors, and Ocarina activation that the step's requirement reads. */
 	dependencies: RouteDependency[];
 	state: RouteState;
