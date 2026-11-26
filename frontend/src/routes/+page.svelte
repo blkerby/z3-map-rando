@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 </script>
 
-<main class="container content-width my-4">
+<main class="container home-width my-4">
 	<div class="card hero-card shadow">
 		<div class="row g-0 align-items-stretch">
 			<div class="col-lg-8 card-body">
@@ -30,7 +30,7 @@
 </main>
 
 <style>
-	.content-width {
+	.home-width {
 		max-width: 1000px;
 	}
 

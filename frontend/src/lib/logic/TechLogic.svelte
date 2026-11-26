@@ -65,7 +65,7 @@
 	}
 </script>
 
-<main class="container my-4">
+<main class="container content-width my-4">
 	<div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
 		<div>
 			<h1 class="h3 mb-1">

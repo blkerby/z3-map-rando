@@ -133,4 +133,8 @@
 		max-width: 1200px;
 	}
 
+	:global(main.container.content-width) {
+		max-width: 800px;
+	}
+
 </style>

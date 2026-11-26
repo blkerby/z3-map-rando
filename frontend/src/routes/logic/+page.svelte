@@ -81,7 +81,7 @@
 	<title>Logic</title>
 </svelte:head>
 
-<main class="container my-4">
+<main class="container content-width my-4">
 	<h1 class="h2 mb-3">Logic</h1>
 	<p>
 		The randomizer's logic is based on the

@@ -3,7 +3,7 @@
 	import LinkIcon from '$lib/assets/LinkIcon.png';
 </script>
 
-<main class="container my-4">
+<main class="container content-width my-4">
 	<h1 class="h2 mb-3">About</h1>
 	<p>Link to the Past Map Rando rearranges the overworld areas of the SNES game The Legend of Zelda: A Link to the Past. Areas are rethemed, and their edges are adapted to be able to connect in new ways. The Desert theme is complete; more themes will be coming in the future.</p>
 
