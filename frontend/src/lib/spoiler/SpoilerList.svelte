@@ -198,8 +198,15 @@
 	let mapError = $state('');
 	/** Whether rendering has started; the map renders the first time a route is shown, if a ROM is saved. */
 	let mapStarted = $state(false);
-	/** The world whose map is shown. */
-	let mapWorld = $state('light');
+	/**
+	 * The route row whose progress the map shows: the last hovered or focused, which stays active so the mouse can move
+	 * to the map. A group heading's progress is through its last step.
+	 */
+	let activeRow = $state<{ index: number; heading: boolean } | null>(null);
+	/** The active step's world, or with none, the route target's. */
+	const mapWorld = $derived(
+		route?.steps?.[activeRow?.index ?? route.steps.length - 1]?.dark_world ? 'dark' : 'light'
+	);
 
 	function renderMaps() {
 		mapStarted = true;
@@ -232,6 +239,7 @@
 	function showRoute(target: RouteTarget, name: string) {
 		if (!session || !routeDialog) return;
 		const tile = target.kind === 'location' ? (tiles[target.index] ?? null) : null;
+		activeRow = null;
 		route = {
 			target,
 			tile,
@@ -272,32 +280,50 @@
 		world: MapPoint['world'];
 		/** Whether the line is a warp or interior travel rather than overworld travel. */
 		dotted: boolean;
+		/** Whether the line ends at or before the active row: the route's progress through it. */
+		progress: boolean;
+		/**
+		 * The length before the line of its run of travel in one world and of one kind, in map pixels, which offsets its
+		 * dash pattern. Each run starts its pattern afresh, and a line split from a run where the progress ends continues
+		 * it, so the patterns stay aligned whichever row is active.
+		 */
+		offset: number;
 		/** SVG polyline points. */
 		points: string;
 	}
 
-	/** The shown route as lines between its map points, split where the world or kind of travel changes. */
+	/**
+	 * The shown route as lines between its map points, split where the world, the kind of travel, or the progress
+	 * through the active row changes.
+	 */
 	const mapRoute = $derived.by(() => {
 		const lines: MapLine[] = [];
 		let start: MapPoint | null = null;
 		let end: MapPoint | null = null;
 		let indirect = false;
-		for (const step of route?.steps ?? []) {
+		let runLength = 0;
+		for (const [index, step] of (route?.steps ?? []).entries()) {
 			if (step.indirect) indirect = true;
+			const progress = activeRow !== null && index <= activeRow.index;
 			for (const point of step.points) {
 				// A repeated point, such as leaving through the door just entered, only changes the current world.
 				if (end && (end.x !== point.x || end.y !== point.y)) {
 					// A line takes the world of its starting point.
 					const last = lines.at(-1);
-					if (last && last.world === end.world && last.dotted === indirect) {
+					const sameRun = last && last.world === end.world && last.dotted === indirect;
+					if (sameRun && last.progress === progress) {
 						last.points += ` ${point.x},${point.y}`;
 					} else {
+						if (!sameRun) runLength = 0;
 						lines.push({
 							world: end.world,
 							dotted: indirect,
+							progress,
+							offset: runLength,
 							points: `${end.x},${end.y} ${point.x},${point.y}`
 						});
 					}
+					runLength += Math.hypot(point.x - end.x, point.y - end.y);
 				} else if (!end) {
 					start = point;
 				}
@@ -462,6 +488,34 @@
 	{/if}
 {/snippet}
 
+<!-- Route lines on the map: those in the other world first, so the shown world's lines are drawn on top. The route's
+     progress through the active row is green. -->
+{#snippet routeLines(lines: MapLine[])}
+	{#each [false, true] as shown (shown)}
+		{#each lines as line, lineIndex (lineIndex)}
+			{#if (line.world === mapWorld) === shown}
+				<!-- A black casing under the line, so it stands out from the map. -->
+				<polyline
+					points={line.points}
+					class="route-line casing"
+					class:dotted={line.dotted}
+					class:dashed={!line.dotted}
+					style:--offset="{line.offset}px"
+				/>
+				<polyline
+					points={line.points}
+					class="route-line"
+					class:dotted={line.dotted}
+					class:dashed={!line.dotted}
+					class:progress={line.progress}
+					class:other-world={!shown}
+					style:--offset="{line.offset}px"
+				/>
+			{/if}
+		{/each}
+	{/each}
+{/snippet}
+
 {#if error}
 	<div class="alert alert-danger small py-2 px-3" role="alert">
 		Couldn't compute the spoiler: {error}
@@ -600,11 +654,26 @@
 						<!-- Recreated for each route shown, so its groups start collapsed. -->
 						{#key route.target}
 							{#each routeGroups as group, groupIndex (groupIndex)}
+								{@const lastIndex = group.steps[group.steps.length - 1].index}
 								<details>
-									<summary class="route-group-title">{group.title}</summary>
+									<summary
+										class="route-group-title"
+										class:active={activeRow?.heading && activeRow.index === lastIndex}
+										onmouseenter={() => (activeRow = { index: lastIndex, heading: true })}
+										onfocus={() => (activeRow = { index: lastIndex, heading: true })}
+									>
+										{group.title}
+									</summary>
 									{#each group.steps as { step, index } (index)}
 										{@const stateParts = describeState(step.state, route.steps[index - 1]?.state)}
-										<div class="route-step">
+										<!-- Hovering only previews what focusing the row's link also shows. -->
+										<!-- svelte-ignore a11y_no_static_element_interactions -->
+										<div
+											class="route-step"
+											class:active={activeRow && !activeRow.heading && activeRow.index === index}
+											onmouseenter={() => (activeRow = { index, heading: false })}
+											onfocusin={() => (activeRow = { index, heading: false })}
+										>
 											{#if step.strat_link}
 												<a
 													class="step-line"
@@ -680,27 +749,7 @@
 							<!-- Overworld travel is dashed, and warps and interiors dotted; travel in the other world is dimmed.
 							     Every line animates in the direction of travel. -->
 							<svg viewBox="0 0 384 384" aria-hidden="true">
-								<!-- Lines in the other world first, so the shown world's lines are drawn on top. -->
-								{#each [false, true] as shown (shown)}
-									{#each mapRoute.lines as line, lineIndex (lineIndex)}
-										{#if (line.world === mapWorld) === shown}
-											<!-- A black casing under the line, so it stands out from the map. -->
-											<polyline
-												points={line.points}
-												class="route-line casing"
-												class:dotted={line.dotted}
-												class:dashed={!line.dotted}
-											/>
-											<polyline
-												points={line.points}
-												class="route-line"
-												class:dotted={line.dotted}
-												class:dashed={!line.dotted}
-												class:other-world={!shown}
-											/>
-										{/if}
-									{/each}
-								{/each}
+								{@render routeLines(mapRoute.lines)}
 								{#if mapRoute.start}
 									<image
 										href={linkHead}
@@ -888,7 +937,9 @@
 	}
 
 	.route-group-title:hover,
-	.route-step:hover {
+	.route-step:hover,
+	.route-group-title.active,
+	.route-step.active {
 		background: var(--bs-secondary-bg);
 	}
 
@@ -965,6 +1016,7 @@
 		width: 100%;
 		height: 100%;
 		filter: drop-shadow(0 0 1px rgb(0 0 0 / 0.9));
+		animation: march 3.9s linear infinite;
 	}
 
 	.world-map image {
@@ -973,6 +1025,7 @@
 
 	/* Lengths are in map pixels, each two screen pixels at full size. */
 	.route-line {
+		stroke-dashoffset: calc(var(--offset) - var(--march));
 		fill: none;
 		stroke: #fff;
 		stroke-width: 1.5;
@@ -982,13 +1035,11 @@
 	.route-line.dashed {
 		stroke-width: 1;
 		stroke-dasharray: 4 2.5;
-		animation: march-dashed 0.65s linear infinite;
 	}
 
 	.route-line.dotted {
 		stroke-linecap: round;
 		stroke-dasharray: 0 3;
-		animation: march-dotted 0.3s linear infinite;
 	}
 
 	/* After the dash styles, so its widths override theirs: half a map pixel wider than the line it is under. */
@@ -999,6 +1050,10 @@
 
 	.route-line.casing.dashed {
 		stroke-width: 2;
+	}
+
+	.route-line.progress {
+		stroke: #00ff00;
 	}
 
 	.route-end {
@@ -1012,28 +1067,28 @@
 		opacity: 0.5;
 	}
 
+	/*
+	 * Every line's pattern is offset by one shared distance, animated on the map, which moves the patterns forward along
+	 * their lines at 10 map pixels a second. Being shared keeps the patterns of lines created at different times in
+	 * step. It loops at 39 pixels, a whole number of periods of both the dashes (6.5) and the dots (3).
+	 */
+	@property --march {
+		syntax: '<length>';
+		inherits: true;
+		initial-value: 0px;
+	}
+
+	@keyframes march {
+		to {
+			--march: 39px;
+		}
+	}
+
 	/* With reduced motion, the patterns move at a quarter speed; they still move, since the motion shows the direction of
 	   travel. */
 	@media (prefers-reduced-motion: reduce) {
-		.route-line.dashed {
-			animation-duration: 2.6s;
-		}
-
-		.route-line.dotted {
-			animation-duration: 1.2s;
-		}
-	}
-
-	/* A decreasing offset moves the pattern forward along the line. */
-	@keyframes march-dashed {
-		to {
-			stroke-dashoffset: -6.5;
-		}
-	}
-
-	@keyframes march-dotted {
-		to {
-			stroke-dashoffset: -3;
+		.world-map svg {
+			animation-duration: 15.6s;
 		}
 	}
 
