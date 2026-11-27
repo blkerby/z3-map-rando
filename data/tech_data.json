@@ -150,5 +150,10 @@
         "tech_id": 13,
         "name": "canPearllessLink",
         "difficulty": "Ignored"
+    },
+    {
+        "tech_id": 14,
+        "name": "canCollectItemsPearlless",
+        "difficulty": "Medium"
     }
 ]
