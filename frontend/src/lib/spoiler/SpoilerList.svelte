@@ -201,13 +201,17 @@
 	let mapStarted = $state(false);
 	/**
 	 * The route row whose progress the map shows: the last hovered or focused, which stays active so the mouse can move
-	 * to the map, or the row passing a point clicked on the map. A group heading's progress is through its last step.
-	 * The progress ends at the clicked point, or else where the row's progress ends (see `findProgressEnd`).
+	 * to the map, or the row passing a point clicked on the map. A heading's index is its group's first step. The
+	 * progress ends at the clicked point, or else where the row's progress ends (see `findProgressEnd` and
+	 * `findEntryEnd`).
 	 */
 	let activeRow = $state<{ index: number; heading: boolean; point: number | null } | null>(null);
 	/** The index in `routePoints` of the point where the active progress ends. */
 	const activeEnd = $derived(
-		activeRow ? (activeRow.point ?? findProgressEnd(activeRow.index)) : null
+		activeRow
+			? (activeRow.point ??
+					(activeRow.heading ? findEntryEnd(activeRow.index) : findProgressEnd(activeRow.index)))
+			: null
 	);
 	/** The active step's world, or with none, the route target's. */
 	const mapWorld = $derived(
@@ -314,6 +318,20 @@
 			if (step > stepIndex) return index;
 		}
 		return routePoints.length - 1;
+	}
+
+	/**
+	 * The index of the point where the progress shown by a group's heading ends: where the route has just entered the
+	 * group's room, at the last point of its first step, or with none, where the previous row's progress ends. Going
+	 * down the rows, a crossing's near point thus ends the previous group, its far point the heading, and the point where
+	 * the route leaves the room the crossing's own row.
+	 */
+	function findEntryEnd(stepIndex: number): number {
+		let end = findProgressEnd(stepIndex - 1);
+		for (const [index, { step }] of routePoints.entries()) {
+			if (step === stepIndex) end = index;
+		}
+		return end;
 	}
 
 	interface MapLine {
@@ -765,14 +783,14 @@
 						<!-- Recreated for each route shown, so its groups start collapsed. -->
 						{#key route.target}
 							{#each routeGroups as group, groupIndex (groupIndex)}
-								{@const lastIndex = group.steps[group.steps.length - 1].index}
+								{@const firstIndex = group.steps[0].index}
 								<details>
 									<summary
 										class="route-group-title"
-										class:active={activeRow?.heading && activeRow.index === lastIndex}
+										class:active={activeRow?.heading && activeRow.index === firstIndex}
 										onmouseenter={() =>
-											(activeRow = { index: lastIndex, heading: true, point: null })}
-										onfocus={() => (activeRow = { index: lastIndex, heading: true, point: null })}
+											(activeRow = { index: firstIndex, heading: true, point: null })}
+										onfocus={() => (activeRow = { index: firstIndex, heading: true, point: null })}
 									>
 										{group.title}
 									</summary>
