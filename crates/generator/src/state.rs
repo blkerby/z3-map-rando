@@ -213,25 +213,11 @@ impl GlobalState {
         })
     }
 
-    /// Whether a Great Fairy can grant this item: one of her item classes whose
-    /// prerequisite is owned (see docs/generation/fairies.md).
-    pub fn can_upgrade_at_fairy(&self, item: Item) -> bool {
-        match item {
-            Item::Boomerang => self.boomerang_level >= 1,
-            Item::Mail => self.mail_level >= 1,
-            Item::Shield => self.shield_level >= 1,
-            Item::Sword => self.sword_level >= 1,
-            Item::Bow => self.unique_items[UniqueItem::Bow as usize],
-            Item::Glove => self.glove_level >= 1,
-            Item::BombCapacityUpgrade => self.bomb_capacity > 0,
-            Item::ArrowCapacityUpgrade => self.arrow_capacity > 0,
-            _ => false,
-        }
-    }
-
     /// Grant an assumed non-key inventory item without collecting a location.
     pub(crate) fn grant_non_key_item(&mut self, kind: ItemKind) -> Option<GlobalDependency> {
         use GlobalDependency as D;
+        let previous_bomb_capacity = self.bomb_capacity;
+        let previous_arrow_capacity = self.arrow_capacity;
         let previous_bomb_usable_capacity = self.bomb_usable_capacity;
         let previous_arrow_usable_capacity = self.arrow_usable_capacity;
         let dependency = match kind {
@@ -372,8 +358,18 @@ impl GlobalState {
                     None
                 }
             }
-            Some(D::Bombs) if self.bomb_usable_capacity == previous_bomb_usable_capacity => None,
-            Some(D::Arrows) if self.arrow_usable_capacity == previous_arrow_usable_capacity => None,
+            Some(D::Bombs)
+                if self.bomb_usable_capacity == previous_bomb_usable_capacity
+                    && self.bomb_capacity == previous_bomb_capacity =>
+            {
+                None
+            }
+            Some(D::Arrows)
+                if self.arrow_usable_capacity == previous_arrow_usable_capacity
+                    && self.arrow_capacity == previous_arrow_capacity =>
+            {
+                None
+            }
             _ => dependency,
         }
     }

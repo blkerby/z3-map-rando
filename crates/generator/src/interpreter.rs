@@ -34,6 +34,7 @@ pub(crate) fn collect_requirement_dependencies(
                 Equipment::Sword => D::Sword,
                 Equipment::Shield => D::Shield,
                 Equipment::Glove => D::Glove,
+                Equipment::Mail => D::Mail,
                 Equipment::Boomerang => D::Boomerang,
             });
         }
@@ -77,7 +78,7 @@ pub(crate) fn collect_requirement_dependencies(
                 dependencies.insert(D::Item(item as usize));
             }
         }
-        Requirement::UseAmmo { kind, .. } => {
+        Requirement::UseAmmo { kind, .. } | Requirement::AmmoCapacity { kind, .. } => {
             dependencies.insert(match kind {
                 Ammo::Bomb => D::Bombs,
                 Ammo::Arrow | Ammo::SilverArrow => D::Arrows,
@@ -287,9 +288,17 @@ impl Interpreter<'_> {
                     Equipment::Sword => self.global.sword_level,
                     Equipment::Shield => self.global.shield_level,
                     Equipment::Glove => self.global.glove_level,
+                    Equipment::Mail => self.global.mail_level,
                     Equipment::Boomerang => self.global.boomerang_level,
                 };
                 level >= *minimum_level
+            }
+            Requirement::AmmoCapacity { kind, minimum } => {
+                let capacity = match kind {
+                    Ammo::Bomb => self.global.bomb_capacity,
+                    Ammo::Arrow | Ammo::SilverArrow => self.global.arrow_capacity,
+                };
+                capacity >= *minimum
             }
             Requirement::Tech(idx) => self.skill.tech_enabled[idx.0 as usize],
             Requirement::Notable(idx) => self.skill.notable_enabled[idx.0 as usize],

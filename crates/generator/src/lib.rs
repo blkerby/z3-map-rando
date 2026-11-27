@@ -23,7 +23,7 @@ use inputs::{GenerationInputs, prepare_inputs};
 use key_assignment::{KeyAssignmentExhausted, KeyPlacementState, assign_small_keys};
 use logic_catalog::LogicCatalog;
 use map::{MapPool, build_connections, build_vanilla_rooms, select_borders};
-use placement::{PlacementState, PlacementStep};
+use placement::{PlacementState, PlacementStep, select_fairy_upgrades};
 use rand::Rng;
 use retiling_catalog::palette::{
     PALETTE_ATTEMPTS, PaletteProfiles, allocate_palettes, select_palette_profiles,
@@ -91,7 +91,7 @@ pub fn generate(
             },
             borders: Vec::new(),
         };
-        let graph = if pool.is_some() {
+        let mut graph = if pool.is_some() {
             let mut accepted = None;
             for edge_attempt in 1..=MAX_EDGE_SELECTION_ATTEMPTS {
                 log::info!("Checking edge selection {edge_attempt}/{MAX_EDGE_SELECTION_ATTEMPTS}");
@@ -129,7 +129,7 @@ pub fn generate(
                 "no palette assignment found for the vanilla layout in {PALETTE_ATTEMPTS} passes"
             );
         }
-        let items = match generate_items(logic_catalog, &graph, &inputs, rng) {
+        let items = match generate_items(logic_catalog, &mut graph, &inputs, rng) {
             Ok(Some(items)) => items,
             Ok(None) => continue,
             Err(error) if pool.is_some() && error.is::<KeyAssignmentExhausted>() => {
@@ -176,16 +176,19 @@ pub fn generate(
     bail!("generation exhausted {MAX_GENERATION_ATTEMPTS} complete attempts")
 }
 
-/// Assign fresh keys and run one complete item-placement attempt.
+/// Assign fresh keys and Great Fairy upgrades, then run one complete item-placement attempt.
 fn generate_items(
     catalog: &LogicCatalog,
-    graph: &TraversalGraph,
+    graph: &mut TraversalGraph,
     inputs: &GenerationInputs,
     rng: &mut impl Rng,
 ) -> Result<Option<Vec<Item>>> {
     let key_initial_states = KeyPlacementState::initialize_dungeons(catalog, graph, inputs)?;
     let small_keys = assign_small_keys(catalog, graph, inputs, &key_initial_states, rng)?;
-    let mut state = PlacementState::initialize(catalog, graph, inputs, &small_keys, rng)?;
+    let fairy_items = select_fairy_upgrades(inputs, rng)?;
+    graph.apply_fairy_upgrades(catalog, &fairy_items);
+    let mut state =
+        PlacementState::initialize(catalog, graph, inputs, &small_keys, &fairy_items, rng)?;
     let mut wave = 0;
     while state.placements.contains(&None) {
         wave += 1;

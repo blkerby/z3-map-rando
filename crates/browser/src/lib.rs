@@ -379,19 +379,21 @@ impl SpoilerSession {
                     HealthState::Remaining(remaining) => (None, Some(remaining)),
                 };
                 let strat_link = match edge.origin {
-                    TraversalEdgeOrigin::Catalog(edge_idx) => match catalog.edge_metadata(edge_idx).origin {
-                        EdgeOrigin::Strat {
-                            room_idx,
-                            strat_idx,
-                        } => {
-                            let room = catalog.room(room_idx);
-                            match (room.room_id, room.strat(strat_idx).strat_id) {
-                                (Some(room_id), Some(strat_id)) => Some((room_id.0, strat_id)),
-                                _ => None,
+                    TraversalEdgeOrigin::Catalog(edge_idx) => {
+                        match catalog.edge_metadata(edge_idx).origin {
+                            EdgeOrigin::Strat {
+                                room_idx,
+                                strat_idx,
+                            } => {
+                                let room = catalog.room(room_idx);
+                                match (room.room_id, room.strat(strat_idx).strat_id) {
+                                    (Some(room_id), Some(strat_id)) => Some((room_id.0, strat_id)),
+                                    _ => None,
+                                }
                             }
+                            _ => None,
                         }
-                        _ => None,
-                    },
+                    }
                     _ => None,
                 };
                 route_rows.push(RouteRow {

@@ -600,6 +600,11 @@ pub enum Requirement {
         kind: Ammo,
         count: u32,
     },
+    /// Physical ammo capacity, independent of whether a refill source is owned.
+    AmmoCapacity {
+        kind: Ammo,
+        minimum: u8,
+    },
     /// Batch affordable uses, allowing potions between uses when magic is insufficient.
     /// Half Magic halves cumulative usage within this requirement, rounding up.
     /// Item and equipment requirements are compiled separately.
@@ -690,6 +695,7 @@ pub enum Equipment {
     Sword,
     Shield,
     Glove,
+    Mail,
     Boomerang,
 }
 

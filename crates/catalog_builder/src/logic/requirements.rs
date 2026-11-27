@@ -72,8 +72,9 @@ impl Compiler {
         context: RequirementContext<'_>,
     ) -> Requirement {
         match name {
-            // Great Fairy upgrades need no specific thrown item; the generator
-            // places only upgrades whose prerequisite was already collected.
+            // Bypass vanilla Waterfall of Wishing's hardcoded Boomerang/Shield checks;
+            // each fairy location's actual prerequisite is compiled onto its collection
+            // edge in TraversalGraph once its upgrade item is assigned.
             "free" | "h_MothulaVulnerableToGoldSword" | "h_greatFairyFreeUpgrades" => {
                 return Requirement::Free;
             }

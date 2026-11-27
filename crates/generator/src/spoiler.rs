@@ -11,7 +11,7 @@ use crate::{
     traversal::compute_closure,
 };
 use anyhow::{Context, Result, bail};
-use common_types::{Item, ItemLocationId};
+use common_types::{FAIRY_UPGRADE_LOCATIONS, Item, ItemLocationId};
 use hashbrown::HashSet;
 use logic_catalog::{
     Connection, DoorIndex, Effect, FlagIndex, ItemLocationIndex, LockKind, LogicCatalog,
@@ -125,7 +125,16 @@ pub fn replay_spoiler(
         borders: seed.borders.clone(),
     };
     let connections = build_connections(catalog, &layout);
-    let graph = build_graph(catalog, &connections);
+    let mut graph = build_graph(catalog, &connections);
+    let mut fairy_items = Vec::new();
+    for (index, location) in catalog.item_locations.iter().enumerate() {
+        if FAIRY_UPGRADE_LOCATIONS.contains(&location.id)
+            && let Some(item) = seed_placements[index]
+        {
+            fairy_items.push((ItemLocationIndex(index as u32), item));
+        }
+    }
+    graph.apply_fairy_upgrades(catalog, &fairy_items);
     let mut replay = SpoilerReplay {
         spheres: Vec::new(),
         unreachable: Vec::new(),

@@ -1,12 +1,13 @@
 //! Shared world topology for the preliminary key pass and normal traversal.
 
 use crate::{interpreter::collect_requirement_dependencies, state::GlobalDependency};
-use common_types::allows_frog_dwarf;
+use common_types::{Item, allows_frog_dwarf};
 use hashbrown::{HashMap, HashSet};
 use logic_catalog::{
-    Connection, Edge, EdgeIndex, Effect, EntranceIndex, EntranceKind, EventEndpoint, Follower,
-    FollowerMask, LogicCatalog, MapBoundaryKind, OverheadClass, Requirement, SourceRoomId,
-    TransitionState, UniqueItem, VertexIndex, VertexOrigin, World,
+    Ammo, Connection, Edge, EdgeIndex, Effect, EntranceIndex, EntranceKind, Equipment,
+    EventEndpoint, Follower, FollowerMask, ItemLocationIndex, LogicCatalog, MapBoundaryKind,
+    OverheadClass, Requirement, SourceRoomId, TransitionState, UniqueItem, VertexIndex,
+    VertexOrigin, World,
 };
 
 pub(crate) const BUNNY_WORLD: World = World::Dark;
@@ -66,6 +67,78 @@ impl ConnectionEndpoint {
 }
 
 impl TraversalGraph {
+    /// Attach each Great Fairy location's upgrade prerequisite to its collection edges and
+    /// register any new global dependencies.
+    pub fn apply_fairy_upgrades(
+        &mut self,
+        catalog: &LogicCatalog,
+        fairy_items: &[(ItemLocationIndex, Item)],
+    ) {
+        for &(location_idx, item) in fairy_items {
+            let prerequisite = match item {
+                Item::Boomerang => Requirement::Equipment {
+                    equipment: Equipment::Boomerang,
+                    minimum_level: 1,
+                },
+                Item::Mail => Requirement::Equipment {
+                    equipment: Equipment::Mail,
+                    minimum_level: 1,
+                },
+                Item::Shield => Requirement::Equipment {
+                    equipment: Equipment::Shield,
+                    minimum_level: 1,
+                },
+                Item::Sword => Requirement::Equipment {
+                    equipment: Equipment::Sword,
+                    minimum_level: 1,
+                },
+                Item::Bow => Requirement::Item(UniqueItem::Bow),
+                Item::Glove => Requirement::Equipment {
+                    equipment: Equipment::Glove,
+                    minimum_level: 1,
+                },
+                Item::BombCapacityUpgrade => Requirement::AmmoCapacity {
+                    kind: Ammo::Bomb,
+                    minimum: 1,
+                },
+                Item::ArrowCapacityUpgrade => Requirement::AmmoCapacity {
+                    kind: Ammo::Arrow,
+                    minimum: 1,
+                },
+                _ => continue,
+            };
+            let mut new_dependencies = HashSet::new();
+            collect_requirement_dependencies(catalog, &prerequisite, &mut new_dependencies);
+            for (vertex_idx, outgoing) in self.outgoing.iter_mut().enumerate() {
+                for (outgoing_idx, edge) in outgoing.iter_mut().enumerate() {
+                    let mut collects = false;
+                    for effect in &edge.edge.effects {
+                        if matches!(*effect, Effect::CollectItem(idx) if idx == location_idx) {
+                            collects = true;
+                            break;
+                        }
+                    }
+                    if !collects {
+                        continue;
+                    }
+                    let existing = std::mem::replace(&mut edge.edge.requirement, Requirement::Free);
+                    edge.edge.requirement =
+                        Requirement::make_and(vec![prerequisite.clone(), existing]);
+                    let edge_idx = TraversalEdgeIndex {
+                        from_vertex_idx: VertexIndex(vertex_idx as u32),
+                        outgoing_idx,
+                    };
+                    for &dependency in &new_dependencies {
+                        let edges = self.dependencies.entry(dependency).or_default();
+                        if !edges.contains(&edge_idx) {
+                            edges.push(edge_idx);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     fn add_edge(&mut self, catalog: &LogicCatalog, mut edge: Edge, origin: TraversalEdgeOrigin) {
         let source_room_idx = catalog.vertex(edge.from_vertex_idx).room_idx;
         let destination_room_idx = catalog.vertex(edge.to_vertex_idx).room_idx;

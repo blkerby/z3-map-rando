@@ -34,16 +34,13 @@ The thrown item keeps its inventory value; only the toss animation shows it leav
 
 ### Placement
 
-Item 1 of the Waterfall of Wishing (room 12) and of the Pyramid Great Fairy (room 69) are the two fairy locations (`FAIRY_UPGRADE_LOCATIONS`), and both item 2 locations are retired (`RETIRED_ITEM_LOCATIONS`) without reusing their IDs. Saved placements hold the received item, for example `Item::Sword`. The patcher writes each placed receipt to `FairyItems`, from which the ROM derives the fairy's class.
+Item 1 of the Waterfall of Wishing (room 52) and of the Pyramid Great Fairy (room 109) are the two fairy locations (`FAIRY_UPGRADE_LOCATIONS`), and both item 2 locations are retired (`RETIRED_ITEM_LOCATIONS`) without reusing their IDs. Saved placements hold the received item, for example `Item::Sword`. The patcher writes each placed receipt to `FairyItems`, from which the ROM derives the fairy's class.
 
-In each wave, the generator attempts the fairy locations first:
+At the start of item placement, just after Small Key assignment, both fairies' upgrade items are selected from the ordinary pool:
 
-- A fairy location can receive one of the eight class items if the fairy is reachable, an instance remains in the pool, and the minimum level required for that class was collectible in a previous step.
-- A fairy can also receive `Item::Nothing`, without an inventory prerequisite.
-- If neither an upgrade nor an empty reward is eligible, defer the location to a later wave.
-- When filling other locations, reserve an upgrade or empty reward for each unfilled fairy location.
-
-Collecting a fairy upgrade requires the class prerequisite in the table above, which placement guarantees; empty rewards require no inventory. The z3-json-data strats themselves become free: their `h_greatFairyFreeUpgrades` helper compiles to `Free`.
+- Each of the eight upgrade classes is eligible for as many fairy slots as its pool copies allow while still leaving its prerequisite obtainable outside the fairies (either already owned in `starting_state`, or with at least one remaining copy in the ordinary pool). Under default settings, all eight classes are eligible for one fairy and the four classes with at least three copies (`Shield`, `Sword`, `BombCapacityUpgrade`, `ArrowCapacityUpgrade`) can be chosen by both fairies.
+- Fairies are assigned sequentially in random order, each picking uniformly from the currently eligible upgrade classes and decrementing that class's remaining eligibility (falling back to `Item::Nothing` if no eligible upgrade remains).
+- `TraversalGraph::apply_fairy_upgrades` prepends each assigned fairy's prerequisite as a proper `Requirement` (`Equipment`, `Item(Bow)`, or `AmmoCapacity`) on its collection edge for both generation and spoiler replay. `h_greatFairyFreeUpgrades` still compiles to `Free` only to bypass vanilla Waterfall of Wishing's hardcoded Boomerang/Shield checks.
 
 The four formerly fixed items return to the pool: sword 4, shield 3, boomerang 2, and bow 2. Two Twenty Rupees are removed to keep the pool equal to the location count, since four fixed locations become two ordinary ones.
 
