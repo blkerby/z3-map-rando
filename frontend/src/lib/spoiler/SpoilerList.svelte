@@ -1012,6 +1012,18 @@
 		opacity: 0.5;
 	}
 
+	/* With reduced motion, the patterns move at a quarter speed; they still move, since the motion shows the direction of
+	   travel. */
+	@media (prefers-reduced-motion: reduce) {
+		.route-line.dashed {
+			animation-duration: 2.6s;
+		}
+
+		.route-line.dotted {
+			animation-duration: 1.2s;
+		}
+	}
+
 	/* A decreasing offset moves the pattern forward along the line. */
 	@keyframes march-dashed {
 		to {
