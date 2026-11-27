@@ -501,6 +501,40 @@ impl SpoilerSession {
         None
     }
 
+    /// Locate the crossing of a side of an overworld vertex's room, `along` 16x16 tiles from the
+    /// side's north or west end, as points just before and after it, so the line between them
+    /// shows the direction of travel. A route leaving and returning comes straight back, so it has
+    /// only the point before.
+    fn locate_crossing(
+        &self,
+        vertex_idx: VertexIndex,
+        direction: Direction,
+        along: f32,
+        returns: bool,
+    ) -> Option<Vec<MapPoint>> {
+        let room = self.catalog.room(self.catalog.vertex(vertex_idx).room_idx);
+        let [width, height] = room.size?;
+        let (width, height) = (f32::from(width) * 16.0, f32::from(height) * 16.0);
+        // The boundary's position and the direction of travel across it.
+        let (x, y, dx, dy) = match direction {
+            Direction::North => (along, 0.0, 0.0, -1.0),
+            Direction::South => (along, height, 0.0, 1.0),
+            Direction::East => (width, along, 1.0, 0.0),
+            Direction::West => (0.0, along, -1.0, 0.0),
+        };
+        let boundary = self.locate_tile(vertex_idx, x, y)?;
+        let mut before = boundary;
+        before.x -= dx * CROSSING_OFFSET;
+        before.y -= dy * CROSSING_OFFSET;
+        if returns {
+            return Some(vec![before]);
+        }
+        let mut after = boundary;
+        after.x += dx * CROSSING_OFFSET;
+        after.y += dy * CROSSING_OFFSET;
+        Some(vec![before, after])
+    }
+
     /// Locate where an edge crosses a map boundary or overworld entrance.
     fn locate_edge(&self, edge: &TraversalEdge) -> Option<Vec<MapPoint>> {
         let TraversalEdgeOrigin::Connection(connection_idx) = edge.origin else {
@@ -515,13 +549,13 @@ impl SpoilerSession {
                 let vertex_idx = edge.edge.from_vertex_idx;
                 let room_idx = self.catalog.vertex(vertex_idx).room_idx;
                 let room = self.catalog.room(room_idx);
-                let side =
-                    match get_travel_direction(&self.catalog, endpoints, *direction, room_idx) {
-                        Direction::North => 0,
-                        Direction::South => 1,
-                        Direction::East => 2,
-                        Direction::West => 3,
-                    };
+                let travel = get_travel_direction(&self.catalog, endpoints, *direction, room_idx);
+                let side = match travel {
+                    Direction::North => 0,
+                    Direction::South => 1,
+                    Direction::East => 2,
+                    Direction::West => 3,
+                };
                 // The position along the side, in 16x16 tiles: the center of the source vertex's
                 // opening in its segment's selected variant, or the segment's middle where the
                 // variant's geometry is unknown. A segment spans one map cell, and only segments
@@ -619,27 +653,26 @@ impl SpoilerSession {
                         }
                     }
                 }
-                let along = along?;
-                let (width, height) = (f32::from(width) * 16.0, f32::from(height) * 16.0);
-                // The boundary's position and the direction of travel across it.
-                let (x, y, dx, dy) = match side {
-                    0 => (along, 0.0, 0.0, -1.0),
-                    1 => (along, height, 0.0, 1.0),
-                    2 => (width, along, 1.0, 0.0),
-                    _ => (0.0, along, -1.0, 0.0),
-                };
-                let boundary = self.locate_tile(vertex_idx, x, y)?;
-                let mut before = boundary;
-                before.x -= dx * CROSSING_OFFSET;
-                before.y -= dy * CROSSING_OFFSET;
-                // A route leaving and returning comes straight back, so it has no point beyond.
-                if let MapBoundaryKind::Return = kind {
-                    return Some(vec![before]);
+                self.locate_crossing(
+                    vertex_idx,
+                    travel,
+                    along?,
+                    matches!(kind, MapBoundaryKind::Return),
+                )
+            }
+            // A vanilla layout's crossings between overworld rooms. Each boundary's span runs along
+            // its own room's side, so take the source's.
+            Connection::ScreenBoundary { endpoints } => {
+                let vertex_idx = edge.edge.from_vertex_idx;
+                let room_idx = self.catalog.vertex(vertex_idx).room_idx;
+                for endpoint in endpoints {
+                    let boundary = &self.catalog.screen_boundaries[endpoint.0 as usize];
+                    if self.catalog.vertex(boundary.vertex_idx).room_idx == room_idx {
+                        let along = (boundary.span[0] + boundary.span[1]) / 2.0;
+                        return self.locate_crossing(vertex_idx, boundary.direction, along, false);
+                    }
                 }
-                let mut after = boundary;
-                after.x += dx * CROSSING_OFFSET;
-                after.y += dy * CROSSING_OFFSET;
-                Some(vec![before, after])
+                None
             }
             Connection::Entrance {
                 kind, entrance_idx, ..
