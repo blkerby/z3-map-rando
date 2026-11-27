@@ -15,22 +15,27 @@ use patcher::{
     import::{OverworldEntrance, SPECIAL_TRANSITIONS},
     retiling::get_edge_openings,
 };
-use seed_data::{BorderSide, SeedData};
+use seed_data::{BorderSide, SeedData, Settings};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
-/// Patch a vanilla ROM with a saved seed (JSON), customization settings (JSON), and the
-/// catalogs matching this build.
+/// Patch a vanilla ROM with a saved seed (JSON), optional override generation settings (empty to
+/// use the seed's recorded settings), customization settings (JSON), and the catalogs matching
+/// this build.
 #[wasm_bindgen]
 pub fn patch_rom(
     rom: &[u8],
     seed_json: &[u8],
+    settings_json: &[u8],
     customization_json: &[u8],
     retiling_catalog: &[u8],
     patch_catalog: &[u8],
 ) -> Result<Vec<u8>, JsError> {
     let patch = || -> anyhow::Result<Vec<u8>> {
-        let seed = SeedData::read(seed_json)?;
+        let mut seed = SeedData::read(seed_json)?;
+        if !settings_json.is_empty() {
+            seed.settings = serde_json::from_slice(settings_json)?;
+        }
         let settings = patcher::PatchSettings {
             customization: serde_json::from_slice(customization_json)?,
             transition_asset_phase: Default::default(),
@@ -229,13 +234,23 @@ pub struct SpoilerSession {
 
 #[wasm_bindgen]
 impl SpoilerSession {
-    /// Replay a saved seed (JSON) against the logic catalog matching this build.
+    /// Replay a saved seed (JSON) against the logic catalog matching this build, using optional
+    /// override generation settings (empty to use the seed's recorded settings).
     #[wasm_bindgen(constructor)]
-    pub fn new(seed_json: &[u8], logic_catalog: &[u8]) -> Result<SpoilerSession, JsError> {
+    pub fn new(
+        seed_json: &[u8],
+        settings_json: &[u8],
+        logic_catalog: &[u8],
+    ) -> Result<SpoilerSession, JsError> {
         let replay = || -> anyhow::Result<SpoilerSession> {
             let seed = SeedData::read(seed_json)?;
             let catalog = logic_catalog::decode_catalog(logic_catalog)?;
-            let replay = generator::spoiler::replay_spoiler(&catalog, &seed)?;
+            let replay = if settings_json.is_empty() {
+                generator::spoiler::replay_spoiler(&catalog, &seed, &seed.settings)?
+            } else {
+                let settings: Settings = serde_json::from_slice(settings_json)?;
+                generator::spoiler::replay_spoiler(&catalog, &seed, &settings)?
+            };
             Ok(SpoilerSession {
                 catalog,
                 replay,
@@ -244,6 +259,20 @@ impl SpoilerSession {
             })
         };
         replay().map_err(|error| JsError::new(&format!("{error:#}")))
+    }
+
+    /// Recompute spheres and routes under new generation settings (empty to use the seed's
+    /// recorded settings), keeping the loaded catalog, graph, and map door positions.
+    pub fn replay(&mut self, settings_json: &[u8]) -> Result<(), JsError> {
+        let mut update = || -> anyhow::Result<()> {
+            if settings_json.is_empty() {
+                self.replay.replay(&self.catalog, &self.seed.settings)
+            } else {
+                let settings: Settings = serde_json::from_slice(settings_json)?;
+                self.replay.replay(&self.catalog, &settings)
+            }
+        };
+        update().map_err(|error| JsError::new(&format!("{error:#}")))
     }
 
     /// Render the seed's Light and Dark World maps as 384x384 PNGs from a vanilla ROM, the

@@ -434,7 +434,7 @@
 					type="button"
 					class="btn btn-link btn-sm p-0 icon-btn"
 					disabled={store.locked}
-					title={`Put all the ${noun} back to ${store.presetName}.`}
+					title={`Put all the ${noun} back to ${store.seedDocument ? 'this seed' : store.presetName}.`}
 					aria-label="Reset all the {noun}"
 					onclick={() => store.resetAll()}
 				>

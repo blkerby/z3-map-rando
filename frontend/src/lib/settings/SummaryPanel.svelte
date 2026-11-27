@@ -54,7 +54,11 @@
 	}
 
 	const changeGroups = $derived(groupByScope(store.changedPaths, store.pickedScopes));
-	const tweakedScopes = $derived(generated ? store.model.scopes.filter((scope) => store.isScopePresetTweaked(scope)) : []);
+	const tweakedScopes = $derived(
+		generated
+			? store.model.scopes.filter((scope) => !store.isScopePicked(scope) && store.isScopePresetTweaked(scope))
+			: []
+	);
 	const tweakGroups = $derived(groupByScope(store.tweakedPaths, tweakedScopes));
 	const tweakCount = $derived(store.tweakedPaths.length + tweakedScopes.length);
 	/** Folded or unfolded by hand; otherwise open only while there are no unsaved changes, so those stand out. */
@@ -85,8 +89,12 @@
 
 		<div class="small mb-2 text-body-secondary">
 			{#if changeCount}
-				{changeCount} change{changeCount === 1 ? '' : 's'} from <strong>{presetName}</strong>
-			{:else if generated}
+				{#if store.seedDocument}
+					{changeCount} change{changeCount === 1 ? '' : 's'} from this seed
+				{:else}
+					{changeCount} change{changeCount === 1 ? '' : 's'} from <strong>{presetName}</strong>
+				{/if}
+			{:else if generated && store.seedDocument}
 				Based on <strong>{presetName}</strong>
 			{:else}
 				Matches <strong>{presetName}</strong>
@@ -119,7 +127,11 @@
 		{#if tweakCount}
 			<button type="button" class="tweaks-toggle" aria-expanded={tweaksOpen} onclick={() => (tweaksOpenByHand = !tweaksOpen)}>
 				<i class="bi" class:bi-chevron-down={tweaksOpen} class:bi-chevron-right={!tweaksOpen}></i>
-				{tweakCount} tweak{tweakCount === 1 ? '' : 's'}{#if !generated}{' '}from <strong>{store.basePreset.label}</strong>{/if}
+				{#if store.seedDocument && changeCount}
+					{tweakCount} seed tweak{tweakCount === 1 ? '' : 's'}
+				{:else}
+					{tweakCount} tweak{tweakCount === 1 ? '' : 's'}{#if !store.seedDocument}{' '}from <strong>{store.basePreset.label}</strong>{/if}
+				{/if}
 			</button>
 			{#if tweaksOpen}
 				{#each tweakGroups as g (g.title)}

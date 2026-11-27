@@ -17,7 +17,7 @@
 	import { SearchState } from '$lib/settings/search.svelte';
 	import { REVISION, StaleError, processDocument, type SettingsIssue } from '$lib/settings/processing';
 	import { SettingsStore, type Draft } from '$lib/settings/store.svelte';
-	import { pathKey, type Path } from '$lib/settings/tree';
+	import { cloneTree, pathKey, type Path, type Tree } from '$lib/settings/tree';
 	import { downloadRom, generateGame } from '$lib/seed';
 	import { useRomStore } from '$lib/rom/store.svelte';
 
@@ -60,8 +60,16 @@
 	type Section = 'generate' | 'customize' | 'spoiler';
 
 	const generated = $derived(seed !== null);
-	const GENERATED_LOCK = 'This game has already been generated, so its settings can no longer be changed.';
+	const GENERATED_LOCK = 'Generation settings are locked. Click “Locked” next to Generate to unlock them.';
+	const LOCKED_TOOLTIP = 'Generation settings are locked. Click to unlock.';
+	const UNLOCKED_TOOLTIP = 'Generation settings are unlocked locally. Click to revert changes and lock again.';
 	const GENERATING_LOCK = 'Settings are locked while the game is generating.';
+	let unlocked = $state(false);
+	let seedBytes = $state.raw<Uint8Array | null>(null);
+	let seedOriginalDoc = $state.raw<Tree | null>(null);
+	let seedOriginalValues = $state.raw<Tree | null>(null);
+	let lockDialog = $state<HTMLDialogElement>();
+	let lockDialogMode = $state<'unlock' | 'lock' | null>(null);
 	let generating = $state(false);
 	let error = $state<string | null>(null);
 	/** Passed along by `generate` when it navigates to the seed, so they show only right after generating. */
@@ -177,10 +185,89 @@
 		}
 		if (response.status === 404) return false;
 		if (!response.ok) throw new Error(`Couldn't load the seed (server error ${response.status}).`);
-		const data = await response.json();
-		store.loadSeed(store.readDocument(data.settings_document));
+		const bytes = new Uint8Array(await response.arrayBuffer());
+		const data = JSON.parse(new TextDecoder().decode(bytes));
+		const doc = store.readDocument(data.settings_document);
+		seedBytes = bytes;
+		seedOriginalDoc = doc;
+		store.loadSeed(doc);
+		seedOriginalValues = cloneTree($state.snapshot(store.values));
+		unlocked = false;
 		store.lockReason = GENERATED_LOCK;
 		return true;
+	}
+
+	/** Settings read by the ROM patcher, serialized for change detection. */
+	function getRomSignature(values: Tree): string {
+		const itemPool = values.item_pool as Tree;
+		return JSON.stringify({
+			starting_state: values.starting_state,
+			bomb_upgrade_size: itemPool.bomb_upgrade_size,
+			arrow_upgrade_size: itemPool.arrow_upgrade_size
+		});
+	}
+
+	/** Settings read by spoiler logic, serialized for change detection. */
+	function getLogicSignature(values: Tree): string {
+		const itemPool = values.item_pool as Tree;
+		const starting = values.starting_state as Tree;
+		const resources = starting.resources as Tree;
+		let bottles = 0;
+		for (const key of ['bottle_1', 'bottle_2', 'bottle_3', 'bottle_4']) {
+			if (resources[key] !== 'none') bottles++;
+		}
+		return JSON.stringify({
+			skill: values.skill,
+			equipment: starting.equipment,
+			heart_capacity: resources.heart_capacity,
+			bomb_capacity: resources.bomb_capacity,
+			arrow_capacity: resources.arrow_capacity,
+			bottles,
+			bomb_upgrade_size: itemPool.bomb_upgrade_size,
+			arrow_upgrade_size: itemPool.arrow_upgrade_size
+		});
+	}
+
+	const hasSeedChanges = $derived(
+		unlocked &&
+			seedOriginalValues !== null &&
+			JSON.stringify(store.values) !== JSON.stringify(seedOriginalValues)
+	);
+	const romModified = $derived(
+		unlocked &&
+			seedOriginalValues !== null &&
+			getRomSignature(store.values) !== getRomSignature(seedOriginalValues)
+	);
+	const logicModified = $derived(
+		unlocked &&
+			seedOriginalValues !== null &&
+			getLogicSignature(store.values) !== getLogicSignature(seedOriginalValues)
+	);
+	const spoilerLogicKey = $derived(logicModified ? getLogicSignature(store.values) : '');
+	const spoilerSettings = $derived(logicModified ? $state.snapshot(store.values) : null);
+
+	function openLockDialog() {
+		lockDialogMode = unlocked ? 'lock' : 'unlock';
+		lockDialog?.showModal();
+	}
+
+	function closeLockDialog() {
+		lockDialogMode = null;
+		if (lockDialog?.open) lockDialog.close();
+	}
+
+	function confirmUnlock() {
+		unlocked = true;
+		store.lockReason = null;
+		generateOpen = true;
+		closeLockDialog();
+	}
+
+	function confirmLock() {
+		if (seedOriginalDoc) store.loadSeed(seedOriginalDoc);
+		store.lockReason = GENERATED_LOCK;
+		unlocked = false;
+		closeLockDialog();
 	}
 
 	async function loadPage() {
@@ -302,12 +389,19 @@
 	let romError = $state<string | null>(null);
 
 	async function download() {
-		if (!seed || downloading) return;
+		if (!seed || !seedBytes || downloading) return;
 		if (!(await rom.require())) return;
 		downloading = true;
 		romError = null;
 		try {
-			await downloadRom({ seed, rom: rom.bytes!, customization: $state.snapshot(custom.values) });
+			await downloadRom({
+				seed,
+				seedBytes,
+				settings: romModified ? $state.snapshot(store.values) : null,
+				modified: romModified,
+				rom: rom.bytes!,
+				customization: $state.snapshot(custom.values)
+			});
 		} catch (e) {
 			romError = e instanceof Error ? e.message : 'Could not download the ROM.';
 		} finally {
@@ -316,11 +410,11 @@
 	}
 
 	/**
-	 * Make this seed's settings the /generate draft, so the player can tweak them and generate again. They
-	 * were saved under the revision that generated the game, so the draft is processed when loaded.
+	 * Make this seed's settings (including any local unlocked edits) the /generate draft, so the player can
+	 * tweak them and generate again. They are saved without a revision so Generate processes them on load.
 	 */
 	function useSettingsForNewGame() {
-		store.releaseSeed();
+		if (store.seedDocument) store.releaseSeed();
 		saveDraft(null);
 		goto(resolve('/generate'));
 	}
@@ -538,9 +632,11 @@
 			<CollapsibleSection
 				id="generate"
 				title="Generate"
-				badge={generated ? 'Locked' : undefined}
-				badgeIcon="lock-fill"
-				badgeTooltip={GENERATED_LOCK}
+				badge={generated ? (unlocked ? 'Unlocked' : 'Locked') : undefined}
+				badgeIcon={unlocked ? 'unlock-fill' : 'lock-fill'}
+				badgeVariant={unlocked ? 'warning' : 'secondary'}
+				badgeTooltip={unlocked ? UNLOCKED_TOOLTIP : LOCKED_TOOLTIP}
+				onbadgeclick={generated ? openLockDialog : undefined}
 				bind:open={generateOpen}
 			>
 				{#snippet actions()}
@@ -553,10 +649,10 @@
 				{#if error}
 					<div class="alert alert-danger small py-2 px-3" role="alert">{error}</div>
 				{/if}
-				{#each problems as problem (problem)}
-					<div class="alert alert-warning small py-2 px-3" role="alert">{problem}</div>
-				{/each}
 				{#if !generated}
+					{#each problems as problem (problem)}
+						<div class="alert alert-warning small py-2 px-3" role="alert">{problem}</div>
+					{/each}
 					<button type="button" class="btn btn-primary px-4 py-2" disabled={generating || problems.length > 0} onclick={generate}>
 						{#if generating}
 							<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
@@ -591,9 +687,16 @@
 				</span>
 			</CollapsibleSection>
 
-			{#if seed}
+			{#if seed && seedBytes}
 				<CollapsibleSection id="spoiler" title="Spoiler" bind:open={spoilerOpen}>
-					<SpoilerList {seed} active={spoilerOpen} startingCounts={countStartingItems(store)} />
+					<SpoilerList
+						{seed}
+						{seedBytes}
+						active={spoilerOpen}
+						startingCounts={countStartingItems(store)}
+						logicKey={spoilerLogicKey}
+						settings={spoilerSettings}
+					/>
 				</CollapsibleSection>
 			{/if}
 		</div>
@@ -630,6 +733,74 @@
 	</div>
 </dialog>
 
+<dialog
+	bind:this={lockDialog}
+	class="stale-dialog lock-dialog"
+	aria-labelledby="lock-dialog-title"
+	oncancel={(e) => {
+		e.preventDefault();
+		closeLockDialog();
+	}}
+	onclick={(e) => {
+		if (e.target === lockDialog) closeLockDialog();
+	}}
+>
+	<div class="p-4">
+		{#if lockDialogMode === 'unlock'}
+			<h2 id="lock-dialog-title" class="h5 fw-bold mb-2">Unlock generation settings?</h2>
+			<p class="small mb-2">
+				You are about to adjust settings on an already-generated seed. This is unusual and may have surprising effects:
+			</p>
+			<ul class="small lock-list ps-3 mb-3">
+				<li>
+					This only applies to your local view, won’t affect the shared seed link, and changes are not saved if you
+					leave or reload the page.
+				</li>
+				<li>
+					The seed’s map layout and item placements are unchangeable. Adjusting settings whose
+					effects were baked in at generation time (such as map layout and item pool counts) won’t do
+					anything.
+				</li>
+				<li>
+					Changes to gameplay settings (such as starting state and capacity upgrade sizes) will be applied in the saved ROM without regard for logic. They might make the game unbeatable.
+				</li>
+				<li>
+					Changes to skill assumptions will affect the spoiler view: using lower skill assumptions may cause
+					items to appear in the spoiler as unreachable.
+				</li>
+			</ul>
+			<div class="d-flex justify-content-end gap-2">
+				<button type="button" class="btn btn-outline-secondary btn-sm" onclick={closeLockDialog}>Cancel</button>
+				<button type="button" class="btn btn-primary btn-sm" onclick={confirmUnlock}>Unlock</button>
+			</div>
+		{:else if lockDialogMode === 'lock'}
+			<h2 id="lock-dialog-title" class="h5 fw-bold mb-2">Lock generation settings?</h2>
+			{#if hasSeedChanges}
+				<p class="small mb-3">
+					Returning to the locked state will discard your local changes and restore this seed’s original
+					settings.
+				</p>
+			{:else}
+				<p class="small mb-3">
+					Lock this seed’s generation settings again? You can unlock them again at any time.
+				</p>
+			{/if}
+			<div class="d-flex justify-content-end gap-2">
+				<button type="button" class="btn btn-outline-secondary btn-sm" onclick={closeLockDialog}>Cancel</button>
+				<button
+					type="button"
+					class="btn btn-sm"
+					class:btn-danger={hasSeedChanges}
+					class:btn-primary={!hasSeedChanges}
+					onclick={confirmLock}
+				>
+					{hasSeedChanges ? 'Discard changes and lock' : 'Lock'}
+				</button>
+			</div>
+		{/if}
+	</div>
+</dialog>
+
 {#if lockToast}
 	<div class="toast show lock-toast" role="status">
 		<div class="toast-body d-flex align-items-center gap-2">
@@ -652,6 +823,17 @@
 
 	.stale-dialog::backdrop {
 		background: rgb(0 0 0 / 0.55);
+	}
+
+	.lock-dialog {
+		width: min(32rem, calc(100vw - 2rem));
+	}
+
+	.lock-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		line-height: 1.45;
 	}
 
 	.unreadable {

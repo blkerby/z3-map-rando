@@ -370,13 +370,17 @@ export class SettingsStore {
 	/** Select a root preset and take its values. */
 	applyPreset(id: string) {
 		if (this.locked || (!this.builtIn(id) && !this.isUser(id))) return;
+		this.seedDocument = null;
 		this.selectedId = id;
 		this.resetAll();
 	}
 
 	/** Select another root preset, keeping the current values: where they differ, they become unsaved changes. */
 	switchPreset(id: string) {
-		if (this.builtIn(id) || this.isUser(id)) this.selectedId = id;
+		if (this.builtIn(id) || this.isUser(id)) {
+			this.seedDocument = null;
+			this.selectedId = id;
+		}
 	}
 
 	/**
@@ -505,6 +509,7 @@ export class SettingsStore {
 		if (!preset) return;
 		preset.document = this.capture();
 		preset.revision = REVISION;
+		if (!this.locked) this.seedDocument = null;
 		this.selectedId = id;
 		for (const scope of this.model.scopes) this.scopePicks[scope.id] = null;
 	}

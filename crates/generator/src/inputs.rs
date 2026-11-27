@@ -69,9 +69,12 @@ pub struct DungeonInputs {
     pub ordinary_locations: Vec<ItemLocationIndex>,
 }
 
-/// Resolve item names and player settings, and classify locations by source dungeon.
-/// Small Key identities are constructed by the later preliminary assignment pass.
-pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<GenerationInputs> {
+/// Resolve skill, starting state, and catalog door/dungeon lookups for spoiler replay without
+/// validating or building the generation item pool.
+pub fn prepare_spoiler_inputs(
+    catalog: &LogicCatalog,
+    settings: &Settings,
+) -> Result<GenerationInputs> {
     let mut inputs = GenerationInputs {
         items: Vec::new(),
         door_ids: Vec::new(),
@@ -89,20 +92,8 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
         bomb_upgrade_size: settings.item_pool.bomb_upgrade_size,
         arrow_upgrade_size: settings.item_pool.arrow_upgrade_size,
     };
-    for item in &catalog.items {
-        inputs.items.push(item.item);
-    }
     for (index, &room_idx) in catalog.dungeons.iter().enumerate() {
         let room_id = catalog.room(room_idx).room_id.unwrap();
-        inputs.dungeons.push(DungeonInputs {
-            room_id,
-            small_key_locations: Vec::new(),
-            big_key_locations: Vec::new(),
-            small_key_doors: Vec::new(),
-            map_compass_pool: Vec::new(),
-            prize_locations: Vec::new(),
-            ordinary_locations: Vec::new(),
-        });
         inputs
             .dungeon_indices
             .insert(room_id, DungeonIndex(index as u32));
@@ -114,8 +105,37 @@ pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<Gen
             room_id: catalog.room(door.room_idx).room_id.unwrap(),
             door_id: door.door_id,
         };
-        inputs.door_ids.push(door_id);
         inputs.door_indices.insert(door_id, door_idx);
+    }
+    Ok(inputs)
+}
+
+/// Resolve item names and player settings, and classify locations by source dungeon.
+/// Small Key identities are constructed by the later preliminary assignment pass.
+pub fn prepare_inputs(catalog: &LogicCatalog, settings: &Settings) -> Result<GenerationInputs> {
+    let mut inputs = prepare_spoiler_inputs(catalog, settings)?;
+    for item in &catalog.items {
+        inputs.items.push(item.item);
+    }
+    for &room_idx in &catalog.dungeons {
+        let room_id = catalog.room(room_idx).room_id.unwrap();
+        inputs.dungeons.push(DungeonInputs {
+            room_id,
+            small_key_locations: Vec::new(),
+            big_key_locations: Vec::new(),
+            small_key_doors: Vec::new(),
+            map_compass_pool: Vec::new(),
+            prize_locations: Vec::new(),
+            ordinary_locations: Vec::new(),
+        });
+    }
+    for (index, door) in catalog.doors.iter().enumerate() {
+        let door_idx = DoorIndex(index as u32);
+        let door_id = DoorId {
+            room_id: catalog.room(door.room_idx).room_id.unwrap(),
+            door_id: door.door_id,
+        };
+        inputs.door_ids.push(door_id);
         if door.lock == LockKind::SmallKey {
             if let Some(dungeon_idx) = catalog.room(door.room_idx).dungeon_idx {
                 inputs.dungeons[dungeon_idx.0 as usize]

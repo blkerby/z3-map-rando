@@ -30,6 +30,12 @@ export async function generateGame(settings: Tree): Promise<GenerateResult> {
 
 export interface RomRequest {
 	seed: string;
+	/** Raw saved seed JSON bytes. */
+	seedBytes: Uint8Array;
+	/** Override generation settings, or null to use the seed's recorded settings. */
+	settings: Tree | null;
+	/** Whether the patched ROM reflects modified gameplay settings. */
+	modified: boolean;
 	/** The player's vanilla ROM. */
 	rom: Uint8Array;
 	/** The player's cosmetic choices (never part of the seed link). */
@@ -42,23 +48,29 @@ export async function fetchBytes(url: string): Promise<Uint8Array> {
 	return new Uint8Array(await response.arrayBuffer());
 }
 
+function encodeOptionalJson(value: Tree | null): Uint8Array {
+	return value === null ? new Uint8Array() : new TextEncoder().encode(JSON.stringify(value));
+}
+
 /** Patch the player's ROM in the browser with the saved seed, and save the result. */
 export async function downloadRom(request: RomRequest): Promise<void> {
 	const seedUrl = `/api/seed/${encodeURIComponent(request.seed)}`;
-	const [browser, seed, retiling, patches] = await Promise.all([
+	const [browser, retiling, patches] = await Promise.all([
 		loadBrowser(),
-		fetchBytes(seedUrl),
 		fetchBytes(`${seedUrl}/retiling`),
 		fetchBytes(patchCatalogUrl)
 	]);
+	const settings = encodeOptionalJson(request.settings);
 	const customization = new TextEncoder().encode(JSON.stringify(request.customization));
-	const output = browser.patch_rom(request.rom, seed, customization, retiling, patches);
+	const output = browser.patch_rom(request.rom, request.seedBytes, settings, customization, retiling, patches);
 	const url = URL.createObjectURL(
 		new Blob([output as Uint8Array<ArrayBuffer>], { type: 'application/octet-stream' })
 	);
 	const a = document.createElement('a');
 	a.href = url;
-	a.download = `z3-map-rando-${request.seed}.sfc`;
+	a.download = request.modified
+		? `z3-map-rando-${request.seed}-modified.sfc`
+		: `z3-map-rando-${request.seed}.sfc`;
 	document.body.append(a);
 	a.click();
 	a.remove();
@@ -139,6 +151,8 @@ export interface MapPoint {
 /** A replayed seed held in WebAssembly memory; call `free` when done with it. */
 export interface SpoilerSession {
 	spoiler: Spoiler;
+	/** Recompute spheres and routes under new settings (null to use the seed's recorded settings). */
+	replay(settings: Tree | null): Spoiler;
 	/** A route from the start to a target, or null if none is found. */
 	traceRoute(target: RouteTarget): RouteRow[] | null;
 	/**
@@ -150,15 +164,19 @@ export interface SpoilerSession {
 }
 
 /** Replay the saved seed's logical traversal in the browser to group its items into spheres. */
-export async function openSpoiler(seed: string): Promise<SpoilerSession> {
-	const [browser, seedBytes, logic] = await Promise.all([
-		loadBrowser(),
-		fetchBytes(`/api/seed/${encodeURIComponent(seed)}`),
-		fetchBytes(logicCatalogUrl)
-	]);
-	const session = new browser.SpoilerSession(seedBytes, logic);
+export async function openSpoiler(
+	seed: string,
+	seedBytes: Uint8Array,
+	settings: Tree | null
+): Promise<SpoilerSession> {
+	const [browser, logic] = await Promise.all([loadBrowser(), fetchBytes(logicCatalogUrl)]);
+	const session = new browser.SpoilerSession(seedBytes, encodeOptionalJson(settings), logic);
 	return {
 		spoiler: JSON.parse(session.get_spheres()),
+		replay: (nextSettings) => {
+			session.replay(encodeOptionalJson(nextSettings));
+			return JSON.parse(session.get_spheres());
+		},
 		traceRoute: (target) => JSON.parse(session.trace_route(JSON.stringify(target))),
 		loadWorldMaps: async (rom) => {
 			const seedUrl = `/api/seed/${encodeURIComponent(seed)}`;

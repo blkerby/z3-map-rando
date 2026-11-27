@@ -3,7 +3,7 @@
 
 use crate::{
     graph::{TraversalEdgeIndex, TraversalGraph, build_graph},
-    inputs::{GenerationInputs, prepare_inputs},
+    inputs::{GenerationInputs, prepare_spoiler_inputs},
     interpreter::{GlobalDiscoveries, Interpreter},
     local_state_reducer::LocalStateReducer,
     map::{build_connections, create_room_placement},
@@ -17,7 +17,7 @@ use logic_catalog::{
     Connection, DoorIndex, Effect, FlagIndex, ItemLocationIndex, LockKind, LogicCatalog,
     VertexIndex,
 };
-use seed_data::{SeedData, WorldLayout};
+use seed_data::{SeedData, Settings, WorldLayout};
 use std::{
     cmp::Reverse,
     collections::{BTreeMap, BinaryHeap},
@@ -73,11 +73,15 @@ struct RouteEntry {
     parent_entry_idx: Option<usize>,
 }
 
-/// Replay the seed against the current logic catalog. Sphere 1 holds the locations
-/// collectible with the starting inventory, and each later sphere holds the locations newly
-/// collectible with the items of all earlier spheres.
-pub fn replay_spoiler(catalog: &LogicCatalog, seed: &SeedData) -> Result<SpoilerReplay> {
-    let inputs = prepare_inputs(catalog, &seed.settings)?;
+/// Replay the seed against the current logic catalog and the supplied settings. Sphere 1 holds
+/// the locations collectible with the starting inventory, and each later sphere holds the
+/// locations newly collectible with the items of all earlier spheres.
+pub fn replay_spoiler(
+    catalog: &LogicCatalog,
+    seed: &SeedData,
+    settings: &Settings,
+) -> Result<SpoilerReplay> {
+    let inputs = prepare_spoiler_inputs(catalog, settings)?;
 
     let mut catalog_rooms = BTreeMap::new();
     for room in &catalog.rooms {
@@ -122,100 +126,118 @@ pub fn replay_spoiler(catalog: &LogicCatalog, seed: &SeedData) -> Result<Spoiler
     };
     let connections = build_connections(catalog, &layout);
     let graph = build_graph(catalog, &connections);
-
-    // Each closure collects only the placements of earlier spheres, so the locations it newly
-    // reaches form the next sphere. Traversal state carries over, so each closure only
-    // revisits edges affected by the newly collected items.
-    let mut global = GlobalState::initialize(catalog, &inputs);
-    let mut local_states = vec![LocalStateReducer::default(); graph.outgoing.len()];
-    local_states[graph.start_vertex_idx.0 as usize].insert(LocalState::initialize());
-    let mut placements = vec![None; catalog.item_locations.len()];
-    let mut discovery_states = Vec::new();
-    let mut flag_discoveries = vec![None; catalog.flags.len()];
-    let mut door_discoveries = vec![None; catalog.doors.len()];
-    let mut ocarina_discovery = None;
-    // Discoveries are filtered against the wave's global state, so each is reported once.
-    let mut record_wave = |global: &GlobalState, discoveries: &GlobalDiscoveries| {
-        if discoveries.flags.is_empty()
-            && discoveries.unlocked_doors.is_empty()
-            && !discoveries.activate_ocarina
-        {
-            return;
-        }
-        let state_idx = discovery_states.len();
-        discovery_states.push(global.clone());
-        for idx in &discoveries.flags {
-            flag_discoveries[idx.0 as usize] = Some(state_idx);
-        }
-        for idx in &discoveries.unlocked_doors {
-            door_discoveries[idx.0 as usize] = Some(state_idx);
-        }
-        if discoveries.activate_ocarina {
-            ocarina_discovery = Some(state_idx);
-        }
-    };
-    compute_closure(
-        catalog,
-        &graph,
-        &inputs,
-        &mut global,
-        &mut local_states,
-        &placements,
-        vec![graph.start_vertex_idx],
-        HashSet::new(),
-        &mut record_wave,
-    )?;
-    let mut assigned = vec![false; catalog.item_locations.len()];
-    let mut spheres = Vec::new();
-    let mut sphere_states = Vec::new();
-    loop {
-        let mut sphere = Vec::new();
-        for index in 0..catalog.item_locations.len() {
-            if global.reachable_item_locations[index] && !assigned[index] {
-                assigned[index] = true;
-                placements[index] = seed_placements[index];
-                sphere.push(ItemLocationIndex(index as u32));
-            }
-        }
-        if sphere.is_empty() {
-            break;
-        }
-        spheres.push(sphere);
-        sphere_states.push(global.clone());
-        compute_closure(
-            catalog,
-            &graph,
-            &inputs,
-            &mut global,
-            &mut local_states,
-            &placements,
-            Vec::new(),
-            HashSet::new(),
-            &mut record_wave,
-        )?;
-    }
-    let mut unreachable = Vec::new();
-    for (index, &assigned) in assigned.iter().enumerate() {
-        if !assigned {
-            unreachable.push(ItemLocationIndex(index as u32));
-        }
-    }
-    Ok(SpoilerReplay {
-        spheres,
-        unreachable,
+    let mut replay = SpoilerReplay {
+        spheres: Vec::new(),
+        unreachable: Vec::new(),
         items: seed_placements,
         connections,
         graph,
         inputs,
-        sphere_states,
-        discovery_states,
-        flag_discoveries,
-        door_discoveries,
-        ocarina_discovery,
-    })
+        sphere_states: Vec::new(),
+        discovery_states: Vec::new(),
+        flag_discoveries: Vec::new(),
+        door_discoveries: Vec::new(),
+        ocarina_discovery: None,
+    };
+    replay.run_replay(catalog)?;
+    Ok(replay)
 }
 
 impl SpoilerReplay {
+    /// Recompute spheres and discovery states under new settings, reusing the seed's graph and
+    /// placements.
+    pub fn replay(&mut self, catalog: &LogicCatalog, settings: &Settings) -> Result<()> {
+        self.inputs = prepare_spoiler_inputs(catalog, settings)?;
+        self.run_replay(catalog)
+    }
+
+    fn run_replay(&mut self, catalog: &LogicCatalog) -> Result<()> {
+        // Each closure collects only the placements of earlier spheres, so the locations it newly
+        // reaches form the next sphere. Traversal state carries over, so each closure only
+        // revisits edges affected by the newly collected items.
+        let mut global = GlobalState::initialize(catalog, &self.inputs);
+        let mut local_states = vec![LocalStateReducer::default(); self.graph.outgoing.len()];
+        local_states[self.graph.start_vertex_idx.0 as usize].insert(LocalState::initialize());
+        let mut placements = vec![None; catalog.item_locations.len()];
+        let mut discovery_states = Vec::new();
+        let mut flag_discoveries = vec![None; catalog.flags.len()];
+        let mut door_discoveries = vec![None; catalog.doors.len()];
+        let mut ocarina_discovery = None;
+        // Discoveries are filtered against the wave's global state, so each is reported once.
+        let mut record_wave = |global: &GlobalState, discoveries: &GlobalDiscoveries| {
+            if discoveries.flags.is_empty()
+                && discoveries.unlocked_doors.is_empty()
+                && !discoveries.activate_ocarina
+            {
+                return;
+            }
+            let state_idx = discovery_states.len();
+            discovery_states.push(global.clone());
+            for idx in &discoveries.flags {
+                flag_discoveries[idx.0 as usize] = Some(state_idx);
+            }
+            for idx in &discoveries.unlocked_doors {
+                door_discoveries[idx.0 as usize] = Some(state_idx);
+            }
+            if discoveries.activate_ocarina {
+                ocarina_discovery = Some(state_idx);
+            }
+        };
+        compute_closure(
+            catalog,
+            &self.graph,
+            &self.inputs,
+            &mut global,
+            &mut local_states,
+            &placements,
+            vec![self.graph.start_vertex_idx],
+            HashSet::new(),
+            &mut record_wave,
+        )?;
+        let mut assigned = vec![false; catalog.item_locations.len()];
+        let mut spheres = Vec::new();
+        let mut sphere_states = Vec::new();
+        loop {
+            let mut sphere = Vec::new();
+            for index in 0..catalog.item_locations.len() {
+                if global.reachable_item_locations[index] && !assigned[index] {
+                    assigned[index] = true;
+                    placements[index] = self.items[index];
+                    sphere.push(ItemLocationIndex(index as u32));
+                }
+            }
+            if sphere.is_empty() {
+                break;
+            }
+            spheres.push(sphere);
+            sphere_states.push(global.clone());
+            compute_closure(
+                catalog,
+                &self.graph,
+                &self.inputs,
+                &mut global,
+                &mut local_states,
+                &placements,
+                Vec::new(),
+                HashSet::new(),
+                &mut record_wave,
+            )?;
+        }
+        let mut unreachable = Vec::new();
+        for (index, &assigned) in assigned.iter().enumerate() {
+            if !assigned {
+                unreachable.push(ItemLocationIndex(index as u32));
+            }
+        }
+        self.spheres = spheres;
+        self.unreachable = unreachable;
+        self.sphere_states = sphere_states;
+        self.discovery_states = discovery_states;
+        self.flag_discoveries = flag_discoveries;
+        self.door_discoveries = door_discoveries;
+        self.ocarina_discovery = ocarina_discovery;
+        Ok(())
+    }
     /// Resolve a door to what unlocks it: the location of a Small Key door's key or a Big Key
     /// door's dungeon Big Key, or otherwise the door itself. Return None for a key not placed.
     pub fn resolve_door(&self, catalog: &LogicCatalog, door_idx: DoorIndex) -> Option<RouteTarget> {

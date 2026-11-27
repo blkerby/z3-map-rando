@@ -5,6 +5,7 @@
 	import { ITEM_LABELS, getItemLevelIcon, items } from '$lib/generation/data';
 	import { useRomStore } from '$lib/rom/store.svelte';
 	import Segmented from '$lib/settings/controls/Segmented.svelte';
+	import type { Tree } from '$lib/settings/tree';
 	import {
 		openSpoiler,
 		type MapPoint,
@@ -18,14 +19,22 @@
 
 	let {
 		seed,
+		seedBytes,
 		active,
-		startingCounts
+		startingCounts,
+		logicKey,
+		settings
 	}: {
 		seed: string;
+		seedBytes: Uint8Array;
 		/** Whether the list is visible; the replay runs the first time it is. */
 		active: boolean;
 		/** Starting copies of each item, so progressive items show the level each pickup reaches. */
 		startingCounts: Record<string, number>;
+		/** Changes whenever logic-affecting settings change. */
+		logicKey: string;
+		/** Override generation settings, or null to use the seed's recorded settings. */
+		settings: Tree | null;
 	} = $props();
 
 	interface Tile {
@@ -120,19 +129,56 @@
 		importantOnly = localStorage.getItem(IMPORTANT_ONLY_KEY) !== 'false';
 	});
 
+	let appliedLogicKey = '';
+	let wasActive = false;
+
+	function replayCurrent() {
+		if (!session) return;
+		try {
+			spoiler = session.replay(settings);
+			error = '';
+			appliedLogicKey = logicKey;
+			if (revealed !== Infinity) revealed = 0;
+		} catch (e) {
+			error = e instanceof Error ? e.message : String(e);
+		}
+	}
+
 	$effect(() => {
 		if (!active || started) return;
 		started = true;
-		openSpoiler(seed)
+		const initialKey = logicKey;
+		const initialSettings = settings;
+		openSpoiler(seed, seedBytes, initialSettings)
 			.then((result) => {
 				if (destroyed) {
 					result.free();
 					return;
 				}
 				session = result;
+				appliedLogicKey = initialKey;
 				spoiler = result.spoiler;
+				if (logicKey !== appliedLogicKey) replayCurrent();
 			})
 			.catch((e) => (error = e instanceof Error ? e.message : String(e)));
+	});
+
+	$effect(() => {
+		const isOpen = active;
+		const currentKey = logicKey;
+		const openedNow = isOpen && !wasActive;
+		wasActive = isOpen;
+		if (!isOpen || !session || currentKey === appliedLogicKey) return;
+		if (openedNow) {
+			replayCurrent();
+			return;
+		}
+		const timer = setTimeout(() => {
+			if (!destroyed && active && session && logicKey !== appliedLogicKey) {
+				replayCurrent();
+			}
+		}, 150);
+		return () => clearTimeout(timer);
 	});
 
 	onDestroy(() => {
