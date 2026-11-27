@@ -244,6 +244,11 @@
 		if (!mapStarted) void startMaps();
 	}
 
+	/** Expand or collapse every group of the shown route. */
+	function setGroupsOpen(open: boolean) {
+		for (const group of routeList!.querySelectorAll('details')) group.open = open;
+	}
+
 	interface RouteGroup {
 		/** The connection and room entered, such as "Cross West to Swamp Ruins". */
 		title: string;
@@ -576,6 +581,22 @@
 			<div class="route-body">
 				<div class="route-list" bind:this={routeList}>
 					{#if route.steps}
+						<div class="route-toolbar">
+							<button
+								type="button"
+								class="btn btn-sm btn-outline-secondary"
+								onclick={() => setGroupsOpen(true)}
+							>
+								Expand all
+							</button>
+							<button
+								type="button"
+								class="btn btn-sm btn-outline-secondary"
+								onclick={() => setGroupsOpen(false)}
+							>
+								Collapse all
+							</button>
+						</div>
 						<!-- Recreated for each route shown, so its groups start collapsed. -->
 						{#key route.target}
 							{#each routeGroups as group, groupIndex (groupIndex)}
@@ -803,6 +824,19 @@
 		min-width: 0;
 		overflow-y: auto;
 		padding: 1rem 1.5rem;
+	}
+
+	/* Stays at the top of the route as it scrolls, covering the rows beneath. Sticky offsets are measured inside the
+	   list's padding, which the bar covers too. */
+	.route-toolbar {
+		position: sticky;
+		top: -1rem;
+		z-index: 1;
+		display: flex;
+		gap: 0.5rem;
+		margin-top: -1rem;
+		padding: 1rem 0 0.5rem;
+		background: var(--bs-body-bg);
 	}
 
 	/* The map fills the height, while leaving the route at least 20rem. */
