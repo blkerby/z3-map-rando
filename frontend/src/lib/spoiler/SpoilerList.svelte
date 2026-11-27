@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
+	import { MediaQuery } from 'svelte/reactivity';
 	import { resolve } from '$app/paths';
 	import logicDataJson from '$build/logic_data.json';
 	import linkHead from '$lib/assets/link_head.png';
@@ -369,7 +370,7 @@
 		let star = '';
 		if (end) {
 			for (let corner = 0; corner < 10; corner++) {
-				const radius = corner % 2 === 0 ? 4 : 1.7;
+				const radius = corner % 2 === 0 ? 4.75 : 2;
 				const angle = (corner * Math.PI) / 5 - Math.PI / 2;
 				star += `${end.x + radius * Math.cos(angle)},${end.y + radius * Math.sin(angle)} `;
 			}
@@ -377,8 +378,37 @@
 		return { lines, start, end, star };
 	});
 
+	/** The progress end's dot pulses slower with a reduced-motion preference, which its SVG animation can't query itself. */
+	const reducedMotion = new MediaQuery('prefers-reduced-motion: reduce');
+
 	/** The index in `routePoints` of the point the mouse is over on the map. */
 	let hoveredPoint = $state<number | null>(null);
+
+	/** How far from a point, in map pixels, the mouse can be to hover or click it. */
+	const POINT_REACH = 20;
+
+	/**
+	 * Hover the route point nearest the mouse within reach, preferring the shown world's where points coincide, as at a
+	 * crossing between worlds.
+	 */
+	function hoverNearestPoint(event: MouseEvent) {
+		const rect = (event.currentTarget as SVGSVGElement).getBoundingClientRect();
+		const x = ((event.clientX - rect.left) * 320) / rect.width;
+		const y = ((event.clientY - rect.top) * 320) / rect.height;
+		let nearest: number | null = null;
+		let nearestDistance = POINT_REACH;
+		for (const [index, { point }] of routePoints.entries()) {
+			const distance = Math.hypot(point.x - x, point.y - y);
+			if (
+				distance < nearestDistance ||
+				(distance === nearestDistance && nearest !== null && point.world === mapWorld)
+			) {
+				nearest = index;
+				nearestDistance = distance;
+			}
+		}
+		hoveredPoint = nearest;
+	}
 
 	/**
 	 * End the progress at a point clicked on the map, making active the row reaching it: the last whose own progress
@@ -400,13 +430,27 @@
 		const row = routeList!.querySelector(`[data-step="${index}"]`)!;
 		const group = row.closest('details')!;
 		group.open = true;
-		row.scrollIntoView({ block: 'nearest' });
-		// Also show the group's heading, as long as the row still fits below it under the toolbar.
-		const heading = group.querySelector('summary')!;
-		const toolbar = routeList!.querySelector('.route-toolbar')!;
-		const span = row.getBoundingClientRect().bottom - heading.getBoundingClientRect().top;
-		if (span <= routeList!.clientHeight - toolbar.clientHeight) {
-			heading.scrollIntoView({ block: 'nearest' });
+		// Scroll as little as possible to show the most of these that fits below the toolbar: the group's heading through
+		// the next group's heading, so the whole group is plainly in view; else the whole group; else its heading through
+		// the row; else the row.
+		const top =
+			routeList!.getBoundingClientRect().top +
+			routeList!.querySelector('.route-toolbar')!.clientHeight;
+		const bottom = routeList!.getBoundingClientRect().bottom;
+		const headingTop = group.querySelector('summary')!.getBoundingClientRect().top;
+		const rowRect = row.getBoundingClientRect();
+		const ranges = [
+			[headingTop, group.getBoundingClientRect().bottom],
+			[headingTop, rowRect.bottom],
+			[rowRect.top, rowRect.bottom]
+		];
+		const nextHeading = group.nextElementSibling?.querySelector('summary');
+		if (nextHeading) ranges.unshift([headingTop, nextHeading.getBoundingClientRect().bottom]);
+		for (const [rangeTop, rangeBottom] of ranges) {
+			if (rangeBottom - rangeTop > bottom - top) continue;
+			if (rangeTop < top) routeList!.scrollBy(0, rangeTop - top);
+			else if (rangeBottom > bottom) routeList!.scrollBy(0, rangeBottom - bottom);
+			break;
 		}
 	}
 
@@ -817,7 +861,19 @@
 							/>
 							<!-- Overworld travel is dashed, and warps and interiors dotted; travel in the other world is dimmed.
 							     Every line animates in the direction of travel. -->
-							<svg viewBox="0 0 320 320" aria-hidden="true">
+							<!-- The point nearest the mouse within reach can be clicked to end the progress there. The route list
+							     offers the same selection from the keyboard. -->
+							<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+							<svg
+								viewBox="0 0 320 320"
+								aria-hidden="true"
+								class:pointing={hoveredPoint !== null}
+								onmousemove={hoverNearestPoint}
+								onmouseleave={() => (hoveredPoint = null)}
+								onclick={() => {
+									if (hoveredPoint !== null) selectPoint(hoveredPoint);
+								}}
+							>
 								{@render routeLines(mapRoute.lines)}
 								{#if mapRoute.start}
 									<image
@@ -830,15 +886,18 @@
 									/>
 								{/if}
 								{#if mapRoute.end}
+									<!-- Green once the progress reaches it, in place of the progress end's dot. -->
 									<polygon
 										points={mapRoute.star}
 										class="route-end"
+										class:reached={activeEnd === routePoints.length - 1}
 										class:other-world={mapRoute.end.world !== mapWorld}
 									/>
 								{/if}
-								<!-- Dots where the active progress ends, in green, and at the point the mouse is over, in white. -->
+								<!-- Dots where the active progress ends, in green, and at the point the mouse is over, in white; none
+								     at the first and last points, which Link's head and the star mark. -->
 								{#each [activeEnd, hoveredPoint] as dotIndex, dotPosition (dotPosition)}
-									{#if dotIndex !== null && routePoints[dotIndex]}
+									{#if dotIndex !== null && dotIndex > 0 && dotIndex < routePoints.length - 1}
 										{@const dot = routePoints[dotIndex].point}
 										<circle
 											cx={dot.x}
@@ -847,26 +906,21 @@
 											class="route-dot"
 											class:hovered={dotPosition === 1}
 											class:other-world={dot.world !== mapWorld}
-										/>
+										>
+											{#if dotPosition === 0}
+												<!-- A gentle pulse of the radius, which keeps the dot centered on its point where a
+												     scale transform would wobble as it is drawn to pixels. -->
+												<animate
+													attributeName="r"
+													values="2.5;2.875;2.5"
+													dur={reducedMotion.current ? '1.6s' : '0.8s'}
+													calcMode="spline"
+													keySplines="0.42 0 0.58 1; 0.42 0 0.58 1"
+													repeatCount="indefinite"
+												/>
+											{/if}
+										</circle>
 									{/if}
-								{/each}
-								<!-- Invisible hit areas around the route's points, the shown world's on top; clicking one ends the
-								     progress there. The route list offers the same selection from the keyboard. -->
-								{#each [false, true] as shown (shown)}
-									{#each routePoints as { point }, pointIndex (pointIndex)}
-										{#if (point.world === mapWorld) === shown}
-											<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-											<circle
-												cx={point.x}
-												cy={point.y}
-												r="5"
-												class="route-hit"
-												onmouseenter={() => (hoveredPoint = pointIndex)}
-												onmouseleave={() => (hoveredPoint = null)}
-												onclick={() => selectPoint(pointIndex)}
-											/>
-										{/if}
-									{/each}
 								{/each}
 							</svg>
 						</div>
@@ -1048,12 +1102,6 @@
 		font-weight: 600;
 	}
 
-	/* Clear of the sticky toolbar, about 3.4rem tall, when scrolled to from the map. */
-	.route-group-title,
-	.route-step {
-		scroll-margin-top: 3.5rem;
-	}
-
 	.route-step {
 		margin-left: 1rem;
 		overflow-wrap: anywhere;
@@ -1149,15 +1197,18 @@
 		stroke-dasharray: 0 3;
 	}
 
-	/* After the dash styles, so its widths override theirs: three quarters of a map pixel wider than the line it is
-	   under. */
+	/* After the dash styles, so its widths override theirs: a map pixel and a quarter wider than a dashed line, and for a
+	   dotted line, just short of the 3-pixel spacing of the dots, so their casings stay apart. */
 	.route-line.casing {
 		stroke: #000;
-		stroke-width: 2.5;
+		stroke-width: 2.875;
 	}
 
+	/* Each casing dash also reaches 0.625 past both ends of its dash, so the border goes all the way around. */
 	.route-line.casing.dashed {
-		stroke-width: 2.25;
+		stroke-width: 2.75;
+		stroke-dasharray: 5.25 1.25;
+		stroke-dashoffset: calc(var(--offset) - var(--march) + 0.625px);
 	}
 
 	.route-line.progress {
@@ -1174,17 +1225,21 @@
 		fill: #fff;
 	}
 
-	.route-hit {
-		fill: transparent;
-		pointer-events: fill;
+	.world-map svg.pointing {
 		cursor: pointer;
 	}
 
+	/* The border is drawn under the fill, so half its width shows outside, matching the lines' borders. */
 	.route-end {
 		fill: #fff;
-		stroke: #333;
-		stroke-width: 0.4;
+		stroke: #000;
+		stroke-width: 1.25;
 		stroke-linejoin: round;
+		paint-order: stroke;
+	}
+
+	.route-end.reached {
+		fill: #00ff00;
 	}
 
 	.other-world {
