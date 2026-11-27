@@ -82,6 +82,9 @@ struct RouteRow {
     /// The strat name, or a name synthesized from the connection kind, such as "Cross West" or
     /// "Flute"; None for the route's start.
     strat: Option<String>,
+    /// The room ID of the node reached, for the room's logic page; the synthetic flute hub, the
+    /// only room without one, is never reached by a row.
+    room_id: u32,
     /// `(room_id, strat_id)` when this step is an authored strat with a logic page.
     #[serde(skip_serializing_if = "Option::is_none")]
     strat_link: Option<(u32, u32)>,
@@ -379,6 +382,10 @@ impl SpoilerSession {
             let mut flute_edge = None;
             for step in route {
                 let (room_name, node) = describe_vertex(catalog, step.vertex_idx);
+                let room_id = catalog
+                    .room(catalog.vertex(step.vertex_idx).room_idx)
+                    .room_id
+                    .map(|id| id.0);
                 let world = catalog
                     .vertex_metadata(step.vertex_idx)
                     .world
@@ -391,6 +398,7 @@ impl SpoilerSession {
                         dark_world,
                         stays: false,
                         strat: None,
+                        room_id: room_id.unwrap(),
                         strat_link: None,
                         dependencies: Vec::new(),
                         state: describe_state(&step.state),
@@ -443,6 +451,7 @@ impl SpoilerSession {
                     dark_world,
                     stays,
                     strat: Some(strat),
+                    room_id: room_id.unwrap(),
                     strat_link,
                     dependencies,
                     state: describe_state(&step.state),

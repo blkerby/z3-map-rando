@@ -142,6 +142,8 @@ export interface RouteRow {
 	dark_world: boolean;
 	/** The strat name, or a name synthesized from the connection kind, such as "Cross West" or "Flute"; null for the start. */
 	strat: string | null;
+	/** The room ID of the node reached, for the room's logic page. */
+	room_id: number;
 	/** `[roomId, stratId]` when this step is an authored strat with a logic page. */
 	strat_link?: [number, number];
 	/** Flags, opened doors, and Ocarina activation that the step's requirement reads. */

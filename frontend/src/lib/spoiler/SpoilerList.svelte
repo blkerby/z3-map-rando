@@ -615,6 +615,14 @@
 													target="_blank"
 													rel="noopener">{@render stepText(step)}</a
 												>
+											{:else if step.strat}
+												<!-- A synthesized step links to the logic page of the room reached. -->
+												<a
+													class="step-line"
+													href={resolve('/logic/[roomId]', { roomId: String(step.room_id) })}
+													target="_blank"
+													rel="noopener">{@render stepText(step)}</a
+												>
 											{:else}
 												<div class="step-line">{@render stepText(step)}</div>
 											{/if}
@@ -669,8 +677,8 @@
 								src={worldMaps[mapWorld === 'light' ? 0 : 1]}
 								alt="{mapWorld === 'light' ? 'Light' : 'Dark'} World map"
 							/>
-							<!-- Travel in the shown world is solid, in the other world dashed and dimmed; warps and interiors
-							     are dotted. Every line animates in the direction of travel. -->
+							<!-- Overworld travel is dashed, and warps and interiors dotted; travel in the other world is dimmed.
+							     Every line animates in the direction of travel. -->
 							<svg viewBox="0 0 384 384" aria-hidden="true">
 								<!-- Lines in the other world first, so the shown world's lines are drawn on top. -->
 								{#each [false, true] as shown (shown)}
@@ -681,18 +689,15 @@
 												points={line.points}
 												class="route-line casing"
 												class:dotted={line.dotted}
-												class:dashed={!line.dotted && !shown}
+												class:dashed={!line.dotted}
 											/>
 											<polyline
 												points={line.points}
 												class="route-line"
 												class:dotted={line.dotted}
-												class:dashed={!line.dotted && !shown}
+												class:dashed={!line.dotted}
 												class:other-world={!shown}
 											/>
-											{#if !line.dotted && shown}
-												<polyline points={line.points} class="route-line flow" />
-											{/if}
 										{/if}
 									{/each}
 								{/each}
@@ -974,13 +979,6 @@
 		stroke-linejoin: round;
 	}
 
-	.route-line.flow {
-		stroke: rgb(0 0 0 / 0.5);
-		stroke-width: 0.75;
-		stroke-dasharray: 2 8;
-		animation: march-flow 1s linear infinite;
-	}
-
 	.route-line.dashed {
 		stroke-width: 1;
 		stroke-dasharray: 4 2.5;
@@ -1015,12 +1013,6 @@
 	}
 
 	/* A decreasing offset moves the pattern forward along the line. */
-	@keyframes march-flow {
-		to {
-			stroke-dashoffset: -10;
-		}
-	}
-
 	@keyframes march-dashed {
 		to {
 			stroke-dashoffset: -6.5;
