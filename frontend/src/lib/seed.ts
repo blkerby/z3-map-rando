@@ -159,7 +159,7 @@ export interface RouteRow {
 	indirect: boolean;
 }
 
-/** A position on the world maps, in pixels of their 384x384 images. */
+/** A position on the world maps, in pixels of their 320x320 images. */
 export interface MapPoint {
 	world: 'light' | 'dark';
 	x: number;

@@ -109,9 +109,10 @@ struct MapPoint {
     y: f32,
 }
 
-/// Pixels cropped from each edge of the 512x512 world maps: half of the clouds around the
-/// room grid, which starts 128 pixels in. Each 16x16 overworld tile is one map pixel.
-const MAP_MARGIN: usize = 64;
+/// Pixels cropped from each edge of the 512x512 world maps: three quarters of the clouds around
+/// the room grid, which starts 128 pixels in, as on the Logic index page's map. Each 16x16
+/// overworld tile is one map pixel.
+const MAP_MARGIN: usize = 96;
 
 /// Distance in map pixels of a map boundary crossing's points from the boundary, so the line
 /// between them shows the direction of the crossing.
@@ -288,9 +289,9 @@ impl SpoilerSession {
         update().map_err(|error| JsError::new(&format!("{error:#}")))
     }
 
-    /// Render the seed's Light and Dark World maps as 384x384 PNGs from a vanilla ROM, the
-    /// seed's filtered retiling catalog, and the patch catalog, cropping half of the clouds
-    /// around the room grid. Also read the ROM's door positions, so later routes include
+    /// Render the seed's Light and Dark World maps as 320x320 PNGs from a vanilla ROM, the
+    /// seed's filtered retiling catalog, and the patch catalog, cropping three quarters of the
+    /// clouds around the room grid. Also read the ROM's door positions, so later routes include
     /// door points.
     pub fn load_world_maps(
         &mut self,

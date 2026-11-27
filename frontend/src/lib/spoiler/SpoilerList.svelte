@@ -280,7 +280,11 @@
 		world: MapPoint['world'];
 		/** Whether the line is a warp or interior travel rather than overworld travel. */
 		dotted: boolean;
-		/** Whether the line ends at or before the active row: the route's progress through it. */
+		/**
+		 * Whether the line is part of the route's progress through the active row: its start point comes from a step at
+		 * or before the active row. So a step entering a room shows the travel through the room, up to the point where
+		 * the route leaves it.
+		 */
 		progress: boolean;
 		/**
 		 * The length before the line of its run of travel in one world and of one kind, in map pixels, which offsets its
@@ -300,12 +304,14 @@
 		const lines: MapLine[] = [];
 		let start: MapPoint | null = null;
 		let end: MapPoint | null = null;
+		/** The step the end point comes from. */
+		let endIndex = 0;
 		let indirect = false;
 		let runLength = 0;
 		for (const [index, step] of (route?.steps ?? []).entries()) {
 			if (step.indirect) indirect = true;
-			const progress = activeRow !== null && index <= activeRow.index;
 			for (const point of step.points) {
+				const progress = activeRow !== null && endIndex <= activeRow.index;
 				// A repeated point, such as leaving through the door just entered, only changes the current world.
 				if (end && (end.x !== point.x || end.y !== point.y)) {
 					// A line takes the world of its starting point.
@@ -328,6 +334,7 @@
 					start = point;
 				}
 				end = point;
+				endIndex = index;
 				indirect = false;
 			}
 		}
@@ -748,7 +755,7 @@
 							/>
 							<!-- Overworld travel is dashed, and warps and interiors dotted; travel in the other world is dimmed.
 							     Every line animates in the direction of travel. -->
-							<svg viewBox="0 0 384 384" aria-hidden="true">
+							<svg viewBox="0 0 320 320" aria-hidden="true">
 								{@render routeLines(mapRoute.lines)}
 								{#if mapRoute.start}
 									<image
@@ -1023,17 +1030,17 @@
 		image-rendering: pixelated;
 	}
 
-	/* Lengths are in map pixels, each two screen pixels at full size. */
+	/* Lengths are in map pixels. */
 	.route-line {
 		stroke-dashoffset: calc(var(--offset) - var(--march));
 		fill: none;
 		stroke: #fff;
-		stroke-width: 1.5;
+		stroke-width: 1.75;
 		stroke-linejoin: round;
 	}
 
 	.route-line.dashed {
-		stroke-width: 1;
+		stroke-width: 1.5;
 		stroke-dasharray: 4 2.5;
 	}
 
@@ -1042,14 +1049,15 @@
 		stroke-dasharray: 0 3;
 	}
 
-	/* After the dash styles, so its widths override theirs: half a map pixel wider than the line it is under. */
+	/* After the dash styles, so its widths override theirs: three quarters of a map pixel wider than the line it is
+	   under. */
 	.route-line.casing {
 		stroke: #000;
 		stroke-width: 2.5;
 	}
 
 	.route-line.casing.dashed {
-		stroke-width: 2;
+		stroke-width: 2.25;
 	}
 
 	.route-line.progress {
@@ -1064,7 +1072,7 @@
 	}
 
 	.other-world {
-		opacity: 0.5;
+		opacity: 0.65;
 	}
 
 	/*
