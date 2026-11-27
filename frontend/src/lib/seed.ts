@@ -124,6 +124,8 @@ export interface RouteDependency {
 export interface RouteRow {
 	/** Where the step starts. */
 	location: string;
+	/** Whether the step starts in the Dark World, or in an interior entered from it. */
+	dark_world: boolean;
 	/** The strat or connection taken. */
 	strat: string;
 	/** `[roomId, stratId]` when this step is an authored strat with a logic page. */

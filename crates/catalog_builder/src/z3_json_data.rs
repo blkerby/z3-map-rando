@@ -102,6 +102,7 @@ pub struct WhirlpoolEndpoint {
 pub struct Room {
     pub id: SourceRoomId,
     pub name: String,
+    pub dark_world_name: Option<String>,
     pub room_type: RoomKind,
     pub dungeon_id: Option<u32>,
     pub position: Option<[u8; 2]>,

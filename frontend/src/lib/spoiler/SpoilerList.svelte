@@ -540,7 +540,7 @@
 						</thead>
 						<tbody>
 							{#each route.steps as step, stepIndex (stepIndex)}
-								<tr>
+								<tr class:dark-world={step.dark_world}>
 									<td>{step.location}</td>
 									<td>
 										{#if step.strat_link}
@@ -763,6 +763,14 @@
 
 	.route td {
 		overflow-wrap: anywhere;
+	}
+
+	.route tr.dark-world td {
+		--bs-table-bg: color-mix(in srgb, var(--bs-body-bg) 88%, black);
+	}
+
+	:global(html[data-bs-theme='dark']) .route tr.dark-world td {
+		--bs-table-bg: color-mix(in srgb, var(--bs-body-bg) 30%, black);
 	}
 
 	.hidden-tile {

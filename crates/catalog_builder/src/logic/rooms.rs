@@ -44,6 +44,7 @@ pub(super) fn compile_rooms(
         let mut room = Room {
             room_id: Some(room_id),
             name: source_room.name.clone(),
+            dark_world_name: source_room.dark_world_name.clone(),
             kind: source_room.room_type,
             dungeon_idx,
             position: source_room.position,

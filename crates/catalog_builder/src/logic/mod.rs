@@ -100,6 +100,7 @@ fn build_flute_travel(catalog: &mut LogicCatalog, compiler: &Compiler) {
     catalog.rooms.push(Room {
         room_id: None,
         name: "Flute travel".to_owned(),
+        dark_world_name: None,
         edge_variants: std::array::from_fn(|_| Vec::new()),
         kind: RoomKind::FluteHub,
         dungeon_idx: None,

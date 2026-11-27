@@ -278,6 +278,8 @@ pub struct Room {
     /// Authored identity; the synthetic flute-hub room has none.
     pub room_id: Option<SourceRoomId>,
     pub name: String,
+    /// The Dark World name of an overworld room; absent for other rooms.
+    pub dark_world_name: Option<String>,
     pub kind: RoomKind,
     /// Dense dungeon ownership; absent for non-dungeon rooms and the flute hub.
     pub dungeon_idx: Option<DungeonIndex>,

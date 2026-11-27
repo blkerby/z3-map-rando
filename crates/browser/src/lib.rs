@@ -70,6 +70,9 @@ struct SpoilerEntry {
 struct RouteRow {
     /// The vertex the edge leaves from, as room and node names.
     location: String,
+    /// Whether the vertex the edge leaves from is in the Dark World, or in an interior entered
+    /// from it.
+    dark_world: bool,
     /// The strat or connection taken.
     strat: String,
     /// `(room_id, strat_id)` when this step is an authored strat with a logic page.
@@ -346,6 +349,21 @@ impl SpoilerSession {
             TargetJson::Door(idx) => RouteTarget::Door(DoorIndex(idx)),
             TargetJson::Ocarina => RouteTarget::Ocarina,
         };
+        // Interior rooms take the world of the overworld side of their entrances.
+        let mut interior_worlds = vec![None; catalog.rooms.len()];
+        for connection in &self.replay.connections {
+            if let Connection::Entrance {
+                entrance_idx,
+                interior_vertex_idx,
+                ..
+            } = connection
+            {
+                let room_idx = catalog.vertex(*interior_vertex_idx).room_idx;
+                let entrance_vertex_idx = catalog.entrance(*entrance_idx).vertex_idx;
+                interior_worlds[room_idx.0 as usize] =
+                    catalog.vertex_metadata(entrance_vertex_idx).world;
+            }
+        }
         let mut rows = None;
         if let Some(route) = self.replay.trace_route(catalog, target) {
             let mut route_rows = Vec::new();
@@ -398,6 +416,12 @@ impl SpoilerSession {
                 };
                 route_rows.push(RouteRow {
                     location: describe_vertex(catalog, index.from_vertex_idx),
+                    dark_world: catalog
+                        .vertex_metadata(index.from_vertex_idx)
+                        .world
+                        .or(interior_worlds
+                            [catalog.vertex(index.from_vertex_idx).room_idx.0 as usize])
+                        == Some(World::Dark),
                     strat: describe_edge(catalog, &self.replay.connections, edge),
                     strat_link,
                     dependencies,
@@ -726,10 +750,11 @@ const FOLLOWER_NAMES: [(Follower, &str); 6] = [
 fn describe_vertex(catalog: &LogicCatalog, vertex_idx: VertexIndex) -> String {
     let room = catalog.room(catalog.vertex(vertex_idx).room_idx);
     let metadata = catalog.vertex_metadata(vertex_idx);
-    let mut name = format!("{}: {}", room.name, room.node(metadata.node_idx).name);
-    if metadata.world == Some(World::Dark) {
-        name += " (Dark World)";
-    }
+    let room_name = match (metadata.world, &room.dark_world_name) {
+        (Some(World::Dark), Some(dark_world_name)) => dark_world_name,
+        _ => &room.name,
+    };
+    let mut name = format!("{room_name}: {}", room.node(metadata.node_idx).name);
     if let VertexOrigin::EventEntry { event_idx } | VertexOrigin::EventExit { event_idx } =
         metadata.origin
         && let TransitionState::Event(event) = catalog.get_transition_state(event_idx)
