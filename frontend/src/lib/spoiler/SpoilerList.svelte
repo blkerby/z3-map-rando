@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy, onMount } from 'svelte';
 	import { resolve } from '$app/paths';
+	import logicDataJson from '$build/logic_data.json';
 	import linkHead from '$lib/assets/link_head.png';
 	import { ITEM_LABELS, getItemLevelIcon, items } from '$lib/generation/data';
 	import { useRomStore } from '$lib/rom/store.svelte';
@@ -92,6 +93,9 @@
 		for (const word of label.split(' ')) text += word[0];
 		return { text: text.slice(0, 3) };
 	}
+
+	/** Strat difficulties by room ID and strat ID, prepared by the catalog builder. */
+	const logicData = logicDataJson as Record<string, Record<string, string>>;
 
 	let spoiler = $state<Spoiler | null>(null);
 	let session: SpoilerSession | null = null;
@@ -242,7 +246,6 @@
 	interface RouteGroup {
 		/** The connection and room entered, such as "Cross West to Swamp Ruins". */
 		title: string;
-		darkWorld: boolean;
 		/** Steps with their positions in the route, so each state is compared with the previous step's. */
 		steps: { step: RouteRow; index: number }[];
 	}
@@ -252,7 +255,7 @@
 		const groups: RouteGroup[] = [];
 		for (const [index, step] of (route?.steps ?? []).entries()) {
 			if (step.entered !== null) {
-				groups.push({ title: step.entered, darkWorld: step.dark_world, steps: [] });
+				groups.push({ title: step.entered, steps: [] });
 			}
 			groups.at(-1)?.steps.push({ step, index });
 		}
@@ -429,19 +432,27 @@
 	}
 </script>
 
-<!-- Text linking to the logic page of a step's strat, if it has one. -->
-{#snippet stratLink(step: RouteRow, text: string)}
-	{#if step.strat_link}
-		<a
-			href={resolve('/logic/[roomId]/[stratId]', {
-				roomId: String(step.strat_link[0]),
-				stratId: String(step.strat_link[1])
-			})}
-			target="_blank"
-			rel="noopener">{text}</a
-		>
+<!-- A step's line: the strat and the node reached. Strat names are tinted by difficulty; the connecting words and
+     synthesized names (of steps without a strat page) are muted. -->
+{#snippet stepText(step: RouteRow)}
+	{#if !step.strat}
+		<span class="connector">Start at</span> {step.node}
+	{:else if step.stays}
+		{@render stratName(step, step.strat)}
+	{:else if step.strat === 'Base' || step.strat.startsWith('Base ')}
+		<span class="connector">Go to</span> {step.node}
 	{:else}
-		{text}
+		{@render stratName(step, step.strat)} <span class="connector">to</span>
+		{step.node}
+	{/if}
+{/snippet}
+
+{#snippet stratName(step: RouteRow, strat: string)}
+	{#if step.strat_link}
+		{@const difficulty = logicData[step.strat_link[0]][step.strat_link[1]]}
+		<span class={`strat difficulty-${difficulty.toLowerCase().replace(' ', '-')}`}>{strat}</span>
+	{:else}
+		<span class="connector">{strat}</span>
 	{/if}
 {/snippet}
 
@@ -567,30 +578,23 @@
 						<!-- Recreated for each route shown, so its groups start collapsed. -->
 						{#key route.target}
 							{#each routeGroups as group, groupIndex (groupIndex)}
-								{@const first = group.steps[0].step}
-								<details class="route-group" class:dark-world={group.darkWorld}>
-									<!-- A strat changing world, such as a portal, heads its group; clicking its link opens the
-									     link without toggling the group. -->
-									<summary class="route-group-title">
-										{#if first.strat}
-											{@render stratLink(first, first.strat)} to {group.title}
-										{:else}
-											{group.title}
-										{/if}
-									</summary>
-									{#each group.steps as { step, index }, position (index)}
+								<details>
+									<summary class="route-group-title">{group.title}</summary>
+									{#each group.steps as { step, index } (index)}
 										{@const stateParts = describeState(step.state, route.steps[index - 1]?.state)}
 										<div class="route-step">
-											{#if position === 0}
-												Start at {step.node}
-											{:else if step.strat && step.stays}
-												{@render stratLink(step, step.strat)}
-											{:else if step.strat}
-												{@render stratLink(step, step.strat)} to {step.node}
-											{:else if step.stays}
-												{@render stratLink(step, 'Base')}
+											{#if step.strat_link}
+												<a
+													class="step-line"
+													href={resolve('/logic/[roomId]/[stratId]', {
+														roomId: String(step.strat_link[0]),
+														stratId: String(step.strat_link[1])
+													})}
+													target="_blank"
+													rel="noopener">{@render stepText(step)}</a
+												>
 											{:else}
-												Go to {@render stratLink(step, step.node)}
+												<div class="step-line">{@render stepText(step)}</div>
 											{/if}
 											<div class="route-detail small text-body-secondary">
 												{#each step.dependencies as dependency (dependency.name)}
@@ -821,39 +825,97 @@
 		}
 	}
 
-	.route-group {
-		margin-bottom: 0.25rem;
-		padding: 0.5rem 0.75rem;
-		border-radius: 0.4rem;
+	.route-group-title,
+	.route-step {
+		border-radius: 0.3rem;
 	}
 
-	.route-group.dark-world {
-		background: color-mix(in srgb, var(--bs-body-bg) 88%, black);
+	/* The padding is on the line, so the whole highlighted line is the link. */
+	.route-group-title,
+	.step-line {
+		padding: 0.25rem 0.5rem;
 	}
 
-	:global(html[data-bs-theme='dark']) .route-group.dark-world {
-		background: color-mix(in srgb, var(--bs-body-bg) 30%, black);
+	.route-group-title:hover,
+	.route-step:hover {
+		background: var(--bs-secondary-bg);
 	}
 
 	.route-group-title {
 		font-weight: 600;
 	}
 
-	.route-group[open] .route-group-title {
-		margin-bottom: 0.25rem;
-	}
-
 	.route-step {
-		padding-left: 1rem;
+		margin-left: 1rem;
 		overflow-wrap: anywhere;
 	}
 
-	.route-step + .route-step {
-		margin-top: 0.25rem;
+	.step-line {
+		display: block;
+		color: inherit;
+		text-decoration: none;
+	}
+
+	a.step-line:hover {
+		text-decoration: underline;
+		text-decoration-color: var(--bs-secondary-color);
+	}
+
+	.connector {
+		color: var(--bs-secondary-color);
 	}
 
 	.route-detail {
-		padding-left: 1rem;
+		padding: 0 0.5rem 0 1.5rem;
+	}
+
+	.route-detail > :last-child {
+		padding-bottom: 0.25rem;
+	}
+
+	/* Real strat names, tinted by difficulty. */
+	.strat {
+		font-weight: 500;
+	}
+
+	.difficulty-basic {
+		color: #138a36;
+	}
+
+	.difficulty-medium {
+		color: #9a7400;
+	}
+
+	.difficulty-hard {
+		color: #c4161c;
+	}
+
+	.difficulty-very-hard {
+		color: #c75a00;
+	}
+
+	.difficulty-expert {
+		color: #0b5ed7;
+	}
+
+	:global(html[data-bs-theme='dark']) .difficulty-basic {
+		color: #3ddc6a;
+	}
+
+	:global(html[data-bs-theme='dark']) .difficulty-medium {
+		color: #ffd23a;
+	}
+
+	:global(html[data-bs-theme='dark']) .difficulty-hard {
+		color: #ff5c5c;
+	}
+
+	:global(html[data-bs-theme='dark']) .difficulty-very-hard {
+		color: #ff9530;
+	}
+
+	:global(html[data-bs-theme='dark']) .difficulty-expert {
+		color: #4d9dff;
 	}
 
 	.state-part {

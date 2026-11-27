@@ -70,16 +70,17 @@ struct SpoilerEntry {
 #[derive(Serialize)]
 struct RouteRow {
     /// For a step entering a room or changing world, the connection and the room entered,
-    /// such as "Cross West to Swamp Ruins", or for a strat changing world, the room alone;
-    /// such a step starts a new group of rows.
+    /// such as "West to Swamp Ruins" or "Portal to Ice Lake"; such a step starts a new group of
+    /// rows.
     entered: Option<String>,
     /// The node reached.
     node: String,
-    /// Whether the step returns to the node it leaves from.
+    /// Whether the step returns to the node it leaves from, in the same world.
     stays: bool,
     /// Whether the node is in the Dark World, or in an interior entered from it.
     dark_world: bool,
-    /// The strat taken, or None for a "Base" strat or a connection.
+    /// The strat name, or a name synthesized from the connection kind, such as "Cross West" or
+    /// "Flute"; None for the route's start.
     strat: Option<String>,
     /// `(room_id, strat_id)` when this step is an authored strat with a logic page.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -408,7 +409,9 @@ impl SpoilerSession {
                 let stays = catalog.vertex(index.from_vertex_idx).room_idx
                     == catalog.vertex(step.vertex_idx).room_idx
                     && catalog.vertex_metadata(index.from_vertex_idx).node_idx
-                        == catalog.vertex_metadata(step.vertex_idx).node_idx;
+                        == catalog.vertex_metadata(step.vertex_idx).node_idx
+                    && catalog.vertex_metadata(index.from_vertex_idx).world
+                        == catalog.vertex_metadata(step.vertex_idx).world;
                 // For a flute warp, both edges' requirements count; repeated names are skipped.
                 let mut dependencies = Vec::new();
                 for requirement in [&first_edge.edge.requirement, &edge.edge.requirement] {
@@ -432,14 +435,14 @@ impl SpoilerSession {
                     }
                     _ => None,
                 };
-                let (entered, strat) =
+                let (strat, entered) =
                     describe_edge(catalog, &self.replay.connections, first_edge, room_name);
                 route_rows.push(RouteRow {
                     entered,
                     node,
                     dark_world,
                     stays,
-                    strat,
+                    strat: Some(strat),
                     strat_link,
                     dependencies,
                     state: describe_state(&step.state),
@@ -798,43 +801,37 @@ fn describe_vertex(catalog: &LogicCatalog, vertex_idx: VertexIndex) -> (&str, St
     (room_name, node)
 }
 
-/// Describe an edge as the connection and room it enters, for an edge entering a room or
-/// changing world, and as the strat taken, if not a "Base" strat.
+/// Describe an edge by the strat name, or a name synthesized from the connection kind, and for
+/// an edge entering a room or changing world, by the connection and the room it enters.
 fn describe_edge(
     catalog: &LogicCatalog,
     connections: &[Connection],
     edge: &TraversalEdge,
     room_name: &str,
-) -> (Option<String>, Option<String>) {
+) -> (String, Option<String>) {
     let from_room_idx = catalog.vertex(edge.edge.from_vertex_idx).room_idx;
-    let entered = match edge.origin {
+    let (name, entered) = match edge.origin {
         TraversalEdgeOrigin::Catalog(edge_idx) => match catalog.edge_metadata(edge_idx).origin {
             EdgeOrigin::Strat {
                 room_idx,
                 strat_idx,
             } => {
-                let name = &catalog.room(room_idx).strat(strat_idx).name;
-                let strat = if name == "Base" {
-                    None
-                } else {
-                    Some(name.clone())
-                };
-                // A strat such as a Dark World portal can change world, which starts a group
-                // named for the room alone.
-                let from_world = catalog.vertex_metadata(edge.edge.from_vertex_idx).world;
+                let name = catalog.room(room_idx).strat(strat_idx).name.clone();
+                // Strats changing world within a room are portals into the Dark World and Mirror
+                // warps back.
                 let to_world = catalog.vertex_metadata(edge.edge.to_vertex_idx).world;
-                let entered = if from_world != to_world {
-                    Some(room_name.to_owned())
+                if catalog.vertex_metadata(edge.edge.from_vertex_idx).world == to_world {
+                    return (name, None);
+                }
+                if to_world == Some(World::Dark) {
+                    (name, format!("Portal to {room_name}"))
                 } else {
-                    None
-                };
-                return (entered, strat);
+                    (name, format!("Mirror to {room_name}"))
+                }
             }
-            EdgeOrigin::ImplicitMirror => format!("Mirror to {room_name}"),
-            EdgeOrigin::ImplicitFlute => format!("Flute to {room_name}"),
-            EdgeOrigin::LakeHyliaBottleExchange => {
-                return (None, Some("Bottle exchange".to_owned()));
-            }
+            EdgeOrigin::ImplicitMirror => ("Mirror".to_owned(), format!("Mirror to {room_name}")),
+            EdgeOrigin::ImplicitFlute => ("Flute".to_owned(), format!("Flute to {room_name}")),
+            EdgeOrigin::LakeHyliaBottleExchange => return ("Bottle exchange".to_owned(), None),
         },
         TraversalEdgeOrigin::Connection(connection_idx) => match &connections[connection_idx] {
             Connection::MapBoundary {
@@ -844,10 +841,16 @@ fn describe_edge(
             } => {
                 let direction = get_travel_direction(catalog, endpoints, *direction, from_room_idx);
                 match kind {
-                    MapBoundaryKind::Ordinary => format!("Cross {direction:?} to {room_name}"),
-                    MapBoundaryKind::Mirror => format!("Mirror {direction:?} to {room_name}"),
+                    MapBoundaryKind::Ordinary => (
+                        format!("Cross {direction:?}"),
+                        format!("{direction:?} to {room_name}"),
+                    ),
+                    MapBoundaryKind::Mirror => (
+                        format!("Mirror {direction:?}"),
+                        format!("Mirror {direction:?} to {room_name}"),
+                    ),
                     MapBoundaryKind::Return => {
-                        return (None, Some(format!("Leave {direction:?} and return")));
+                        return (format!("Leave {direction:?} and return"), None);
                     }
                 }
             }
@@ -857,13 +860,19 @@ fn describe_edge(
                 let entrance = catalog.entrance(*entrance_idx);
                 let outside = catalog.vertex(entrance.vertex_idx).room_idx == from_room_idx;
                 match kind {
-                    EntranceKind::Drop => format!("Drop into {room_name}"),
-                    EntranceKind::Door if outside => format!("Enter {room_name}"),
-                    EntranceKind::Door => format!("Exit to {room_name}"),
+                    EntranceKind::Drop => ("Drop".to_owned(), format!("Drop into {room_name}")),
+                    EntranceKind::Door if outside => {
+                        ("Door".to_owned(), format!("Enter {room_name}"))
+                    }
+                    EntranceKind::Door => ("Door".to_owned(), format!("Exit to {room_name}")),
                 }
             }
-            Connection::Teleport { .. } => format!("Teleport to {room_name}"),
-            Connection::Whirlpool { .. } => format!("Whirlpool to {room_name}"),
+            Connection::Teleport { .. } => {
+                ("Teleport".to_owned(), format!("Teleport to {room_name}"))
+            }
+            Connection::Whirlpool { .. } => {
+                ("Whirlpool".to_owned(), format!("Whirlpool to {room_name}"))
+            }
             Connection::ScreenBoundary { endpoints } => {
                 // Each boundary's direction is the side of its own room, so take the source's.
                 let mut direction = None;
@@ -873,12 +882,19 @@ fn describe_edge(
                         direction = Some(boundary.direction);
                     }
                 }
-                format!("Cross {:?} to {room_name}", direction.unwrap())
+                let direction = direction.unwrap();
+                (
+                    format!("Cross {direction:?}"),
+                    format!("{direction:?} to {room_name}"),
+                )
             }
         },
-        TraversalEdgeOrigin::SaveAndQuit => format!("Save and quit to {room_name}"),
+        TraversalEdgeOrigin::SaveAndQuit => (
+            "Save and quit".to_owned(),
+            format!("Save and quit to {room_name}"),
+        ),
     };
-    (Some(entered), None)
+    (name, Some(entered))
 }
 
 /// Collect the progress a requirement reads that earlier exploration, rather than inventory,
