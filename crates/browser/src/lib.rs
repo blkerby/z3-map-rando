@@ -70,10 +70,13 @@ struct SpoilerEntry {
 #[derive(Serialize)]
 struct RouteRow {
     /// For a step entering a room or changing world, the connection and the room entered,
-    /// such as "Cross West to Swamp Ruins"; such a step starts a new group of rows.
+    /// such as "Cross West to Swamp Ruins", or for a strat changing world, the room alone;
+    /// such a step starts a new group of rows.
     entered: Option<String>,
     /// The node reached.
     node: String,
+    /// Whether the step returns to the node it leaves from.
+    stays: bool,
     /// Whether the node is in the Dark World, or in an interior entered from it.
     dark_world: bool,
     /// The strat taken, or None for a "Base" strat or a connection.
@@ -385,6 +388,7 @@ impl SpoilerSession {
                         entered: Some(format!("Start at {room_name}")),
                         node,
                         dark_world,
+                        stays: false,
                         strat: None,
                         strat_link: None,
                         dependencies: Vec::new(),
@@ -401,6 +405,10 @@ impl SpoilerSession {
                     continue;
                 }
                 let first_edge = flute_edge.take().unwrap_or(edge);
+                let stays = catalog.vertex(index.from_vertex_idx).room_idx
+                    == catalog.vertex(step.vertex_idx).room_idx
+                    && catalog.vertex_metadata(index.from_vertex_idx).node_idx
+                        == catalog.vertex_metadata(step.vertex_idx).node_idx;
                 // For a flute warp, both edges' requirements count; repeated names are skipped.
                 let mut dependencies = Vec::new();
                 for requirement in [&first_edge.edge.requirement, &edge.edge.requirement] {
@@ -430,6 +438,7 @@ impl SpoilerSession {
                     entered,
                     node,
                     dark_world,
+                    stays,
                     strat,
                     strat_link,
                     dependencies,

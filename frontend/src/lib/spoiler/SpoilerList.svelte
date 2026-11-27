@@ -429,6 +429,22 @@
 	}
 </script>
 
+<!-- Text linking to the logic page of a step's strat, if it has one. -->
+{#snippet stratLink(step: RouteRow, text: string)}
+	{#if step.strat_link}
+		<a
+			href={resolve('/logic/[roomId]/[stratId]', {
+				roomId: String(step.strat_link[0]),
+				stratId: String(step.strat_link[1])
+			})}
+			target="_blank"
+			rel="noopener">{text}</a
+		>
+	{:else}
+		{text}
+	{/if}
+{/snippet}
+
 {#if error}
 	<div class="alert alert-danger small py-2 px-3" role="alert">
 		Couldn't compute the spoiler: {error}
@@ -548,62 +564,70 @@
 			<div class="route-body">
 				<div class="route-list" bind:this={routeList}>
 					{#if route.steps}
-						{#each routeGroups as group, groupIndex (groupIndex)}
-							<section class="route-group" class:dark-world={group.darkWorld}>
-								<h3 class="route-group-title">{group.title}</h3>
-								{#each group.steps as { step, index } (index)}
-									{@const stateParts = describeState(step.state, route.steps[index - 1]?.state)}
-									<div class="route-step">
-										{#if step.strat_link}
-											<a
-												href={resolve('/logic/[roomId]/[stratId]', {
-													roomId: String(step.strat_link[0]),
-													stratId: String(step.strat_link[1])
-												})}
-												target="_blank"
-												rel="noopener">{step.node}</a
-											>
+						<!-- Recreated for each route shown, so its groups start collapsed. -->
+						{#key route.target}
+							{#each routeGroups as group, groupIndex (groupIndex)}
+								{@const first = group.steps[0].step}
+								<details class="route-group" class:dark-world={group.darkWorld}>
+									<!-- A strat changing world, such as a portal, heads its group; clicking its link opens the
+									     link without toggling the group. -->
+									<summary class="route-group-title">
+										{#if first.strat}
+											{@render stratLink(first, first.strat)} to {group.title}
 										{:else}
-											{step.node}
+											{group.title}
 										{/if}
-										<div class="route-detail small text-body-secondary">
-											{#if step.strat}
-												<div>{step.strat}</div>
+									</summary>
+									{#each group.steps as { step, index }, position (index)}
+										{@const stateParts = describeState(step.state, route.steps[index - 1]?.state)}
+										<div class="route-step">
+											{#if position === 0}
+												Start at {step.node}
+											{:else if step.strat && step.stays}
+												{@render stratLink(step, step.strat)}
+											{:else if step.strat}
+												{@render stratLink(step, step.strat)} to {step.node}
+											{:else if step.stays}
+												{@render stratLink(step, 'Base')}
+											{:else}
+												Go to {@render stratLink(step, step.node)}
 											{/if}
-											{#each step.dependencies as dependency (dependency.name)}
-												<div>
-													{#if dependency.target}
-														{@const target = dependency.target}
-														<button
-															type="button"
-															class="btn btn-link btn-sm p-0 text-start dependency"
-															onclick={() => showRoute(target, dependency.name)}
-															><i class="bi bi-flag me-1" aria-hidden="true"
-															></i>{dependency.name}</button
-														>
-													{:else}
-														{dependency.name}
-													{/if}
-												</div>
-											{/each}
-											{#if stateParts.length}
-												<div>
-													{#each stateParts as part, partIndex (partIndex)}
-														<span class="state-part">
-															{#if part.icon}<img
-																	src={part.icon}
-																	alt={part.label}
-																	title={part.label}
-																/>{/if}{part.text}
-														</span>
-													{/each}
-												</div>
-											{/if}
+											<div class="route-detail small text-body-secondary">
+												{#each step.dependencies as dependency (dependency.name)}
+													<div>
+														{#if dependency.target}
+															{@const target = dependency.target}
+															<button
+																type="button"
+																class="btn btn-link btn-sm p-0 text-start dependency"
+																onclick={() => showRoute(target, dependency.name)}
+																><i class="bi bi-flag me-1" aria-hidden="true"
+																></i>{dependency.name}</button
+															>
+														{:else}
+															{dependency.name}
+														{/if}
+													</div>
+												{/each}
+												{#if stateParts.length}
+													<div>
+														{#each stateParts as part, partIndex (partIndex)}
+															<span class="state-part">
+																{#if part.icon}<img
+																		src={part.icon}
+																		alt={part.label}
+																		title={part.label}
+																	/>{/if}{part.text}
+															</span>
+														{/each}
+													</div>
+												{/if}
+											</div>
 										</div>
-									</div>
-								{/each}
-							</section>
-						{/each}
+									{/each}
+								</details>
+							{/each}
+						{/key}
 					{:else}
 						<p class="text-body-secondary mb-0">No route found.</p>
 					{/if}
@@ -812,12 +836,15 @@
 	}
 
 	.route-group-title {
-		margin-bottom: 0.25rem;
-		font-size: 1rem;
 		font-weight: 600;
 	}
 
+	.route-group[open] .route-group-title {
+		margin-bottom: 0.25rem;
+	}
+
 	.route-step {
+		padding-left: 1rem;
 		overflow-wrap: anywhere;
 	}
 

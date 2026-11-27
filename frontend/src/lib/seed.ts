@@ -131,11 +131,13 @@ export interface RouteDependency {
 export interface RouteRow {
 	/**
 	 * For a step entering a room or changing world, the connection and the room entered, such as "Cross West to Swamp
-	 * Ruins"; such a step starts a new group of steps.
+	 * Ruins", or for a strat changing world, the room alone; such a step starts a new group of steps.
 	 */
 	entered: string | null;
 	/** The node reached. */
 	node: string;
+	/** Whether the step returns to the node it leaves from. */
+	stays: boolean;
 	/** Whether the node is in the Dark World, or in an interior entered from it. */
 	dark_world: boolean;
 	/** The strat taken, or null for a "Base" strat or a connection. */
