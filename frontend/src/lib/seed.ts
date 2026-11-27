@@ -134,7 +134,7 @@ export interface RouteRow {
 	 * or "Portal to Ice Lake"; such a step starts a new group of steps.
 	 */
 	entered: string | null;
-	/** The node reached. */
+	/** The node reached, as "<node ID>: <node name>", so it can be found on the room diagrams. */
 	node: string;
 	/** Whether the step returns to the node it leaves from, in the same world. */
 	stays: boolean;

@@ -73,7 +73,7 @@ struct RouteRow {
     /// such as "West to Swamp Ruins" or "Portal to Ice Lake"; such a step starts a new group of
     /// rows.
     entered: Option<String>,
-    /// The node reached.
+    /// The node reached, as "<node ID>: <node name>", so it can be found on the room diagrams.
     node: String,
     /// Whether the step returns to the node it leaves from, in the same world.
     stays: bool,
@@ -792,8 +792,8 @@ fn describe_state(state: &LocalState) -> RouteState {
     }
 }
 
-/// Return a vertex's room name, using the Dark World name in the Dark World, and its node
-/// name, with any event it belongs to.
+/// Return a vertex's room name, using the Dark World name in the Dark World, and its node as
+/// "<node ID>: <node name>", with any event it belongs to.
 fn describe_vertex(catalog: &LogicCatalog, vertex_idx: VertexIndex) -> (&str, String) {
     let room = catalog.room(catalog.vertex(vertex_idx).room_idx);
     let metadata = catalog.vertex_metadata(vertex_idx);
@@ -801,7 +801,8 @@ fn describe_vertex(catalog: &LogicCatalog, vertex_idx: VertexIndex) -> (&str, St
         (Some(World::Dark), Some(dark_world_name)) => dark_world_name,
         _ => &room.name,
     };
-    let mut node = room.node(metadata.node_idx).name.clone();
+    let node_metadata = room.node(metadata.node_idx);
+    let mut node = format!("{}: {}", node_metadata.node_id, node_metadata.name);
     if let VertexOrigin::EventEntry { event_idx } | VertexOrigin::EventExit { event_idx } =
         metadata.origin
         && let TransitionState::Event(event) = catalog.get_transition_state(event_idx)
