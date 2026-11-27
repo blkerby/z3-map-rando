@@ -4,6 +4,7 @@
 	import logicDataJson from '$build/logic_data.json';
 	import linkHead from '$lib/assets/link_head.png';
 	import { ITEM_LABELS, getItemLevelIcon, items } from '$lib/generation/data';
+	import { getDifficultyClass } from '$lib/logic/difficulty';
 	import { useRomStore } from '$lib/rom/store.svelte';
 	import type { Tree } from '$lib/settings/tree';
 	import {
@@ -450,7 +451,7 @@
 {#snippet stratName(step: RouteRow, strat: string)}
 	{#if step.strat_link}
 		{@const difficulty = logicData[step.strat_link[0]][step.strat_link[1]]}
-		<span class={`strat difficulty-${difficulty.toLowerCase().replace(' ', '-')}`}>{strat}</span>
+		<span class="strat-name {getDifficultyClass(difficulty)}">{strat}</span>
 	{:else}
 		<span class="connector">{strat}</span>
 	{/if}
@@ -871,51 +872,6 @@
 
 	.route-detail > :last-child {
 		padding-bottom: 0.25rem;
-	}
-
-	/* Real strat names, tinted by difficulty. */
-	.strat {
-		font-weight: 500;
-	}
-
-	.difficulty-basic {
-		color: #138a36;
-	}
-
-	.difficulty-medium {
-		color: #9a7400;
-	}
-
-	.difficulty-hard {
-		color: #c4161c;
-	}
-
-	.difficulty-very-hard {
-		color: #c75a00;
-	}
-
-	.difficulty-expert {
-		color: #0b5ed7;
-	}
-
-	:global(html[data-bs-theme='dark']) .difficulty-basic {
-		color: #3ddc6a;
-	}
-
-	:global(html[data-bs-theme='dark']) .difficulty-medium {
-		color: #ffd23a;
-	}
-
-	:global(html[data-bs-theme='dark']) .difficulty-hard {
-		color: #ff5c5c;
-	}
-
-	:global(html[data-bs-theme='dark']) .difficulty-very-hard {
-		color: #ff9530;
-	}
-
-	:global(html[data-bs-theme='dark']) .difficulty-expert {
-		color: #4d9dff;
 	}
 
 	.state-part {

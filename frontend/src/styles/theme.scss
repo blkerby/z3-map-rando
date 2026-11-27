@@ -51,6 +51,20 @@ $form-range-track-bg: rgba(var(--bs-body-color-rgb), 0.2);
 	cursor: not-allowed;
 }
 
+// Strat names, in medium weight and tinted by difficulty (see `getDifficultyClass`), deeper in the
+// Light World theme and brighter in the Dark World theme.
+.strat-name { font-weight: 500; }
+.difficulty-basic     { color: #138a36; }
+.difficulty-medium    { color: #857a00; }
+.difficulty-hard      { color: #c4161c; }
+.difficulty-very-hard { color: #c75a00; }
+.difficulty-expert    { color: #0b5ed7; }
+[data-bs-theme='dark'] .difficulty-basic     { color: #3ddc6a; }
+[data-bs-theme='dark'] .difficulty-medium    { color: #ffe83d; }
+[data-bs-theme='dark'] .difficulty-hard      { color: #ff5c5c; }
+[data-bs-theme='dark'] .difficulty-very-hard { color: #ff9530; }
+[data-bs-theme='dark'] .difficulty-expert    { color: #4d9dff; }
+
 // Keep the page behind an open modal dialog from scrolling.
 html:has(dialog:modal) {
 	overflow: hidden;

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { getDifficultyClass } from './difficulty';
 	import LogicNotes from './LogicNotes.svelte';
 	import type { LogicStrat, RoomSummary } from './types';
 
@@ -17,6 +18,7 @@
 	<div class="row mb-2">
 		<div class="col-sm-6">
 			<a
+				class="strat-name {getDifficultyClass(strat.difficulty)}"
 				href={resolve('/logic/[roomId]/[stratId]', {
 					...roomParams,
 					stratId: String(strat.id)

@@ -5,6 +5,11 @@ import { fetchBytes } from '$lib/seed';
 import type { SettingsStore } from '$lib/settings/store.svelte';
 import { getAt, isTree, leafPaths, type Tree } from '$lib/settings/tree';
 
+/** The global class tinting a strat name by its difficulty, such as `difficulty-very-hard` for "Very Hard". */
+export function getDifficultyClass(difficulty: string): string {
+	return `difficulty-${difficulty.toLowerCase().replace(' ', '-')}`;
+}
+
 /**
  * Skill settings to list only the strats they pass with: a built-in skill preset, or a root preset that tweaks one.
  * Root presets without skill tweaks are left out, as they take the same settings as a listed option.
