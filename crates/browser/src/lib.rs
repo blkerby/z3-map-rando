@@ -3,7 +3,7 @@ use generator::{
     graph::{TraversalEdge, TraversalEdgeOrigin},
     inputs::prepare_skill_inputs,
     spoiler::{RouteTarget, SpoilerReplay},
-    state::{GlobalState, HealthState},
+    state::{GlobalState, HealthState, LocalState},
     strat_check::check_room_strats,
 };
 use logic_catalog::{
@@ -66,15 +66,18 @@ struct SpoilerEntry {
     dungeon: Option<String>,
 }
 
+/// One step of a route: the node it reaches and the edge taken to reach it.
 #[derive(Serialize)]
 struct RouteRow {
-    /// The vertex the edge leaves from, as room and node names.
-    location: String,
-    /// Whether the vertex the edge leaves from is in the Dark World, or in an interior entered
-    /// from it.
+    /// For a step entering a room or changing world, the connection and the room entered,
+    /// such as "Cross West to Swamp Ruins"; such a step starts a new group of rows.
+    entered: Option<String>,
+    /// The node reached.
+    node: String,
+    /// Whether the node is in the Dark World, or in an interior entered from it.
     dark_world: bool,
-    /// The strat or connection taken.
-    strat: String,
+    /// The strat taken, or None for a "Base" strat or a connection.
+    strat: Option<String>,
     /// `(room_id, strat_id)` when this step is an authored strat with a logic page.
     #[serde(skip_serializing_if = "Option::is_none")]
     strat_link: Option<(u32, u32)>,
@@ -168,7 +171,7 @@ enum TargetJson {
     Ocarina,
 }
 
-/// Local state after the edge. Health, magic, and ammunition are counted from the start.
+/// Local state after the step. Health, magic, and ammunition are counted from the start.
 #[derive(Serialize)]
 struct RouteState {
     form: String,
@@ -367,36 +370,43 @@ impl SpoilerSession {
         let mut rows = None;
         if let Some(route) = self.replay.trace_route(catalog, target) {
             let mut route_rows = Vec::new();
-            // One row per edge; the route's start step has none, and the synthetic flute hub is
-            // omitted because the preceding "Flute" step already represents the warp.
+            // The edge into the synthetic flute hub, whose step is merged into the next one, out
+            // of the hub, so the warp is one step.
+            let mut flute_edge = None;
             for step in route {
+                let (room_name, node) = describe_vertex(catalog, step.vertex_idx);
+                let world = catalog
+                    .vertex_metadata(step.vertex_idx)
+                    .world
+                    .or(interior_worlds[catalog.vertex(step.vertex_idx).room_idx.0 as usize]);
+                let dark_world = world == Some(World::Dark);
                 let Some(index) = step.edge else {
+                    route_rows.push(RouteRow {
+                        entered: Some(format!("Start at {room_name}")),
+                        node,
+                        dark_world,
+                        strat: None,
+                        strat_link: None,
+                        dependencies: Vec::new(),
+                        state: describe_state(&step.state),
+                        points: Vec::new(),
+                        indirect: false,
+                    });
                     continue;
                 };
-                if index.from_vertex_idx == catalog.flute_hub_vertex_idx {
-                    continue;
-                }
                 let edge = &self.replay.graph.outgoing[index.from_vertex_idx.0 as usize]
                     [index.outgoing_idx];
-                let mut dependencies = Vec::new();
-                collect_dependencies(
-                    catalog,
-                    &self.replay,
-                    &edge.edge.requirement,
-                    &mut dependencies,
-                );
-                let state = step.state;
-                let mut followers = Vec::new();
-                for (follower, name) in FOLLOWER_NAMES {
-                    if state.possible_followers.0 & (1 << follower as u8) != 0 {
-                        followers.push(name);
-                    }
+                if step.vertex_idx == catalog.flute_hub_vertex_idx {
+                    flute_edge = Some(edge);
+                    continue;
                 }
-                let (health_used, health_remaining) = match state.health {
-                    HealthState::Consumed(used) => (Some(used), None),
-                    HealthState::Remaining(remaining) => (None, Some(remaining)),
-                };
-                let strat_link = match edge.origin {
+                let first_edge = flute_edge.take().unwrap_or(edge);
+                // For a flute warp, both edges' requirements count; repeated names are skipped.
+                let mut dependencies = Vec::new();
+                for requirement in [&first_edge.edge.requirement, &edge.edge.requirement] {
+                    collect_dependencies(catalog, &self.replay, requirement, &mut dependencies);
+                }
+                let strat_link = match first_edge.origin {
                     TraversalEdgeOrigin::Catalog(edge_idx) => {
                         match catalog.edge_metadata(edge_idx).origin {
                             EdgeOrigin::Strat {
@@ -414,29 +424,18 @@ impl SpoilerSession {
                     }
                     _ => None,
                 };
+                let (entered, strat) =
+                    describe_edge(catalog, &self.replay.connections, first_edge, room_name);
                 route_rows.push(RouteRow {
-                    location: describe_vertex(catalog, index.from_vertex_idx),
-                    dark_world: catalog
-                        .vertex_metadata(index.from_vertex_idx)
-                        .world
-                        .or(interior_worlds
-                            [catalog.vertex(index.from_vertex_idx).room_idx.0 as usize])
-                        == Some(World::Dark),
-                    strat: describe_edge(catalog, &self.replay.connections, edge),
+                    entered,
+                    node,
+                    dark_world,
+                    strat,
                     strat_link,
                     dependencies,
+                    state: describe_state(&step.state),
                     points: self.locate_edge(edge).unwrap_or_default(),
-                    indirect: check_indirect(catalog, &self.replay.connections, edge),
-                    state: RouteState {
-                        form: format!("{:?}", state.form),
-                        health_used,
-                        health_remaining,
-                        magic_used: state.magic_used,
-                        bombs_used: state.bombs_used,
-                        arrows_used: state.arrows_used,
-                        bottles_used: state.bottles_used,
-                        followers,
-                    },
+                    indirect: check_indirect(catalog, &self.replay.connections, first_edge),
                 });
             }
             if let RouteTarget::ItemLocation(location_idx) = target
@@ -747,38 +746,86 @@ const FOLLOWER_NAMES: [(Follower, &str); 6] = [
     (Follower::SuperBomb, "Super Bomb"),
 ];
 
-fn describe_vertex(catalog: &LogicCatalog, vertex_idx: VertexIndex) -> String {
+/// Describe the local state after a route step.
+fn describe_state(state: &LocalState) -> RouteState {
+    let mut followers = Vec::new();
+    for (follower, name) in FOLLOWER_NAMES {
+        if state.possible_followers.0 & (1 << follower as u8) != 0 {
+            followers.push(name);
+        }
+    }
+    let (health_used, health_remaining) = match state.health {
+        HealthState::Consumed(used) => (Some(used), None),
+        HealthState::Remaining(remaining) => (None, Some(remaining)),
+    };
+    RouteState {
+        form: format!("{:?}", state.form),
+        health_used,
+        health_remaining,
+        magic_used: state.magic_used,
+        bombs_used: state.bombs_used,
+        arrows_used: state.arrows_used,
+        bottles_used: state.bottles_used,
+        followers,
+    }
+}
+
+/// Return a vertex's room name, using the Dark World name in the Dark World, and its node
+/// name, with any event it belongs to.
+fn describe_vertex(catalog: &LogicCatalog, vertex_idx: VertexIndex) -> (&str, String) {
     let room = catalog.room(catalog.vertex(vertex_idx).room_idx);
     let metadata = catalog.vertex_metadata(vertex_idx);
     let room_name = match (metadata.world, &room.dark_world_name) {
         (Some(World::Dark), Some(dark_world_name)) => dark_world_name,
         _ => &room.name,
     };
-    let mut name = format!("{room_name}: {}", room.node(metadata.node_idx).name);
+    let mut node = room.node(metadata.node_idx).name.clone();
     if let VertexOrigin::EventEntry { event_idx } | VertexOrigin::EventExit { event_idx } =
         metadata.origin
         && let TransitionState::Event(event) = catalog.get_transition_state(event_idx)
     {
-        name += &format!(" [{event}]");
+        node += &format!(" [{event}]");
     }
-    name
+    (room_name, node)
 }
 
+/// Describe an edge as the connection and room it enters, for an edge entering a room or
+/// changing world, and as the strat taken, if not a "Base" strat.
 fn describe_edge(
     catalog: &LogicCatalog,
     connections: &[Connection],
     edge: &TraversalEdge,
-) -> String {
+    room_name: &str,
+) -> (Option<String>, Option<String>) {
     let from_room_idx = catalog.vertex(edge.edge.from_vertex_idx).room_idx;
-    match edge.origin {
+    let entered = match edge.origin {
         TraversalEdgeOrigin::Catalog(edge_idx) => match catalog.edge_metadata(edge_idx).origin {
             EdgeOrigin::Strat {
                 room_idx,
                 strat_idx,
-            } => catalog.room(room_idx).strat(strat_idx).name.clone(),
-            EdgeOrigin::ImplicitMirror => "Mirror".to_owned(),
-            EdgeOrigin::ImplicitFlute => "Flute".to_owned(),
-            EdgeOrigin::LakeHyliaBottleExchange => "Bottle exchange".to_owned(),
+            } => {
+                let name = &catalog.room(room_idx).strat(strat_idx).name;
+                let strat = if name == "Base" {
+                    None
+                } else {
+                    Some(name.clone())
+                };
+                // A strat such as a Dark World portal can change world, which starts a group
+                // named for the room alone.
+                let from_world = catalog.vertex_metadata(edge.edge.from_vertex_idx).world;
+                let to_world = catalog.vertex_metadata(edge.edge.to_vertex_idx).world;
+                let entered = if from_world != to_world {
+                    Some(room_name.to_owned())
+                } else {
+                    None
+                };
+                return (entered, strat);
+            }
+            EdgeOrigin::ImplicitMirror => format!("Mirror to {room_name}"),
+            EdgeOrigin::ImplicitFlute => format!("Flute to {room_name}"),
+            EdgeOrigin::LakeHyliaBottleExchange => {
+                return (None, Some("Bottle exchange".to_owned()));
+            }
         },
         TraversalEdgeOrigin::Connection(connection_idx) => match &connections[connection_idx] {
             Connection::MapBoundary {
@@ -788,9 +835,11 @@ fn describe_edge(
             } => {
                 let direction = get_travel_direction(catalog, endpoints, *direction, from_room_idx);
                 match kind {
-                    MapBoundaryKind::Ordinary => format!("Cross {direction:?}"),
-                    MapBoundaryKind::Mirror => format!("Mirror {direction:?}"),
-                    MapBoundaryKind::Return => format!("Leave {direction:?} and return"),
+                    MapBoundaryKind::Ordinary => format!("Cross {direction:?} to {room_name}"),
+                    MapBoundaryKind::Mirror => format!("Mirror {direction:?} to {room_name}"),
+                    MapBoundaryKind::Return => {
+                        return (None, Some(format!("Leave {direction:?} and return")));
+                    }
                 }
             }
             Connection::Entrance {
@@ -799,13 +848,13 @@ fn describe_edge(
                 let entrance = catalog.entrance(*entrance_idx);
                 let outside = catalog.vertex(entrance.vertex_idx).room_idx == from_room_idx;
                 match kind {
-                    EntranceKind::Drop => format!("Drop into {}", entrance.name),
-                    EntranceKind::Door if outside => format!("Enter {}", entrance.name),
-                    EntranceKind::Door => format!("Exit {}", entrance.name),
+                    EntranceKind::Drop => format!("Drop into {room_name}"),
+                    EntranceKind::Door if outside => format!("Enter {room_name}"),
+                    EntranceKind::Door => format!("Exit to {room_name}"),
                 }
             }
-            Connection::Teleport { .. } => "Teleport".to_owned(),
-            Connection::Whirlpool { .. } => "Whirlpool".to_owned(),
+            Connection::Teleport { .. } => format!("Teleport to {room_name}"),
+            Connection::Whirlpool { .. } => format!("Whirlpool to {room_name}"),
             Connection::ScreenBoundary { endpoints } => {
                 // Each boundary's direction is the side of its own room, so take the source's.
                 let mut direction = None;
@@ -815,11 +864,12 @@ fn describe_edge(
                         direction = Some(boundary.direction);
                     }
                 }
-                format!("Cross {:?}", direction.unwrap())
+                format!("Cross {:?} to {room_name}", direction.unwrap())
             }
         },
-        TraversalEdgeOrigin::SaveAndQuit => "Save and quit".to_owned(),
-    }
+        TraversalEdgeOrigin::SaveAndQuit => format!("Save and quit to {room_name}"),
+    };
+    (Some(entered), None)
 }
 
 /// Collect the progress a requirement reads that earlier exploration, rather than inventory,

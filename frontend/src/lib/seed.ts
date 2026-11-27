@@ -62,7 +62,14 @@ export async function downloadRom(request: RomRequest): Promise<void> {
 	]);
 	const settings = encodeOptionalJson(request.settings);
 	const customization = new TextEncoder().encode(JSON.stringify(request.customization));
-	const output = browser.patch_rom(request.rom, request.seedBytes, settings, customization, retiling, patches);
+	const output = browser.patch_rom(
+		request.rom,
+		request.seedBytes,
+		settings,
+		customization,
+		retiling,
+		patches
+	);
 	const url = URL.createObjectURL(
 		new Blob([output as Uint8Array<ArrayBuffer>], { type: 'application/octet-stream' })
 	);
@@ -122,12 +129,17 @@ export interface RouteDependency {
 }
 
 export interface RouteRow {
-	/** Where the step starts. */
-	location: string;
-	/** Whether the step starts in the Dark World, or in an interior entered from it. */
+	/**
+	 * For a step entering a room or changing world, the connection and the room entered, such as "Cross West to Swamp
+	 * Ruins"; such a step starts a new group of steps.
+	 */
+	entered: string | null;
+	/** The node reached. */
+	node: string;
+	/** Whether the node is in the Dark World, or in an interior entered from it. */
 	dark_world: boolean;
-	/** The strat or connection taken. */
-	strat: string;
+	/** The strat taken, or null for a "Base" strat or a connection. */
+	strat: string | null;
 	/** `[roomId, stratId]` when this step is an authored strat with a logic page. */
 	strat_link?: [number, number];
 	/** Flags, opened doors, and Ocarina activation that the step's requirement reads. */

@@ -4,7 +4,6 @@
 	import linkHead from '$lib/assets/link_head.png';
 	import { ITEM_LABELS, getItemLevelIcon, items } from '$lib/generation/data';
 	import { useRomStore } from '$lib/rom/store.svelte';
-	import Segmented from '$lib/settings/controls/Segmented.svelte';
 	import type { Tree } from '$lib/settings/tree';
 	import {
 		openSpoiler,
@@ -119,6 +118,7 @@
 
 	let route = $state<Route | null>(null);
 	let routeDialog = $state<HTMLDialogElement>();
+	let routeList = $state<HTMLDivElement>();
 	/** Number of rows shown, from the top; the rest show question marks until revealed. */
 	let revealed = $state(0);
 	/** Whether to show only major- and high-tier items, hiding rows left empty. Remembered across sessions. */
@@ -193,11 +193,8 @@
 	let mapError = $state('');
 	/** Whether rendering has started; the map renders the first time a route is shown, if a ROM is saved. */
 	let mapStarted = $state(false);
+	/** The world whose map is shown. */
 	let mapWorld = $state('light');
-	const WORLD_OPTIONS = [
-		{ value: 'light', label: 'Light World' },
-		{ value: 'dark', label: 'Dark World' }
-	];
 
 	function renderMaps() {
 		mapStarted = true;
@@ -237,10 +234,30 @@
 			subtitle: tile ? tile.location : TARGET_KINDS[target.kind],
 			steps: session.traceRoute(target)
 		};
-		if (routeDialog.open) routeDialog.scrollTop = 0;
+		if (routeDialog.open) routeList?.scrollTo(0, 0);
 		else routeDialog.showModal();
 		if (!mapStarted) void startMaps();
 	}
+
+	interface RouteGroup {
+		/** The connection and room entered, such as "Cross West to Swamp Ruins". */
+		title: string;
+		darkWorld: boolean;
+		/** Steps with their positions in the route, so each state is compared with the previous step's. */
+		steps: { step: RouteRow; index: number }[];
+	}
+
+	/** The shown route's steps, grouped into runs within one room and world. */
+	const routeGroups = $derived.by(() => {
+		const groups: RouteGroup[] = [];
+		for (const [index, step] of (route?.steps ?? []).entries()) {
+			if (step.entered !== null) {
+				groups.push({ title: step.entered, darkWorld: step.dark_world, steps: [] });
+			}
+			groups.at(-1)?.steps.push({ step, index });
+		}
+		return groups;
+	});
 
 	interface MapLine {
 		world: MapPoint['world'];
@@ -528,21 +545,15 @@
 					onclick={() => routeDialog?.close()}
 				></button>
 			</div>
-			<div class="p-4">
-				{#if route.steps}
-					<table class="table table-sm small route mb-0">
-						<thead>
-							<tr>
-								<th scope="col">Location</th>
-								<th scope="col">Strat</th>
-								<th scope="col">State</th>
-							</tr>
-						</thead>
-						<tbody>
-							{#each route.steps as step, stepIndex (stepIndex)}
-								<tr class:dark-world={step.dark_world}>
-									<td>{step.location}</td>
-									<td>
+			<div class="route-body">
+				<div class="route-list" bind:this={routeList}>
+					{#if route.steps}
+						{#each routeGroups as group, groupIndex (groupIndex)}
+							<section class="route-group" class:dark-world={group.darkWorld}>
+								<h3 class="route-group-title">{group.title}</h3>
+								{#each group.steps as { step, index } (index)}
+									{@const stateParts = describeState(step.state, route.steps[index - 1]?.state)}
+									<div class="route-step">
 										{#if step.strat_link}
 											<a
 												href={resolve('/logic/[roomId]/[stratId]', {
@@ -550,111 +561,110 @@
 													stratId: String(step.strat_link[1])
 												})}
 												target="_blank"
-												rel="noopener">{step.strat}</a
+												rel="noopener">{step.node}</a
 											>
 										{:else}
-											{step.strat}
+											{step.node}
 										{/if}
-										{#each step.dependencies as dependency (dependency.name)}
-											<div>
-												{#if dependency.target}
-													{@const target = dependency.target}
-													<button
-														type="button"
-														class="btn btn-link btn-sm p-0 text-start dependency"
-														onclick={() => showRoute(target, dependency.name)}
-														><i class="bi bi-flag me-1" aria-hidden="true"
-														></i>{dependency.name}</button
-													>
-												{:else}
-													<span class="text-body-secondary">{dependency.name}</span>
-												{/if}
-											</div>
-										{/each}
-									</td>
-									<td>
-										{#each describeState(step.state, route.steps[stepIndex - 1]?.state) as part, partIndex (partIndex)}
-											<span class="state-part">
-												{#if part.icon}<img
-														src={part.icon}
-														alt={part.label}
-														title={part.label}
-													/>{/if}{part.text}
-											</span>
-										{/each}
-									</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-				{:else}
-					<p class="text-body-secondary mb-0">No route found.</p>
-				{/if}
-			</div>
-			<div class="px-4 pb-4">
-				{#if mapError}
-					<div class="alert alert-danger small py-2 px-3 mb-0" role="alert">
-						Couldn't render the map: {mapError}
-					</div>
-				{:else if worldMaps}
-					<div class="world-map">
-						<img
-							src={worldMaps[mapWorld === 'light' ? 0 : 1]}
-							alt="{mapWorld === 'light' ? 'Light' : 'Dark'} World map"
-						/>
-						<!-- Travel in the shown world is solid, in the other world dashed and dimmed; warps and interiors
-						     are dotted. Every line animates in the direction of travel. -->
-						<svg viewBox="0 0 384 384" aria-hidden="true">
-							{#each mapRoute.lines as line, lineIndex (lineIndex)}
-								{@const shown = line.world === mapWorld}
-								<polyline
-									points={line.points}
-									class="route-line"
-									class:dotted={line.dotted}
-									class:dashed={!line.dotted && !shown}
-									class:other-world={!shown}
-								/>
-								{#if !line.dotted && shown}
-									<polyline points={line.points} class="route-line flow" />
+										<div class="route-detail small text-body-secondary">
+											{#if step.strat}
+												<div>{step.strat}</div>
+											{/if}
+											{#each step.dependencies as dependency (dependency.name)}
+												<div>
+													{#if dependency.target}
+														{@const target = dependency.target}
+														<button
+															type="button"
+															class="btn btn-link btn-sm p-0 text-start dependency"
+															onclick={() => showRoute(target, dependency.name)}
+															><i class="bi bi-flag me-1" aria-hidden="true"
+															></i>{dependency.name}</button
+														>
+													{:else}
+														{dependency.name}
+													{/if}
+												</div>
+											{/each}
+											{#if stateParts.length}
+												<div>
+													{#each stateParts as part, partIndex (partIndex)}
+														<span class="state-part">
+															{#if part.icon}<img
+																	src={part.icon}
+																	alt={part.label}
+																	title={part.label}
+																/>{/if}{part.text}
+														</span>
+													{/each}
+												</div>
+											{/if}
+										</div>
+									</div>
+								{/each}
+							</section>
+						{/each}
+					{:else}
+						<p class="text-body-secondary mb-0">No route found.</p>
+					{/if}
+				</div>
+				<div class="route-map">
+					{#if mapError}
+						<div class="alert alert-danger small py-2 px-3 mb-0" role="alert">
+							Couldn't render the map: {mapError}
+						</div>
+					{:else if worldMaps}
+						<div class="world-map">
+							<img
+								src={worldMaps[mapWorld === 'light' ? 0 : 1]}
+								alt="{mapWorld === 'light' ? 'Light' : 'Dark'} World map"
+							/>
+							<!-- Travel in the shown world is solid, in the other world dashed and dimmed; warps and interiors
+							     are dotted. Every line animates in the direction of travel. -->
+							<svg viewBox="0 0 384 384" aria-hidden="true">
+								{#each mapRoute.lines as line, lineIndex (lineIndex)}
+									{@const shown = line.world === mapWorld}
+									<polyline
+										points={line.points}
+										class="route-line"
+										class:dotted={line.dotted}
+										class:dashed={!line.dotted && !shown}
+										class:other-world={!shown}
+									/>
+									{#if !line.dotted && shown}
+										<polyline points={line.points} class="route-line flow" />
+									{/if}
+								{/each}
+								{#if mapRoute.start}
+									<image
+										href={linkHead}
+										x={mapRoute.start.x - 6}
+										y={mapRoute.start.y - 6}
+										width="12"
+										height="12"
+										class:other-world={mapRoute.start.world !== mapWorld}
+									/>
 								{/if}
-							{/each}
-							{#if mapRoute.start}
-								<image
-									href={linkHead}
-									x={mapRoute.start.x - 6}
-									y={mapRoute.start.y - 6}
-									width="12"
-									height="12"
-									class:other-world={mapRoute.start.world !== mapWorld}
-								/>
-							{/if}
-							{#if mapRoute.end}
-								<polygon
-									points={mapRoute.star}
-									class="route-end"
-									class:other-world={mapRoute.end.world !== mapWorld}
-								/>
-							{/if}
-						</svg>
-					</div>
-					<div class="mt-2 text-center">
-						<Segmented
-							options={WORLD_OPTIONS}
-							value={mapWorld}
-							label="World"
-							onchange={(value) => (mapWorld = value)}
-						/>
-					</div>
-				{:else if mapStarted}
-					<p class="text-body-secondary mb-0" role="status">
-						<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
-						Rendering the map…
-					</p>
-				{:else}
-					<button type="button" class="btn btn-sm btn-outline-secondary" onclick={loadRomForMaps}>
-						Load ROM to show the map
-					</button>
-				{/if}
+								{#if mapRoute.end}
+									<polygon
+										points={mapRoute.star}
+										class="route-end"
+										class:other-world={mapRoute.end.world !== mapWorld}
+									/>
+								{/if}
+							</svg>
+						</div>
+					{:else if mapStarted}
+						<p class="text-body-secondary mb-0" role="status">
+							<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>
+							Rendering the map…
+						</p>
+					{:else}
+						<button type="button" class="btn btn-sm btn-outline-secondary" onclick={loadRomForMaps}>
+							Load ROM to show the map
+						</button>
+					{/if}
+				</div>
 			</div>
 		{/if}
 	</dialog>
@@ -732,7 +742,9 @@
 	}
 
 	.route-dialog {
-		width: min(60rem, calc(100vw - 2rem));
+		width: min(80rem, calc(100vw - 4rem));
+		height: calc(100dvh - 2rem);
+		max-height: none;
 		padding: 0;
 		border: 1px solid var(--bs-border-color);
 		border-radius: 0.6rem;
@@ -742,6 +754,79 @@
 
 	.route-dialog::backdrop {
 		background: rgb(0 0 0 / 0.55);
+	}
+
+	.route-dialog[open] {
+		display: flex;
+		flex-direction: column;
+	}
+
+	/* The route scrolls beside the map, which stays in place. Sizes are relative to this container. */
+	.route-body {
+		flex: 1;
+		min-height: 0;
+		display: flex;
+		container-type: size;
+	}
+
+	.route-list {
+		flex: 1;
+		min-width: 0;
+		overflow-y: auto;
+		padding: 1rem 1.5rem;
+	}
+
+	/* The map fills the height, while leaving the route at least 20rem. */
+	.route-map {
+		width: min(100cqh - 2rem, 100cqw - 20rem);
+		box-sizing: content-box;
+		padding: 1rem 1.5rem 1rem 0;
+	}
+
+	/* On narrow screens, the map sits on top and the route scrolls below it. */
+	@media (max-width: 767.98px) {
+		.route-body {
+			flex-direction: column;
+		}
+
+		.route-map {
+			order: -1;
+			align-self: center;
+			width: min(40cqh, 100cqw - 2rem);
+			padding: 0.75rem 1rem 0;
+		}
+	}
+
+	.route-group {
+		margin-bottom: 0.25rem;
+		padding: 0.5rem 0.75rem;
+		border-radius: 0.4rem;
+	}
+
+	.route-group.dark-world {
+		background: color-mix(in srgb, var(--bs-body-bg) 88%, black);
+	}
+
+	:global(html[data-bs-theme='dark']) .route-group.dark-world {
+		background: color-mix(in srgb, var(--bs-body-bg) 30%, black);
+	}
+
+	.route-group-title {
+		margin-bottom: 0.25rem;
+		font-size: 1rem;
+		font-weight: 600;
+	}
+
+	.route-step {
+		overflow-wrap: anywhere;
+	}
+
+	.route-step + .route-step {
+		margin-top: 0.25rem;
+	}
+
+	.route-detail {
+		padding-left: 1rem;
 	}
 
 	.state-part {
@@ -761,18 +846,6 @@
 		font-size: inherit;
 	}
 
-	.route td {
-		overflow-wrap: anywhere;
-	}
-
-	.route tr.dark-world td {
-		--bs-table-bg: color-mix(in srgb, var(--bs-body-bg) 88%, black);
-	}
-
-	:global(html[data-bs-theme='dark']) .route tr.dark-world td {
-		--bs-table-bg: color-mix(in srgb, var(--bs-body-bg) 30%, black);
-	}
-
 	.hidden-tile {
 		color: var(--bs-secondary-color);
 	}
@@ -781,12 +854,8 @@
 		background: var(--bs-secondary-bg);
 	}
 
-	/* Twice the PNG's 384px size, so pixels scale evenly. */
 	.world-map {
 		position: relative;
-		width: 768px;
-		max-width: 100%;
-		margin: 0 auto;
 	}
 
 	.world-map img {

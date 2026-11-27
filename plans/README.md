@@ -8,7 +8,7 @@ An index of work that is planned or in progress. The design of implemented syste
 
 ## Planned
 
-- [Spoiler route view](spoiler-route-view.md): a full-viewport route view with the map fixed beside the route, steps grouped by room; then map highlighting, map-to-route scrolling, and a Back button.
+- [Spoiler route view follow-ups](spoiler-route-view.md): map highlighting of the selected step, map-to-route scrolling, and a Back button.
 - [Splitting area $80](splitting_area_80.md): give Sacred Grove and Under the Bridge their own themes within area `$80`.
 - [Seed corpus test](seed-corpus.md): read committed seeds from every release with current code and catalogs.
 
