@@ -200,9 +200,14 @@
 	let mapStarted = $state(false);
 	/**
 	 * The route row whose progress the map shows: the last hovered or focused, which stays active so the mouse can move
-	 * to the map. A group heading's progress is through its last step.
+	 * to the map, or the row passing a point clicked on the map. A group heading's progress is through its last step.
+	 * The progress ends at the clicked point, or else where the row's progress ends (see `findProgressEnd`).
 	 */
-	let activeRow = $state<{ index: number; heading: boolean } | null>(null);
+	let activeRow = $state<{ index: number; heading: boolean; point: number | null } | null>(null);
+	/** The index in `routePoints` of the point where the active progress ends. */
+	const activeEnd = $derived(
+		activeRow ? (activeRow.point ?? findProgressEnd(activeRow.index)) : null
+	);
 	/** The active step's world, or with none, the route target's. */
 	const mapWorld = $derived(
 		route?.steps?.[activeRow?.index ?? route.steps.length - 1]?.dark_world ? 'dark' : 'light'
@@ -240,6 +245,7 @@
 		if (!session || !routeDialog) return;
 		const tile = target.kind === 'location' ? (tiles[target.index] ?? null) : null;
 		activeRow = null;
+		hoveredPoint = null;
 		route = {
 			target,
 			tile,
@@ -276,20 +282,49 @@
 		return groups;
 	});
 
+	interface RoutePoint {
+		point: MapPoint;
+		/** The step the point comes from. */
+		step: number;
+		/** Whether the travel to the point from the previous one is a warp or interior travel. */
+		indirect: boolean;
+	}
+
+	/** The shown route's map points, in order. */
+	const routePoints = $derived.by(() => {
+		const points: RoutePoint[] = [];
+		let indirect = false;
+		for (const [index, step] of (route?.steps ?? []).entries()) {
+			if (step.indirect) indirect = true;
+			for (const point of step.points) {
+				points.push({ point, step: index, indirect });
+				indirect = false;
+			}
+		}
+		return points;
+	});
+
+	/**
+	 * The index of the point where the progress through a step ends: the first point after the step, or the route's
+	 * last. So a step entering a room shows the travel through the room, up to the point where the route leaves it.
+	 */
+	function findProgressEnd(stepIndex: number): number {
+		for (const [index, { step }] of routePoints.entries()) {
+			if (step > stepIndex) return index;
+		}
+		return routePoints.length - 1;
+	}
+
 	interface MapLine {
 		world: MapPoint['world'];
 		/** Whether the line is a warp or interior travel rather than overworld travel. */
 		dotted: boolean;
-		/**
-		 * Whether the line is part of the route's progress through the active row: its start point comes from a step at
-		 * or before the active row. So a step entering a room shows the travel through the room, up to the point where
-		 * the route leaves it.
-		 */
+		/** Whether the line ends at or before the active progress's end point. */
 		progress: boolean;
 		/**
 		 * The length before the line of its run of travel in one world and of one kind, in map pixels, which offsets its
 		 * dash pattern. Each run starts its pattern afresh, and a line split from a run where the progress ends continues
-		 * it, so the patterns stay aligned whichever row is active.
+		 * it, so the patterns stay aligned wherever the progress ends.
 		 */
 		offset: number;
 		/** SVG polyline points. */
@@ -298,45 +333,37 @@
 
 	/**
 	 * The shown route as lines between its map points, split where the world, the kind of travel, or the progress
-	 * through the active row changes.
+	 * changes.
 	 */
 	const mapRoute = $derived.by(() => {
 		const lines: MapLine[] = [];
 		let start: MapPoint | null = null;
 		let end: MapPoint | null = null;
-		/** The step the end point comes from. */
-		let endIndex = 0;
-		let indirect = false;
 		let runLength = 0;
-		for (const [index, step] of (route?.steps ?? []).entries()) {
-			if (step.indirect) indirect = true;
-			for (const point of step.points) {
-				const progress = activeRow !== null && endIndex <= activeRow.index;
-				// A repeated point, such as leaving through the door just entered, only changes the current world.
-				if (end && (end.x !== point.x || end.y !== point.y)) {
-					// A line takes the world of its starting point.
-					const last = lines.at(-1);
-					const sameRun = last && last.world === end.world && last.dotted === indirect;
-					if (sameRun && last.progress === progress) {
-						last.points += ` ${point.x},${point.y}`;
-					} else {
-						if (!sameRun) runLength = 0;
-						lines.push({
-							world: end.world,
-							dotted: indirect,
-							progress,
-							offset: runLength,
-							points: `${end.x},${end.y} ${point.x},${point.y}`
-						});
-					}
-					runLength += Math.hypot(point.x - end.x, point.y - end.y);
-				} else if (!end) {
-					start = point;
+		for (const [index, { point, indirect }] of routePoints.entries()) {
+			const progress = activeEnd !== null && index <= activeEnd;
+			// A repeated point, such as leaving through the door just entered, only changes the current world.
+			if (end && (end.x !== point.x || end.y !== point.y)) {
+				// A line takes the world of its starting point.
+				const last = lines.at(-1);
+				const sameRun = last && last.world === end.world && last.dotted === indirect;
+				if (sameRun && last.progress === progress) {
+					last.points += ` ${point.x},${point.y}`;
+				} else {
+					if (!sameRun) runLength = 0;
+					lines.push({
+						world: end.world,
+						dotted: indirect,
+						progress,
+						offset: runLength,
+						points: `${end.x},${end.y} ${point.x},${point.y}`
+					});
 				}
-				end = point;
-				endIndex = index;
-				indirect = false;
+				runLength += Math.hypot(point.x - end.x, point.y - end.y);
+			} else if (!end) {
+				start = point;
 			}
+			end = point;
 		}
 		// A five-pointed star marking the end, as SVG polygon points.
 		let star = '';
@@ -349,6 +376,39 @@
 		}
 		return { lines, start, end, star };
 	});
+
+	/** The index in `routePoints` of the point the mouse is over on the map. */
+	let hoveredPoint = $state<number | null>(null);
+
+	/**
+	 * End the progress at a point clicked on the map, making active the row reaching it: the last whose own progress
+	 * ends at the point, or with none, the first whose progress passes it. So a crossing's near point makes active the
+	 * last step before the crossing, and its far point the crossing. Its group opens and the route scrolls to it.
+	 */
+	function selectPoint(pointIndex: number) {
+		let index = -1;
+		for (let step = 0; step < route!.steps!.length; step++) {
+			const end = findProgressEnd(step);
+			if (end === pointIndex) {
+				index = step;
+			} else if (end > pointIndex) {
+				if (index < 0) index = step;
+				break;
+			}
+		}
+		activeRow = { index, heading: false, point: pointIndex };
+		const row = routeList!.querySelector(`[data-step="${index}"]`)!;
+		const group = row.closest('details')!;
+		group.open = true;
+		row.scrollIntoView({ block: 'nearest' });
+		// Also show the group's heading, as long as the row still fits below it under the toolbar.
+		const heading = group.querySelector('summary')!;
+		const toolbar = routeList!.querySelector('.route-toolbar')!;
+		const span = row.getBoundingClientRect().bottom - heading.getBoundingClientRect().top;
+		if (span <= routeList!.clientHeight - toolbar.clientHeight) {
+			heading.scrollIntoView({ block: 'nearest' });
+		}
+	}
 
 	interface StatePart {
 		icon?: string | null;
@@ -666,8 +726,9 @@
 									<summary
 										class="route-group-title"
 										class:active={activeRow?.heading && activeRow.index === lastIndex}
-										onmouseenter={() => (activeRow = { index: lastIndex, heading: true })}
-										onfocus={() => (activeRow = { index: lastIndex, heading: true })}
+										onmouseenter={() =>
+											(activeRow = { index: lastIndex, heading: true, point: null })}
+										onfocus={() => (activeRow = { index: lastIndex, heading: true, point: null })}
 									>
 										{group.title}
 									</summary>
@@ -677,9 +738,10 @@
 										<!-- svelte-ignore a11y_no_static_element_interactions -->
 										<div
 											class="route-step"
+											data-step={index}
 											class:active={activeRow && !activeRow.heading && activeRow.index === index}
-											onmouseenter={() => (activeRow = { index, heading: false })}
-											onfocusin={() => (activeRow = { index, heading: false })}
+											onmouseenter={() => (activeRow = { index, heading: false, point: null })}
+											onfocusin={() => (activeRow = { index, heading: false, point: null })}
 										>
 											{#if step.strat_link}
 												<a
@@ -774,6 +836,38 @@
 										class:other-world={mapRoute.end.world !== mapWorld}
 									/>
 								{/if}
+								<!-- Dots where the active progress ends, in green, and at the point the mouse is over, in white. -->
+								{#each [activeEnd, hoveredPoint] as dotIndex, dotPosition (dotPosition)}
+									{#if dotIndex !== null && routePoints[dotIndex]}
+										{@const dot = routePoints[dotIndex].point}
+										<circle
+											cx={dot.x}
+											cy={dot.y}
+											r="2.5"
+											class="route-dot"
+											class:hovered={dotPosition === 1}
+											class:other-world={dot.world !== mapWorld}
+										/>
+									{/if}
+								{/each}
+								<!-- Invisible hit areas around the route's points, the shown world's on top; clicking one ends the
+								     progress there. The route list offers the same selection from the keyboard. -->
+								{#each [false, true] as shown (shown)}
+									{#each routePoints as { point }, pointIndex (pointIndex)}
+										{#if (point.world === mapWorld) === shown}
+											<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+											<circle
+												cx={point.x}
+												cy={point.y}
+												r="5"
+												class="route-hit"
+												onmouseenter={() => (hoveredPoint = pointIndex)}
+												onmouseleave={() => (hoveredPoint = null)}
+												onclick={() => selectPoint(pointIndex)}
+											/>
+										{/if}
+									{/each}
+								{/each}
 							</svg>
 						</div>
 					{:else if mapStarted}
@@ -954,6 +1048,12 @@
 		font-weight: 600;
 	}
 
+	/* Clear of the sticky toolbar, about 3.4rem tall, when scrolled to from the map. */
+	.route-group-title,
+	.route-step {
+		scroll-margin-top: 3.5rem;
+	}
+
 	.route-step {
 		margin-left: 1rem;
 		overflow-wrap: anywhere;
@@ -1062,6 +1162,22 @@
 
 	.route-line.progress {
 		stroke: #00ff00;
+	}
+
+	.route-dot {
+		fill: #00ff00;
+		stroke: #000;
+		stroke-width: 0.75;
+	}
+
+	.route-dot.hovered {
+		fill: #fff;
+	}
+
+	.route-hit {
+		fill: transparent;
+		pointer-events: fill;
+		cursor: pointer;
 	}
 
 	.route-end {
