@@ -199,13 +199,16 @@ org $82AACE
 ;
 ; This forced-blank reload stage follows the BG1 overlay upload in submodule
 ; $20. Replace its obsolete small/large-area BG2 builder with the bulk
-; renderer, then advance to Module09_22 to fade the screen back in.
+; renderer and restore the rain tint before Module09_22 fades the screen in.
 org $82EA89
+hook_restore_world_map_background:
     JSL BG2BulkRender
+    JSL !RebuildRainSpritePalettes
     SEP #$20
     INC.b $11
     STZ.b $13
     RTS
+assert pc() == $82EA98
 
 ; MirrorWarp_LoadSpritesAndColors
 ;
