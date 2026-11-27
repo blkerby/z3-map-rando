@@ -109,6 +109,8 @@
 		target: RouteTarget;
 		/** The target item, or null for a route to a discovery. */
 		tile: Tile | null;
+		/** The target item's label or the discovery's name. */
+		name: string;
 		title: string;
 		subtitle: string;
 		/** Null if no route was found. */
@@ -254,6 +256,7 @@
 		route = {
 			target,
 			tile,
+			name: tile ? tile.item : name,
 			title: `Route to ${tile ? tile.item : name}`,
 			subtitle: tile ? tile.location : TARGET_KINDS[target.kind],
 			steps: session.traceRoute(target)
@@ -261,6 +264,21 @@
 		if (routeDialog.open) routeList?.scrollTo(0, 0);
 		else routeDialog.showModal();
 		if (!mapStarted) void startMaps();
+	}
+
+	/** The routes shown before the current one, through the dependencies followed from them, most recent last. */
+	let routeHistory = $state<{ target: RouteTarget; name: string }[]>([]);
+
+	/** Show a dependency's route, keeping the current route to go back to. */
+	function followDependency(target: RouteTarget, name: string) {
+		routeHistory.push({ target: route!.target, name: route!.name });
+		showRoute(target, name);
+	}
+
+	/** Show the route the current one was followed from. */
+	function goBack() {
+		const previous = routeHistory.pop()!;
+		showRoute(previous.target, previous.name);
 	}
 
 	/** Expand or collapse every group of the shown route. */
@@ -704,6 +722,7 @@
 								aria-label="Show a route to {tile.item} at {tile.location}"
 								onclick={(event) => {
 									event.stopPropagation();
+									routeHistory = [];
 									showRoute({ kind: 'location', index: tile.locationIdx }, tile.item);
 								}}
 							>
@@ -735,7 +754,10 @@
 		onclick={(e) => {
 			if (e.target === routeDialog) routeDialog.close();
 		}}
-		onclose={() => (route = null)}
+		onclose={() => {
+			route = null;
+			routeHistory = [];
+		}}
 	>
 		{#if route}
 			<div class="d-flex align-items-center gap-2 px-4 py-3 border-bottom">
@@ -763,23 +785,38 @@
 			</div>
 			<div class="route-body">
 				<div class="route-list" bind:this={routeList}>
-					{#if route.steps}
+					{#if route.steps || routeHistory.length}
 						<div class="route-toolbar">
-							<button
-								type="button"
-								class="btn btn-sm btn-outline-secondary"
-								onclick={() => setGroupsOpen(true)}
-							>
-								Expand all
-							</button>
-							<button
-								type="button"
-								class="btn btn-sm btn-outline-secondary"
-								onclick={() => setGroupsOpen(false)}
-							>
-								Collapse all
-							</button>
+							{#if route.steps}
+								<button
+									type="button"
+									class="btn btn-sm btn-outline-secondary"
+									onclick={() => setGroupsOpen(true)}
+								>
+									Expand all
+								</button>
+								<button
+									type="button"
+									class="btn btn-sm btn-outline-secondary"
+									onclick={() => setGroupsOpen(false)}
+								>
+									Collapse all
+								</button>
+							{/if}
+							{#if routeHistory.length}
+								{@const previous = routeHistory[routeHistory.length - 1]}
+								<button
+									type="button"
+									class="btn btn-sm btn-outline-secondary ms-auto back"
+									title="Back to {previous.name}"
+									onclick={goBack}
+								>
+									<i class="bi bi-arrow-left me-1" aria-hidden="true"></i>Back to {previous.name}
+								</button>
+							{/if}
 						</div>
+					{/if}
+					{#if route.steps}
 						<!-- Recreated for each route shown, so its groups start collapsed. -->
 						{#key route.target}
 							{#each routeGroups as group, groupIndex (groupIndex)}
@@ -834,7 +871,7 @@
 															<button
 																type="button"
 																class="btn btn-link btn-sm p-0 text-start dependency"
-																onclick={() => showRoute(target, dependency.name)}
+																onclick={() => followDependency(target, dependency.name)}
 																><i class="bi bi-flag me-1" aria-hidden="true"
 																></i>{dependency.name}</button
 															>
@@ -1075,6 +1112,20 @@
 		margin-top: -1rem;
 		padding: 1rem 0 0.5rem;
 		background: var(--bs-body-bg);
+	}
+
+	/* The buttons keep to one line at their full width, except Back, which shrinks to fit, cutting a long name short;
+	   the full name is in its tooltip. */
+	.route-toolbar .btn {
+		flex-shrink: 0;
+		white-space: nowrap;
+	}
+
+	.route-toolbar .back {
+		flex-shrink: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	/* The map fills the height, while leaving the route at least 20rem. */
