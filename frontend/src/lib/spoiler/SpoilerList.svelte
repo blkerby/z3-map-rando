@@ -672,18 +672,29 @@
 							<!-- Travel in the shown world is solid, in the other world dashed and dimmed; warps and interiors
 							     are dotted. Every line animates in the direction of travel. -->
 							<svg viewBox="0 0 384 384" aria-hidden="true">
-								{#each mapRoute.lines as line, lineIndex (lineIndex)}
-									{@const shown = line.world === mapWorld}
-									<polyline
-										points={line.points}
-										class="route-line"
-										class:dotted={line.dotted}
-										class:dashed={!line.dotted && !shown}
-										class:other-world={!shown}
-									/>
-									{#if !line.dotted && shown}
-										<polyline points={line.points} class="route-line flow" />
-									{/if}
+								<!-- Lines in the other world first, so the shown world's lines are drawn on top. -->
+								{#each [false, true] as shown (shown)}
+									{#each mapRoute.lines as line, lineIndex (lineIndex)}
+										{#if (line.world === mapWorld) === shown}
+											<!-- A black casing under the line, so it stands out from the map. -->
+											<polyline
+												points={line.points}
+												class="route-line casing"
+												class:dotted={line.dotted}
+												class:dashed={!line.dotted && !shown}
+											/>
+											<polyline
+												points={line.points}
+												class="route-line"
+												class:dotted={line.dotted}
+												class:dashed={!line.dotted && !shown}
+												class:other-world={!shown}
+											/>
+											{#if !line.dotted && shown}
+												<polyline points={line.points} class="route-line flow" />
+											{/if}
+										{/if}
+									{/each}
 								{/each}
 								{#if mapRoute.start}
 									<image
@@ -980,6 +991,16 @@
 		stroke-linecap: round;
 		stroke-dasharray: 0 3;
 		animation: march-dotted 0.3s linear infinite;
+	}
+
+	/* After the dash styles, so its widths override theirs: half a map pixel wider than the line it is under. */
+	.route-line.casing {
+		stroke: #000;
+		stroke-width: 2.5;
+	}
+
+	.route-line.casing.dashed {
+		stroke-width: 2;
 	}
 
 	.route-end {
