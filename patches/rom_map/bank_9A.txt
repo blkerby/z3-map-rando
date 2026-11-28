@@ -1,0 +1,1 @@
+$9AFC55-$9AFC56 throne_room.asm (skip the Lamp check when pushing the throne room door)

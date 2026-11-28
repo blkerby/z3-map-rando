@@ -106,6 +106,7 @@ pub struct PatchIps {
     pub overworld_world_map: Ips,
     pub reduced_flashing: Ips,
     pub rom_size: Ips,
+    pub throne_room: Ips,
     pub world_state: Ips,
 }
 

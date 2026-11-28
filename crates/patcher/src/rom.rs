@@ -382,6 +382,7 @@ fn prepare_retiling(
         &patches.patches.messages,
         &patches.patches.world_state,
         &patches.patches.mothula_sword,
+        &patches.patches.throne_room,
         &patches.patches.overworld_map_data,
         &patches.patches.overworld_map16_graphics,
         &patches.patches.overworld_map16_properties,
