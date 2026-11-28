@@ -5,6 +5,10 @@ incsrc "symbols.inc"
 !free_space_bank_a0_start = $A09A00
 !free_space_bank_a0_end = $A09B00
 
+; SPC700 SFXControl: the fade timer determines when a fade owns voice volume.
+org $9A8A12
+    db $E4                     ; Low byte of the MOV X,$03E4 operand.
+
 ; PrepareOAMForTransfer returns with A8/X8/Y8. Preserve A/P; X/Y, DB, DP,
 ; scratch RAM, and the stack are unchanged when the main loop resumes.
 org $80805D

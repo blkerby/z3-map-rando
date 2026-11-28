@@ -1,1 +1,2 @@
+$9A8A12-$9A8A12 overworld_music.asm (use the active fade timer to gate SFX1 volume)
 $9AFC55-$9AFC56 throne_room.asm (skip the Lamp check when pushing the throne room door)
