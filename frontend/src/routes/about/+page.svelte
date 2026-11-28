@@ -25,6 +25,7 @@
 		<li>In Dark World, Pyramid becomes a spawn option after defeating Agahnim; Link's House is an option if Mirror is unavailable.</li>
 		<li>Followers are lost after a save-and-quit or outdoor/cave death.</li>
 		<li>The Golden Sword deals Tempered Sword damage to Mothula.</li>
+		<li>Overworld load times are reduced.</li>
 	</ul>
 
 	<h3 class="h3 mb-3">How it works</h3>
