@@ -139,7 +139,7 @@ The patcher encodes starting equipment, resources, shared-slot ownership, and ab
 
 ### Messages and Great Fairy ponds
 
-`messages.asm` owns the message parser hook. It replaces the vanilla start-menu messages with destination-dependent English text, and resolves message IDs from `$0200` to custom English text in the native uppercase font, 14 characters per row. Its code and text are in bank `$AA`. Choices use the vanilla arrow messages, so choice text starts in column 4.
+`messages.asm` owns the message parser hook. It replaces the vanilla start-menu messages with destination-dependent English text, and resolves message IDs from `$0200` to custom English text in the native uppercase font. Dialogue uses 8-pixel character cells and fits 19 characters per row. The patcher reads A–Z from the supplied ROM, shifts the glyphs left one pixel to fit their shading inside the cell, and repacks them with the original compression masks. Its code and text are in bank `$AA`. Choices use the vanilla arrow messages, so choice text starts in column 4.
 
 `fairy_ponds.asm` replaces the Lake Hylia fairy's states with a free bottle exchange (see [fairies.md](../generation/fairies.md)). Its refill receipts `$B8` (fairy) and `$B9` (golden bee) fill the first empty bottle through the vanilla refill loop, which reads a relocated list including the golden bee. The Waterfall and Pyramid fairies each grant the upgrade placed in `FairyItems` once, recording it in `!EventFlags` bits `$08` and `$10`; the patcher writes their placed receipts like other item locations. Receipt `$5A` selects the closed message `$0223` and ends the interaction immediately.
 

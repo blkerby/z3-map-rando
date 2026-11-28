@@ -30,7 +30,7 @@ An empty reward says “Sorry we're closed” on contact and immediately ends th
 3. If the class is not maxed and her upgrade is unused, Link throws the item in, and she says "I see you dropped your <item>. I will give you something better." She then grants the placed item through a regular item receipt, so progressive receipts resolve to the next tier. Mark her upgrade as used in a saved bit.
 4. If the class is maxed or her upgrade is already used, Link throws the item in, and she says "I see you dropped your <item>. I will give it back." No item is displayed or granted.
 
-The thrown item keeps its inventory value; only the toss animation shows it leaving. The receipt performs the upgrade. Each class has its own four messages in `messages.asm`, naming it BOOMERANG, MAIL, SHIELD, SWORD, BOW, GLOVES, BOMBS, or ARROWS; "THROW BOOMERANG?" does not fit one row, so it spans two. The used upgrades are `!EventFlags` bits `$08` (Waterfall) and `$10` (Pyramid).
+The thrown item keeps its inventory value; only the toss animation shows it leaving. The receipt performs the upgrade. Each class has its own four messages in `messages.asm`, naming it BOOMERANG, MAIL, SHIELD, SWORD, BOW, GLOVES, BOMBS, or ARROWS. The used upgrades are `!EventFlags` bits `$08` (Waterfall) and `$10` (Pyramid).
 
 ### Placement
 

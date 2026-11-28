@@ -62,6 +62,7 @@ pub fn patch_rom(
         seed.metadata.rng_seed.parse()?,
     )?;
     crate::items::apply_items(&mut patcher, rom, &seed.rooms, patches)?;
+    crate::graphics::shift_uppercase_font(&mut patcher, rom)?;
     let starting = &seed.settings.starting_state;
     let equipment = &starting.equipment;
     let resources = &starting.resources;

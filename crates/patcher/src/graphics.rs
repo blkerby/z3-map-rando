@@ -1,7 +1,46 @@
-use crate::import::Importer;
+use crate::{Patcher, PcAddr, SnesAddr, import::Importer};
 use anyhow::Result;
 use retiling_catalog::{Flip, TileGraphic, graphics::canonicalize_tile};
 use std::collections::BTreeMap;
+
+/// Fit the vanilla A–Z glyphs (IDs $AA–$C3) and their outlines into eight pixels,
+/// by shifting them left a pixel.
+pub(crate) fn shift_uppercase_font(patcher: &mut Patcher, rom: &[u8]) -> Result<()> {
+    let font_start = PcAddr::from(SnesAddr(0x8e9173));
+    let masks_start = PcAddr::from(SnesAddr(0x8ebb96)).0 as usize;
+    let mut source = font_start.0 as usize;
+    let mut packed = Vec::new();
+    for mask in rom[masks_start..masks_start + 26 * 5].chunks_exact(5) {
+        // Each set bit supplies one byte, starting at byte four of the decompressed glyph.
+        let mut glyph = [0u8; 44];
+        let mut stored_offsets = Vec::new();
+        for (group, &bits) in mask.iter().enumerate() {
+            for bit in 0..8 {
+                if bits & (0x80 >> bit) != 0 {
+                    let offset = 4 + group * 8 + bit;
+                    glyph[offset] = rom[source];
+                    source += 1;
+                    stored_offsets.push(offset);
+                }
+            }
+        }
+        // Each half has an 8×8 tile followed by three vertical columns, with two planes each.
+        for half in glyph.chunks_exact_mut(22) {
+            for row in 0..8 {
+                for plane in 0..2 {
+                    let ninth_pixel = (half[16 + plane] >> (7 - row)) & 1;
+                    let byte = &mut half[2 * row + plane];
+                    *byte = (*byte << 1) | ninth_pixel;
+                }
+            }
+            half[16..].fill(0);
+        }
+        for offset in stored_offsets {
+            packed.push(glyph[offset]);
+        }
+    }
+    patcher.context("uppercase font").write(font_start, packed)
+}
 
 /// Resolve catalog graphics while decoding each referenced ROM sheet only once.
 pub struct TileGraphicResolver<'a> {

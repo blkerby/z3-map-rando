@@ -30,6 +30,14 @@ hook_parse_message:
 org $8EEE98
 return_parse_message:
 
+; The cursor has advanced one 8-pixel tile. Skip the glyph's extra three columns
+; so redrawing a character (including a choice arrow) only touches its own cell.
+org $8EF372
+hook_draw_message_character:
+    BRA return_draw_message_character
+org $8EF3D6
+return_draw_message_character:
+
 org !free_space_bank_aa_start
 
 ResolveMessage:
@@ -136,7 +144,7 @@ SpawnMessageHousePyramid:
     %spawn_message_house()
     db "PYRAMID", $FE, $72, !End
 
-; Rows hold 14 characters. Choice text starts in column 4, after the arrow
+; Rows hold 19 characters. Choice text starts in column 4, after the arrow
 ; that the vanilla choice messages redraw in column 2.
 MessageLakeHyliaFairyOffer:
     db "THROW IN A", !Row2
@@ -162,14 +170,12 @@ MessageFairyClosed:
 
 ; Waterfall and Pyramid fairy messages for each item class: the offer, the
 ; missing prerequisite, and the reply after the item is thrown.
-macro fairy_offer(class, name)
+macro fairy_messages(class, name, prerequisite)
 MessageFairy<class>Offer:
     db "THROW <name>?", !Row2
     db "  ", !Arrow, " YES", !Row3
     db "    NO", !ChooseLowerTwo, !End
-endmacro
 
-macro fairy_replies(class, name, prerequisite)
 MessageFairy<class>Missing:
     db "COME BACK WHEN", !Row2
     db "YOU HAVE", !Row3
@@ -191,27 +197,14 @@ MessageFairy<class>Return:
     db "BACK.", !End
 endmacro
 
-; "THROW BOOMERANG?" does not fit in one row.
-MessageFairyBoomerangOffer:
-    db "THROW YOUR", !Row2
-    db "BOOMERANG?", !Row3
-    db "  ", !Arrow, " YES", !Scroll
-    db "    NO", !ChooseLowerTwo, !End
-%fairy_replies(Boomerang, "BOOMERANG", "A BOOMERANG")
-%fairy_offer(Mail, "MAIL")
-%fairy_replies(Mail, "MAIL", "BLUE MAIL")
-%fairy_offer(Shield, "SHIELD")
-%fairy_replies(Shield, "SHIELD", "A SHIELD")
-%fairy_offer(Sword, "SWORD")
-%fairy_replies(Sword, "SWORD", "A SWORD")
-%fairy_offer(Bow, "BOW")
-%fairy_replies(Bow, "BOW", "A BOW")
-%fairy_offer(Gloves, "GLOVES")
-%fairy_replies(Gloves, "GLOVES", "GLOVES")
-%fairy_offer(Bombs, "BOMBS")
-%fairy_replies(Bombs, "BOMBS", "BOMBS")
-%fairy_offer(Arrows, "ARROWS")
-%fairy_replies(Arrows, "ARROWS", "ARROWS")
+%fairy_messages(Boomerang, "BOOMERANG", "A BOOMERANG")
+%fairy_messages(Mail, "MAIL", "BLUE MAIL")
+%fairy_messages(Shield, "SHIELD", "A SHIELD")
+%fairy_messages(Sword, "SWORD", "A SWORD")
+%fairy_messages(Bow, "BOW", "A BOW")
+%fairy_messages(Gloves, "GLOVES", "GLOVES")
+%fairy_messages(Bombs, "BOMBS", "BOMBS")
+%fairy_messages(Arrows, "ARROWS", "ARROWS")
 
 assert pc() <= !free_space_bank_aa_end
 

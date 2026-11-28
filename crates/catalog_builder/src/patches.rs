@@ -303,15 +303,12 @@ fn build_key_doors(path: &Path) -> Result<KeyDoors> {
             if row == 1 {
                 doors.messages.push(0xf8);
             }
-            for (column, byte) in line.bytes().enumerate() {
-                let glyph = match byte.to_ascii_uppercase() {
+            for byte in line.bytes() {
+                doors.messages.push(match byte.to_ascii_uppercase() {
                     b' ' => 0xff,
                     letter @ b'A'..=b'Z' => 0xaa + (letter - b'A'),
                     _ => bail!("unsupported character in key label for {id:?}: {line}"),
-                };
-                if column < 14 {
-                    doors.messages.push(glyph);
-                }
+                });
             }
         }
         doors.messages.push(0xfb);
