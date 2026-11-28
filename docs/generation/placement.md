@@ -21,7 +21,7 @@ Placed items are `common_types::Item` values (see [item mapping](item_mapping.md
 
 ## Main placement
 
-Each complete attempt starts with fresh Small Key assignments, fixed Big Keys, shuffled prizes, and empty ordinary and fairy locations. Placement proceeds in waves. In each wave, the generator takes the ordinary locations that have become collectible, first places each dungeon's Map and Compass among collectible eligible locations in that dungeon, then samples the remaining collectible locations from the entire remaining ordinary pool. There is no separate progression fill followed by junk fill.
+Each complete attempt starts with the selected Small Key assignments, fixed Big Keys, shuffled prizes, and empty ordinary and fairy locations. Placement proceeds in waves. In each wave, the generator takes the ordinary locations that have become collectible, first places each dungeon's Map and Compass among collectible eligible locations in that dungeon, then samples the remaining collectible locations from the entire remaining ordinary pool. There is no separate progression fill followed by junk fill.
 
 A candidate is accepted when its traversal closure exposes at least one more item location, or when every location is reachable. A rejected candidate leaves the committed state unchanged; there is no backtracking. Completion uses the accepted closure's collected-location bits once every slot is filled, including key pickups, prizes, and fairy upgrades, so no separate solve is needed.
 
@@ -35,4 +35,4 @@ A candidate is accepted when its traversal closure exposes at least one more ite
 | Complete generation attempts | 1000 | Report generation failure |
 | Border selections per random map | 10 | Reject the map, consuming one complete attempt (see [map randomization](../map_randomization.md)) |
 
-A failed Small Key dungeon attempt restarts only that dungeon and keeps earlier dungeons' assignments; every new complete attempt reassigns all keys. A placement step reports a brief failure reason distinguishing a rejected sample, no collectible empty slots, and Map/Compass placements consuming every collectible slot. A failed randomized attempt does not prove that a layout has no solution.
+In Random mode, a failed Small Key dungeon attempt restarts only that dungeon and keeps earlier dungeons' assignments; every new complete attempt reassigns all keys. A placement step reports a brief failure reason distinguishing a rejected sample, no collectible empty slots, and Map/Compass placements consuming every collectible slot. A failed randomized attempt does not prove that a layout has no solution.

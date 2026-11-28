@@ -1,0 +1,141 @@
+[
+  {
+    "room_id": 97,
+    "name": "Hyrule Castle",
+    "keys": [
+      {"door_id": 1, "simple_item_id": 2, "label": "First Guard South"},
+      {"door_id": 2, "simple_item_id": 4, "label": "Boomerang North"},
+      {"door_id": 4, "simple_item_id": 7, "label": "Dark Cross North"},
+      {"door_id": 5, "simple_item_id": 8, "label": "Rat Room North Door"}
+    ]
+  },
+  {
+    "room_id": 98,
+    "name": "Eastern Palace",
+    "keys": [
+      {"door_id": 1, "simple_item_id": 4, "label": "Dark Room West Door"},
+      {"door_id": 4, "simple_item_id": 7, "label": "Dark Eyegore Stairs"}
+    ]
+  },
+  {
+    "room_id": 99,
+    "name": "Desert Palace",
+    "keys": [
+      {"door_id": 1, "simple_item_id": 2, "label": "East Wing Door"},
+      {"door_id": 2, "simple_item_id": 6, "label": "First Tile Stairs"},
+      {"door_id": 3, "simple_item_id": 7, "label": "Long Hall North"},
+      {"door_id": 4, "simple_item_id": 8, "label": "Second Tile Exit"}
+    ]
+  },
+  {
+    "room_id": 100,
+    "name": "Tower of Hera",
+    "keys": [
+      {"door_id": 1, "simple_item_id": 2, "label": "Basement Stairs"}
+    ]
+  },
+  {
+    "room_id": 101,
+    "name": "Agahnim's Tower",
+    "keys": [
+      {"door_id": 1, "simple_item_id": 1, "label": "Lower Tower Stairs"},
+      {"door_id": 2, "simple_item_id": 2, "label": "Dark Maze East Door"},
+      {"door_id": 3, "simple_item_id": 3, "label": "Dark Archer Stairs"},
+      {"door_id": 4, "simple_item_id": 4, "label": "Pot Circle East"}
+    ]
+  },
+  {
+    "room_id": 133,
+    "name": "Palace of Darkness",
+    "keys": [
+      {"door_id": 1, "simple_item_id": 1, "label": "Central Path"},
+      {"door_id": 6, "simple_item_id": 4, "label": "Stalfos Stairs"},
+      {"door_id": 7, "simple_item_id": 6, "label": "Arena Northwest"},
+      {"door_id": 8, "simple_item_id": 3, "label": "Harmless Hellway"},
+      {"door_id": 9, "simple_item_id": 8, "label": "Dark Maze Entrance"},
+      {"door_id": 11, "simple_item_id": 12, "label": "Dark Peg West Door"}
+    ]
+  },
+  {
+    "room_id": 134,
+    "name": "Swamp Palace",
+    "keys": [
+      {"door_id": 1, "simple_item_id": 1, "label": "Entrance Moat Steps"},
+      {"door_id": 3, "simple_item_id": 3, "label": "East Pot Hall West"},
+      {"door_id": 4, "simple_item_id": 4, "label": "East Floodgate Door"},
+      {"door_id": 6, "simple_item_id": 8, "label": "Big Chest Northwest"},
+      {"door_id": 7, "simple_item_id": 7, "label": "Big Chest North"},
+      {"door_id": 9, "simple_item_id": 14, "label": "Fast River NW Door"}
+    ]
+  },
+  {
+    "room_id": 135,
+    "name": "Skull Woods",
+    "keys": [
+      {"door_id": 2, "simple_item_id": 4, "label": "Pot Prison East"},
+      {"door_id": 3, "simple_item_id": 5, "label": "Pinball North Door"},
+      {"door_id": 5, "simple_item_id": 7, "label": "West Entrance North"},
+      {"door_id": 6, "simple_item_id": 8, "label": "Bridge Room North"},
+      {"door_id": 7, "simple_item_id": 9, "label": "Gibdo Room East"}
+    ]
+  },
+  {
+    "room_id": 136,
+    "name": "Thieves' Town",
+    "keys": [
+      {"door_id": 4, "simple_item_id": 6, "label": "Attic Stairs"},
+      {"door_id": 6, "simple_item_id": 8, "label": "Big Chest Room Door"},
+      {"door_id": 7, "simple_item_id": 5, "label": "Boss Hall West Door"}
+    ]
+  },
+  {
+    "room_id": 137,
+    "name": "Ice Palace",
+    "keys": [
+      {"door_id": 1, "simple_item_id": 1, "label": "Bari Room Stairs"},
+      {"door_id": 2, "simple_item_id": 3, "label": "Spiky Conveyor Exit"},
+      {"door_id": 3, "simple_item_id": 7, "label": "Ice Hall South Door"},
+      {"door_id": 4, "simple_item_id": 6, "label": "Spike U West Door"},
+      {"door_id": 6, "simple_item_id": 10, "label": "Pot Drop Stairs"},
+      {"door_id": 7, "simple_item_id": 11, "label": "Final Switch East"}
+    ]
+  },
+  {
+    "room_id": 138,
+    "name": "Misery Mire",
+    "keys": [
+      {"door_id": 1, "simple_item_id": 3, "label": "Spike Chest North"},
+      {"door_id": 2, "simple_item_id": 4, "label": "Spike Hall North"},
+      {"door_id": 3, "simple_item_id": 1, "label": "Lobby Northeast"},
+      {"door_id": 4, "simple_item_id": 6, "label": "Lobby Southwest"},
+      {"door_id": 5, "simple_item_id": 7, "label": "Torch and Tile Room"},
+      {"door_id": 8, "simple_item_id": 2, "label": "Rupee Cache Door"}
+    ]
+  },
+  {
+    "room_id": 139,
+    "name": "Turtle Rock",
+    "keys": [
+      {"door_id": 1, "simple_item_id": 3, "label": "Entry Hub Northwest"},
+      {"door_id": 2, "simple_item_id": 4, "label": "Chain Chomp South"},
+      {"door_id": 3, "simple_item_id": 5, "label": "Chain Chomp Stairs"},
+      {"door_id": 4, "simple_item_id": 6, "label": "Lava Tube Center"},
+      {"door_id": 9, "simple_item_id": 9, "label": "Crystaroller Stairs"},
+      {"door_id": 11, "simple_item_id": 13, "label": "Peg Maze Entrance"}
+    ]
+  },
+  {
+    "room_id": 140,
+    "name": "Ganon's Tower",
+    "keys": [
+      {"door_id": 1, "simple_item_id": 1, "label": "Lobby Cross Door"},
+      {"door_id": 2, "simple_item_id": 30, "label": "Map Chest Entrance"},
+      {"door_id": 3, "simple_item_id": 31, "label": "Double Switch East"},
+      {"door_id": 4, "simple_item_id": 7, "label": "Firesnake South"},
+      {"door_id": 6, "simple_item_id": 14, "label": "Tile Room East Door"},
+      {"door_id": 7, "simple_item_id": 19, "label": "Crumble Bridge Door"},
+      {"door_id": 11, "simple_item_id": 27, "label": "Helmasaur West Door"},
+      {"door_id": 13, "simple_item_id": 28, "label": "Pre Moldorm South"}
+    ]
+  }
+]

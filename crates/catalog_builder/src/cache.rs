@@ -65,6 +65,7 @@ impl CatalogCache {
             self.config.tech_data.clone(),
             self.config.notable_data.clone(),
             self.config.items.clone(),
+            self.config.paired_keys.clone(),
         ];
         if let Some(path) = &self.config.asar_executable {
             paths.push(path.clone());
@@ -105,10 +106,12 @@ impl CatalogCache {
         let mut fingerprint = self.create_fingerprint(LOGIC_CODE_INPUTS);
         let clean = hash_repository(&mut fingerprint, source)?;
         hash_input(&mut fingerprint, &fs::read(&self.config.items)?);
+        hash_input(&mut fingerprint, &fs::read(&self.config.paired_keys)?);
         update_catalog(&output, fingerprint, clean, || {
             logic::build_catalog(
                 source,
                 &self.config.items,
+                &self.config.paired_keys,
                 &output,
                 self.config.compression_level,
             )
@@ -141,6 +144,7 @@ impl CatalogCache {
         let mut fingerprint = self.create_fingerprint(PATCH_CODE_INPUTS);
         let clean = hash_repository(&mut fingerprint, &self.config.logic_source)?;
         hash_input(&mut fingerprint, &fs::read(&self.config.items)?);
+        hash_input(&mut fingerprint, &fs::read(&self.config.paired_keys)?);
         let mut artifacts = Vec::new();
         for entry in fs::read_dir(self.config.output_directory.join("patches"))? {
             let path = entry?.path();
@@ -165,6 +169,7 @@ impl CatalogCache {
                 built,
                 &self.config.logic_source,
                 &self.config.items,
+                &self.config.paired_keys,
                 &self.config.output_directory,
                 self.config.compression_level,
             )

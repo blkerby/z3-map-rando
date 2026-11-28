@@ -7,6 +7,8 @@ use std::collections::BTreeMap;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Settings {
     pub map_layout: MapLayoutSetting,
+    #[serde(default)]
+    pub keys: KeySetting,
     pub skill: SkillSettings,
     pub item_pool: ItemPoolSettings,
     pub starting_state: StartingState,
@@ -283,6 +285,14 @@ impl Settings {
 #[serde(rename_all = "lowercase")]
 pub enum MapLayoutSetting {
     Vanilla,
+    Random,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum KeySetting {
+    Simple,
+    #[default]
     Random,
 }
 

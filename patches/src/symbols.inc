@@ -199,6 +199,13 @@ endmacro
 ; with kinds 0 offer, 1 missing prerequisite, 2 upgrade, and 3 return.
 !FirstFairyMessage = $0203
 !MessageFairyClosed = $0223
+!MessageWrongKey = $0224
+!FirstPairedKeyMessage = $0225
+!ChestKeyMessage = $7ECC83 ; word used during the chest receipt animation
+%export_symbol(LooseKeyDoors, loose_key_doors, $B08200)
+%export_symbol(ChestKeyDoors, chest_key_doors, $B08300)
+%export_symbol(PairedKeyLocks, paired_key_locks, $B08500)
+%export_symbol(PairedKeyMessages, paired_key_messages, $AA9000)
 
 ; Finalized empty locations use a receipt below $80 so chests can open.
 !NothingReceipt = $5A

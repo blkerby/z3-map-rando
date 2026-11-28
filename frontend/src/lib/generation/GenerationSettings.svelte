@@ -64,6 +64,18 @@
 				<p><strong>Randomized:</strong> The overworld areas are shuffled into a new map arrangement.</p>
 			{/snippet}
 		</ChoiceSetting>
+		<ChoiceSetting
+			path={['keys']}
+			label="Keys"
+			options={[
+				{ value: 'simple', label: 'Simple' },
+				{ value: 'random', label: 'Random' }
+			]}
+		>
+			{#snippet help()}
+				<p>Each Small Key opens one door in its dungeon. Simple uses fixed pairings based on the vanilla route. Random chooses new pairings during generation.</p>
+			{/snippet}
+		</ChoiceSetting>
 	</Group>
 </div>
 

@@ -16,6 +16,7 @@ pub(crate) fn apply_items(
     patcher.use_ips(&catalog.patches.item_inventory)?;
     patcher.use_ips(&catalog.patches.item_menu_toggle)?;
     patcher.use_ips(&catalog.patches.item_placements)?;
+    patcher.use_ips(&catalog.patches.paired_keys)?;
     let tables = catalog.symbols.item_receipt_tables;
     let bank = tables & 0xFF0000;
     let mut context = patcher.context("vanilla item receipt tables");
@@ -42,6 +43,16 @@ pub(crate) fn apply_items(
     patcher
         .context("vanilla item graphics")
         .write(SnesAddr(catalog.symbols.item_graphics).into(), graphics)?;
+    let key_doors = &catalog.key_doors;
+    let mut context = patcher.context("paired key doors");
+    context.write(
+        SnesAddr(catalog.symbols.paired_key_locks).into(),
+        key_doors.locks.clone(),
+    )?;
+    context.write(
+        SnesAddr(catalog.symbols.paired_key_messages).into(),
+        key_doors.messages.clone(),
+    )?;
     for room in rooms {
         for placement in &room.items {
             let id = ItemLocationId {
@@ -49,6 +60,20 @@ pub(crate) fn apply_items(
                 item_id: placement.item_id,
             };
             let location = &catalog.item_locations[&id];
+            if let common_types::Item::SmallKey(door) = placement.item {
+                let index = key_doors
+                    .indices
+                    .get(&door)
+                    .ok_or_else(|| anyhow!("unknown Small Key door {door:?}"))?;
+                let address = location
+                    .rom_addresses
+                    .first()
+                    .ok_or_else(|| anyhow!("unknown Small Key pickup {id:?}"))?;
+                patcher
+                    .context("paired key pickup")
+                    .write(PcAddr(*address), vec![*index])?;
+                continue;
+            }
             if location.rom_addresses.is_empty() {
                 continue;
             }

@@ -3,4 +3,5 @@ $86B001-$86B004 overworld_bg_tilemaps.asm (fade out Rain music halfway through t
 $86B015-$86B018 overworld_bg_tilemaps.asm (restore overworld music after the flute kid's fade)
 $86C431-$86C435 fairy_ponds.asm (Waterfall and Pyramid fairy state machine)
 $86C454-$86C458 fairy_ponds.asm (Lake Hylia fairy state machine)
+$86D192-$86D195 paired_keys.asm (loose sprite key pickup)
 $86E81A-$86E81D overworld_map16_properties.asm (sprite tile collision lookup hook)

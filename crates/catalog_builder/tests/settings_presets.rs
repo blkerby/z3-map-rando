@@ -14,6 +14,7 @@ fn validate_builtin_presets() -> anyhow::Result<()> {
     logic::build_catalog(
         &config.logic_source,
         &config.items,
+        &config.paired_keys,
         &output.path().join("logic_catalog.bin"),
         config.compression_level,
     )?;

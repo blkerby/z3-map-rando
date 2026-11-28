@@ -9,6 +9,7 @@ presets = "data/presets"
 tech_data = "data/tech_data.json"
 notable_data = "data/notable_data.json"
 items = "data/items.json"
+paired_keys = "data/paired_keys.json"
 compression_level = 3
 
 # Override the automatically built assembler with our patched Asar executable.

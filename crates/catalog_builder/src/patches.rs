@@ -1,9 +1,9 @@
 use crate::z3_json_data::{self, collect_source_files, read_source};
 use anyhow::{Context, Result, bail};
-use common_types::{FAIRY_UPGRADE_LOCATIONS, ItemKind};
+use common_types::{DoorId, FAIRY_UPGRADE_LOCATIONS, ItemKind};
 use patch_catalog::{
-    Ips, ItemEncoding, ItemLocation, ItemLocationId, PatchCatalog, PatchIps, PatchSymbols,
-    RoomArea, SourceRoomId,
+    Ips, ItemEncoding, ItemLocation, ItemLocationId, KeyDoors, PatchCatalog, PatchIps,
+    PatchSymbols, RoomArea, SourceRoomId,
 };
 use serde::{
     Deserialize,
@@ -164,6 +164,7 @@ pub fn build_catalog(
     asar_source: &Path,
     source_directory: &Path,
     item_records: &Path,
+    paired_keys: &Path,
     output_directory: &Path,
     asar_executable: Option<&Path>,
     compression_level: i32,
@@ -178,6 +179,7 @@ pub fn build_catalog(
         built,
         source_directory,
         item_records,
+        paired_keys,
         output_directory,
         compression_level,
     )
@@ -187,12 +189,14 @@ pub(crate) fn package_catalog(
     built: BuiltPatches,
     source_directory: &Path,
     item_records: &Path,
+    paired_keys: &Path,
     output_directory: &Path,
     compression_level: i32,
 ) -> Result<()> {
     let encodings = read_item_encodings(source_directory)?;
+    let mut key_doors = build_key_doors(paired_keys)?;
     let (item_locations, room_areas) =
-        read_room_records(source_directory, &built.symbols, &encodings)?;
+        read_room_records(source_directory, &built.symbols, &encodings, &mut key_doors)?;
     let mut items = BTreeMap::new();
     for record in crate::items::read_item_records(item_records)? {
         let encoding = encodings
@@ -212,6 +216,7 @@ pub(crate) fn package_catalog(
         patches: built.patches,
         symbols: built.symbols,
         item_locations,
+        key_doors,
         items,
         room_areas,
     };
@@ -279,11 +284,48 @@ fn read_item_encodings(source_directory: &Path) -> Result<BTreeMap<String, ItemE
     Ok(encodings)
 }
 
-/// Read item locations and the map areas of rooms drawn as overworld areas.
+fn build_key_doors(path: &Path) -> Result<KeyDoors> {
+    let mut doors = KeyDoors {
+        indices: BTreeMap::new(),
+        locks: vec![0xff; 256 * 4],
+        messages: Vec::new(),
+    };
+    for (index, (id, key)) in crate::items::read_paired_keys(path)?
+        .into_iter()
+        .enumerate()
+    {
+        doors.indices.insert(id, index as u8);
+        anyhow::ensure!(
+            key.label.len() <= 19,
+            "key label exceeds 19 characters for {id:?}"
+        );
+        for (row, line) in ["THIS KEY OPENS", &key.label].into_iter().enumerate() {
+            if row == 1 {
+                doors.messages.push(0xf8);
+            }
+            for (column, byte) in line.bytes().enumerate() {
+                let glyph = match byte.to_ascii_uppercase() {
+                    b' ' => 0xff,
+                    letter @ b'A'..=b'Z' => 0xaa + (letter - b'A'),
+                    _ => bail!("unsupported character in key label for {id:?}: {line}"),
+                };
+                if column < 14 {
+                    doors.messages.push(glyph);
+                }
+            }
+        }
+        doors.messages.push(0xfb);
+        doors.messages.resize((index + 1) * 64, 0);
+    }
+    Ok(doors)
+}
+
+/// Read item locations, native Small Key door faces, and rooms drawn as overworld areas.
 fn read_room_records(
     source_directory: &Path,
     symbols: &PatchSymbols,
     encodings: &BTreeMap<String, ItemEncoding>,
+    key_doors: &mut KeyDoors,
 ) -> Result<(
     BTreeMap<ItemLocationId, ItemLocation>,
     BTreeMap<SourceRoomId, RoomArea>,
@@ -305,6 +347,30 @@ fn read_room_records(
     for path in room_paths {
         let room: z3_json_data::Room = read_source(&path)?;
         let room_id = room.id;
+        for door in room.locked_doors {
+            if !matches!(door.key_type, z3_json_data::KeyType::Small) {
+                continue;
+            }
+            let id = DoorId {
+                room_id,
+                door_id: door.id,
+            };
+            let index = key_doors
+                .indices
+                .get(&id)
+                .with_context(|| format!("missing paired key for {id:?}"))?;
+            let faces = door
+                .faces
+                .with_context(|| format!("missing faces for {id:?}"))?;
+            for face in faces {
+                let supertile = u8::from_str_radix(face.supertile.trim_start_matches("0x"), 16)?;
+                anyhow::ensure!(
+                    face.door_index < 4,
+                    "Small Key door index exceeds native lock slots for {id:?}"
+                );
+                key_doors.locks[usize::from(supertile) * 4 + usize::from(face.door_index)] = *index;
+            }
+        }
         if let (Some([x, y]), Some([width, height])) = (room.position, room.size) {
             room_areas.insert(
                 room_id,
@@ -356,7 +422,22 @@ fn read_room_records(
                     0xC6FC + index,
                 ];
             }
-            if item.item == "SmallKey" || item.item == "BigKey" {
+            if item.item == "SmallKey" {
+                // OpenItemChest indexes three-byte RoomData_ChestItems records by byte offset.
+                let address = match rom_addresses.first().copied() {
+                    Some(item_byte @ 0xe96e..=0xeb63) => {
+                        symbols.chest_key_doors + (item_byte - 0xe96e)
+                    }
+                    _ => {
+                        let supertile = item.supertile.as_deref().with_context(|| {
+                            format!("missing supertile for loose Small Key {id:?}")
+                        })?;
+                        let supertile = u8::from_str_radix(supertile.trim_start_matches("0x"), 16)?;
+                        symbols.loose_key_doors + u32::from(supertile)
+                    }
+                };
+                rom_addresses = vec![((address & 0x7f0000) >> 1) | (address & 0x7fff)];
+            } else if item.item == "BigKey" {
                 rom_addresses.clear();
             }
             // These gifts keep their vanilla sprite subtype as a placeholder.

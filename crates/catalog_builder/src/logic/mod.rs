@@ -3,7 +3,7 @@ mod requirements;
 mod rooms;
 
 use crate::z3_json_data::{self, collect_source_files, read_source};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use logic_catalog::*;
 use requirements::{Compiler, RequirementContext};
 use std::{
@@ -52,6 +52,7 @@ fn collect_techs(
 pub fn build_catalog(
     source_directory: &Path,
     item_records: &Path,
+    paired_keys: &Path,
     output_catalog: &Path,
     compression_level: i32,
 ) -> Result<()> {
@@ -61,6 +62,7 @@ pub fn build_catalog(
         edges: Vec::new(),
         edge_metadata: Vec::new(),
         item_locations: Vec::new(),
+        simple_keys: Vec::new(),
         start_vertex_idx: VertexIndex(0),
         rooms: Vec::new(),
         dungeons: Vec::new(),
@@ -90,6 +92,32 @@ pub fn build_catalog(
         },
     );
     let room_indices = rooms::compile_rooms(source_directory, &mut catalog, &compiler)?;
+    let mut simple_doors = BTreeMap::new();
+    for (door, key) in crate::items::read_paired_keys(paired_keys)? {
+        let pickup = ItemLocationId {
+            room_id: door.room_id,
+            item_id: key.simple_item_id,
+        };
+        anyhow::ensure!(
+            simple_doors.insert(pickup, door).is_none(),
+            "duplicate Simple key pickup {pickup:?}"
+        );
+    }
+    for (index, location) in catalog.item_locations.iter().enumerate() {
+        if catalog.item(location.vanilla_item_idx).item == Some(ItemKind::SmallKey) {
+            let door = simple_doors
+                .remove(&location.id)
+                .with_context(|| format!("no Simple key pairing for {}", location.name))?;
+            catalog
+                .simple_keys
+                .push((ItemLocationIndex(index as u32), door));
+        }
+    }
+    anyhow::ensure!(
+        simple_doors.is_empty(),
+        "unexpected Simple key pickups: {:?}",
+        simple_doors.keys()
+    );
     connections::build_connections(source_directory, &room_indices, &mut catalog)?;
     build_flute_travel(&mut catalog, &compiler);
     write_catalog(&catalog, output_catalog, compression_level)

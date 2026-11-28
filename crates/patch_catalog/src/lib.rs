@@ -45,11 +45,21 @@ pub struct PatchCatalog {
     pub patches: PatchIps,
     pub symbols: PatchSymbols,
     pub item_locations: BTreeMap<ItemLocationId, ItemLocation>,
+    pub key_doors: KeyDoors,
     /// Encodings of the randomizer's item kinds. Dungeon items of every dungeon share one
     /// encoding per kind.
     pub items: BTreeMap<ItemKind, ItemEncoding>,
     /// Map area of each room drawn as an overworld area.
     pub room_areas: BTreeMap<SourceRoomId, RoomArea>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct KeyDoors {
+    pub indices: BTreeMap<common_types::DoorId, u8>,
+    /// Four native door slots per dungeon supertile. $FF selects the Big Key check.
+    pub locks: Vec<u8>,
+    /// A 64-byte encoded receipt for each door index.
+    pub messages: Vec<u8>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -83,6 +93,7 @@ pub struct PatchIps {
     pub item_inventory: Ips,
     pub item_menu_toggle: Ips,
     pub messages: Ips,
+    pub paired_keys: Ips,
     pub item_placements: Ips,
     pub mirror_bg1_hdma: Ips,
     pub mothula_sword: Ips,
@@ -118,6 +129,10 @@ pub struct PatchSymbols {
     pub catfish_item: u32,
     pub king_zora_item: u32,
     pub fairy_items: u32,
+    pub loose_key_doors: u32,
+    pub chest_key_doors: u32,
+    pub paired_key_locks: u32,
+    pub paired_key_messages: u32,
     pub item_receipt_tables: u32,
     pub item_graphics: u32,
     pub starting_state: u32,
@@ -157,8 +172,8 @@ pub struct ItemLocation {
     /// Unheadered ROM file offsets read from `itemAddress` or derived for prizes.
     /// Ordinary pickups receive the item's receipt ID as a single address.
     /// Dungeon prizes have six offsets, in the same order as
-    /// `ItemEncoding::prize_patch_bytes`. Empty when no address is supplied,
-    /// or for fixed keys and fairy exchanges.
+    /// `ItemEncoding::prize_patch_bytes`. Small Key offsets receive the assigned
+    /// door index. Big Keys have no write.
     /// Non-chest addresses may refer to data consumed by the item-placement ASM.
     pub rom_addresses: Vec<u32>,
 }

@@ -266,6 +266,7 @@ pub struct ItemLocation {
     pub item_location: u32,
     pub item: String,
     pub item_address: Option<String>,
+    pub supertile: Option<String>,
     pub world: Option<SourceWorld>,
 }
 
@@ -291,7 +292,15 @@ pub struct Door {
     pub id: u32,
     pub location_name: String,
     pub key_type: KeyType,
+    pub faces: Option<Vec<DoorFace>>,
     pub world: Option<SourceWorld>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DoorFace {
+    pub supertile: String,
+    pub door_index: u8,
 }
 
 #[derive(Deserialize)]

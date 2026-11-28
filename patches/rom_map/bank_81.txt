@@ -1,0 +1,2 @@
+$81CF59-$81CF5C paired_keys.asm (check the Small Key door being touched)
+$81EC07-$81EC0A paired_keys.asm (record ownership for a Small Key chest)

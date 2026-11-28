@@ -164,6 +164,8 @@ pub struct LogicCatalog {
     /// One metadata record per edge, in the same order as `edges`.
     pub edge_metadata: Vec<EdgeMetadata>,
     pub item_locations: Vec<ItemLocation>,
+    /// Fixed Small Key destinations for the Simple setting.
+    pub simple_keys: Vec<(ItemLocationIndex, common_types::DoorId)>,
     /// Light World Link's House. Other restart destinations are deferred.
     pub start_vertex_idx: VertexIndex,
     pub rooms: Vec<Room>,

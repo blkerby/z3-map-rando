@@ -22,6 +22,7 @@ pub struct BuildConfig {
     pub notable_data: PathBuf,
     /// Items that settings can put in the item pool.
     pub items: PathBuf,
+    pub paired_keys: PathBuf,
     pub compression_level: i32,
 }
 
@@ -51,6 +52,7 @@ impl BuildConfig {
             &mut self.tech_data,
             &mut self.notable_data,
             &mut self.items,
+            &mut self.paired_keys,
         ] {
             *path = root.join(&*path);
         }

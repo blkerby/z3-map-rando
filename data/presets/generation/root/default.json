@@ -3,6 +3,7 @@
   "label": "Default",
   "settings": {
     "map_layout": "random",
+    "keys": "random",
     "skill": {
       "preset": "basic"
     },

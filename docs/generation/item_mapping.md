@@ -18,7 +18,7 @@ Records deserialize `name` as `ItemKind`, so an unknown token fails the catalog 
 ## Consumers
 
 - **Logic catalog:** each z3-json-data item definition carries the `ItemKind` it resolves to through `upstream_name` and `other_names`, or none for items the randomizer does not place, such as `OcarinaActive`. The generator reads the resolved kinds to classify locations, and creates dungeon items with the dungeon of their vanilla location.
-- **Patch catalog:** item encodings (receipt ID and prize bytes) are keyed by `ItemKind`, so every dungeon's items of one kind share an encoding. The patcher looks up each placement's kind.
+- **Patch catalog:** item encodings (receipt ID and prize bytes) are keyed by `ItemKind`, so every dungeon's items of one kind share an encoding. The patcher looks up ordinary receipts by kind and writes each Small Key’s assigned door into its pickup table.
 - **Frontend:** the records are included in `settings_data.json` by the preset preparation step; the item pool card shows the items outside the `dungeon` and `prize` categories.
 
 The catalog builder (`catalog_builder::items`) is the only code that relates item kinds to z3-json-data names. The logic and patch catalogs fingerprint the item records, so editing them rebuilds both.

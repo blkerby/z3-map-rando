@@ -32,7 +32,9 @@ $A0AC00-$A0AE57 overworld_vram.asm (VRAM layout runtime)
 $A0AE58-$A0AEFF [FREE]
 $A0AF00-$A0B69F overworld_dynamic_tiles.asm (reserved for generated dynamic-tile runtime and Mirror-return entrance guard)
 $A0B6A0-$A0B928 overworld_cutscenes.asm (generated cutscene and live-overlay runtime, including Mire's rain-ending event and music)
-$A0B929-$A0BFFF [FREE]
+$A0B929-$A0B92F [FREE]
+$A0B930-$A0BA2F paired_keys.asm (reserved for key collection and door checks)
+$A0BA30-$A0BFFF [FREE]
 $A0C000-$A0EFFF item_placements.asm (reserved for item carriers, empty rewards, receipts, and graphics)
 $A0F000-$A0F03F [FREE]
 $A0F040-$A0F05F mothula_sword.asm (reserved for sword damage selection)
@@ -76,13 +78,18 @@ $A784D1-$A9FFFF generated overworld asset metadata
 
 Banks $AA-$AF
 $AA8000-$AA8FFF messages.asm (custom message resolution and text, including closed Great Fairies)
-$AA9000-$AFFFFF [FREE]
+$AA9000-$AA9F3F generated Small Key receipt messages (61 entries of 64 bytes)
+$AA9F40-$AFFFFF [FREE]
 
 Bank $B0
 $B08000-$B08159 item_placements.asm and overworld_world_map.asm (seed-specific assigned items, prize types, and crystal number tiles)
 $B0815A-$B0815B fairy_ponds.asm (seed-specific Waterfall and Pyramid fairy upgrade receipts)
 $B0815C-$B081AC new_game.asm (seed-specific initial inventory and game-state byte)
-$B081AD-$B0FFFF [FREE]
+$B081AD-$B081FF [FREE]
+$B08200-$B082FF generated Small Key doors by native loose-key room
+$B08300-$B084FF generated Small Key doors by chest record byte offset
+$B08500-$B088FF generated door identities by native room and persistent door slot
+$B08900-$B0FFFF [FREE]
 
 Bank $B1
 $B18000-$B18005 item_receipt_tables.inc (bottle refill receipts)

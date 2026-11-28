@@ -29,7 +29,8 @@ use retiling_catalog::palette::{
     PALETTE_ATTEMPTS, PaletteProfiles, allocate_palettes, select_palette_profiles,
 };
 use seed_data::{
-    ItemPlacement, MapLayoutSetting, ResolvedSettings, RoomData, SeedMetadata, WorldLayout,
+    ItemPlacement, KeySetting, MapLayoutSetting, ResolvedSettings, RoomData, SeedMetadata,
+    WorldLayout,
 };
 use std::collections::BTreeMap;
 
@@ -129,7 +130,7 @@ pub fn generate(
                 "no palette assignment found for the vanilla layout in {PALETTE_ATTEMPTS} passes"
             );
         }
-        let items = match generate_items(logic_catalog, &mut graph, &inputs, rng) {
+        let items = match generate_items(logic_catalog, &mut graph, &inputs, settings.keys, rng) {
             Ok(Some(items)) => items,
             Ok(None) => continue,
             Err(error) if pool.is_some() && error.is::<KeyAssignmentExhausted>() => {
@@ -176,15 +177,27 @@ pub fn generate(
     bail!("generation exhausted {MAX_GENERATION_ATTEMPTS} complete attempts")
 }
 
-/// Assign fresh keys and Great Fairy upgrades, then run one complete item-placement attempt.
+/// Assign dungeon keys and Great Fairy upgrades, then run one complete item-placement attempt.
 fn generate_items(
     catalog: &LogicCatalog,
     graph: &mut TraversalGraph,
     inputs: &GenerationInputs,
+    keys: KeySetting,
     rng: &mut impl Rng,
 ) -> Result<Option<Vec<Item>>> {
-    let key_initial_states = KeyPlacementState::initialize_dungeons(catalog, graph, inputs)?;
-    let small_keys = assign_small_keys(catalog, graph, inputs, &key_initial_states, rng)?;
+    let small_keys = match keys {
+        KeySetting::Simple => {
+            let mut keys = hashbrown::HashMap::new();
+            for &(location, door) in &catalog.simple_keys {
+                keys.insert(location, Item::SmallKey(door));
+            }
+            keys
+        }
+        KeySetting::Random => {
+            let states = KeyPlacementState::initialize_dungeons(catalog, graph, inputs)?;
+            assign_small_keys(catalog, graph, inputs, &states, rng)?
+        }
+    };
     let fairy_items = select_fairy_upgrades(inputs, rng)?;
     graph.apply_fairy_upgrades(catalog, &fairy_items);
     let mut state =

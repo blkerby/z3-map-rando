@@ -1,6 +1,6 @@
-; Custom English text in the native uppercase font. Message IDs from
-; !FirstCustomMessage select entries of CustomMessages; the vanilla start-menu
-; IDs are replaced by text matching the available restart destinations.
+; Custom English text in the native uppercase font. IDs from !FirstCustomMessage
+; select fixed messages, followed by the generated Small Key receipts. Vanilla
+; start-menu IDs select text matching the available restart destinations.
 lorom
 incsrc "symbols.inc"
 
@@ -44,6 +44,15 @@ ResolveMessage:
     BRA .custom
 
 .custom_id
+    CMP.w #!FirstPairedKeyMessage
+    BCC .listed
+    SBC.w #!FirstPairedKeyMessage
+    ASL #6 ; each generated receipt occupies 64 bytes in this bank
+    CLC
+    ADC.w #!PairedKeyMessages&$FFFF
+    BRA .custom
+.listed
+    SEC
     SBC.w #!FirstCustomMessage
     ASL A
     TAX
@@ -98,7 +107,10 @@ CustomMessages:
     dw MessageFairyGlovesOffer, MessageFairyGlovesMissing, MessageFairyGlovesUpgrade, MessageFairyGlovesReturn
     dw MessageFairyBombsOffer, MessageFairyBombsMissing, MessageFairyBombsUpgrade, MessageFairyBombsReturn
     dw MessageFairyArrowsOffer, MessageFairyArrowsMissing, MessageFairyArrowsUpgrade, MessageFairyArrowsReturn
-    dw MessageFairyClosed
+    dw MessageFairyClosed, MessageWrongKey
+
+MessageWrongKey:
+    db "NO KEY FITS", !Row2, "THIS LOCK.", !End
 
 ; Start-menu labels substitute the saved player name in the house option.
 macro spawn_message_house()
@@ -202,3 +214,5 @@ MessageFairyBoomerangOffer:
 %fairy_replies(Arrows, "ARROWS", "ARROWS")
 
 assert pc() <= !free_space_bank_aa_end
+
+assert !PairedKeyMessages>>16 == ResolveMessage>>16

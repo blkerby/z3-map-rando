@@ -9,8 +9,8 @@ pub mod settings_processing;
 pub use layout::{OverworldRoomPlacement, WorldLayout};
 pub use output::{BorderSide, ItemPlacement, MapBorder, RoomData, SeedData, SeedMetadata};
 pub use settings::{
-    CustomizationSettings, InsufficientPoolItems, ItemPoolSettings, MapLayoutSetting, Settings,
-    SkillSettings, StartingBoomerang, StartingBottle, StartingBow, StartingEquipment,
+    CustomizationSettings, InsufficientPoolItems, ItemPoolSettings, KeySetting, MapLayoutSetting,
+    Settings, SkillSettings, StartingBoomerang, StartingBottle, StartingBow, StartingEquipment,
     StartingGlove, StartingMail, StartingOcarina, StartingResources, StartingShield, StartingState,
     StartingSword,
 };

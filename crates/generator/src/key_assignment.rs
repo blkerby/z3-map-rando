@@ -170,7 +170,7 @@ impl KeyPlacementState {
 /// Assign every dungeon's vanilla Small Key pickups to distinct same-dungeon doors.
 /// Completed dungeons remain settled while a later dungeon retries. Returned items
 /// carry stable door identities, ready for the later logical placement phases.
-/// Reuse the dungeon initial states prepared for this generation across attempts.
+/// Retry each dungeon from the initial state for the selected map.
 pub fn assign_small_keys(
     catalog: &LogicCatalog,
     graph: &TraversalGraph,

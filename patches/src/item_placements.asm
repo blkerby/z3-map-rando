@@ -736,6 +736,12 @@ ReadReceiptGraphics:
 
 ; Entry is A16/X8/Y8, with Y already holding twice the receipt ID.
 ReadReceiptMessage:
+    CPY.b #$48 ; twice the Small Key receipt ID
+    BNE .ordinary
+    LDA.l !ChestKeyMessage
+    CMP.w #$FFFF
+    RTL
+.ordinary
     PHX
     TYX
     LDA.l ItemReceiptMessages,X ; Run hi-jacked instruction

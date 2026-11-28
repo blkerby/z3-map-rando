@@ -6,6 +6,7 @@
   "additionalProperties": false,
   "required": [
     "map_layout",
+    "keys",
     "skill",
     "item_pool",
     "starting_state"
@@ -17,6 +18,10 @@
         "vanilla",
         "random"
       ]
+    },
+    "keys": {
+      "type": "string",
+      "enum": ["simple", "random"]
     },
     "skill": {
       "$ref": "urn:z3-map-rando:schema:settings:skill"
