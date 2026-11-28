@@ -18,7 +18,7 @@
 		<li>Waterfall of Wishing and Pyramid fairies give a randomized upgrade, selected from among sword, shield, gloves, mail, boomerang, bow, or a bomb or arrow capacity upgrade. The player must first throw in a matching item.</li>
 		<li>When having both items in a menu slot (Mushroom/Magic Powder or Shovel/Ocarina), the player can switch between them by pressing Y.</li>
 		<li>The game starts in a Zelda-rescued state, so enemies spawn throughout the overworld.</li>
-		<li>The rain at the start of the game lasts until you rescue Zelda, defeat a dungeon boss, or open Misery Mire.</li>
+		<li>The rain at the start of the game lasts until you rescue Zelda, defeat a dungeon boss, open Misery Mire, or make Flute Boy disappear.</li>
 		<li>The Sanctuary priest remains alive and available for healing regardless of sword level or Agahnim progress.</li>
 		<li>Before defeating Agahnim, save-and-quit and outdoor/cave deaths return to the Light World even with the Mirror.</li>
 		<li>In Light World, Sanctuary and Mountain Cave become spawn options after visiting their overworld area.</li>

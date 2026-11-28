@@ -102,6 +102,18 @@ hook_complete_boss_defeat:
     JSL EndRainAfterBossDefeat
     NOP
 
+org $86AFD3
+hook_start_flute_kid_fade:
+    JSL EndRainBeforeFluteKidFade
+
+org $86B001
+hook_step_flute_kid_fade:
+    JSL StepFluteKidFade
+
+org $86B015
+hook_finish_flute_kid_fade:
+    JSL RestoreFluteKidFade
+
 ; OverworldOverlay_HandleRain
 ;
 ; Every fourth game frame, the rain animation advances to another quarter of
@@ -3455,6 +3467,47 @@ EndRainAfterBossDefeat:
     CPY.b #$D6
 
     RTL
+
+EndRainBeforeFluteKidFade:
+    JSL EndRain
+
+    ; Retire rain before its per-frame cleanup can overwrite the fade setup.
+    LDA.b $8C
+    CMP.b #$9F
+    BNE .set_layers
+    STZ.b $8C
+
+.set_layers
+    ; Run hi-jacked instructions:
+    LDA.b #$02
+    STA.b $1D
+
+    RTL
+
+StepFluteKidFade:
+    JSL $80EC3D                 ; Run hi-jacked instruction (PaletteFilter_Sprite5Left)
+
+    LDA.l $7EC007
+    CMP.b #$10                  ; Halfway through the palette fade.
+    BNE .done
+    LDA.w $0130
+    CMP.b #$03
+    BNE .done
+    LDA.b #$F1                  ; Fade out the Rain track.
+    STA.w $012C
+
+.done
+    RTL
+
+RestoreFluteKidFade:
+    LDA.w $0130
+    CMP.b #$F1                  ; NMI records the fade-out command as the current song.
+    BNE .revert
+    LDA.b #$02
+    STA.w $012C
+
+.revert
+    JML $82FD68                 ; Run hi-jacked instruction (RevertTranslucencySwap)
 
 assert pc() <= !PreloadAlignedTransitionEdge
 org !PreloadAlignedTransitionEdge

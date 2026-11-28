@@ -1,6 +1,6 @@
 # Rain music
 
-Outdoor music uses vanilla song `$03` (Rain) while `!EventFlags & $80` is clear, with bunny music taking priority. A dungeon boss defeat, completion of Zelda's Sanctuary sequence, or opening Mire sets that saved bit. Music follows the global storm state even where an authored BG1 prevents visible rain. Cleared weather uses normal area-specific outdoor music.
+Outdoor music uses vanilla song `$03` (Rain) while `!EventFlags & $80` is clear, with bunny music taking priority. A dungeon boss defeat, completion of Zelda's Sanctuary sequence, opening Mire, or the flute kid starting to fade sets that saved bit. Music follows the global storm state even where an authored BG1 prevents visible rain. Cleared weather uses normal area-specific outdoor music.
 
 Link's House spawns, including a new game, select the opening track and its indoor rain ambience only while the storm is active. Other spawn points retain their own music. Normal indoor entry keeps its existing music choices; the indoor rain-sound handler applies its floor and Sanctuary audibility rules when the requested track is Rain and the storm is active.
 
@@ -12,4 +12,4 @@ The routine recognizes normal regional tracks while the overworld sound bank is 
 
 The SPC restarts a track when it receives that track's ID again. When Rain is already playing, the shared routine substitutes the maximum-volume command for another Rain request and consumes ordinary area-transition fades. Map and menu volume commands stay intact. Mirror travel retains its warp track and restores the appropriate regional track at the destination.
 
-The generated Mire-opening cutscene replaces the Rain track with normal Dark World music when it clears the storm, retaining the bunny track without Moon Pearl. It leaves an existing non-rain track alone. Boss defeat and Zelda's escape use the next outdoor load to select normal music. `EndRain` only saves weather state; presentation code owns the song request.
+The generated Mire-opening cutscene replaces the Rain track with normal Dark World music when it clears the storm, retaining the bunny track without Moon Pearl. The flute kid's sequence clears the rain overlay as the sprite fade starts and fades out the Rain track halfway through. Normal Light World music starts when the fade finishes. Both sequences preserve an existing non-rain track. Boss defeat and Zelda's escape use the next outdoor load to select normal music. `EndRain` only saves weather state; presentation code owns the song request.
